@@ -89,7 +89,13 @@
         // The Flutter SDK in the image (see image/Containerfile), there
         // from the moment VS Code attaches, so the Dart extension doesn't
         // offer to download one.
-        "dart.flutterSdkPath": "/opt/flutter"
+        "dart.flutterSdkPath": "/opt/flutter",
+        // No `pub get` from the editor, prompted or on a pubspec change: it
+        // rewrites each app's pubspec.lock, which makes the image's builds
+        // look older than the apps, so every demo rebuilds instead of
+        // starting in seconds.
+        "dart.promptToGetPackages": false,
+        "dart.runPubGetOnPubspecChanges": "never"
       },
       "extensions": [
         "Dart-Code.dart-code",

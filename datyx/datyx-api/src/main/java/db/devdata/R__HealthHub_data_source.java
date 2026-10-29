@@ -25,7 +25,7 @@ import org.jboss.logging.Logger;
  * HealthHub, in every profile that has none of that name, the local
  * profile included (made here when missing, so authentication off has it
  * too). The details are HealthHub's development defaults
- * (HealthHub/.env.example): localhost, port 9802, database healthhub,
+ * (HealthHub/.env.example): localhost, port 9803, database healthhub,
  * user healthhub. Encrypted as the API stores them (AccessCodec), with
  * the same master key. A repeatable migration: it runs again when
  * {@link #VERSION} changes, and then seeds the profiles made since. A
@@ -58,7 +58,7 @@ public class R__HealthHub_data_source extends BaseJavaMigration {
         Instant now = Instant.now();
         ensureLocalProfile(c, crypto, now);
         Access access = new Access(
-            new DatabaseAccess("postgresql", "localhost", 9802, "healthhub", "healthhub", "healthhub"), null, null);
+            new DatabaseAccess("postgresql", "localhost", 9803, "healthhub", "healthhub", "healthhub"), null, null);
         int seeded = 0;
         for (long[] profile : profilesWithout(c)) {
             long id = profile[0];

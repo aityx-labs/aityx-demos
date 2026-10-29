@@ -21,7 +21,7 @@ a folder of its own) only calls it.
   test (`quarkus.flyway.locations`); dev mode adds `db/devdata`, the
   development data: Java migrations in package `db.devdata`, which
   prod never runs. So far `R__HealthHub_data_source`, a repeatable
-  migration that adds HealthHub's PostgreSQL (localhost, 9802, database
+  migration that adds HealthHub's PostgreSQL (localhost, 9803, database
   `healthhub`, user `healthhub`, HealthHub's development defaults) as a
   data source named HealthHub to every profile lacking one, the local
   profile included (made when missing), encrypted as the API stores it
@@ -34,8 +34,12 @@ a folder of its own) only calls it.
   `openmetadata`, URL from `DATYX_OPENMETADATA_URL`), its public
   `/api/v1/system/version` so far.
 - SmallRye Health: `/api/health`, `/api/health/live`, `/api/health/ready`, with
-  the datasource check. The services' readiness probe and the health
-  monitor use it.
+  two readiness checks: the datasource's and OpenMetadata's
+  (`OpenMetadataHealthCheck`, named `OpenMetadata`, UP with the server's
+  version and URL, DOWN with the error). The API is ready only with both,
+  as process-compose and `compose.yaml` already start it after
+  OpenMetadata. The OpenMetadata check is off in tests, which run without
+  it. The services' readiness probe and the health monitor use it.
 - SmallRye OpenAPI: `/q/openapi`, and Swagger UI at `/q/swagger-ui` in dev.
 - Quarkus OIDC: bearer tokens verified against the issuer, see
   [auth.md](auth.md).

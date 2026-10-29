@@ -5,9 +5,9 @@
 ///
 /// Settings, from the environment:
 ///   WEB_ROOT               the build to serve (healthhub_app/build/web)
-///   FLUTTER_WEB_PORT       the port (default 9800)
+///   FLUTTER_WEB_PORT       the port (default 9801)
 ///   HEALTHHUB_BIND_HOST    the address to bind (default 127.0.0.1)
-///   API_PORT               the API's port on 127.0.0.1 (default 9801)
+///   API_PORT               the API's port on 127.0.0.1 (default 9802)
 library;
 
 import 'dart:io';
@@ -24,9 +24,9 @@ Future<void> main() async {
     );
     exit(1);
   }
-  final port = int.parse(env['FLUTTER_WEB_PORT'] ?? '9800');
+  final port = int.parse(env['FLUTTER_WEB_PORT'] ?? '9801');
   final host = env['HEALTHHUB_BIND_HOST'] ?? '127.0.0.1';
-  final api = Uri.parse('http://127.0.0.1:${env['API_PORT'] ?? '9801'}');
+  final api = Uri.parse('http://127.0.0.1:${env['API_PORT'] ?? '9802'}');
   await serveWeb(root: root, host: host, port: port, api: api);
   stdout.writeln(
     'healthhub web on http://$host:$port/app/ (${root.path}; '

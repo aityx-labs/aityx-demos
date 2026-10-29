@@ -72,8 +72,7 @@ demos (Mortgage Hub 8880, Contact Hub 8890, PokerFace 8910, RoboRules
 8920, Cellfie 8930). Press **Start** and fly; see [Game](specs/game.md)
 for the rules of play, [Strategies](specs/strategies.md) for the sensors,
 commands and rule editor, [Decisions](specs/decisions.md) for how aityx
-flies the pilots (in real time, or as a **Fair race** where the game
-waits for aityx), and [Calls panel](specs/calls-panel.md).
+flies the pilots, and [Calls panel](specs/calls-panel.md).
 
 Once both are ready, the `health-check` monitor prints where to open the
 app (in a codespace, its forwarded URL too), waits 5 s

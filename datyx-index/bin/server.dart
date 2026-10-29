@@ -13,7 +13,7 @@
 ///                       or its API when it has no web app, answers right
 ///                       now; for scripts
 ///
-/// Settings: INDEX_PORT (default 9907), INDEX_BIND_HOST (127.0.0.1),
+/// Settings: INDEX_PORT (default 9800), INDEX_BIND_HOST (127.0.0.1),
 /// INDEX_GROUP (datyx).
 library;
 
@@ -29,7 +29,7 @@ final _client = HttpClient()..connectionTimeout = const Duration(seconds: 2);
 
 Future<void> main() async {
   final env = Platform.environment;
-  final port = int.parse(env['INDEX_PORT'] ?? '9907');
+  final port = int.parse(env['INDEX_PORT'] ?? '9800');
   final host = env['INDEX_BIND_HOST'] ?? '127.0.0.1';
   final server = await HttpServer.bind(host, port);
   stdout.writeln('datyx index on http://$host:$port/');

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>datyx</title>
-  <meta name="description" content="The datyx group: the datyx API, its dashboard, HealthHub and OpenMetadata, and where to open each.">
+  <meta name="description" content="The datyx group: the datyx API, its dashboard and HealthHub, and where to open each.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <!-- Every link opens in a new tab: the index stays open. -->
   <base target="_blank">
@@ -114,7 +114,7 @@
   </main>
 
   <footer>
-    Everything runs locally on its own port, 9800 to 9907: start the group with <code>./start-datyx.sh</code> at the
+    Everything runs locally on its own port, 9800 to 9906: start the group with <code>./start-datyx.sh</code> at the
     root of the repository, stop it with <code>./stop-datyx.sh</code>; or <code>docker compose up</code> in each folder.
     Or open the group in a <a href="https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Fdatyx%2Fdevcontainer.json&amp;machine=standardLinux32gb">GitHub codespace</a>.
     The six aityx demos have an index of their own, on port 8800.
@@ -136,23 +136,16 @@
       {
         folder: 'datyx', port: 9900, path: '/q/swagger-ui', name: 'datyx API',
         what: 'A Quarkus API with PostgreSQL and OpenMetadata',
-        desc: 'REST on Quarkus and GraalVM with Hibernate and Panache over PostgreSQL: the data sources users add, each in the profile of whoever added it, with its access details encrypted with that profile\'s key; users signed in with Google through OpenID Connect. API only: Open shows its Swagger UI. Ports 9900 to 9905.',
-        chips: ['Quarkus API', 'PostgreSQL', 'OpenID Connect'],
+        desc: 'REST on Quarkus and GraalVM with Hibernate and Panache over PostgreSQL: the data sources users add, each in the profile of whoever added it, with its access details encrypted with that profile\'s key; users signed in with Google through OpenID Connect. Its health check, /api/health, covers PostgreSQL and OpenMetadata, the catalogue it registers data in (its own UI on 9902: admin@open-metadata.org, password admin). API only: Open shows its Swagger UI. Ports 9900 to 9905.',
+        chips: ['Quarkus API', 'PostgreSQL', 'OpenMetadata', 'OpenID Connect'],
         icon: 'api',
       },
       {
-        folder: 'HealthHub', port: 9800, name: 'HealthHub',
+        folder: 'HealthHub', port: 9801, name: 'HealthHub',
         what: 'The app of the datyx group, with a database of its own',
-        desc: 'A Flutter app, a Dart API and PostgreSQL. The page you open is a map of where you are, with a welcome over it; signing in with Google leads home, a dashboard whose one tile is the same map, and its API reaches datyx with the same identity. Ports 9800 to 9802.',
+        desc: 'A Flutter app, a Dart API and PostgreSQL. The page you open is a map of where you are, with a welcome over it; signing in with Google leads home, a dashboard whose one tile is the same map, and its API reaches datyx with the same identity. Ports 9801 to 9803.',
         chips: ['Flutter app', 'Dart API', 'PostgreSQL', 'Google sign-in'],
         icon: 'heart',
-      },
-      {
-        folder: 'datyx', port: 9902, path: '/', name: 'OpenMetadata',
-        what: 'The catalogue: an OpenMetadata server with its Elasticsearch index',
-        desc: 'The OpenMetadata server the datyx API registers data in, started with the datyx stack (compose.yaml of datyx/), with Elasticsearch as its search index on 9904. Its own UI, on 9902: sign in as admin@open-metadata.org with the password admin.',
-        chips: ['OpenMetadata', 'Elasticsearch'],
-        icon: 'catalog', source: 'datyx/compose.yaml',
       },
     ];
 
@@ -160,7 +153,6 @@
       data: '<path d="M12 3 C7.6 3 4 4.6 4 6.5 V17.5 C4 19.4 7.6 21 12 21 C16.4 21 20 19.4 20 17.5 V6.5 C20 4.6 16.4 3 12 3 Z M12 5 C15.9 5 18 6.2 18 6.5 C18 6.8 15.9 8 12 8 C8.1 8 6 6.8 6 6.5 C6 6.2 8.1 5 12 5 Z M6 9 C7.5 9.7 9.6 10 12 10 C14.4 10 16.5 9.7 18 9 V12 C18 12.3 15.9 13.5 12 13.5 C8.1 13.5 6 12.3 6 12 Z M6 14.5 C7.5 15.2 9.6 15.5 12 15.5 C14.4 15.5 16.5 15.2 18 14.5 V17.5 C18 17.8 15.9 19 12 19 C8.1 19 6 17.8 6 17.5 Z" fill-rule="evenodd"/>',
       api: '<path d="M8 7 L3 12 L8 17 M16 7 L21 12 L16 17 M14 4 L10 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
       heart: '<path d="M12 20.5 L10.6 19.2 C5.4 14.5 2 11.4 2 7.6 C2 4.5 4.4 2 7.5 2 C9.2 2 10.9 2.8 12 4.1 C13.1 2.8 14.8 2 16.5 2 C19.6 2 22 4.5 22 7.6 C22 11.4 18.6 14.5 13.4 19.2 Z M7 10 H9.5 L10.8 7.5 L12.8 12.5 L14.2 10 H17" fill-rule="evenodd" stroke="#17161A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
-      catalog: '<path d="M4 5 H20 V19 H4 Z M4 10 H20 M9 10 V19 M7 7.5 H9 M12 7.5 H17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
     };
     const github = 'https://github.com/aityx-labs/aityx-demos/tree/main/';
     // Every card opens in the datyx group's codespace (.devcontainer/datyx/).

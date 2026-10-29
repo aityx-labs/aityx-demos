@@ -14,7 +14,7 @@
 # Runs via `devbox services up` (see process-compose.yaml) or `devbox run web`.
 set -euo pipefail
 
-PORT="${FLUTTER_WEB_PORT:-9800}"
+PORT="${FLUTTER_WEB_PORT:-9801}"
 # 127.0.0.1, not localhost: Dart binds "localhost" to IPv6 [::1] only. The
 # dev container sets HEALTHHUB_BIND_HOST=0.0.0.0, so its forwarded port
 # reaches the server. Browsers still reach it at http://localhost:$PORT/app/.
@@ -26,7 +26,7 @@ if [[ "$WEB_MODE" == release ]]; then
   bash "$root/scripts/build.sh" web web_server
   export WEB_ROOT="$root/healthhub_app/build/web"
   export FLUTTER_WEB_PORT="$PORT" HEALTHHUB_BIND_HOST="$HOST"
-  export API_PORT="${API_PORT:-9801}"
+  export API_PORT="${API_PORT:-9802}"
   exec "$root/healthhub_api/build/web_server"
 elif [[ "$WEB_MODE" != debug ]]; then
   echo "error: WEB_MODE must be release or debug (got '$WEB_MODE')" >&2
@@ -45,9 +45,9 @@ cat > web_dev_config.yaml <<YAML
 server:
   proxy:
     - prefix: "/api/"
-      target: "http://127.0.0.1:${API_PORT:-9801}/"
+      target: "http://127.0.0.1:${API_PORT:-9802}/"
     - regex: "^/\$"
-      target: "http://127.0.0.1:${API_PORT:-9801}/"
+      target: "http://127.0.0.1:${API_PORT:-9802}/"
 YAML
 flutter pub get
 # The welcome screen shows X.Y.Z, Z being when this server started.

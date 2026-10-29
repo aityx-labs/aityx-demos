@@ -13,8 +13,8 @@
 # PokerFace (8910), RoboRules (8920), Cellfie (8930) and RiverRace (8940).
 # The datyx group: the datyx API (9900, with PostgreSQL, Elasticsearch
 # and OpenMetadata in containers), the datyx dashboard (9906) and
-# HealthHub (9800, with its PostgreSQL container on 9802). Each group's
-# index: 8800 for aityx (Index/), 9907 for datyx (datyx-index/). Each demo serves its release build and a compiled API,
+# HealthHub (9801, with its PostgreSQL container on 9803). Each group's
+# index: 8800 for aityx (Index/), 9800 for datyx (datyx-index/). Each demo serves its release build and a compiled API,
 # built by update-content.sh when the codespace was created (or in its
 # prebuild), so they are up in seconds; a demo whose build is missing or
 # older than its sources builds first, a minute or two. Watch one with

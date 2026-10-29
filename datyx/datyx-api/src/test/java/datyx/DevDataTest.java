@@ -50,7 +50,7 @@ class DevDataTest {
             .body("createdByName", is("dev data"))
             .body("database.engine", is("postgresql"))
             .body("database.host", is("localhost"))
-            .body("database.port", is(9802))
+            .body("database.port", is(9803))
             .body("database.database", is("healthhub"))
             .body("database.username", is("healthhub"))
             .body("database.passwordSet", is(true));

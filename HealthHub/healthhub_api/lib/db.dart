@@ -11,7 +11,7 @@ import 'package:postgres/postgres.dart';
 /// Where the database is, from the environment (scripts/api.sh and
 /// compose.yaml set these):
 ///   HEALTHHUB_DB_HOST      (default 127.0.0.1)
-///   HEALTHHUB_DB_PORT      (default 9802, where compose.yaml publishes it)
+///   HEALTHHUB_DB_PORT      (default 9803, where compose.yaml publishes it)
 ///   HEALTHHUB_DB_NAME      (default healthhub)
 ///   HEALTHHUB_DB_USER      (default healthhub)
 ///   HEALTHHUB_DB_PASSWORD  (secret; default healthhub, for development)
@@ -28,7 +28,7 @@ class DbSettings {
     env ??= Platform.environment;
     return DbSettings(
       host: env['HEALTHHUB_DB_HOST'] ?? '127.0.0.1',
-      port: int.parse(env['HEALTHHUB_DB_PORT'] ?? '9802'),
+      port: int.parse(env['HEALTHHUB_DB_PORT'] ?? '9803'),
       database: env['HEALTHHUB_DB_NAME'] ?? 'healthhub',
       user: env['HEALTHHUB_DB_USER'] ?? 'healthhub',
       password: env['HEALTHHUB_DB_PASSWORD'] ?? 'healthhub',

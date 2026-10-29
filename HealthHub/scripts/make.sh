@@ -8,7 +8,7 @@
 #   IOS_CODESIGN  1 to sign the iOS build (needs a signing team in Xcode);
 #                 unsigned by default
 #   API_BASE_URL  the API the app will call for each decision
-#                 (default http://localhost:9801; empty: the app's origin)
+#                 (default http://localhost:9802; empty: the app's origin)
 #   WEB_BASE_HREF the web build's base href, e.g. /app/ to serve it where the
 #                 dev server does; / by default
 #
@@ -29,7 +29,7 @@ source ../scripts/version.sh
 # HEALTHHUB_VERSION: X.Y.Z, shown at the bottom of the welcome screen.
 BUILD_ARGS=(--build-name "$VERSION" --build-number "$BUILD_NUMBER"
   --dart-define="HEALTHHUB_VERSION=$VERSION"
-  --dart-define="API_BASE_URL=${API_BASE_URL-http://localhost:9801}")
+  --dart-define="API_BASE_URL=${API_BASE_URL-http://localhost:9802}")
 
 # can_build <target>: whether this host's OS can build the target.
 can_build() {

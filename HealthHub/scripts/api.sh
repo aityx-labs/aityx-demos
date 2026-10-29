@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs the API (healthhub_api/) on http://localhost:${API_PORT:-9801}:
+# Runs the API (healthhub_api/) on http://localhost:${API_PORT:-9802}:
 # bin/server.dart compiled to a native executable (scripts/build.sh, only
 # when the API changed), so it starts at once and stays small.
 # Runs via `devbox services up` (see process-compose.yaml) or `devbox run api`.

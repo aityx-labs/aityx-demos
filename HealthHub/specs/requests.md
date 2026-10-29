@@ -103,3 +103,13 @@ The feature files hold the current specification; see the
    `startup.log` at the repository root. The README's codespace link
    points at the group's container. See [Development
    environment](dev-environment.md).
+
+1. **Make the datyx index the first port of the datyx group, 9800.** The
+   index moves from 9907 to 9800, so HealthHub moves up one: the app to
+   9801, the API to 9802 and PostgreSQL to 9803, everywhere (the scripts,
+   process-compose, compose, nginx, the Dart defaults, the dev container's
+   forwarded ports, the index page, the READMEs and these specs). The
+   datyx API's dev data source for HealthHub's database follows to 9803.
+   The Google OAuth client needs http://localhost:9801 among its
+   authorized JavaScript origins. See [Development
+   environment](dev-environment.md).

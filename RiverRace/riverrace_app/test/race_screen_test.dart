@@ -75,7 +75,7 @@ void main() {
     await pumpApp(tester, decider);
     expect(find.text('Press any key to play'), findsOneWidget);
     // Even with a control focused (a chip just clicked), a key plays.
-    await tester.tap(find.text('Fair race'));
+    await tester.tap(find.text('Sound'));
     await tester.pump();
     // A shortcut's modifier alone doesn't start it.
     await tester.sendKeyEvent(LogicalKeyboardKey.shiftLeft);
@@ -158,24 +158,22 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('starts at half speed and speeds up every 30 seconds', (
-    tester,
-  ) async {
+  testWidgets('starts at 1× and speeds up every 30 seconds', (tester) async {
     await pumpApp(tester, FakeDecider());
     final screen = tester.state(find.byType(RaceScreen)) as dynamic;
-    expect(screen.pace, 50);
+    expect(screen.pace, 100);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyX);
     await run(tester, 2);
     // Each pump is one long frame of play: the game time it makes is
     // capped, but every second counts towards the speed.
     await tester.pump(const Duration(seconds: 31));
-    expect(screen.pace, 60);
-    expect(find.text('now 0.6×'), findsOneWidget);
+    expect(screen.pace, 120);
+    expect(find.text('now 1.2×'), findsOneWidget);
     await tester.pump(const Duration(seconds: 300));
-    expect(screen.pace, 100);
+    expect(screen.pace, 200);
     await tester.tap(find.byTooltip('Restart'));
     await tester.pump();
-    expect(screen.pace, 50);
+    expect(screen.pace, 100);
     await tester.tap(find.text('Pause'));
     await tester.pump();
   });
@@ -186,7 +184,8 @@ void main() {
     final decider = SlowDecider();
     await pumpApp(tester, decider);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyX);
-    // At ½× speed, 16 frames reach the first aityx decision.
+    // At 1×, half the game's top speed, 16 frames reach the first aityx
+    // decision.
     await run(tester, 16);
     expect(decider.pending, isNotNull);
     final race =

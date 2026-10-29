@@ -8,7 +8,7 @@ The demos that run as apps come in two groups. Each group opens in a
 GitHub codespace of its own, with its own dev container and image, and
 starts there with its index page, which links the group's apps: the
 aityx group's on port 8800 ([Index/](Index/)), the datyx group's on port
-9907 ([datyx-index/](datyx-index/)). Both need your own `AITYX_API_KEY` Codespaces secret (see
+9800 ([datyx-index/](datyx-index/)). Both need your own `AITYX_API_KEY` Codespaces secret (see
 [Launching it](#launching-it)). On a laptop, `./start-aityx.sh` or
 `./start-datyx.sh` starts a group (see [Run all the demos](#run-all-the-demos)).
 
@@ -43,7 +43,7 @@ on a 4-core, 16 GB machine.
 | [datyx](datyx/) | A data system in the making, API only: REST on Quarkus and GraalVM (Hibernate, Panache, PostgreSQL) and an OpenMetadata server with Elasticsearch; on ports 9900 to 9905, apart from the demos |
 | [datyx-dashboard](datyx-dashboard/) | The views of datyx: a Flutter web app, like the demos' apps, that calls the datyx API and shows what it answers, with every request and response; on port 9906 |
 | [HealthHub](HealthHub/) | The first demo with a database: a Flutter app, a Dart API and PostgreSQL, built like the others; for now a map of where you are, and a dashboard after signing in |
-| [datyx-index](datyx-index/) | One page linking the datyx group: the dashboard, the API, HealthHub and OpenMetadata; on port 9907 |
+| [datyx-index](datyx-index/) | One page linking the datyx group: the dashboard, the API, HealthHub and OpenMetadata; on port 9800 |
 
 ## Run all the demos
 
@@ -63,7 +63,7 @@ The demos run in two groups, each with its own start and stop scripts
 and its own index page: **aityx**, the six demos whose decisions run on
 aityx, with their index on port 8800 ([Index/](Index/)), and **datyx**,
 the datyx API, the datyx dashboard and HealthHub, with their index on
-port 9907 ([datyx-index/](datyx-index/)). A folder's group is its
+port 9800 ([datyx-index/](datyx-index/)). A folder's group is its
 `group.id.txt`, which the group scripts read; `start-all.sh` and
 `stop-all.sh` take both groups.
 [start-all.sh](start-all.sh) runs `devbox services up -b` in each folder
@@ -327,8 +327,8 @@ devbox services up -c HealthHub --pcflags "--tui=false"
 docker compose -f HealthHub/compose.yaml up --build
 ```
 
-Both serve the app at http://localhost:9800/app/, with the API on 9801
-and PostgreSQL on 9802, alongside the other samples. Nothing calls aityx
+Both serve the app at http://localhost:9801/app/, with the API on 9802
+and PostgreSQL on 9803, alongside the other samples. Nothing calls aityx
 yet. See the [HealthHub README](HealthHub/README.md).
 
 ## License

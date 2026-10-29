@@ -2,6 +2,25 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-10-29: the index on 9800, HealthHub's database on 9803
+
+Asked: make the datyx index the first port of the group (9800).
+
+Changed: the index (datyx-index/) moves from 9907 to 9800 and HealthHub
+up one, to 9801 to 9803; the dev data source for HealthHub's PostgreSQL
+(`R__HealthHub_data_source`), its test and the API spec now say port 9803.
+
+## 2026-10-29: OpenMetadata in the API's health check
+
+Asked: remove the OpenMetadata card from the datyx index, and cover
+OpenMetadata in the datyx API's health check, on the API's card.
+
+Changed: `OpenMetadataHealthCheck`, a readiness check in `/api/health`
+beside the database's, through `OpenMetadataClient` (off in the test
+profile); the index's OpenMetadata card is gone and the API card says its
+health check covers PostgreSQL and OpenMetadata, with OpenMetadata's UI
+and sign-in; the API spec.
+
 ## 2026-10-29: Flyway locations by profile, dev data for HealthHub
 
 Asked: Flyway on the datyx API with different folders for the Quarkus

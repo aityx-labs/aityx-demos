@@ -35,13 +35,13 @@ get() {
     curl -fs -o /dev/null --max-time "$timeout" "$@"
 }
 
-check_web() { ok_if "🌐 Web" get 5 "http://localhost:${FLUTTER_WEB_PORT:-9800}/app/"; }
+check_web() { ok_if "🌐 Web" get 5 "http://localhost:${FLUTTER_WEB_PORT:-9801}/app/"; }
 
 # The API's /api/health: {"ok":true,"db":<whether the database answers>,
 # "aityx":<whether its key is set>}.
 check_api() {
     local body
-    body="$(curl -fs --max-time 5 "http://localhost:${API_PORT:-9801}/api/health")"
+    body="$(curl -fs --max-time 5 "http://localhost:${API_PORT:-9802}/api/health")"
     if [[ "$body" != *'"ok":true'* ]]; then
         report "🔌 API" ❌
         report "🐘 Postgres" ❌
@@ -66,7 +66,7 @@ run_checks() {
 
 # print_address: where to open the app, before the first check.
 print_address() {
-    local port="${FLUTTER_WEB_PORT:-9800}"
+    local port="${FLUTTER_WEB_PORT:-9801}"
     echo "HealthHub is up. Open the app at:"
     echo "  http://localhost:$port/app/"
     # A codespace forwards the port to its own URL; the Ports panel has it too.

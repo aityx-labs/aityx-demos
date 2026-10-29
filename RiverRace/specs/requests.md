@@ -101,3 +101,11 @@ The feature files hold the current specification; see the
     bridge 10 is enough.** The controls moved into the top bar, right of
     the title and the status; Restart and New river are icons. The race
     always ends at bridge 10 (see [Game](game.md#playing)).
+14. **Make the current speed 1× and the others relative to it; remove
+    aityx decides every, using the rate that suits the game speed; remove
+    Fair race.** **Speed** reads ½×, 1× (the default, the pace that was
+    ½×), 1½× and 2× (the old 1×, the game's top speed); the speed-up goes
+    by 0.2× up to 2×. aityx is asked about every 0.2 s of real time,
+    every 6 frames at 1× and proportionally more often in frames as the
+    game speeds up. Fair race, which held the game for aityx's answers,
+    is gone (see [Game](game.md#playing) and [Decisions](decisions.md)).

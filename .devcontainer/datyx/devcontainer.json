@@ -6,7 +6,7 @@
   // GraalVM, with PostgreSQL, Elasticsearch and OpenMetadata in
   // containers), the datyx dashboard (datyx-dashboard/, a Flutter web app
   // calling it) and HealthHub (a Flutter app, a Dart API and PostgreSQL),
-  // and its index page (datyx-index/, port 9907) that links them. The folders whose group.id.txt says datyx.
+  // and its index page (datyx-index/, port 9800) that links them. The folders whose group.id.txt says datyx.
   //
   // Source:  https://github.com/aityx-labs/aityx-demos
   // Rules:   https://aityx.ai
@@ -115,18 +115,18 @@
   // UI at /q/swagger-ui, which the index links to) and OpenMetadata's UI
   // (9902) are forwarded too, but stay private: they open for you,
   // signed in to GitHub, and nobody else.
-  // HealthHub's API (9801) and the databases stay inside the container:
+  // HealthHub's API (9802) and the databases stay inside the container:
   // each app reaches its API through its web server's /api/ proxy.
   // Plain HTTP, which is what the servers speak; switching a public port
   // to HTTPS makes it private. Only the index opens a browser tab.
-  "forwardPorts": [9907, 9800, 9906, 9900, 9902],
+  "forwardPorts": [9800, 9801, 9906, 9900, 9902],
   "portsAttributes": {
-    "9907": {
+    "9800": {
       "label": "datyx index: the group on one page",
       "protocol": "http",
       "onAutoForward": "openBrowserOnce"
     },
-    "9800": {
+    "9801": {
       "label": "HealthHub web app",
       "protocol": "http",
       "onAutoForward": "silent"

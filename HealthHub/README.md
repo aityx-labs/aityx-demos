@@ -43,9 +43,9 @@ That starts, from [process-compose.yaml](process-compose.yaml):
 
 | URL | What |
 |---|---|
-| http://localhost:9800/app/ | The app's release build, served by a small native web server ([scripts/flutter-web.sh](scripts/flutter-web.sh)). The first start builds it (about 25 s on a laptop, a minute or two on a 4-core codespace); later starts reuse it until the app changes |
-| http://localhost:9801/api/health | The API, compiled to a native executable ([scripts/api.sh](scripts/api.sh)); the web app reaches it as `/api/` on its own origin, through the web server's proxy. `/api/hello` is the greeting, from the database |
-| localhost:9802 | PostgreSQL, the `postgres` container of [compose.yaml](compose.yaml), started with `docker compose up postgres` ([scripts/infra.sh](scripts/infra.sh)); its data in a Docker volume. `bash scripts/infra.sh psql` opens a prompt on the `healthhub` database |
+| http://localhost:9801/app/ | The app's release build, served by a small native web server ([scripts/flutter-web.sh](scripts/flutter-web.sh)). The first start builds it (about 25 s on a laptop, a minute or two on a 4-core codespace); later starts reuse it until the app changes |
+| http://localhost:9802/api/health | The API, compiled to a native executable ([scripts/api.sh](scripts/api.sh)); the web app reaches it as `/api/` on its own origin, through the web server's proxy. `/api/hello` is the greeting, from the database |
+| localhost:9803 | PostgreSQL, the `postgres` container of [compose.yaml](compose.yaml), started with `docker compose up postgres` ([scripts/infra.sh](scripts/infra.sh)); its data in a Docker volume. `bash scripts/infra.sh psql` opens a prompt on the `healthhub` database |
 
 That's what Docker Compose serves too. For hot reload while working on
 the app, run the Flutter dev server instead, with
@@ -54,7 +54,7 @@ the app, run the Flutter dev server instead, with
 the executables ahead of time ([scripts/build.sh](scripts/build.sh)),
 only what changed; `devbox run db` starts only the database.
 
-The ports are 9800 to 9802, so HealthHub runs alongside Mortgage Hub
+The ports are 9801 to 9803, so HealthHub runs alongside Mortgage Hub
 (8880), Contact Hub (8890) and PokerFace (8910). The app opens on the
 index: a map filling the screen, the browser asking to share your
 location, an orange dot where you are, and **Welcome to HealthHub** with
@@ -70,7 +70,7 @@ the app (in a codespace, its forwarded URL too), waits 5 s
 
 ```
 HealthHub is up. Open the app at:
-  http://localhost:9800/app/
+  http://localhost:9801/app/
 Health checks start in 5 s, then every 15 s.
 2026-10-28 17:02:10 🌐 Web ✅ · 🔌 API ✅ · 🐘 Postgres ✅ · 🤖 aityx ⚪
 ```
@@ -119,12 +119,12 @@ devbox, no Flutter), from this folder:
 docker compose up --build
 ```
 
-and open http://localhost:9800/app/. [compose.yaml](compose.yaml) builds
+and open http://localhost:9801/app/. [compose.yaml](compose.yaml) builds
 and starts three services:
 
 | Service | What |
 |---|---|
-| `postgres` | PostgreSQL 17, with the `healthhub` database and user made on the first start by [docker/postgres-init.sh](docker/postgres-init.sh); its data in the `postgres-data` volume, published on 127.0.0.1:9802 |
+| `postgres` | PostgreSQL 17, with the `healthhub` database and user made on the first start by [docker/postgres-init.sh](docker/postgres-init.sh); its data in the `postgres-data` volume, published on 127.0.0.1:9803 |
 | `api` | The API compiled to a native executable ([healthhub_api/Dockerfile](healthhub_api/Dockerfile)); not published, reached only through `web`; starts once `postgres` is healthy |
 | `web` | The app's release web build ([docker/web.Dockerfile](docker/web.Dockerfile)), served by nginx under `/app/`, with `/api/` proxied to the API ([docker/nginx.conf](docker/nginx.conf)) |
 
@@ -171,11 +171,11 @@ changed since the image was made, and
 arrived. Then, on that and every later start,
 [post-start.sh](../.devcontainer/post-start.sh) starts the datyx index
 page and the datyx group in the background with `./start-all.sh` and makes
-their web ports public, HealthHub's **9800** among them. There is
-nothing to run: once the app is up, open port 9800 from the **Ports**
-panel, or HealthHub's card on the datyx index page (port 9907, which
+their web ports public, HealthHub's **9801** among them. There is
+nothing to run: once the app is up, open port 9801 from the **Ports**
+panel, or HealthHub's card on the datyx index page (port 9800, which
 Codespaces opens in a browser tab for you). Its bare URL redirects to
-the app at `/app/`. The API (9801) and the database (9802) stay inside
+the app at `/app/`. The API (9802) and the database (9803) stay inside
 the codespace.
 
 Watch HealthHub's services with `process-compose attach -U -u
@@ -190,7 +190,7 @@ timestamped, including a line saying when each demo's web app and API
 first answered. It holds no secrets.
 
 **Check the port's visibility.** In the **Ports** panel, the
-*Visibility* column for 9800 should say **Public**. If it says
+*Visibility* column for 9801 should say **Public**. If it says
 **Private**, right-click the port, choose **Port Visibility → Public**
 and reload the app.
 

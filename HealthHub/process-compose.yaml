@@ -10,8 +10,8 @@ processes:
     command: bash scripts/health-check.sh
     environment:
       - HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL:-15}
-      - FLUTTER_WEB_PORT=${FLUTTER_WEB_PORT:-9800}
-      - API_PORT=${API_PORT:-9801}
+      - FLUTTER_WEB_PORT=${FLUTTER_WEB_PORT:-9801}
+      - API_PORT=${API_PORT:-9802}
     # Start logging once every service passes its readiness probe, so the
     # first status line reflects a fully started stack.
     depends_on:
@@ -25,7 +25,7 @@ processes:
 
   1-postgres:
     # PostgreSQL, the postgres service of compose.yaml, published on
-    # 127.0.0.1:${HEALTHHUB_DB_PORT:-9802}; its data in a Docker volume.
+    # 127.0.0.1:${HEALTHHUB_DB_PORT:-9803}; its data in a Docker volume.
     command: bash scripts/infra.sh up postgres
     shutdown:
       command: bash scripts/infra.sh stop postgres
@@ -48,19 +48,19 @@ processes:
     # scripts/flutter-web.sh).
     command: bash scripts/flutter-web.sh
     environment:
-      - FLUTTER_WEB_PORT=${FLUTTER_WEB_PORT:-9800}
-      - API_PORT=${API_PORT:-9801}
+      - FLUTTER_WEB_PORT=${FLUTTER_WEB_PORT:-9801}
+      - API_PORT=${API_PORT:-9802}
       - WEB_MODE=${WEB_MODE:-release}
     # Stopping only the script leaves flutter's dart process serving the
     # old build on the port, and the next start then fails to bind it. Stop
     # whatever listens on the port (flutter's wrapper exits with it).
     shutdown:
-      command: lsof -tiTCP:${FLUTTER_WEB_PORT:-9800} -sTCP:LISTEN | xargs kill 2>/dev/null; true
+      command: lsof -tiTCP:${FLUTTER_WEB_PORT:-9801} -sTCP:LISTEN | xargs kill 2>/dev/null; true
       timeout_seconds: 10
     readiness_probe:
       http_get:
         host: localhost
-        port: ${FLUTTER_WEB_PORT:-9800}
+        port: ${FLUTTER_WEB_PORT:-9801}
         path: /app/
       initial_delay_seconds: 2
       period_seconds: 2
@@ -76,8 +76,8 @@ processes:
     # The API (healthhub_api/); see scripts/api.sh. It needs the database.
     command: bash scripts/api.sh
     environment:
-      - API_PORT=${API_PORT:-9801}
-      - FLUTTER_WEB_PORT=${FLUTTER_WEB_PORT:-9800}
+      - API_PORT=${API_PORT:-9802}
+      - FLUTTER_WEB_PORT=${FLUTTER_WEB_PORT:-9801}
       - AITYX_API_KEY=${AITYX_API_KEY:-}
       - AITYX_URL=${AITYX_URL:-}
       - OIDC_ISSUER=${OIDC_ISSUER:-}
@@ -89,7 +89,7 @@ processes:
     readiness_probe:
       http_get:
         host: localhost
-        port: ${API_PORT:-9801}
+        port: ${API_PORT:-9802}
         path: /api/health
       initial_delay_seconds: 1
       period_seconds: 2

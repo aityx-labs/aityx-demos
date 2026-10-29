@@ -24,10 +24,10 @@
 /// Settings, from the environment (scripts/api.sh loads .env):
 ///   AITYX_API_KEY         the key (secret); nothing calls aityx yet
 ///   AITYX_URL             aityx's base URL (default https://api.aityx.ai)
-///   API_PORT              the port (default 9801)
+///   API_PORT              the port (default 9802)
 ///   HEALTHHUB_BIND_HOST   the address to bind (default 127.0.0.1)
 ///   ALLOWED_ORIGINS       comma-separated origins allowed by CORS
-///                         (default http://localhost:9800)
+///                         (default http://localhost:9801)
 ///   HEALTHHUB_DB_*        the database (see lib/db.dart)
 ///   OIDC_ISSUER, OIDC_CLIENT_ID  authentication (see lib/auth.dart)
 ///   DATYX_API_URL         the datyx API (default http://127.0.0.1:9900)
@@ -58,9 +58,9 @@ Future<void> main(List<String> args) async {
     stderr.writeln('error: AITYX_URL must be https');
     exit(1);
   }
-  final port = int.parse(env['API_PORT'] ?? '9801');
+  final port = int.parse(env['API_PORT'] ?? '9802');
   final host = env['HEALTHHUB_BIND_HOST'] ?? '127.0.0.1';
-  final origins = (env['ALLOWED_ORIGINS'] ?? 'http://localhost:9800')
+  final origins = (env['ALLOWED_ORIGINS'] ?? 'http://localhost:9801')
       .split(',')
       .map((origin) => origin.trim())
       .where((origin) => origin.isNotEmpty)
@@ -105,7 +105,7 @@ Future<void> _migrate(Db db) async {
 
 /// 0 when the server on this machine answers /api/health with ok, else 1.
 Future<int> _healthcheck() async {
-  final port = int.parse(Platform.environment['API_PORT'] ?? '9801');
+  final port = int.parse(Platform.environment['API_PORT'] ?? '9802');
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
   try {
     final request = await client.getUrl(

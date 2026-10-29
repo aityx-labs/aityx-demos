@@ -89,16 +89,15 @@ score, bridge and losses, and **Race again** starts on a new river.
 - The controls sit in the top bar, right of the title and of the status
   (the frame, and how long aityx took to answer), so the game starts
   right under it: **Start**/**Pause**, **Restart** (same river) and
-  **New river** (icons, named on hover), **You fly**, **Sound**, **Fair
-  race** (see [Decisions](decisions.md)), **Speed** (¼×, ½× by default,
-  ¾×, 1×) and **aityx decides every** (3, 6, 12 or 30 frames). In a
-  window narrower than 1,300 pixels they wrap in a row above the game
-  instead.
-- The game runs at 60 frames a second of game time, in fixed steps.
+  **New river** (icons, named on hover), **You fly**, **Sound** and
+  **Speed** (½×, 1× by default, 1½×, 2×). In a window narrower than
+  1,300 pixels they wrap in a row above the game instead.
+- The game runs in fixed steps, 30 frames a second of real time at 1×
+  and 60, its top speed, at 2×.
 - **Speed** is where a race starts: every 30 seconds of play the game
-  speeds up by 10 percent, up to 1× (from ½×, in two and a half
-  minutes), and *now 0.6×* beside the choice says how fast it runs. A
-  restart, or a new river, starts it again from the choice.
+  speeds up by 0.2×, up to 2× (from 1×, in two and a half minutes), and
+  *now 1.2×* beside the choice says how fast it runs. A restart, or a
+  new river, starts it again from the choice.
 - **Sound** (on by default), made in the browser, Atari-like: a short
   square-wave beep every 6 frames while a plane refuels, higher the
   fuller its tank, and a burst of coarse noise, falling in pitch, when a

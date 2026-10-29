@@ -21,9 +21,9 @@ database for the two routes that need it:
 
 The API reads from its environment `AITYX_API_KEY` and `AITYX_URL`
 (default `https://api.aityx.ai`, which must be https; nothing calls it
-yet), `API_PORT` (9801), `HEALTHHUB_BIND_HOST` (127.0.0.1),
+yet), `API_PORT` (9802), `HEALTHHUB_BIND_HOST` (127.0.0.1),
 `ALLOWED_ORIGINS` and the database settings `HEALTHHUB_DB_HOST`
-(127.0.0.1), `HEALTHHUB_DB_PORT` (9802), `HEALTHHUB_DB_NAME`,
+(127.0.0.1), `HEALTHHUB_DB_PORT` (9803), `HEALTHHUB_DB_NAME`,
 `HEALTHHUB_DB_USER` (both `healthhub`) and `HEALTHHUB_DB_PASSWORD`,
 `OIDC_ISSUER` (default `https://accounts.google.com`), `OIDC_CLIENT_ID`
 (empty: authentication off) and `DATYX_API_URL` (default
@@ -39,7 +39,7 @@ sets the host to the `postgres` service.
 OpenID Connect, Google first ([lib/auth.dart](../healthhub_api/lib/auth.dart)).
 The app signs in with the client id this API publishes (the Google Cloud
 project `healthhub`, its Web application client `healthhub`, with the
-app's origin `http://localhost:9800` among its authorized JavaScript
+app's origin `http://localhost:9801` among its authorized JavaScript
 origins) and sends the ID token as `Authorization: Bearer`. `TokenVerifier`
 (package `openid_client`) discovers the issuer's metadata and keys on the
 first token, checks the signature, the issuer, the audience (the client
@@ -62,7 +62,7 @@ takes it as a parameter. Logs name the database as
 `user@host:port/name`, never the password.
 
 CORS allows `ALLOWED_ORIGINS` (by default the web app's,
-`http://localhost:9800` and `http://127.0.0.1:9800`). `server
+`http://localhost:9801` and `http://127.0.0.1:9801`). `server
 healthcheck` asks a running server's `/api/health` and exits 0 when it
 answers ok (whether or not the database does); it's the Docker health
 check.

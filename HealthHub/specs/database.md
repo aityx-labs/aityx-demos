@@ -10,7 +10,7 @@ in every way of running the demo:
 - `devbox services up` ([process-compose.yaml](../process-compose.yaml))
   runs it alone from the same file, `docker compose up postgres` attached
   through [scripts/infra.sh](../scripts/infra.sh) (`1-postgres`), and the
-  API on the host reaches it on the published port, 127.0.0.1:9802
+  API on the host reaches it on the published port, 127.0.0.1:9803
   (`HEALTHHUB_DB_PORT`). The process's readiness probe is the container's
   health, and its shutdown is `docker compose stop postgres`, so the
   container and its data outlive the services. `bash scripts/infra.sh

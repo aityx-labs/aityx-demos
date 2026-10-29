@@ -19,14 +19,14 @@ process-compose through Docker Compose comes from.
     [scripts/infra.sh](../scripts/infra.sh) `up postgres`): the `postgres`
     service of [compose.yaml](../compose.yaml), `docker compose up`
     attached so its log is the process's, published on
-    127.0.0.1:9802 (`HEALTHHUB_DB_PORT`, `HEALTHHUB_BIND_HOST`). Its
+    127.0.0.1:9803 (`HEALTHHUB_DB_PORT`, `HEALTHHUB_BIND_HOST`). Its
     readiness probe is the container's health check (`infra.sh healthy
     postgres`), up to 3 minutes for a first pull; its shutdown is `docker
     compose stop postgres`, which keeps the data. See
     [Database](database.md);
   - the web app (`2-flutter-web`, via
     [scripts/flutter-web.sh](../scripts/flutter-web.sh)) on
-    http://localhost:9800/app/ (`FLUTTER_WEB_PORT`), bound to 127.0.0.1
+    http://localhost:9801/app/ (`FLUTTER_WEB_PORT`), bound to 127.0.0.1
     (`HEALTHHUB_BIND_HOST`), with an HTTP readiness probe of up to 15
     minutes. In release mode, the default (`WEB_MODE`), it is the app's
     release build served by
@@ -40,7 +40,7 @@ process-compose through Docker Compose comes from.
     `/api/` itself (`web_dev_config.yaml`, generated, git-ignored). On
     stop, its shutdown command kills whatever listens on the port;
   - the API (`3-api`, via [scripts/api.sh](../scripts/api.sh)) on
-    http://localhost:9801 (`API_PORT`), `bin/server.dart` compiled to a
+    http://localhost:9802 (`API_PORT`), `bin/server.dart` compiled to a
     native executable, `healthhub_api/build/server`, once PostgreSQL is
     healthy, with a readiness probe on `/api/health`. The script loads
     the settings through [scripts/env.sh](../scripts/env.sh) (the
@@ -51,15 +51,16 @@ process-compose through Docker Compose comes from.
   - the health monitor (`0-health-check`,
     [scripts/health-check.sh](../scripts/health-check.sh)), once the web
     app and the API are ready. It first prints where to open the app,
-    `http://localhost:9800/app/` and, in a codespace, the forwarded URL,
+    `http://localhost:9801/app/` and, in a codespace, the forwarded URL,
     and waits 5 s (`HEALTH_CHECK_DELAY`). Then every 15 s
     (`HEALTH_CHECK_INTERVAL`) one line with the time, 🌐 Web, 🔌 API
     (`/api/health`), 🐘 Postgres (the API's `"db"`) and 🤖 aityx (✅ the
     API has its key, ⚪ it doesn't).
-- The ports, 9800 to 9802, are HealthHub's own range, 98xx: the other
-  demos have 88xx and 89xx (Mortgage Hub 8880/8881, Contact Hub
-  8890/8891, PokerFace 8910/8911, RoboRules 8920/8921, Cellfie 8930/8931)
-  and datyx 99xx (9900 to 9906), so all can run at once.
+- The ports, 9801 to 9803, are HealthHub's, in the 98xx range after the
+  datyx index's 9800: the other demos have 88xx and 89xx (Mortgage Hub
+  8880/8881, Contact Hub 8890/8891, PokerFace 8910/8911, RoboRules
+  8920/8921, Cellfie 8930/8931) and datyx 99xx (9900 to 9906), so all can
+  run at once.
 - **Settings** ([.env.example](../.env.example), read by
   [scripts/env.sh](../scripts/env.sh)): `AITYX_API_KEY`, `AITYX_URL`,
   `OIDC_CLIENT_ID`, `OIDC_ISSUER`, `DATYX_API_URL` ([API](api.md)),
@@ -81,7 +82,7 @@ process-compose through Docker Compose comes from.
 - The web app calls the API at `API_BASE_URL` (a dart-define). The
   services leave it empty, in both modes: the app calls `/api/` on its own
   origin, which the web server (or the dev server) proxies to the API.
-  `scripts/make.sh` passes `API_BASE_URL`, or `http://localhost:9801`.
+  `scripts/make.sh` passes `API_BASE_URL`, or `http://localhost:9802`.
 - **Version**: `X.Y.Z`, X and Y from `version.X.txt` and `version.Y.txt`
   (0.1 today), Z the build time as `YYYYMMDDHHMM` UTC; the build number is
   the same time in Unix seconds
@@ -96,7 +97,7 @@ process-compose through Docker Compose comes from.
   `linux` (Linux), `all` (what the host can build) and `clean`, with
   `MODE`, `IOS_CODESIGN` and `WEB_BASE_HREF`.
 - **Docker Compose** ([compose.yaml](../compose.yaml)): `docker compose up`
-  runs the whole demo with Docker alone on http://localhost:9800/app/,
+  runs the whole demo with Docker alone on http://localhost:9801/app/,
   published on 127.0.0.1 unless `HEALTHHUB_BIND_HOST` says otherwise.
   `postgres` is the database, with its init script and volume; `api`
   ([healthhub_api/Dockerfile](../healthhub_api/Dockerfile)) is the server
@@ -131,12 +132,12 @@ process-compose through Docker Compose comes from.
   arrived (never its value); `post-start.sh` starts the index page and
   then the group detached with `start-all.sh` on every start, which logs
   when each demo answers; `public-port.sh` makes the web ports public,
-  9800 among them (again on attach). Everything goes to `startup.log` at
+  9801 among them (again on attach). Everything goes to `startup.log` at
   the root of the repository (see
   [startup-log.sh](../../.devcontainer/startup-log.sh)), git-ignored,
   which holds no secrets. The container sets
   `HEALTHHUB_BIND_HOST=0.0.0.0` with the index's and the datyx API's,
-  forwards 9800 with the index's 8800 and the dashboard's 9906 (HealthHub's
+  forwards 9801 with the index's 9800 and the dashboard's 9906 (HealthHub's
   API and database stay inside), and adds the Dart and Flutter
   extensions.
 - **Codespaces secret**: the group's `devcontainer.json` declares `AITYX_API_KEY`,

@@ -15,5 +15,5 @@ FROM scratch
 COPY --from=build /runtime/ /
 COPY --from=build /out/ /app/
 USER 65534:65534
-EXPOSE 9801
+EXPOSE 9802
 ENTRYPOINT ["/app/bin/server"]

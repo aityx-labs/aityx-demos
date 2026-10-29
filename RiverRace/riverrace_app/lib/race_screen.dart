@@ -33,10 +33,19 @@ const finishBridge = 10;
 /// the title; below it they wrap above the game.
 const topBarControls = 1300.0;
 
+/// Speeds are in percent of 1×, 30 game frames a second; the top speed,
+/// 2×, runs the game at its full 60.
+const topSpeed = 200;
+
 /// The game speeds up by [rampStep] percent every [rampEvery] seconds of
-/// play, up to 1×.
+/// play, up to [topSpeed].
 const rampEvery = 30;
-const rampStep = 10;
+const rampStep = 20;
+
+/// aityx is asked every [decideAt1x] frames at 1×, and proportionally more
+/// at a faster speed, so about every 0.2 s of real time, the time it takes
+/// to answer, whatever the speed.
+const decideAt1x = 6;
 
 /// The race screen: the river with the three planes, its controls, the
 /// aityx pilots' strategies, and the calls to aityx in a side panel.
@@ -69,7 +78,7 @@ class _RaceScreenState extends State<RaceScreen>
   bool _youFly = true;
 
   /// The game's speed at the start of a race, in percent.
-  int _speed = 50;
+  int _speed = 100;
 
   /// Seconds played in this race, which speed it up.
   double _played = 0;
@@ -77,10 +86,11 @@ class _RaceScreenState extends State<RaceScreen>
   /// The game's speed now, in percent.
   int get pace => math.max(
     _speed,
-    math.min(_speed + rampStep * (_played ~/ rampEvery), 100),
+    math.min(_speed + rampStep * (_played ~/ rampEvery), topSpeed),
   );
-  int _decideEvery = 6;
-  bool _hold = false;
+
+  /// The frames between two asks to aityx at the speed now.
+  int get _decideEvery => math.max(3, (decideAt1x * pace / 100).round());
   bool _sound = true;
   final _sounds = Sounds();
 
@@ -93,7 +103,6 @@ class _RaceScreenState extends State<RaceScreen>
   int _shownFrame = 0;
 
   bool _asking = false;
-  int _askedAt = 0;
   int _quietUntil = 0;
   String? _error;
   final _calls = <CallRecord>[];
@@ -138,14 +147,9 @@ class _RaceScreenState extends State<RaceScreen>
     final paceBefore = pace;
     _played += dt;
     if (pace != paceBefore) setState(() {});
-    _due = math.min(_due + dt * 60 * pace / 100, 4);
+    _due = math.min(_due + dt * 60 * pace / topSpeed, 4);
     while (_due >= 1) {
       if (_race.over) break;
-      // A fair race: the game waits for aityx's answer.
-      if (_hold && _asking && _race.frame - _askedAt >= _decideEvery) {
-        _due = 0;
-        break;
-      }
       _syncControls();
       _race.step();
       _due -= 1;
@@ -216,7 +220,6 @@ class _RaceScreenState extends State<RaceScreen>
     ];
     if (pilots.isEmpty) return;
     _asking = true;
-    _askedAt = race.frame;
     final frame = race.frame;
     final labels = {
       for (final p in pilots)
@@ -554,17 +557,10 @@ class _RaceScreenState extends State<RaceScreen>
       tooltip: 'Beep while refueling and boom when a missile hits',
       onSelected: (on) => setState(() => _sound = on),
     ),
-    FilterChip(
-      label: const Text('Fair race'),
-      selected: _hold,
-      visualDensity: VisualDensity.compact,
-      tooltip: 'Hold the game until aityx answers, so the pilots never fly on an old decision',
-      onSelected: (on) => setState(() => _hold = on),
-    ),
     _Choice<int>(
       label: 'Speed',
       value: _speed,
-      options: const {25: '¼×', 50: '½×', 75: '¾×', 100: '1×'},
+      options: const {50: '½×', 100: '1×', 150: '1½×', 200: '2×'},
       onChanged: (v) => setState(() => _speed = v),
     ),
     if (pace != _speed)
@@ -572,17 +568,6 @@ class _RaceScreenState extends State<RaceScreen>
         'now ${(pace / 100).toString().replaceFirst(RegExp(r'\.0$'), '')}×',
         style: const TextStyle(color: Aityx.muted),
       ),
-    _Choice<int>(
-      label: 'aityx decides every',
-      value: _decideEvery,
-      options: const {
-        3: '3 frames',
-        6: '6 frames',
-        12: '12 frames',
-        30: '30 frames',
-      },
-      onChanged: (v) => setState(() => _decideEvery = v),
-    ),
   ];
 
   Widget _game(ThemeData theme) {

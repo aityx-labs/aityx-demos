@@ -1,5 +1,5 @@
 # HealthHub with Docker alone: `docker compose up` from this folder, then
-# open http://localhost:9800/app/. No devbox or Flutter needed on the host.
+# open http://localhost:9801/app/. No devbox or Flutter needed on the host.
 #
 # The same file serves `devbox services up` (process-compose.yaml), which
 # runs only postgres from here (`docker compose up postgres`, through
@@ -29,7 +29,7 @@ services:
     # for psql; bound to this host only unless HEALTHHUB_BIND_HOST says
     # otherwise.
     ports:
-      - "${HEALTHHUB_BIND_HOST:-127.0.0.1}:${HEALTHHUB_DB_PORT:-9802}:5432"
+      - "${HEALTHHUB_BIND_HOST:-127.0.0.1}:${HEALTHHUB_DB_PORT:-9803}:5432"
     healthcheck:
       # The database exists once the init script has run.
       test: ["CMD-SHELL", "pg_isready -U postgres -d healthhub"]
@@ -44,7 +44,7 @@ services:
     environment:
       AITYX_API_KEY: ${AITYX_API_KEY:-}
       AITYX_URL: ${AITYX_URL:-}
-      API_PORT: "9801"
+      API_PORT: "9802"
       HEALTHHUB_BIND_HOST: 0.0.0.0
       HEALTHHUB_DB_HOST: postgres
       HEALTHHUB_DB_PORT: "5432"
@@ -92,7 +92,7 @@ services:
       retries: 3
     # Bound to this host only; set HEALTHHUB_BIND_HOST=0.0.0.0 to share it.
     ports:
-      - "${HEALTHHUB_BIND_HOST:-127.0.0.1}:${FLUTTER_WEB_PORT:-9800}:8080"
+      - "${HEALTHHUB_BIND_HOST:-127.0.0.1}:${FLUTTER_WEB_PORT:-9801}:8080"
     restart: unless-stopped
 
 volumes:

@@ -4,21 +4,19 @@ How aityx flies the two aityx pilots.
 
 ## The cycle
 
-Every **aityx decides every** frames (6 by default, a tenth of a second
-of game time), when no decision is under way, the app sends `POST
+About every 0.2 s of real time, the time aityx takes to answer, whatever
+the speed (every 6 frames at 1×, 3 at ½×, 12 at 2×, and in between as
+the game speeds up), when no decision is under way, the app sends `POST
 /api/decide` ([decide.dart](../riverrace_app/lib/strategy/decide.dart))
 with, for each aityx pilot still flying, its id (`p1`, `p2`), its
 strategy's name and rules, and what its plane senses now. The API makes
 one aityx call for both, and each plane flies by the answer from then on.
 The player's plane never reaches the API.
 
-- **Real time** (the default): the game doesn't wait; an answer applies
-  when it arrives, typically 150 to 300 ms later, so the pilots react
-  that late. The steer commands are worked out every frame from the live
-  river, so a pilot follows the channel between decisions.
-- **Fair race**: the game holds once a decision is more frames late than
-  the interval, until aityx answers, so the pilots never fly on an old
-  decision. The game then runs as fast as aityx allows.
+- The game doesn't wait: an answer applies when it arrives, typically
+  150 to 300 ms later, so the pilots react that late. The steer commands
+  are worked out every frame from the live river, so a pilot follows the
+  channel between decisions.
 - An answer that arrives after its pilot's plane was lost (and perhaps
   came back) is dropped for that plane: it was about the plane that
   crashed. The app keeps each pilot's loss count with its ask.

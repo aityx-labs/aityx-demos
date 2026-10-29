@@ -1,0 +1,40 @@
+{
+  "name": "RoboRules · Scoring a round",
+  "types": {
+    "Result": {"id": "string", "died": "number", "damage": "number"},
+    "Score": {"id": "string", "survival": "number", "last_survivor": "number", "bullet_damage": "number", "total": "number"}
+  },
+  "inputs": {
+    "results": {
+      "type": ["Result"],
+      "desc": "How each robot ended the round: the turn it died (0 if it survived) and the bullet damage it dealt",
+      "from": "the last turn of the round"
+    }
+  },
+  "functions": {
+    "outlived": {
+      "params": {"me": "Result", "other": "Result"},
+      "returns": "boolean",
+      "body": "other.id != me.id and other.died > 0 and (me.died = 0 or other.died < me.died)"
+    },
+    "score_of": {
+      "params": {"me": "Result", "all": ["Result"]},
+      "returns": "Score",
+      "body": "{id: me.id, survival: 50 * count(all[outlived(me, item)]), last_survivor: if me.died = 0 and count(all[item.died = 0]) = 1 then 10 * (count(all) - 1) else 0, bullet_damage: floor(me.damage), total: 50 * count(all[outlived(me, item)]) + (if me.died = 0 and count(all[item.died = 0]) = 1 then 10 * (count(all) - 1) else 0) + floor(me.damage)}"
+    }
+  },
+  "decisions": {
+    "survival_points": {"type": "number", "desc": "Points for each robot outlived", "expr": "50"},
+    "last_survivor_points": {"type": "number", "desc": "Points for the last robot standing, per enemy", "expr": "10"},
+    "scores": {
+      "type": ["Score"],
+      "desc": "Each robot's score for the round, as Robocode counts it: 50 for each robot outlived, 10 per enemy for the last survivor, and 1 per point of bullet damage dealt",
+      "expr": "for r in results return score_of(r, results)"
+    },
+    "winner": {
+      "type": "string",
+      "desc": "The robot with the highest total",
+      "expr": "scores[item.total = max(for s in scores return s.total)][1].id"
+    }
+  }
+}

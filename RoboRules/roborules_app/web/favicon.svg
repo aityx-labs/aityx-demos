@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320">
+  <!-- RoboRules' favicon, in aityx's style: one flat orange glyph, no background, straight edges. A tank seen from above: two tracks set off from the hull by slots, an octagonal turret ringed by a gap, and the barrel. -->
+  <path fill="#E36742" fill-rule="evenodd" d="M24 70H92V100H146V14H174V100H228V70H296V306H228V280H92V306H24Z M92 112H102V268H92Z M218 112H228V268H218Z M139.3 142 L180.7 142 L210 171.3 L210 212.7 L180.7 242 L139.3 242 L110 212.7 L110 171.3Z M146 142H174V160H146Z M146.7 160 L173.3 160 L192 178.7 L192 205.3 L173.3 224 L146.7 224 L128 205.3 L128 178.7Z"/>
+</svg>

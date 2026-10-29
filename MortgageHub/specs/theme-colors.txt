@@ -1,0 +1,22 @@
+aityx dark palette (Mortgage Hub theme)
+Source: the aityx website; implemented in mortgagehub_app/lib/theme.dart
+
+Backgrounds
+  bg0          #151418   lowest surface
+  bg           #17161A   page, app bar
+  bg1          #201E24   panels, cards, chips
+  bg2          #2A272E   raised surfaces, selected tabs
+  border       #37333C   outlines, dividers
+  dim          #47474D   faint text, outline variant
+
+Text
+  fg0          #FFFFFF   titles, text on orange
+  fg           #EFF2F4   body text
+  muted        #A9ACB6   secondary text
+
+Accents
+  orange       #E36742   primary (buttons, links, highlights)
+  orangeLight  #EB7B58   hover / inverse primary
+  green        #4CC38A   secondary, "processable" / pass
+  amber        #E8B04B   tertiary, "needs review"
+  red          #F0506E   error, "not processable" / fail

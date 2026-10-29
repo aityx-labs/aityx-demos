@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.5/.schema/devbox.schema.json",
+  "packages": {
+    "flutter": "latest",
+    "gnumake": "latest",
+    "curl":    "latest"
+  },
+  "shell": {
+    "scripts": {
+      "web": "WEB_MODE=${WEB_MODE:-debug} bash scripts/flutter-web.sh",
+      "build": "bash scripts/build.sh"
+    }
+  }
+}

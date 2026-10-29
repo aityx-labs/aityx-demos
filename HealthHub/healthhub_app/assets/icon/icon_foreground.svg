@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- HealthHub: the heart with the pulse line, on transparency, for Android's adaptive-icon foreground. -->
+  <g transform="translate(152 152) scale(2.25)">
+    <defs>
+      <mask id="pulse">
+        <rect width="320" height="320" fill="#fff"/>
+        <path d="M62 150 H106 L126 108 L154 196 L178 150 H258" fill="none" stroke="#000" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+      </mask>
+    </defs>
+    <path fill="#E36742" mask="url(#pulse)" d="M160 292 C70 222 20 174 20 108 C20 62 54 28 96 28 C123 28 146 42 160 64 C174 42 197 28 224 28 C266 28 300 62 300 108 C300 174 250 222 160 292 Z"/>
+  </g>
+</svg>

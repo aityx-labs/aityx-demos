@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- PokerFace: a playing card in aityx orange on the page background, its face a spade, with a chip in the corner: a poker face, decided by rules. -->
+  <rect width="1024" height="1024" fill="#17161A"/>
+  <g transform="rotate(-8 512 512)">
+    <rect x="292" y="152" width="440" height="620" rx="48" fill="#E36742"/>
+    <text x="340" y="268" font-family="Helvetica, Arial, sans-serif" font-size="110" font-weight="700" fill="#17161A">A</text>
+    <text x="684" y="748" font-family="Helvetica, Arial, sans-serif" font-size="110" font-weight="700" fill="#17161A" transform="rotate(180 684 712)">A</text>
+    <path d="M512 310 C 560 400, 690 430, 690 530 C 690 600, 630 640, 572 610 C 560 650, 580 690, 612 712 L 412 712 C 444 690, 464 650, 452 610 C 394 640, 334 600, 334 530 C 334 430, 464 400, 512 310 Z" fill="#17161A"/>
+  </g>
+  <circle cx="790" cy="790" r="128" fill="#FFFFFF"/>
+  <circle cx="790" cy="790" r="128" fill="none" stroke="#E36742" stroke-width="26" stroke-dasharray="50 50"/>
+  <circle cx="790" cy="790" r="64" fill="#17161A"/>
+</svg>

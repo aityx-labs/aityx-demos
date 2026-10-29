@@ -1,0 +1,93 @@
+{
+  // ---------------------------------------------------------------------
+  // Mortgage Hub
+  //
+  // A demo that brings a home buyer's mortgage, from application to
+  // closing, into one place: a Flutter app (web, Android, iOS, Linux), a
+  // Dart API, and a regulatory check that says whether a lender can
+  // process a proposal under current US rules.
+  //
+  // Source:  https://github.com/aityx-labs/aityx-demos (MortgageHub/)
+  // Rules:   https://aityx.ai — runs the decision model behind the check
+  // Aletyx:  https://aletyx.com
+  //          https://nu01.com
+  //
+  // This repository holds several samples. This dev container is Mortgage
+  // Hub, in MortgageHub/ — not Mortgage_Process or Payroll. The name below
+  // is what GitHub shows in the "Dev container configuration" list when
+  // you create a codespace.
+  // ---------------------------------------------------------------------
+  "name": "Mortgage Hub",
+  "build": {
+    "dockerfile": "Containerfile",
+    // Nothing is copied into the image, so the build context is just this
+    // folder rather than the whole repository.
+    "context": "."
+  },
+  "remoteUser": "vscode",
+  // The dev servers must listen on every interface for the forwarded
+  // ports to reach them (only the container sees them).
+  "containerEnv": {
+    "MORTGAGEHUB_BIND_HOST": "0.0.0.0"
+  },
+  // Your own key, never the repository's. GitHub asks for it when you
+  // create a codespace unless you already hold it, stores it against your
+  // account, and passes it to the container as an environment variable,
+  // which the app's scripts read before falling back to MortgageHub/.env.
+  // Change it at https://github.com/settings/codespaces.
+  //
+  // Only the key is asked for. AITYX_URL defaults to https://api.aityx.ai
+  // and ASSUMED_RATE to 6.5, so neither needs setting; override them in
+  // MortgageHub/.env if you need to (a stage key, for instance, works
+  // only against https://api-stage.aityx.ai).
+  "secrets": {
+    "AITYX_API_KEY": {
+      "description": "Required. Your own aityx.ai API key, from the console's API keys page.",
+      "documentationUrl": "https://aityx.ai/docs"
+    }
+  },
+  // The image's flutter and dart on the PATH of every terminal.
+  // ${containerEnv:PATH} is the image's own PATH. Inside `devbox shell`
+  // and `devbox services up`, devbox's Flutter, the same version, comes
+  // first.
+  "remoteEnv": {
+    "PATH": "/opt/flutter/bin:${containerEnv:PATH}"
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        // The Flutter SDK baked into the image (see Containerfile), there
+        // from the moment VS Code attaches. Devbox's own Flutter only
+        // appears once post-create.sh has run `devbox install`, too late
+        // for the Dart extension, which then offers to download one.
+        "dart.flutterSdkPath": "/opt/flutter"
+      },
+      "extensions": [
+        "Dart-Code.dart-code",
+        "Dart-Code.flutter"
+      ]
+    }
+  },
+  // Only the web app's port. The API (8881) stays inside the container:
+  // the app reaches it through the web server's /api/ proxy. The port's
+  // bare URL redirects to the app at /app/. Plain HTTP, which is what the
+  // dev server speaks; switching a public port to HTTPS makes it private.
+  // post-start.sh makes it public, which devcontainer.json cannot.
+  "forwardPorts": [8880],
+  "portsAttributes": {
+    "8880": {
+      "label": "Mortgage Hub web app",
+      "protocol": "http",
+      "onAutoForward": "openBrowserOnce"
+    }
+  },
+  // Both run from the repository root; the scripts move to MortgageHub/
+  // themselves. post-create.sh installs the toolchain once; post-start.sh
+  // starts the services and makes the port public on every start.
+  "postCreateCommand": "bash -lc 'bash \".devcontainer/MortgageHub/post-create.sh\"'",
+  "postStartCommand": "bash -lc 'bash \".devcontainer/MortgageHub/post-start.sh\"'",
+  // Again each time VS Code attaches: a visibility set at start does not
+  // always stick, and users report it does from here.
+  "postAttachCommand": "bash \".devcontainer/MortgageHub/public-port.sh\""
+}

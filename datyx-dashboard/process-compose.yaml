@@ -1,0 +1,55 @@
+version: "0.5"
+
+# `devbox services up`: the dashboard on the host's Flutter (its release
+# build served by a small native server, or Flutter's dev server with
+# WEB_MODE=debug) and the health monitor. The datyx API is not started
+# here: it is the datyx/ folder's, reached at DATYX_API_URL (its port is
+# API_PORT, 9900), and the dashboard proxies /api/ and /q/ to it. Start
+# the group together: ./start-datyx.sh at the repository root.
+# Settings come from the environment or .env (see .env.example).
+
+processes:
+  0-health-check:
+    command: bash scripts/health-check.sh
+    environment:
+      - HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL:-15}
+      - FLUTTER_WEB_PORT=${FLUTTER_WEB_PORT:-9906}
+      - API_PORT=${API_PORT:-9900}
+    # Start logging once the dashboard passes its readiness probe. The API
+    # is another folder's service, so it is checked, not waited for.
+    depends_on:
+      2-flutter-web:
+        condition: process_healthy
+    availability:
+      restart: on_failure
+      backoff_seconds: 5
+
+  2-flutter-web:
+    # The dashboard: its release build served by a small native server, or,
+    # with WEB_MODE=debug, Flutter's dev server with hot reload (see
+    # scripts/flutter-web.sh). Either proxies /api/ and /q/ to the datyx
+    # API, which answers 502 through the proxy until the API is up.
+    command: bash scripts/flutter-web.sh
+    environment:
+      - FLUTTER_WEB_PORT=${FLUTTER_WEB_PORT:-9906}
+      - API_PORT=${API_PORT:-9900}
+      - WEB_MODE=${WEB_MODE:-release}
+    # Stopping only the script leaves the server on the port, and the next
+    # start then fails to bind it. Stop whatever listens on the port.
+    shutdown:
+      command: lsof -tiTCP:${FLUTTER_WEB_PORT:-9906} -sTCP:LISTEN | xargs kill 2>/dev/null; true
+      timeout_seconds: 10
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: ${FLUTTER_WEB_PORT:-9906}
+        path: /app/
+      initial_delay_seconds: 2
+      period_seconds: 2
+      timeout_seconds: 5
+      # Up to 15 minutes: a first start builds the app, and when every
+      # demo starts at once (start-all.sh) the builds take turns.
+      failure_threshold: 450
+    availability:
+      restart: on_failure
+      backoff_seconds: 5

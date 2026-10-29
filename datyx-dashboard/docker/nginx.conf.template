@@ -1,0 +1,31 @@
+# The dashboard under /app/ and the datyx API under /api/ and /q/, on one
+# origin, as the web server serves them (datyx_dashboard/lib/web_server.dart).
+# ${DATYX_API_URL} is filled in when the container starts (compose.yaml:
+# the host's port 9900 unless set).
+server {
+    listen 8080;
+    server_name _;
+    root /usr/share/nginx/html;
+    # Relative redirects, so they keep the published port, not 8080.
+    absolute_redirect off;
+
+    location = / {
+        return 302 /app/;
+    }
+
+    location /app/ {
+        try_files $uri $uri/ /app/index.html;
+    }
+
+    location /api/ {
+        proxy_pass ${DATYX_API_URL};
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        client_max_body_size 64k;
+    }
+
+    location /q/ {
+        proxy_pass ${DATYX_API_URL};
+        proxy_set_header Host $host;
+    }
+}

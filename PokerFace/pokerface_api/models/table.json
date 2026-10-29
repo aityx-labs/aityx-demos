@@ -1,0 +1,37 @@
+{
+  "name": "PokerFace · a player's turn at a no-limit Texas hold'em table",
+  "types": {
+    "Street": "preflop|flop|turn|river",
+    "Position": "early|middle|late|blinds",
+    "HoleCards": "premium|strong|medium|speculative|weak",
+    "MadeHand": "high_card|pair|two_pair|three_of_a_kind|straight|flush|full_house|four_of_a_kind|straight_flush",
+    "StraightDraw": "none|gutshot|open_ended",
+    "Action": "fold|check|call|raise|all_in"
+  },
+  "inputs": {
+    "street": {"type": "Street", "desc": "The betting round: before the flop, or with three, four or five community cards out", "from": "the table"},
+    "position": {"type": "Position", "desc": "Where the player acts in this round: among the first (early), the middle, or the last (late, the button among them); blinds before the flop", "from": "the table, relative to the button"},
+    "hole": {"type": ["string"], "desc": "The player's two hole cards, rank then suit (Ah, Td)", "from": "the deal"},
+    "board": {"type": ["string"], "desc": "The community cards out so far, in the same notation", "from": "the deal"},
+    "hand": {"type": "HoleCards", "desc": "The hole cards' class: premium (AA, KK, QQ, AKs), strong (JJ, TT, AK, AQs, AJs, KQs), medium (99 to 77, AQ, AJ, ATs, KQ, KJs, QJs, JTs), speculative (small pairs, suited connectors, suited aces) or weak (the rest)", "from": "the deal, classed by the app"},
+    "made_hand": {"type": "MadeHand", "desc": "The best five-card hand the player holds now, from the hole cards and the board", "from": "the app's hand evaluator"},
+    "flush_draw": {"type": "boolean", "desc": "Four cards to a flush, with cards still to come", "from": "the app's hand evaluator"},
+    "straight_draw": {"type": "StraightDraw", "desc": "A straight draw with cards still to come: none, a gutshot (four outs) or open-ended (eight outs)", "from": "the app's hand evaluator"},
+    "equity": {"type": "number [0..1]", "desc": "The player's estimated chance of winning at showdown against the players still in the hand, by random run-outs", "from": "the app's Monte Carlo estimate"},
+    "pot": {"type": "number >= 0", "desc": "Chips in the pot, bets of this round included", "from": "the table"},
+    "current_bet": {"type": "number >= 0", "desc": "The highest bet of this round so far; 0 when nobody has bet", "from": "the table"},
+    "to_call": {"type": "number >= 0", "desc": "Chips the player must add to stay in; 0 when checking is possible", "from": "the table"},
+    "pot_odds": {"type": "number [0..1]", "desc": "to_call divided by the pot after calling: the share of the pot the call costs, which the chance of winning must beat", "from": "the table"},
+    "can_check": {"type": "boolean", "desc": "Whether nothing is to call, so the player may check", "from": "the table"},
+    "can_raise": {"type": "boolean", "desc": "Whether a raise is possible: chips beyond the call, and the round not yet capped", "from": "the table"},
+    "raises": {"type": "number >= 0", "desc": "Bets and raises made this round before the player's turn; 0 when nobody has bet (preflop, the blinds are not counted)", "from": "the table"},
+    "stack": {"type": "number >= 0", "desc": "The player's chips behind, not counting what they already bet this round", "from": "the table"},
+    "big_blind": {"type": "number > 0", "desc": "The big blind, in chips", "from": "the table"},
+    "stack_bb": {"type": "number >= 0", "desc": "The stack in big blinds", "from": "the table"},
+    "min_raise": {"type": "number >= 0", "desc": "The smallest total bet a raise may be made to", "from": "the table"},
+    "max_raise": {"type": "number >= 0", "desc": "The largest total bet the player can make: all in", "from": "the table"},
+    "players_in_hand": {"type": "number >= 2", "desc": "Players still in the hand, the player included", "from": "the table"},
+    "players_after": {"type": "number >= 0", "desc": "Players still to act after the player in this round", "from": "the table"},
+    "random": {"type": "number [0..1]", "desc": "A random number drawn for this decision, so a strategy can mix its play (bluff some of the time)", "from": "the app's dice"}
+  }
+}

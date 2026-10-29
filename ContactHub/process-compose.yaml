@@ -1,0 +1,71 @@
+version: "0.5"
+
+processes:
+  0-health-check:
+    command: bash scripts/health-check.sh
+    environment:
+      - HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL:-15}
+      - FLUTTER_WEB_PORT=${FLUTTER_WEB_PORT:-8890}
+      - API_PORT=${API_PORT:-8891}
+    # Start logging once every service passes its readiness probe, so the
+    # first status line reflects a fully started stack.
+    depends_on:
+      2-flutter-web:
+        condition: process_healthy
+      3-api:
+        condition: process_healthy
+    availability:
+      restart: on_failure
+      backoff_seconds: 5
+
+  2-flutter-web:
+    # The web app: its release build served by a small native server, or,
+    # with WEB_MODE=debug, Flutter's dev server with hot reload (see
+    # scripts/flutter-web.sh).
+    command: bash scripts/flutter-web.sh
+    environment:
+      - FLUTTER_WEB_PORT=${FLUTTER_WEB_PORT:-8890}
+      - API_PORT=${API_PORT:-8891}
+      - WEB_MODE=${WEB_MODE:-release}
+    # Stopping only the script leaves flutter's dart process serving the
+    # old build on the port, and the next start then fails to bind it. Stop
+    # whatever listens on the port (flutter's wrapper exits with it).
+    shutdown:
+      command: lsof -tiTCP:${FLUTTER_WEB_PORT:-8890} -sTCP:LISTEN | xargs kill 2>/dev/null; true
+      timeout_seconds: 10
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: ${FLUTTER_WEB_PORT:-8890}
+        path: /app/
+      initial_delay_seconds: 2
+      period_seconds: 2
+      timeout_seconds: 5
+      # Up to 15 minutes: a first start builds the app, and when every
+      # demo starts at once (start-all.sh) the builds take turns.
+      failure_threshold: 450
+    availability:
+      restart: on_failure
+      backoff_seconds: 5
+
+
+  3-api:
+    # The API (contacthub_api/); see scripts/api.sh.
+    command: bash scripts/api.sh
+    environment:
+      - API_PORT=${API_PORT:-8891}
+      - FLUTTER_WEB_PORT=${FLUTTER_WEB_PORT:-8890}
+      - AITYX_API_KEY=${AITYX_API_KEY:-}
+      - AITYX_URL=${AITYX_URL:-}
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: ${API_PORT:-8891}
+        path: /api/health
+      initial_delay_seconds: 1
+      period_seconds: 2
+      timeout_seconds: 5
+      failure_threshold: 60
+    availability:
+      restart: on_failure
+      backoff_seconds: 5

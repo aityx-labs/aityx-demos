@@ -1,0 +1,169 @@
+# datyx with Docker alone: `docker compose up` from this folder, then open
+# the API at http://localhost:9900/api/hello and OpenMetadata at
+# http://localhost:9902/. No devbox or JDK needed on the host. The
+# dashboard is the datyx-dashboard/ folder's own compose file; it reaches
+# the API on the host's port 9900.
+#
+# The same file serves `devbox services up` (process-compose.yaml), which
+# runs postgres, search and openmetadata from here, one `docker compose up
+# <service>` each, and the API on the host's toolchain.
+#
+# Ports: 9900 the API, 9901 PostgreSQL, 9902 OpenMetadata, 9903 its admin
+# port, 9904 Elasticsearch; all bound to this host only unless
+# DATYX_BIND_HOST=0.0.0.0. Settings come from the environment, else this
+# folder's .env (see .env.example).
+
+name: datyx
+
+# OpenMetadata's settings, for the migration and the server alike. The
+# rest keep the image's defaults (conf/openmetadata.yaml). Basic
+# authentication with the built-in admin: admin@open-metadata.org / admin.
+x-openmetadata-environment: &openmetadata-environment
+  OPENMETADATA_CLUSTER_NAME: datyx
+  SERVER_PORT: "8585"
+  SERVER_ADMIN_PORT: "8586"
+  LOG_LEVEL: ${OPENMETADATA_LOG_LEVEL:-INFO}
+  MIGRATION_LIMIT_PARAM: "1200"
+  # PostgreSQL, the postgres service below.
+  DB_DRIVER_CLASS: org.postgresql.Driver
+  DB_SCHEME: postgresql
+  DB_PARAMS: allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_USER: openmetadata_user
+  DB_USER_PASSWORD: ${OPENMETADATA_DB_PASSWORD:-openmetadata_password}
+  OM_DATABASE: openmetadata_db
+  # Elasticsearch, the search service below.
+  SEARCH_TYPE: elasticsearch
+  ELASTICSEARCH_HOST: search
+  ELASTICSEARCH_PORT: "9200"
+  ELASTICSEARCH_SCHEME: http
+  # No ingestion (Airflow) container here: metadata comes in through the
+  # API, from datyx. Without this the server keeps looking for one.
+  PIPELINE_SERVICE_CLIENT_ENABLED: "false"
+  OPENMETADATA_HEAP_OPTS: ${OPENMETADATA_HEAP_OPTS:--Xmx1G -Xms1G}
+
+services:
+  postgres:
+    image: postgres:17
+    # OpenMetadata's migrations like a bit more working memory than the
+    # default 4MB.
+    command: -c work_mem=10MB
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DATYX_DB_ADMIN_PASSWORD:-postgres}
+      # Read by docker/postgres-init.sh on the first start: the datyx and
+      # openmetadata_db databases and their owners.
+      DATYX_DB_PASSWORD: ${DATYX_DB_PASSWORD:-datyx}
+      OPENMETADATA_DB_PASSWORD: ${OPENMETADATA_DB_PASSWORD:-openmetadata_password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sh:/docker-entrypoint-initdb.d/10-datyx.sh:ro
+    ports:
+      - "${DATYX_BIND_HOST:-127.0.0.1}:${DATYX_DB_PORT:-9901}:5432"
+    healthcheck:
+      # Both databases exist once the init script has run.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d datyx && psql -U postgres -d openmetadata_db -tAc 'select 1' >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+      retries: 12
+
+  search:
+    # OpenMetadata's search index, the engine and version its own compose
+    # file ships with.
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.3.0
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: ${SEARCH_JAVA_OPTS:--Xms1g -Xmx1g}
+    volumes:
+      - search-data:/usr/share/elasticsearch/data
+    ports:
+      - "${DATYX_BIND_HOST:-127.0.0.1}:${DATYX_SEARCH_PORT:-9904}:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 5s
+      timeout: 10s
+      start_period: 60s
+      retries: 24
+
+  openmetadata-migrate:
+    # Creates or upgrades OpenMetadata's schema; runs once before the server
+    # and exits. Minutes on a first start.
+    image: docker.getcollate.io/openmetadata/server:2.0.7
+    command: ./bootstrap/openmetadata-ops.sh migrate
+    environment:
+      <<: *openmetadata-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      search:
+        condition: service_healthy
+
+  openmetadata:
+    # The OpenMetadata server: UI and API on 8585 (published as 9902), the
+    # admin port with /healthcheck on 8586 (9903).
+    image: docker.getcollate.io/openmetadata/server:2.0.7
+    environment:
+      <<: *openmetadata-environment
+    ports:
+      - "${DATYX_BIND_HOST:-127.0.0.1}:${DATYX_OPENMETADATA_PORT:-9902}:8585"
+      - "${DATYX_BIND_HOST:-127.0.0.1}:${DATYX_OPENMETADATA_ADMIN_PORT:-9903}:8586"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      search:
+        condition: service_healthy
+      openmetadata-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8586/healthcheck"]
+      interval: 10s
+      timeout: 10s
+      start_period: 120s
+      retries: 30
+
+  api:
+    # The datyx API (datyx-api/), built in the image: the packaged app on
+    # the GraalVM JDK (docker/api.jvm.Dockerfile, the default) or the
+    # native executable (DATYX_API_DOCKERFILE=docker/api.native.Dockerfile;
+    # a native build wants 6 GB or more for Docker).
+    build:
+      context: .
+      dockerfile: ${DATYX_API_DOCKERFILE:-docker/api.jvm.Dockerfile}
+      args:
+        REVISION: ${REVISION:-0.1.0-SNAPSHOT}
+    environment:
+      DATYX_API_PORT: "9900"
+      DATYX_BIND_HOST: 0.0.0.0
+      DATYX_DB_URL: jdbc:postgresql://postgres:5432/datyx
+      DATYX_DB_USER: datyx
+      DATYX_DB_PASSWORD: ${DATYX_DB_PASSWORD:-datyx}
+      DATYX_OPENMETADATA_URL: http://openmetadata:8585
+      # Authentication (see .env.example): without a client id it is off.
+      OIDC_ISSUER: ${OIDC_ISSUER:-https://accounts.google.com}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_EXTRA_AUDIENCES: ${OIDC_EXTRA_AUDIENCES:-}
+      # Encryption at rest (see .env.example): required, the API refuses to
+      # start without it outside dev mode.
+      DATYX_MASTER_KEY: ${DATYX_MASTER_KEY:-}
+    ports:
+      # API_PORT is the name .env.example, the demos and the repository's
+      # start-all.sh use for this port (Compose can't nest a second default).
+      - "${DATYX_BIND_HOST:-127.0.0.1}:${API_PORT:-9900}:9900"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      openmetadata:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9900/api/health/ready >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 6
+
+volumes:
+  postgres-data:
+  search-data:

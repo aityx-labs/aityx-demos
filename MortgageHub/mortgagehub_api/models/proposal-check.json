@@ -1,0 +1,965 @@
+{
+  "name": "Mortgage proposal regulatory check (US, 2026)",
+  "inputs": {
+    "loan_purpose": {
+      "type": "purchase|refinance|cash_out_refinance",
+      "desc": "What is the loan for?",
+      "options": {
+        "purchase": "Buying a home.",
+        "refinance": "Rate-and-term (limited cash-out) refinance.",
+        "cash_out_refinance": "Refinance that takes cash out."
+      }
+    },
+    "loan_program": {
+      "type": "conventional|fha|va|usda|not_sure",
+      "desc": "Which loan program did the borrower ask for?"
+    },
+    "rate_type": {
+      "type": "fixed|adjustable|not_sure",
+      "desc": "Fixed or adjustable rate?"
+    },
+    "term_years": {
+      "type": "number [10..30]",
+      "desc": "What is the loan term in years?"
+    },
+    "property_type": {
+      "type": "single_family|townhouse|condo|two_to_four_units|manufactured",
+      "desc": "What kind of property is it?"
+    },
+    "occupancy": {
+      "type": "primary|second_home|investment",
+      "desc": "How will the borrower use the property?"
+    },
+    "state": {
+      "type": "string",
+      "desc": "The property's two-letter US state or territory code."
+    },
+    "property_value": {
+      "type": "number > 0",
+      "desc": "What is the purchase price, or the estimated value for a refinance, in USD?"
+    },
+    "down_payment": {
+      "type": "number >= 0",
+      "desc": "What is the down payment in USD (0 for a refinance)?"
+    },
+    "current_balance": {
+      "type": "number >= 0",
+      "desc": "What is the current mortgage balance in USD (0 for a purchase)?"
+    },
+    "cash_out": {
+      "type": "number >= 0",
+      "desc": "How much cash is taken out in USD (0 unless cash-out)?"
+    },
+    "annual_taxes": {
+      "type": "number >= 0",
+      "desc": "What are the annual property taxes in USD?",
+      "blank": true
+    },
+    "annual_insurance": {
+      "type": "number >= 0",
+      "desc": "What is the annual homeowners insurance in USD?",
+      "blank": true
+    },
+    "monthly_hoa": {
+      "type": "number >= 0",
+      "desc": "What are the monthly HOA dues in USD?",
+      "blank": true
+    },
+    "credit_score": {
+      "type": "s780|s760|s740|s720|s700|s680|s660|s640|s620|below620|unknown",
+      "desc": "What is the borrower's self-reported credit score band?",
+      "options": {
+        "s780": "780 or higher.",
+        "s760": "760 to 779.",
+        "s740": "740 to 759.",
+        "s720": "720 to 739.",
+        "s700": "700 to 719.",
+        "s680": "680 to 699.",
+        "s660": "660 to 679.",
+        "s640": "640 to 659.",
+        "s620": "620 to 639.",
+        "below620": "Below 620.",
+        "unknown": "The borrower doesn't know."
+      }
+    },
+    "annual_income": {
+      "type": "number > 0",
+      "desc": "What is the borrowers' gross annual income in USD?"
+    },
+    "monthly_debts": {
+      "type": "number >= 0",
+      "desc": "What are the borrowers' minimum monthly debt payments in USD, excluding housing?"
+    },
+    "first_time_buyer": {
+      "type": "boolean",
+      "desc": "Is at least one borrower a first-time homebuyer?"
+    },
+    "military_service": {
+      "type": "boolean",
+      "desc": "Has a borrower served in the US military, or is a surviving spouse?"
+    },
+    "assumed_rate": {
+      "type": "number > 0",
+      "desc": "What annual interest rate, in percent, estimates the payment?"
+    }
+  },
+  "decisions": {
+    "program": {
+      "type": "conventional|fha|va|usda",
+      "desc": "Which program is checked? A borrower who isn't sure is checked for conventional.",
+      "expr": "if loan_program = \"not_sure\" then \"conventional\" else loan_program"
+    },
+    "loan_amount": {
+      "type": "number",
+      "desc": "The mortgage loan amount sought, in USD.",
+      "expr": "if loan_purpose = \"purchase\" then property_value - down_payment else current_balance + cash_out"
+    },
+    "ltv": {
+      "type": "number",
+      "desc": "Loan-to-value, in percent, unrounded: the rules compare the exact value.",
+      "expr": "loan_amount / property_value * 100"
+    },
+    "high_cost_state": {
+      "type": "boolean",
+      "desc": "Is the property in Alaska, Hawaii, Guam or the US Virgin Islands, where the 2026 baseline limits are higher?",
+      "expr": "state = \"AK\" or state = \"HI\" or state = \"GU\" or state = \"VI\""
+    },
+    "principal_and_interest": {
+      "type": "number",
+      "desc": "Estimated monthly principal and interest, in USD.",
+      "let": {
+        "monthly_rate": "assumed_rate / 100 / 12",
+        "payments": "term_years * 12"
+      },
+      "expr": "decimal(loan_amount * monthly_rate / (1 - (1 + monthly_rate) ** (0 - payments)), 2)"
+    },
+    "housing_payment": {
+      "type": "number",
+      "desc": "Estimated monthly housing payment (principal, interest, taxes, insurance, HOA), in USD. Taxes default to 1.0% and insurance to 0.35% of the value a year; mortgage insurance is not included.",
+      "let": {
+        "taxes": "if annual_taxes = null then property_value * 0.01 else annual_taxes",
+        "insurance": "if annual_insurance = null then property_value * 0.0035 else annual_insurance",
+        "hoa": "if monthly_hoa = null then 0 else monthly_hoa"
+      },
+      "expr": "decimal(principal_and_interest + (taxes + insurance) / 12 + hoa, 2)"
+    },
+    "dti": {
+      "type": "number",
+      "desc": "Back-end debt-to-income ratio with the new housing payment, in percent, unrounded: the rules compare the exact value.",
+      "expr": "(housing_payment + monthly_debts) / (annual_income / 12) * 100"
+    },
+    "max_ltv": {
+      "type": "number",
+      "desc": "The program's maximum LTV for this transaction, in percent (0 when the program can't finance it).",
+      "table": [
+        [
+          "program",
+          "occupancy",
+          "loan_purpose",
+          "property_type",
+          "rate_type",
+          "first_time_buyer",
+          "credit_score",
+          "=>",
+          "# why"
+        ],
+        [
+          "conventional",
+          "primary",
+          "cash_out_refinance",
+          "manufactured",
+          "-",
+          "-",
+          "-",
+          "65",
+          "Fannie Mae Eligibility Matrix (Aug 5, 2026): manufactured housing, principal residence cash-out."
+        ],
+        [
+          "conventional",
+          "primary",
+          "cash_out_refinance",
+          "two_to_four_units",
+          "-",
+          "-",
+          "-",
+          "75",
+          "Matrix: principal residence cash-out, 2-4 units."
+        ],
+        [
+          "conventional",
+          "primary",
+          "cash_out_refinance",
+          "-",
+          "-",
+          "-",
+          "-",
+          "80",
+          "Matrix: principal residence cash-out, 1 unit."
+        ],
+        [
+          "conventional",
+          "primary",
+          "-",
+          "two_to_four_units",
+          "-",
+          "-",
+          "-",
+          "95",
+          "Matrix: principal residence purchase or limited cash-out, 2-4 units."
+        ],
+        [
+          "conventional",
+          "primary",
+          "-",
+          "-",
+          "adjustable",
+          "-",
+          "-",
+          "95",
+          "Matrix: ARMs on a principal residence max out at 95%."
+        ],
+        [
+          "conventional",
+          "primary",
+          "purchase",
+          "-",
+          "-",
+          "false",
+          "-",
+          "95",
+          "Matrix note (1): above 95% on a purchase needs a first-time homebuyer."
+        ],
+        [
+          "conventional",
+          "primary",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "97",
+          "Matrix: principal residence, 1 unit, fixed rate."
+        ],
+        [
+          "conventional",
+          "second_home",
+          "-",
+          "two_to_four_units",
+          "-",
+          "-",
+          "-",
+          "0",
+          "Matrix: second homes are 1 unit only."
+        ],
+        [
+          "conventional",
+          "second_home",
+          "cash_out_refinance",
+          "-",
+          "-",
+          "-",
+          "-",
+          "75",
+          "Matrix: second home cash-out."
+        ],
+        [
+          "conventional",
+          "second_home",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "90",
+          "Matrix: second home purchase or limited cash-out."
+        ],
+        [
+          "conventional",
+          "investment",
+          "-",
+          "manufactured",
+          "-",
+          "-",
+          "-",
+          "0",
+          "Matrix: manufactured homes only as a principal residence or second home."
+        ],
+        [
+          "conventional",
+          "investment",
+          "cash_out_refinance",
+          "two_to_four_units",
+          "-",
+          "-",
+          "-",
+          "70",
+          "Matrix: investment cash-out, 2-4 units."
+        ],
+        [
+          "conventional",
+          "investment",
+          "cash_out_refinance",
+          "-",
+          "-",
+          "-",
+          "-",
+          "75",
+          "Matrix: investment cash-out, 1 unit."
+        ],
+        [
+          "conventional",
+          "investment",
+          "refinance",
+          "-",
+          "-",
+          "-",
+          "-",
+          "75",
+          "Matrix: investment limited cash-out, 1-4 units."
+        ],
+        [
+          "conventional",
+          "investment",
+          "purchase",
+          "two_to_four_units",
+          "-",
+          "-",
+          "-",
+          "75",
+          "Matrix: investment purchase, 2-4 units."
+        ],
+        [
+          "conventional",
+          "investment",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "85",
+          "Matrix: investment purchase, 1 unit."
+        ],
+        [
+          "fha",
+          "not(primary)",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "0",
+          "FHA insures owner-occupied homes only (HUD Handbook 4000.1)."
+        ],
+        [
+          "fha",
+          "-",
+          "cash_out_refinance",
+          "-",
+          "-",
+          "-",
+          "-",
+          "80",
+          "FHA cash-out refinances max out at 80% (HUD Mortgagee Letter 2019-11)."
+        ],
+        [
+          "fha",
+          "-",
+          "refinance",
+          "-",
+          "-",
+          "-",
+          "-",
+          "97.75",
+          "FHA rate-and-term refinance maximum (HUD Handbook 4000.1)."
+        ],
+        [
+          "fha",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "96.5",
+          "FHA: 580 and up can put 3.5% down."
+        ],
+        [
+          "va",
+          "not(primary)",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "0",
+          "VA guarantees homes the veteran occupies (38 U.S.C. 3704(c))."
+        ],
+        [
+          "va",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "100",
+          "VA allows up to 100% with full entitlement."
+        ],
+        [
+          "usda",
+          "not(primary)",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "0",
+          "USDA guarantees primary residences only (7 CFR 3555)."
+        ],
+        [
+          "usda",
+          "-",
+          "cash_out_refinance",
+          "-",
+          "-",
+          "-",
+          "-",
+          "0",
+          "USDA guaranteed loans allow no cash-out refinancing."
+        ],
+        [
+          "usda",
+          "-",
+          "-",
+          "two_to_four_units",
+          "-",
+          "-",
+          "-",
+          "0",
+          "USDA doesn't finance income-producing 2-4 unit properties."
+        ],
+        [
+          "usda",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "100",
+          "USDA finances up to 100% of the value."
+        ],
+        [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "0",
+          "Unknown program."
+        ]
+      ]
+    },
+    "program_check": {
+      "desc": "Can the program finance this borrower, property and purpose?",
+      "table": [
+        [
+          "program",
+          "occupancy",
+          "loan_purpose",
+          "property_type",
+          "military_service",
+          "loan_program",
+          "=> result: pass|review|fail",
+          "=> reason: string",
+          "# why"
+        ],
+        [
+          "fha",
+          "not(primary)",
+          "-",
+          "-",
+          "-",
+          "-",
+          "fail",
+          "\"FHA loans are only for a home the borrower will live in.\"",
+          "HUD Handbook 4000.1: FHA insures owner-occupied homes."
+        ],
+        [
+          "va",
+          "not(primary)",
+          "-",
+          "-",
+          "-",
+          "-",
+          "fail",
+          "\"VA loans are only for a home the veteran will live in.\"",
+          "38 U.S.C. 3704(c): occupancy required."
+        ],
+        [
+          "va",
+          "-",
+          "-",
+          "-",
+          "false",
+          "-",
+          "fail",
+          "\"VA loans need eligible military service (or a surviving spouse).\"",
+          "38 U.S.C. 3702: eligibility."
+        ],
+        [
+          "usda",
+          "not(primary)",
+          "-",
+          "-",
+          "-",
+          "-",
+          "fail",
+          "\"USDA loans are only for a primary residence.\"",
+          "7 CFR 3555: primary residence only."
+        ],
+        [
+          "usda",
+          "-",
+          "cash_out_refinance",
+          "-",
+          "-",
+          "-",
+          "fail",
+          "\"USDA guaranteed loans don't allow cash-out refinancing.\"",
+          "7 CFR 3555.101: no cash-out."
+        ],
+        [
+          "usda",
+          "-",
+          "-",
+          "two_to_four_units",
+          "-",
+          "-",
+          "fail",
+          "\"USDA doesn't finance 2 to 4 unit properties.\"",
+          "7 CFR 3555.201: no income-producing property."
+        ],
+        [
+          "usda",
+          "-",
+          "refinance",
+          "-",
+          "-",
+          "-",
+          "review",
+          "\"USDA refinances only existing USDA loans.\"",
+          "7 CFR 3555.101: refinance of Agency loans."
+        ],
+        [
+          "usda",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "review",
+          "\"USDA needs an eligible rural area and household income within the county limit (115% of the area median).\"",
+          "7 CFR 3555.151: income and area eligibility."
+        ],
+        [
+          "conventional",
+          "second_home",
+          "-",
+          "two_to_four_units",
+          "-",
+          "-",
+          "fail",
+          "\"Fannie Mae finances second homes with 1 unit only.\"",
+          "Eligibility Matrix: second homes are 1 unit."
+        ],
+        [
+          "conventional",
+          "investment",
+          "-",
+          "manufactured",
+          "-",
+          "-",
+          "fail",
+          "\"Fannie Mae finances manufactured homes only as a primary residence or second home.\"",
+          "Eligibility Matrix: manufactured housing."
+        ],
+        [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "not_sure",
+          "pass",
+          "\"Checked as a conventional loan, the most common program.\"",
+          "No program chosen."
+        ],
+        [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "pass",
+          "\"The program can finance this borrower, property and purpose.\"",
+          "Eligible."
+        ]
+      ]
+    },
+    "over_max_ltv": {
+      "type": "boolean",
+      "desc": "Is the LTV above the program's maximum?",
+      "expr": "ltv > max_ltv"
+    },
+    "ltv_check": {
+      "desc": "Is the loan-to-value within the program's maximum?",
+      "table": [
+        [
+          "program",
+          "loan_purpose",
+          "ltv",
+          "max_ltv",
+          "over_max_ltv",
+          "credit_score",
+          "=> result: pass|review|fail",
+          "=> reason: string",
+          "# why"
+        ],
+        [
+          "-",
+          "-",
+          "-",
+          "0",
+          "-",
+          "-",
+          "fail",
+          "\"The program can't finance this transaction, so no LTV is allowed.\"",
+          "No maximum LTV."
+        ],
+        [
+          "-",
+          "-",
+          "-",
+          "-",
+          "true",
+          "-",
+          "fail",
+          "\"The loan is too large for the value: the LTV is above the program's maximum for this transaction.\"",
+          "Above the maximum LTV."
+        ],
+        [
+          "fha",
+          "purchase",
+          "> 90",
+          "-",
+          "-",
+          "below620",
+          "review",
+          "\"Below 620, FHA allows 96.5% only from 580; from 500 to 579 it needs 10% down. The credit report decides.\"",
+          "HUD Handbook 4000.1 credit score tiers."
+        ],
+        [
+          "conventional",
+          "refinance",
+          "> 95",
+          "-",
+          "-",
+          "-",
+          "review",
+          "\"Above 95% on a rate-and-term refinance needs Fannie Mae to own the current loan.\"",
+          "Eligibility Matrix note (1)."
+        ],
+        [
+          "va",
+          "cash_out_refinance",
+          "> 90",
+          "-",
+          "-",
+          "-",
+          "review",
+          "\"VA allows up to 100%, but most lenders cap VA cash-out refinances at 90%.\"",
+          "Lender overlays on VA cash-out."
+        ],
+        [
+          "conventional",
+          "-",
+          "> 80",
+          "-",
+          "-",
+          "-",
+          "pass",
+          "\"Within the maximum. Above 80% a conventional loan needs private mortgage insurance.\"",
+          "Selling Guide B7-1-01: mortgage insurance above 80%."
+        ],
+        [
+          "fha",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "pass",
+          "\"Within the maximum. FHA loans carry mortgage insurance (MIP).\"",
+          "FHA MIP."
+        ],
+        [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "-",
+          "pass",
+          "\"Within the program's maximum LTV.\"",
+          "Within the maximum."
+        ]
+      ]
+    },
+    "limit_check": {
+      "desc": "Is the loan amount within the program's 2026 loan limits?",
+      "table": [
+        [
+          "program",
+          "high_cost_state",
+          "loan_amount",
+          "property_type",
+          "=> result: pass|review|fail",
+          "=> reason: string",
+          "# why"
+        ],
+        [
+          "conventional",
+          "false",
+          "> 1249125",
+          "-",
+          "review",
+          "\"Above the 2026 high-cost ceiling of $1,249,125: a jumbo (non-conforming) loan, which only some lenders offer.\"",
+          "FHFA 2026 ceiling."
+        ],
+        [
+          "conventional",
+          "false",
+          "> 832750",
+          "two_to_four_units",
+          "review",
+          "\"Above the 2026 one-unit baseline of $832,750; 2 to 4 unit properties have higher limits, so the lender checks the county's.\"",
+          "FHFA 2026 baseline, multi-unit."
+        ],
+        [
+          "conventional",
+          "false",
+          "> 832750",
+          "-",
+          "review",
+          "\"Above the 2026 conforming baseline of $832,750: a high-balance loan if the county's limit allows it, otherwise jumbo.\"",
+          "FHFA 2026 baseline."
+        ],
+        [
+          "conventional",
+          "true",
+          "> 1873675",
+          "-",
+          "review",
+          "\"Above the 2026 ceiling of $1,873,675 for Alaska, Hawaii, Guam and the Virgin Islands: a jumbo loan.\"",
+          "FHFA 2026 AK/HI/GU/VI ceiling."
+        ],
+        [
+          "conventional",
+          "true",
+          "> 1249125",
+          "-",
+          "review",
+          "\"Above the 2026 baseline of $1,249,125 for Alaska, Hawaii, Guam and the Virgin Islands: depends on the county's limit.\"",
+          "FHFA 2026 AK/HI/GU/VI baseline."
+        ],
+        [
+          "fha",
+          "false",
+          "> 1249125",
+          "-",
+          "fail",
+          "\"Above the 2026 FHA ceiling of $1,249,125 for one unit (HUD Mortgagee Letter 2025-23).\"",
+          "FHA 2026 ceiling."
+        ],
+        [
+          "fha",
+          "true",
+          "> 1249125",
+          "-",
+          "review",
+          "\"Alaska, Hawaii, Guam and the Virgin Islands have higher FHA limits; the lender checks the county's.\"",
+          "FHA special exception areas."
+        ],
+        [
+          "fha",
+          "-",
+          "> 541287",
+          "-",
+          "review",
+          "\"Above the 2026 FHA floor of $541,287: allowed only where the county's FHA limit is high enough.\"",
+          "FHA 2026 floor."
+        ],
+        [
+          "fha",
+          "-",
+          "-",
+          "-",
+          "pass",
+          "\"Within the 2026 FHA floor of $541,287, which every county allows.\"",
+          "Within the FHA floor."
+        ],
+        [
+          "va",
+          "-",
+          "-",
+          "-",
+          "pass",
+          "\"VA has no loan limit with full entitlement; with partial entitlement the county's conforming limit applies.\"",
+          "38 U.S.C. 3703: no limit with full entitlement since 2020."
+        ],
+        [
+          "usda",
+          "-",
+          "-",
+          "-",
+          "pass",
+          "\"USDA has no loan limit; household income and the area's eligibility decide.\"",
+          "7 CFR 3555: no loan limit."
+        ],
+        [
+          "-",
+          "-",
+          "-",
+          "-",
+          "pass",
+          "\"Within the 2026 conforming loan limit of $832,750.\"",
+          "Within the FHFA baseline."
+        ]
+      ]
+    },
+    "credit_check": {
+      "desc": "Does the self-reported credit score fit the program?",
+      "table": [
+        [
+          "program",
+          "credit_score",
+          "=> result: pass|review|fail",
+          "=> reason: string",
+          "# why"
+        ],
+        [
+          "-",
+          "unknown",
+          "review",
+          "\"Without a score the lender needs the credit report to decide.\"",
+          "No score."
+        ],
+        [
+          "usda",
+          "s620, below620",
+          "review",
+          "\"USDA's automated approval (GUS) needs a score of 640 or higher; lower scores need manual underwriting.\"",
+          "GUS 640 threshold."
+        ],
+        [
+          "conventional",
+          "below620",
+          "review",
+          "\"Fannie Mae's DU no longer requires 620 (since November 2025), but most lenders still do.\"",
+          "Selling Guide B3-5.1-01, Nov 2025."
+        ],
+        [
+          "fha",
+          "below620",
+          "review",
+          "\"FHA needs 580 for 3.5% down and 500 for 10% down; below 500 is not eligible.\"",
+          "HUD Handbook 4000.1 credit score tiers."
+        ],
+        [
+          "va",
+          "below620",
+          "review",
+          "\"VA sets no minimum score, but most lenders require 580 to 620.\"",
+          "Lender overlays on VA."
+        ],
+        [
+          "-",
+          "-",
+          "pass",
+          "\"The estimated score fits the program.\"",
+          "Score fits."
+        ]
+      ]
+    },
+    "dti_check": {
+      "desc": "Is the debt-to-income ratio within the program's limits?",
+      "table": [
+        [
+          "program",
+          "dti",
+          "=> result: pass|review|fail",
+          "=> reason: string",
+          "# why"
+        ],
+        [
+          "conventional",
+          "> 50",
+          "fail",
+          "\"Above Fannie Mae's 50% maximum debt-to-income ratio for automated underwriting.\"",
+          "Selling Guide B3-6-02."
+        ],
+        [
+          "conventional",
+          "> 45",
+          "review",
+          "\"Between 45% and 50%: allowed with reserves and other compensating factors.\"",
+          "Selling Guide B3-6-02, matrix reserves note."
+        ],
+        [
+          "fha",
+          "> 57",
+          "fail",
+          "\"Above what FHA's automated underwriting approves in practice (about 57%).\"",
+          "TOTAL Scorecard practice."
+        ],
+        [
+          "fha",
+          "> 43",
+          "review",
+          "\"Above FHA's 43% standard: allowed with compensating factors such as reserves or a higher score.\"",
+          "HUD Handbook 4000.1 ratios."
+        ],
+        [
+          "va",
+          "> 41",
+          "review",
+          "\"Above VA's 41% benchmark: allowed when the residual income compensates.\"",
+          "38 CFR 36.4340."
+        ],
+        [
+          "usda",
+          "> 41",
+          "review",
+          "\"Above USDA's 41% ratio: needs an automated approval or a lender waiver.\"",
+          "7 CFR 3555.151 ratios."
+        ],
+        [
+          "-",
+          "-",
+          "pass",
+          "\"Within the program's debt-to-income limits. The lender verifies it under the ability-to-repay rule (Regulation Z, 12 CFR 1026.43).\"",
+          "Within the limits."
+        ]
+      ]
+    },
+    "status": {
+      "type": "processable|needs_review|not_processable",
+      "desc": "Can a lender process this proposal under current US rules?",
+      "expr": "if program_check.result = \"fail\" or ltv_check.result = \"fail\" or limit_check.result = \"fail\" or credit_check.result = \"fail\" or dti_check.result = \"fail\" then \"not_processable\" else if program_check.result = \"review\" or ltv_check.result = \"review\" or limit_check.result = \"review\" or credit_check.result = \"review\" or dti_check.result = \"review\" then \"needs_review\" else \"processable\""
+    }
+  }
+}

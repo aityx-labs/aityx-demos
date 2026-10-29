@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.5/.schema/devbox.schema.json",
+  "packages": {
+    "graalvmPackages.graalvm-ce": "latest",
+    "maven":   "latest",
+    "gnumake": "latest",
+    "curl":    "latest",
+    "jq":      "latest"
+  },
+  "shell": {
+    "init_hook": [
+      "export JAVA_HOME=\"$(dirname \"$(dirname \"$(readlink -f \"$(command -v java)\")\")\")\""
+    ],
+    "scripts": {
+      "api":   "bash scripts/api.sh",
+      "infra": "bash scripts/infra.sh up",
+      "build": "bash scripts/build.sh",
+      "test":  "bash scripts/build.sh test"
+    }
+  }
+}

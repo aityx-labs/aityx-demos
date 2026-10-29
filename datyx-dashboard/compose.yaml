@@ -1,0 +1,37 @@
+# The dashboard with Docker alone: `docker compose up` from this folder,
+# then open http://localhost:9906/app/. No devbox or Flutter needed on the
+# host. The datyx API is not here: it is the datyx/ folder's (its own
+# `docker compose up`, or `devbox services up` there), reached at
+# DATYX_API_URL, by default the host's port 9900 (host.docker.internal:
+# Docker Desktop; on Linux that is the bridge, where a port bound to
+# 127.0.0.1 isn't reachable, so add compose.datyx.yaml to join the datyx
+# stack's network instead). Settings come from the environment, else this
+# folder's .env (see .env.example).
+
+name: datyx-dashboard
+
+services:
+  web:
+    # The release web build (docker/web.Dockerfile), served by nginx under
+    # /app/, with /api/ and /q/ proxied to the API (docker/nginx.conf.template,
+    # DATYX_API_URL filled in when the container starts).
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    environment:
+      DATYX_API_URL: ${DATYX_API_URL:-http://host.docker.internal:9900}
+      # Only DATYX_* variables are substituted in the nginx template, so
+      # nginx's own $host and $uri stay as they are.
+      NGINX_ENVSUBST_FILTER: ^DATYX_
+    extra_hosts:
+      # The host's address, on Docker Desktop and on Linux alike.
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${DATYX_BIND_HOST:-127.0.0.1}:${FLUTTER_WEB_PORT:-9906}:8080"
+    # The app, and the API through the proxy: healthy only when both answer.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/app/", "http://127.0.0.1:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3

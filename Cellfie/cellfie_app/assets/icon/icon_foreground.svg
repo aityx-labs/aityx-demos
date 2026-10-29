@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Cellfie: a glider, the smallest spaceship of Conway's Game of Life, in aityx orange on the page background; the dead cells of its 3×3 box faintly marked. The cell it is about to be born into is lit green. -->
+  <g>
+    <rect x="152" y="152" width="208" height="208" rx="28" fill="#2A272E"/>
+    <rect x="408" y="152" width="208" height="208" rx="28" fill="#E36742"/>
+    <rect x="664" y="152" width="208" height="208" rx="28" fill="#2A272E"/>
+    <rect x="152" y="408" width="208" height="208" rx="28" fill="#2A272E"/>
+    <rect x="408" y="408" width="208" height="208" rx="28" fill="#2A272E"/>
+    <rect x="664" y="408" width="208" height="208" rx="28" fill="#E36742"/>
+    <rect x="152" y="664" width="208" height="208" rx="28" fill="#E36742"/>
+    <rect x="408" y="664" width="208" height="208" rx="28" fill="#E36742"/>
+    <rect x="664" y="664" width="208" height="208" rx="28" fill="#E36742"/>
+  </g>
+</svg>

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320">
+  <!-- Contact Hub's favicon, in aityx's style: one flat orange glyph, no background. A speech bubble with a route cut into it: one line in, branching three ways to three nodes, the chosen one larger (the same art as assets/icon/icon.svg, without the dark tile). -->
+  <defs>
+    <mask id="route">
+      <rect width="320" height="320" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M78 150 H140"/>
+        <path d="M140 150 C172 150 172 100 212 100"/>
+        <path d="M140 150 H212"/>
+        <path d="M140 150 C172 150 172 200 212 200"/>
+      </g>
+      <circle cx="74" cy="150" r="19" fill="#000"/>
+      <circle cx="232" cy="100" r="17" fill="#000"/>
+      <circle cx="232" cy="150" r="24" fill="#000"/>
+      <circle cx="232" cy="200" r="17" fill="#000"/>
+    </mask>
+  </defs>
+  <path fill="#E36742" mask="url(#route)" d="M92 30 H228 A60 60 0 0 1 288 90 V176 A60 60 0 0 1 228 236 H146 L72 294 L88 236 A60 60 0 0 1 32 176 V90 A60 60 0 0 1 92 30 Z"/>
+</svg>

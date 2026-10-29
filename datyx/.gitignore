@@ -1,0 +1,31 @@
+# --- Devbox / direnv ---
+.devbox/
+.envrc.local
+
+# --- Local settings (see .env.example) ---
+.env
+.env.*
+!.env.example
+
+# --- Build output ---
+target/
+build/
+.dart_tool/
+*.iml
+.idea/
+
+# --- Logs & OS noise ---
+*.log
+.DS_Store
+Thumbs.db
+
+# --- Editors ---
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+
+*.local*
+
+# --- Claude Code: local settings, permissions and agent worktrees ---
+.claude/

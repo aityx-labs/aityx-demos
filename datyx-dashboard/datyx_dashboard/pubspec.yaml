@@ -1,0 +1,41 @@
+name: datyx_dashboard
+description: "The datyx dashboard: what the datyx API answers, and every call to it."
+publish_to: 'none'
+
+# Overridden by the build scripts (--build-name, --build-number): X.Y.Z
+# from the version files and the build time (scripts/version.sh).
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  http: ^1.6.0
+  google_sign_in: ^7.2.0
+  google_sign_in_web: ^1.1.3
+  web: ^1.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+
+# The web icons, generated from assets/icon/ by
+# `dart run flutter_launcher_icons`; the web is the dashboard's only
+# platform. The masters are SVGs rendered to PNG (see specs/app-icon.md).
+flutter_launcher_icons:
+  image_path: assets/icon/icon.png
+  android: false
+  ios: false
+  web:
+    generate: true
+    image_path: assets/icon/icon.png
+    background_color: "#17161A"
+    theme_color: "#17161A"

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- datyx: the cylinder with the lineage, on transparency, for Android's adaptive-icon foreground. -->
+  <g transform="translate(152 152) scale(2.25)">
+    <defs>
+      <mask id="catalog">
+        <rect width="320" height="320" fill="#fff"/>
+        <g fill="none" stroke="#000" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M48 72 A112 34 0 0 0 272 72"/>
+          <path d="M48 112 A112 34 0 0 0 272 112"/>
+          <path d="M84 188 H128"/>
+          <path d="M128 188 C160 188 160 156 194 156"/>
+          <path d="M128 188 C160 188 160 220 194 220"/>
+        </g>
+        <circle cx="82" cy="188" r="17" fill="#000"/>
+        <circle cx="212" cy="156" r="15" fill="#000"/>
+        <circle cx="212" cy="220" r="15" fill="#000"/>
+      </mask>
+    </defs>
+    <path fill="#E36742" mask="url(#catalog)" d="M48 72 A112 34 0 0 1 272 72 V248 A112 34 0 0 1 48 248 Z"/>
+  </g>
+</svg>

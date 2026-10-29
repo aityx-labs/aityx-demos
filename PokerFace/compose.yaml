@@ -1,0 +1,44 @@
+# PokerFace with Docker alone: `docker compose up` from this folder, then
+# open http://localhost:8910/app/. No devbox or Flutter needed on the host.
+#
+# The aityx settings come from the environment, else this folder's .env
+# (see .env.example), and reach the API only, never the web app.
+
+services:
+  api:
+    build: pokerface_api
+    environment:
+      AITYX_API_KEY: ${AITYX_API_KEY:-}
+      AITYX_URL: ${AITYX_URL:-}
+      API_PORT: "8911"
+      POKERFACE_BIND_HOST: 0.0.0.0
+    # Not published: the web service proxies /api/ to it.
+    # The image has no shell or curl; the server checks its own /api/health.
+    healthcheck:
+      test: ["CMD", "/app/bin/server", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      start_interval: 1s
+      retries: 3
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    # The app, and the API through the proxy: healthy only when both answer.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/app/", "http://127.0.0.1:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      start_interval: 1s
+      retries: 3
+    # Bound to this host only; set POKERFACE_BIND_HOST=0.0.0.0 to share it.
+    ports:
+      - "${POKERFACE_BIND_HOST:-127.0.0.1}:${FLUTTER_WEB_PORT:-8910}:8080"
+    restart: unless-stopped

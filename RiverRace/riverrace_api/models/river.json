@@ -1,0 +1,32 @@
+{
+  "decision": {
+    "name": "RiverRace · what each aityx pilot does next",
+    "types": {
+      "Speed": "slow|normal|fast",
+      "Side": "none|left|right|ahead",
+      "Channel": "left|right|ahead",
+      "Sense": {
+        "fuel": "number [0..100]",
+        "speed": "Speed",
+        "land_ahead": "boolean",
+        "land_distance": "number",
+        "channel": "Channel",
+        "room_left": "number",
+        "room_right": "number",
+        "enemy_ahead": "boolean",
+        "enemy_distance": "number",
+        "threat": "Side",
+        "fuel_ahead": "boolean",
+        "fuel_side": "Side",
+        "bridge_ahead": "boolean",
+        "leading": "boolean",
+        "missile_ready": "boolean"
+      },
+      "Act": {
+        "steer": "left|right|straight|to_channel|to_fuel|dodge",
+        "throttle": "slow|normal|fast",
+        "fire": "boolean"
+      }
+    }
+  }
+}

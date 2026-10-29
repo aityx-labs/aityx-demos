@@ -1,0 +1,27 @@
+{
+  "id": "station",
+  "name": "The Calling Station",
+  "tagline": "Calls to see what happens. Raises only with a straight or better, and folds only when it's hopeless.",
+  "decisions": {
+    "monster": {"type": "boolean", "desc": "A straight or better", "expr": "made_hand = \"straight\" or made_hand = \"flush\" or made_hand = \"full_house\" or made_hand = \"four_of_a_kind\" or made_hand = \"straight_flush\""},
+    "hopeless": {"type": "boolean", "desc": "Almost no chance of winning and a big bet to call", "expr": "equity < 0.1 and to_call > pot * 0.5"},
+    "action": {
+      "type": "Action",
+      "desc": "What the player does",
+      "table": [
+        ["street", "hand", "to_call", "big_blind", "monster", "hopeless", "can_check", "can_raise", "=>", "# why"],
+        {"when": {"monster": "true", "can_raise": "true"}, "then": "raise", "why": "A straight or better: the one hand the Station raises with."},
+        {"when": {"can_check": "true"}, "then": "check", "why": "Nothing to call: check and see the next card."},
+        {"when": {"street": "preflop", "hand": "weak", "to_call": "> 10 * big_blind"}, "then": "fold", "why": "Weak cards and more than ten big blinds to call: too much, even for the Station."},
+        {"when": {"street": "preflop"}, "then": "call", "why": "The Station wants to see a flop."},
+        {"when": {"hopeless": "true"}, "then": "fold", "why": "Almost no chance of winning and a big bet to call: fold."},
+        {"then": "call", "why": "The Station calls to see what happens."}
+      ]
+    },
+    "raise_to": {
+      "type": "number",
+      "desc": "The total bet when raising: the minimum raise",
+      "expr": "min_raise"
+    }
+  }
+}

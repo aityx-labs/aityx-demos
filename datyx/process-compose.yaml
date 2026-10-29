@@ -1,0 +1,106 @@
+version: "0.5"
+
+# `devbox services up`: PostgreSQL, Elasticsearch and OpenMetadata as the
+# containers of compose.yaml, one `docker compose up <service>` each, and
+# the datyx API on the host's GraalVM (scripts/api.sh). The dashboard is
+# the datyx-dashboard/ folder's own service; start the group together:
+# ./start-datyx.sh at the repository root. Ports, passwords and
+# API_MODE come from the environment or .env (see .env.example).
+
+processes:
+  0-health-check:
+    command: bash scripts/health-check.sh
+    environment:
+      - HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL:-15}
+    # Start logging once every service passes its readiness probe, so the
+    # first status line reflects a fully started stack.
+    depends_on:
+      3-openmetadata:
+        condition: process_healthy
+      4-api:
+        condition: process_healthy
+    availability:
+      restart: on_failure
+      backoff_seconds: 5
+
+  1-postgres:
+    command: bash scripts/infra.sh up postgres
+    shutdown:
+      command: bash scripts/infra.sh stop postgres
+      timeout_seconds: 30
+    readiness_probe:
+      exec:
+        command: bash scripts/infra.sh healthy postgres
+      initial_delay_seconds: 2
+      period_seconds: 3
+      timeout_seconds: 10
+      failure_threshold: 60
+    availability:
+      restart: on_failure
+      backoff_seconds: 5
+
+  2-search:
+    command: bash scripts/infra.sh up search
+    shutdown:
+      command: bash scripts/infra.sh stop search
+      timeout_seconds: 30
+    readiness_probe:
+      exec:
+        command: bash scripts/infra.sh healthy search
+      initial_delay_seconds: 5
+      period_seconds: 3
+      timeout_seconds: 10
+      failure_threshold: 60
+    availability:
+      restart: on_failure
+      backoff_seconds: 5
+
+  3-openmetadata:
+    # Runs the schema migration first (openmetadata-migrate, minutes on a
+    # first start), then the server.
+    command: bash scripts/infra.sh up openmetadata
+    shutdown:
+      command: bash scripts/infra.sh stop openmetadata openmetadata-migrate
+      timeout_seconds: 60
+    depends_on:
+      1-postgres:
+        condition: process_healthy
+      2-search:
+        condition: process_healthy
+    readiness_probe:
+      exec:
+        command: bash scripts/infra.sh healthy openmetadata
+      initial_delay_seconds: 10
+      period_seconds: 5
+      timeout_seconds: 10
+      # Up to 15 minutes: the first migration and the server's start.
+      failure_threshold: 180
+    availability:
+      restart: on_failure
+      backoff_seconds: 10
+
+  4-api:
+    # The datyx API (scripts/api.sh): quarkus:dev with live reload by
+    # default; API_MODE=jar or native runs a build instead.
+    command: bash scripts/api.sh
+    depends_on:
+      1-postgres:
+        condition: process_healthy
+    shutdown:
+      # Dev mode keeps a child JVM on the port; stop whatever listens there.
+      command: lsof -tiTCP:${API_PORT:-9900} -sTCP:LISTEN | xargs kill 2>/dev/null; true
+      timeout_seconds: 15
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: ${API_PORT:-9900}
+        path: /api/health/ready
+      initial_delay_seconds: 3
+      period_seconds: 3
+      timeout_seconds: 5
+      # Up to 15 minutes: a first start downloads dependencies, and
+      # API_MODE=native builds the executable.
+      failure_threshold: 300
+    availability:
+      restart: on_failure
+      backoff_seconds: 5

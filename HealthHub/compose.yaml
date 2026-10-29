@@ -1,0 +1,99 @@
+# HealthHub with Docker alone: `docker compose up` from this folder, then
+# open http://localhost:9800/app/. No devbox or Flutter needed on the host.
+#
+# The same file serves `devbox services up` (process-compose.yaml), which
+# runs only postgres from here (`docker compose up postgres`, through
+# scripts/infra.sh) and the API and the web app on the host's toolchain.
+#
+# The aityx settings come from the environment, else this folder's .env
+# (see .env.example), and reach the API only, never the web app. So do
+# the database's password and port.
+
+name: healthhub
+
+services:
+  postgres:
+    # The database. docker/postgres-init.sh creates the healthhub database
+    # and its owner on the first start of an empty volume; the API makes
+    # its own tables.
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${HEALTHHUB_DB_ADMIN_PASSWORD:-postgres}
+      # Read by docker/postgres-init.sh.
+      HEALTHHUB_DB_PASSWORD: ${HEALTHHUB_DB_PASSWORD:-healthhub}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sh:/docker-entrypoint-initdb.d/10-healthhub.sh:ro
+    # Published for the API `devbox services up` runs on the host, and
+    # for psql; bound to this host only unless HEALTHHUB_BIND_HOST says
+    # otherwise.
+    ports:
+      - "${HEALTHHUB_BIND_HOST:-127.0.0.1}:${HEALTHHUB_DB_PORT:-9802}:5432"
+    healthcheck:
+      # The database exists once the init script has run.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d healthhub"]
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+      retries: 12
+    restart: unless-stopped
+
+  api:
+    build: healthhub_api
+    environment:
+      AITYX_API_KEY: ${AITYX_API_KEY:-}
+      AITYX_URL: ${AITYX_URL:-}
+      API_PORT: "9801"
+      HEALTHHUB_BIND_HOST: 0.0.0.0
+      HEALTHHUB_DB_HOST: postgres
+      HEALTHHUB_DB_PORT: "5432"
+      HEALTHHUB_DB_NAME: healthhub
+      HEALTHHUB_DB_USER: healthhub
+      HEALTHHUB_DB_PASSWORD: ${HEALTHHUB_DB_PASSWORD:-healthhub}
+      # Authentication (see .env.example): without a client id it is off.
+      OIDC_ISSUER: ${OIDC_ISSUER:-https://accounts.google.com}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      # The datyx API, for /api/datyx/*: the host's port 9900 by default
+      # (Docker Desktop; on Linux add compose.datyx.yaml to join the datyx
+      # stack's network instead, since the bridge can't reach a port bound
+      # to 127.0.0.1).
+      DATYX_API_URL: ${DATYX_API_URL:-http://host.docker.internal:9900}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Not published: the web service proxies /api/ to it.
+    # The image has no shell or curl; the server checks its own /api/health.
+    healthcheck:
+      test: ["CMD", "/app/bin/server", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      start_interval: 1s
+      retries: 3
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    # The app, and the API through the proxy: healthy only when both answer.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/app/", "http://127.0.0.1:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      start_interval: 1s
+      retries: 3
+    # Bound to this host only; set HEALTHHUB_BIND_HOST=0.0.0.0 to share it.
+    ports:
+      - "${HEALTHHUB_BIND_HOST:-127.0.0.1}:${FLUTTER_WEB_PORT:-9800}:8080"
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

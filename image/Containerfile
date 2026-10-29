@@ -1,0 +1,164 @@
+# A demo group's dev container image, published to Docker Hub by
+# build-image.sh (`--build-arg GROUP=aityx` or `datyx`) and used by that
+# group's devcontainer.json in .devcontainer/<group>/ (`image`, not
+# `build`): Flutter, the GitHub CLI, process-compose, for datyx a JDK
+# (GraalVM) and its API's Maven dependencies, and the group's release web
+# builds already made, so a codespace starts the demos in seconds instead
+# of building for ten minutes. The organization has GitHub's prebuilds and
+# Actions switched off, so the image is built on a laptop and pushed (see
+# README.md here). Everything is pinned and checked against its published
+# checksum. Nix and devbox are not in the image: in a codespace the demos
+# run on the image's Flutter and process-compose (DEMOS_TOOLCHAIN=image);
+# devbox stays the toolchain for a laptop.
+# The group: aityx or datyx (build-image.sh passes it). Its toolchain stage
+# below, then the same steps for both.
+ARG GROUP=aityx
+
+FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04 AS base
+
+SHELL ["/bin/bash", "-lc"]
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        jq \
+        lsof \
+        sudo \
+        unzip \
+        xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# GitHub CLI, which public-port.sh uses to make the demos' ports public
+# in a codespace. The pinned release, checked against its checksums.txt.
+ARG GH_VERSION=2.102.0
+ARG GH_SHA256_AMD64=bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386
+ARG GH_SHA256_ARM64=7862c86c72f43df3a2d93ddde6f473285b4e2af61b494849846827e513ef6484
+RUN arch="$(dpkg --print-architecture)" \
+    && case "$arch" in \
+         amd64) sha="$GH_SHA256_AMD64" ;; \
+         arm64) sha="$GH_SHA256_ARM64" ;; \
+         *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL -o /tmp/gh.tar.gz \
+         "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${arch}.tar.gz" \
+    && echo "${sha}  /tmp/gh.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/gh.tar.gz -C /tmp \
+    && install -o root -g root -m 755 "/tmp/gh_${GH_VERSION}_linux_${arch}/bin/gh" /usr/local/bin/gh \
+    && rm -rf /tmp/gh.tar.gz "/tmp/gh_${GH_VERSION}_linux_${arch}" \
+    && gh --version
+
+# process-compose, which runs each demo's services (its process-compose.yaml)
+# as `devbox services up` does on a laptop. The pinned release, checked
+# against its checksums file.
+ARG PC_VERSION=1.124.0
+ARG PC_SHA256_AMD64=487ce011d5324b4578d3ec1860aaa1dd3a95bd4b2b433e03791f73a23d215fd3
+ARG PC_SHA256_ARM64=98e02400a05d1da74a6506a4ffb2682b1205b18f02ecfbfdea1005f9389fc52d
+RUN arch="$(dpkg --print-architecture)" \
+    && case "$arch" in \
+         amd64) sha="$PC_SHA256_AMD64" ;; \
+         arm64) sha="$PC_SHA256_ARM64" ;; \
+         *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL -o /tmp/pc.tar.gz \
+         "https://github.com/F1bonacc1/process-compose/releases/download/v${PC_VERSION}/process-compose_linux_${arch}.tar.gz" \
+    && echo "${sha}  /tmp/pc.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/pc.tar.gz -C /tmp process-compose \
+    && install -o root -g root -m 755 /tmp/process-compose /usr/local/bin/process-compose \
+    && rm -f /tmp/pc.tar.gz /tmp/process-compose \
+    && process-compose version
+
+# Flutter, the version the demos' devbox.lock pins, so a laptop and a
+# codespace build the same thing. Owned by vscode, because flutter writes
+# its own cache under bin/cache. x64: the release archive, checked against
+# the SHA-256 published in releases_linux.json. Flutter publishes no Linux
+# arm64 archive, so there (a local dev container on Apple silicon) it is
+# the release tag from git.
+ARG FLUTTER_VERSION=3.47.0
+ARG FLUTTER_SHA256_AMD64=26cd99d3d94b1367e6b50535a18aeef0282c10a535bbe3ec493534dcdab75296
+RUN install -d -o vscode -g vscode /opt/flutter
+USER vscode
+RUN arch="$(dpkg --print-architecture)" \
+    && case "$arch" in \
+         amd64) \
+           curl -fsSL -o /tmp/flutter.tar.xz \
+             "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
+           && echo "${FLUTTER_SHA256_AMD64}  /tmp/flutter.tar.xz" | sha256sum -c - \
+           && tar -xJf /tmp/flutter.tar.xz -C /opt/flutter --strip-components=1 \
+           && rm /tmp/flutter.tar.xz ;; \
+         arm64) \
+           git clone --depth 1 --branch "$FLUTTER_VERSION" \
+             https://github.com/flutter/flutter.git /opt/flutter ;; \
+         *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+       esac \
+    && /opt/flutter/bin/flutter config --no-analytics --no-cli-animations \
+    && /opt/flutter/bin/flutter --disable-analytics \
+    && /opt/flutter/bin/flutter precache --web \
+    && /opt/flutter/bin/flutter --version
+ENV PATH="/opt/flutter/bin:${PATH}"
+
+# The aityx demos need nothing more.
+FROM base AS toolchain-aityx
+
+# The datyx API runs on a JDK (Quarkus, built with its Maven wrapper):
+# GraalVM Community, as the API's devbox.json has on a laptop, so its
+# native mode can build too. The pinned release, checked against its
+# published .sha256.
+FROM base AS toolchain-datyx
+ARG GRAALVM_VERSION=25.0.2
+ARG GRAALVM_SHA256_AMD64=e0be791c8fda4d03b6b0a0cb824fef3149736170057b3a515252b44419606af0
+ARG GRAALVM_SHA256_ARM64=b4580d9f223d0a4b3a1757e58b18ff4c1db950e67e105fc5cb741457d2384a71
+USER root
+RUN arch="$(dpkg --print-architecture)" \
+    && case "$arch" in \
+         amd64) a=x64; sha="$GRAALVM_SHA256_AMD64" ;; \
+         arm64) a=aarch64; sha="$GRAALVM_SHA256_ARM64" ;; \
+         *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL -o /tmp/graalvm.tar.gz \
+         "https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-${GRAALVM_VERSION}/graalvm-community-jdk-${GRAALVM_VERSION}_linux-${a}_bin.tar.gz" \
+    && echo "${sha}  /tmp/graalvm.tar.gz" | sha256sum -c - \
+    && install -d /opt/graalvm \
+    && tar -xzf /tmp/graalvm.tar.gz -C /opt/graalvm --strip-components=1 \
+    && rm /tmp/graalvm.tar.gz \
+    && /opt/graalvm/bin/java -version
+USER vscode
+ENV JAVA_HOME=/opt/graalvm
+ENV PATH="/opt/graalvm/bin:${PATH}"
+
+FROM toolchain-${GROUP}
+
+# The packages every app and API depend on, fetched into the pub cache now,
+# so a demo that has to build in the codespace (one that changed since the
+# image was made) doesn't download them first. Only the pubspecs come in.
+COPY --chown=vscode:vscode pubspecs/ /tmp/pubspecs/
+RUN for dir in /tmp/pubspecs/*/*; do \
+      (cd "$dir" && if [ -f pubspec.yaml ]; then \
+         if grep -q '^  flutter:' pubspec.yaml; then flutter pub get; else dart pub get; fi; \
+       fi) || exit 1; \
+    done \
+    && rm -rf /tmp/pubspecs
+
+# The Maven projects' dependencies (datyx's API: Quarkus, its plugins and
+# what quarkus:dev needs), and the Maven its wrapper pins, fetched into
+# ~/.m2 now, so the API's first start in a codespace doesn't download
+# them. Only the poms and the wrappers come in; for aityx there are none.
+COPY --chown=vscode:vscode maven/ /tmp/maven/
+RUN for dir in /tmp/maven/*/*; do \
+      [ -f "$dir/pom.xml" ] || continue; \
+      (cd "$dir" && ./mvnw -B -q dependency:go-offline quarkus:go-offline) || exit 1; \
+    done \
+    && rm -rf /tmp/maven
+
+# The group's release web builds, made on the laptop that builds the image
+# (build-image.sh runs ./build-all.sh first), with the build key of each
+# (manifest; build-key.sh: the git ids of what the web build is made
+# from). At codespace creation restore-builds.sh copies the build of every
+# demo whose key is unchanged into the workspace; a demo whose app changed
+# builds itself.
+COPY --chown=vscode:vscode builds/ /opt/demos/
+
+# No WORKDIR: the checkout path depends on the repository name
+# (/workspaces/<repo>). The dev container opens the repository root, where
+# start-all.sh is.

@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>aityx demos</title>
+  <meta name="description" content="The six aityx demos: what each shows, and where to open it.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <!-- Every link opens in a new tab: the index stays open. -->
+  <base target="_blank">
+  <style>
+    :root {
+      --bg0: #151418; --bg: #17161A; --bg1: #201E24; --bg2: #2A272E;
+      --border: #37333C; --dim: #47474D;
+      --fg0: #FFFFFF; --fg: #EFF2F4; --muted: #A9ACB6;
+      --orange: #E36742; --orange-light: #EB7B58;
+      --green: #4CC38A; --amber: #E8B04B; --red: #F0506E;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--fg); }
+    body {
+      font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 0 16px 48px;
+    }
+    a { color: var(--orange-light); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    header {
+      max-width: 1100px; margin: 0 auto; padding: 40px 0 24px;
+      display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+    }
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .brand svg { width: 44px; height: 44px; }
+    h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.01em; }
+    .tag { color: var(--muted); margin: 4px 0 0; }
+    .meta { color: var(--muted); font-size: 14px; text-align: right; align-self: flex-start; }
+    .meta a { color: var(--fg); }
+    main { max-width: 1100px; margin: 0 auto; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+    .card {
+      background: var(--bg1); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 10px;
+      transition: border-color .15s;
+    }
+    .card:hover { border-color: var(--dim); }
+    .head { display: flex; align-items: center; gap: 12px; }
+    .icon {
+      width: 40px; height: 40px; border-radius: 10px; flex: none;
+      background: var(--bg2); display: grid; place-items: center;
+    }
+    .icon svg { width: 24px; height: 24px; }
+    .head h2 { margin: 0; font-size: 18px; }
+    .head .what { margin: 0; color: var(--muted); font-size: 13px; }
+    .desc { margin: 0; color: var(--fg); font-size: 14.5px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      font-size: 11.5px; color: var(--muted); background: var(--bg2);
+      border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px;
+    }
+    .chip.aityx { color: var(--orange-light); border-color: rgba(227, 103, 66, .5); }
+    .status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-top: auto; }
+    .status + .actions { margin-top: 0; }
+    .status code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--fg); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      border-radius: 8px; padding: 7px 12px; font-size: 13.5px; font-weight: 600;
+      border: 1px solid var(--border); color: var(--fg); background: var(--bg2);
+    }
+    .btn:hover { text-decoration: none; border-color: var(--dim); }
+    .btn.primary { background: var(--orange); border-color: var(--orange); color: var(--fg0); }
+    .btn.primary:hover { background: var(--orange-light); }
+    .btn svg { width: 15px; height: 15px; }
+    h3.section { margin: 36px 0 12px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+    footer { max-width: 1100px; margin: 40px auto 0; color: var(--muted); font-size: 13.5px; border-top: 1px solid var(--border); padding-top: 18px; }
+    footer code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); }
+    .warning {
+      max-width: 1100px; margin: 16px auto 0; padding: 10px 14px; border-radius: 10px;
+      border: 1px solid rgba(232, 176, 75, .5); background: rgba(232, 176, 75, .1); color: var(--fg); font-size: 14px;
+    }
+    .warning[hidden] { display: none; }
+    .warning strong { color: var(--amber); }
+    .warning code, .aityx-status code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+    .aityx-status:focus-visible { outline: 2px solid var(--orange-light); outline-offset: 3px; border-radius: 4px; }
+    .aityx-status { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; color: var(--muted); }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--dim); flex: none; }
+    .dot.ok { background: var(--green); box-shadow: 0 0 0 3px rgba(76, 195, 138, .2); }
+    .dot.bad { background: var(--red); }
+    @media (max-width: 600px) { header { padding-top: 24px; } .meta { text-align: left; } }
+  </style>
+</head>
+<body>
+  <div class="warning" id="aityx-warning" role="alert" hidden>
+    <strong>No aityx key.</strong> <code>AITYX_API_KEY</code> is not set, in the environment or in the
+    <code>.env</code> at the root of the repository: the apps open, but they can't call aityx. Set it there
+    (or as a Codespaces secret) and restart the demos.
+  </div>
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        <rect width="48" height="48" rx="12" fill="#E36742"/>
+        <path d="M14 33 L24 13 L34 33 M18.5 26 H29.5" fill="none" stroke="#17161A" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div>
+        <h1>aityx demos</h1>
+        <p class="tag">Business automation with <a href="https://aityx.ai">aityx</a>: processes, decision models, and the apps around them.</p>
+      </div>
+    </div>
+    <div class="meta">
+      <div><span class="aityx-status" id="aityx-status" tabindex="0" role="status" title="Checking aityx…"><span class="dot" aria-hidden="true"></span><span class="label">aityx: checking…</span></span></div>
+      <a href="https://github.com/aityx-labs/aityx-demos">github.com/aityx-labs/aityx-demos</a>
+    </div>
+  </header>
+
+  <main>
+    <h3 class="section">Six apps, each with its own aityx models</h3>
+    <div class="grid" id="apps"></div>
+  </main>
+
+  <footer>
+    Every app runs locally on its own port: start the six with <code>./start-aityx.sh</code> at the
+    root of the repository, stop them with <code>./stop-aityx.sh</code>. Each needs your own aityx key in its
+    <code>.env</code>. Or open one in a GitHub codespace from its card, or
+    <a href="https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Faityx%2Fdevcontainer.json&amp;machine=standardLinux32gb">all six at once</a>.
+  </footer>
+
+  <script>
+    // The demos, in the order shown. "folder" matches the repository's folders;
+    // "port" is the web app's, the FLUTTER_WEB_PORT default in its
+    // process-compose.yaml; "codespace" is the group whose dev container
+    // (.devcontainer/<group>/) opens it, or false.
+    const demos = [
+      {
+        folder: 'MortgageHub', port: 8880, name: 'Mortgage Hub',
+        what: 'A mortgage application, from request to verdict',
+        desc: 'A buyer fills in a proposal request, and a regulatory check says whether a lender can process it under current US rules: Fannie Mae’s eligibility matrix, the 2026 FHFA and FHA limits, FHA, VA and USDA rules and DTI limits, executed as a decision model on aityx.',
+        chips: ['aityx decision model'],
+        // Its own dev container is archived; the default one starts it with the rest.
+        icon: 'home', codespace: 'aityx',
+      },
+      {
+        folder: 'ContactHub', port: 8890, name: 'Contact Hub',
+        what: 'Ask anything, and it reaches the right person',
+        desc: 'A request, typed or dictated on the device, is classified and checked by aityx and routed by a decision model to the department, the person and the priority; for an order, the store’s policy says what is refunded and by when. The app shows why, and the aityx call itself.',
+        chips: ['aityx decision model', 'speech on the device'],
+        icon: 'chat', codespace: 'aityx',
+      },
+      {
+        folder: 'Cellfie', port: 8930, name: 'Cellfie',
+        what: 'The cells take a picture of themselves, and aityx says who’s in it',
+        desc: 'Conway’s Game of Life on an infinite board, with the rules of birth and death (Conway’s, HighLife’s and Life without death, as switches) and a catalogue of its patterns, as an aityx decision model: one aityx call per generation names what lives, what dies and which clusters are blocks, gliders or pulsars, with the request and the response in a side panel.',
+        chips: ['aityx decision model'],
+        icon: 'grid', codespace: 'aityx',
+      },
+      {
+        folder: 'RoboRules', port: 8920, name: 'RoboRules',
+        what: 'Robocode on the web, every turn played by aityx',
+        desc: 'Tanks fight until one is left. Every robot’s behavior is an aityx decision model, its rules a table you can edit, and the whole battle (sensors, moves, bullets, hits, damage, scores) is played by aityx; the app only draws it.',
+        chips: ['aityx decision model'],
+        icon: 'robot', codespace: 'aityx',
+      },
+      {
+        folder: 'PokerFace', port: 8910, name: 'PokerFace',
+        what: 'A poker simulator where every player is a set of rules',
+        desc: 'No-limit hold’em at a table of up to nine. At each turn the app works out the player’s situation and one aityx call runs their strategy on it: the action, the amount, and the rule that decided it. Five strategies to read, or write your own; every call in a sidebar; the pace in your hands.',
+        chips: ['aityx decision model', 'strategies as rules'],
+        icon: 'cards', codespace: 'aityx',
+      },
+      {
+        folder: 'RiverRace', port: 8940, name: 'RiverRace',
+        what: 'The Atari river raid, three planes at once, two flown by aityx',
+        desc: 'The 1982 Atari river shooter, remade: banks and islands, bridges, tankers, helicopters, jets and fuel depots, with three planes up one river at once. Two are flown by aityx, each by its own rules (a decision table you can edit while they fly); the yellow one is yours. Who scores more? Every aityx call, sent and received, in a side panel.',
+        chips: ['aityx decision model', 'strategies as rules'],
+        icon: 'plane', codespace: 'aityx',
+      },
+    ];
+    const icons = {
+      home: '<path d="M4 11 L12 4 L20 11 V20 H14 V14 H10 V20 H4 Z"/>',
+      chat: '<path d="M4 5 H20 V16 H10 L6 20 V16 H4 Z"/>',
+      grid: '<path d="M4 4h4v4H4zM10 4h4v4h-4zM16 4h4v4h-4zM4 10h4v4H4zM16 10h4v4h-4zM4 16h4v4H4zM10 16h4v4h-4zM16 16h4v4h-4z"/>',
+      robot: '<path d="M5 9 H19 V19 H5 Z M8 12 H10 V14 H8 Z M14 12 H16 V14 H14 Z M11 4 H13 V9 H11 Z M2 12 H5 V17 H2 Z M19 12 H22 V17 H19 Z"/>',
+      cards: '<path d="M7 3 H17 A2 2 0 0 1 19 5 V19 A2 2 0 0 1 17 21 H7 A2 2 0 0 1 5 19 V5 A2 2 0 0 1 7 3 Z M12 7 C13 9 16 10 16 13 C16 14.5 14.7 15.5 13.4 14.8 L14 17 H10 L10.6 14.8 C9.3 15.5 8 14.5 8 13 C8 10 11 9 12 7 Z" fill-rule="evenodd"/>',
+      plane: '<path d="M12 2 L13.5 8 L21 12 V14 L13.5 12 L13 18 L16 20 V21.5 L12 20.5 L8 21.5 V20 L11 18 L10.5 12 L3 14 V12 L10.5 8 Z"/>',
+    };
+    const github = 'https://github.com/aityx-labs/aityx-demos/tree/main/';
+    const codespaces = (d) =>
+      'https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=' +
+      encodeURIComponent('.devcontainer/' + d.codespace + '/devcontainer.json') +
+      '&machine=standardLinux32gb';
+    // A demo's web app from here. A codespace forwards each port on its own
+    // host, https://<codespace>-<port>.app.github.dev/, with no :port: this
+    // page's host with its port swapped for the app's. Anywhere else, the
+    // app's port on this host. The path is /app/, or the card's own.
+    const forwarded = location.hostname.match(/^(.+)-(\d+)\.(app\.github\.dev)$/);
+    const appUrl = (port, path = '/app/') => forwarded
+      ? 'https://' + forwarded[1] + '-' + port + '.' + forwarded[3] + path
+      : 'http://' + location.hostname + ':' + port + path;
+    const ext = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M19 14v6H4V5h6"/></svg>';
+
+    function card(d) {
+      const el = document.createElement('article');
+      el.className = 'card';
+      el.id = 'demo-' + d.folder;
+      const chips = d.chips.map(c => '<span class="chip' + (c.includes('aityx') ? ' aityx' : '') + '">' + c + '</span>').join('');
+      const statusHtml = d.open ? '<div class="status"><span>' + d.open + '</span></div>' : '';
+      let openHtml = '';
+      if (!d.open) {
+        const url = appUrl(d.port, d.path);
+        openHtml = '<a class="btn primary" href="' + url + '" target="_blank" rel="noopener">Open' + ext + '</a>';
+      }
+      el.innerHTML =
+        '<div class="head"><div class="icon"><svg viewBox="0 0 24 24" fill="currentColor" style="color:#E36742">' + icons[d.icon] + '</svg></div>' +
+        '<div><h2>' + d.name + '</h2><p class="what">' + d.what + '</p></div></div>' +
+        '<p class="desc">' + d.desc + '</p>' +
+        '<div class="chips">' + chips + '</div>' +
+        statusHtml +
+        '<div class="actions">' + openHtml +
+        '<a class="btn" href="' + github + d.folder + '">Source ' + ext + '</a>' +
+        (d.codespace ? '<a class="btn" href="' + codespaces(d) + '">Codespace ' + ext + '</a>' : '') +
+        '</div>';
+      return el;
+    }
+
+    document.getElementById('apps').replaceChildren(...demos.map(card));
+
+    // The aityx key and whether aityx accepts it (bin/server.dart's
+    // /api/aityx): the banner when there's no key, the light top right.
+    async function checkAityx() {
+      const status = document.getElementById('aityx-status');
+      const dot = status.querySelector('.dot');
+      let a;
+      try {
+        // From the root: the page is also served at /app/.
+        const r = await fetch('/api/aityx', { cache: 'no-store' });
+        a = await r.json();
+      } catch (_) {
+        a = { key: true, ok: false, detail: 'the index server did not answer' };
+      }
+      document.getElementById('aityx-warning').hidden = a.key !== false;
+      dot.className = 'dot ' + (a.ok ? 'ok' : 'bad');
+      status.querySelector('.label').textContent =
+        a.ok ? 'aityx: ready' : !a.key ? 'aityx: no key' : 'aityx: not working';
+      // The reason, on hover and for screen readers.
+      status.title = a.ok
+        ? 'aityx accepts the key (' + a.source + ', ' + a.url + ')'
+        : 'aityx: ' + (a.detail || 'no answer');
+      status.setAttribute('aria-label', status.title);
+    }
+    checkAityx();
+    setInterval(checkAityx, 60000);
+  </script>
+</body>
+</html>

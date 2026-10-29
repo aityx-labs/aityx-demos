@@ -1,0 +1,13 @@
+# This file configures the analyzer, which statically analyzes Dart code to
+# check for errors, warnings, and lints. Run it with `flutter analyze`.
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - linux/**
+    - windows/**
+    - macos/**

@@ -1,0 +1,32 @@
+# --- Devbox / direnv ---
+.devbox/
+.envrc.local
+
+# --- Local settings (see .env.example) ---
+.env
+.env.*
+!.env.example
+
+# --- Build output ---
+build/
+*.iml
+.idea/
+
+# --- Logs & OS noise ---
+*.log
+# The codespace's start-up log, once kept here; it is at the repository
+# root now (see .devcontainer/startup-log.sh)
+startup.log
+.DS_Store
+Thumbs.db
+
+# --- Editors ---
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+
+*.local*
+
+# --- Claude Code: local settings, permissions and agent worktrees ---
+.claude/

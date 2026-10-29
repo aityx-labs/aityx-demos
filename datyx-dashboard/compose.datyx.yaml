@@ -1,0 +1,18 @@
+# The dashboard with the datyx API running as the datyx/ folder's own
+# `docker compose up`: the dashboard joins that stack's network and reaches
+# the API by its service name. Needed on Linux, where host.docker.internal
+# is the Docker bridge and the API's port, bound to 127.0.0.1 on the host,
+# isn't reachable from a container; fine anywhere.
+#   docker compose -f compose.yaml -f compose.datyx.yaml up
+services:
+  web:
+    environment:
+      DATYX_API_URL: http://api:9900
+    networks:
+      - default
+      - datyx
+
+networks:
+  datyx:
+    external: true
+    name: datyx_default

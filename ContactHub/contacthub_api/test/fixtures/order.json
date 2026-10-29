@@ -1,0 +1,206 @@
+{
+  "answers": {
+    "topic": {
+      "type": "choice",
+      "choice": "customer_service",
+      "confidence": 1,
+      "probabilities": {
+        "customer_service": 1,
+        "billing": 0,
+        "marketing": 0,
+        "tech_support": 0,
+        "trust_safety": 0,
+        "hr": 0,
+        "seller_services": 0,
+        "procurement": 0,
+        "business_sales": 0,
+        "legal": 0,
+        "press": 0,
+        "investor_relations": 0,
+        "other": 0
+      }
+    },
+    "urgent_probability": {
+      "type": "noul",
+      "noul": 0.03
+    },
+    "sensitive_data_probability": {
+      "type": "noul",
+      "noul": 0.02
+    },
+    "abusive_probability": {
+      "type": "noul",
+      "noul": 0.02
+    },
+    "evidence_threshold": {
+      "type": "number",
+      "number": 0.8,
+      "confidence": 1.0
+    },
+    "confidence_threshold": {
+      "type": "number",
+      "number": 0.6,
+      "confidence": 1.0
+    },
+    "urgent": {
+      "type": "noul",
+      "noul": 0.0
+    },
+    "sensitive_data": {
+      "type": "noul",
+      "noul": 0.0
+    },
+    "abusive": {
+      "type": "noul",
+      "noul": 0.0
+    },
+    "clear_topic": {
+      "type": "noul",
+      "noul": 1.0
+    },
+    "department": {
+      "type": "choice",
+      "choice": "customer_service",
+      "confidence": 1.0,
+      "probabilities": {
+        "customer_service": 1.0,
+        "billing": 0.0,
+        "marketing": 0.0,
+        "tech_support": 0.0,
+        "trust_safety": 0.0,
+        "hr": 0.0,
+        "seller_services": 0.0,
+        "procurement": 0.0,
+        "business_sales": 0.0,
+        "legal": 0.0,
+        "press": 0.0,
+        "investor_relations": 0.0,
+        "general_inquiries": 0.0
+      }
+    },
+    "priority": {
+      "type": "score",
+      "score": 1.0,
+      "level": "normal",
+      "confidence": 1.0,
+      "probabilities": {
+        "0": 0.0,
+        "1": 1.0,
+        "2": 0.0
+      }
+    },
+    "response_hours": {
+      "type": "number",
+      "number": 24,
+      "confidence": 1.0
+    },
+    "needs_review": {
+      "type": "noul",
+      "noul": 0.0
+    }
+  },
+  "receipt": {
+    "read": {
+      "topic": {
+        "value": "customer_service",
+        "source": "jev"
+      },
+      "topic_confidence": {
+        "value": 1,
+        "source": "jev",
+        "from": "jev:/answers/topic/confidence"
+      },
+      "urgent_probability": {
+        "value": 0.03,
+        "source": "jev"
+      },
+      "sensitive_data_probability": {
+        "value": 0.02,
+        "source": "jev"
+      },
+      "abusive_probability": {
+        "value": 0.02,
+        "source": "jev"
+      }
+    },
+    "provenance": {
+      "topic": "jev",
+      "urgent_probability": "jev",
+      "sensitive_data_probability": "jev",
+      "abusive_probability": "jev",
+      "topic_confidence": "jev"
+    },
+    "decisions": {
+      "evidence_threshold": {
+        "value": 0.8
+      },
+      "confidence_threshold": {
+        "value": 0.6
+      },
+      "urgent": {
+        "value": false
+      },
+      "sensitive_data": {
+        "value": false
+      },
+      "abusive": {
+        "value": false
+      },
+      "clear_topic": {
+        "value": true
+      },
+      "department": {
+        "value": "customer_service",
+        "rule": 3,
+        "rows": "xxF...........+",
+        "cells": [
+          "FTT",
+          "TFT",
+          "TTT",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTT"
+        ]
+      },
+      "priority": {
+        "value": "normal",
+        "rule": 6,
+        "rows": "xxxxxF",
+        "cells": [
+          "FTTT",
+          "TFTT",
+          "TTFT",
+          "TTTF",
+          "TTTF",
+          "TTTT"
+        ]
+      },
+      "response_hours": {
+        "value": 24,
+        "rule": 2,
+        "rows": "xF+",
+        "cells": [
+          "F",
+          "T",
+          "T"
+        ]
+      },
+      "needs_review": {
+        "value": false
+      }
+    }
+  },
+  "usage": {
+    "input_tokens": 2264,
+    "output_tokens": 771
+  }
+}

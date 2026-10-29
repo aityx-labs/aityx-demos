@@ -1,0 +1,638 @@
+{
+  "decision": {
+    "name": "Cellfie · Conway's Game of Life, one generation",
+    "types": {
+      "Fate": "survives|dies_lonely|dies_crowded|dies_no_rule|is_born|stays_empty",
+      "Situation": {
+        "alive": "boolean",
+        "neighbours": "number [0..8]",
+        "cells": "number >= 1"
+      },
+      "Pattern": "block|beehive|loaf|boat|tub|blinker|toad|beacon|pulsar|pentadecathlon|glider|lwss|mwss|hwss|r_pentomino|diehard|acorn|unknown",
+      "Kind": "still_life|oscillator|spaceship|methuselah|unknown",
+      "Cluster": {
+        "cells": "number >= 1",
+        "width": "number >= 1",
+        "height": "number >= 1",
+        "shape": "string"
+      },
+      "Rules": {
+        "conway": "boolean",
+        "highlife": "boolean",
+        "no_death": "boolean"
+      }
+    },
+    "inputs": {
+      "generation": {
+        "type": "number >= 0",
+        "desc": "The generation on the board now, counted from 0",
+        "from": "the app's board"
+      },
+      "rules": {
+        "type": "Rules",
+        "desc": "Which rules are enabled: conway, Conway's own rules (B3/S23: a cell is born with three live neighbours and survives with two or three); highlife, HighLife's extra birth (B6: a dead cell with six live neighbours is also born, which lets replicators grow); no_death, Life without death (a live cell never dies, so patterns only grow). A live cell no enabled rule keeps alive dies.",
+        "from": "the app's Rules switches"
+      },
+      "situations": {
+        "type": [
+          "Situation"
+        ],
+        "desc": "Every distinct situation on the board: whether the cell is alive, how many of its 8 neighbours are alive, and how many cells are in that situation. The rest of the infinite board, dead cells with no live neighbour, is left out: the rules keep it dead.",
+        "from": "the app's board, counted cell by cell"
+      },
+      "clusters": {
+        "type": [
+          "Cluster"
+        ],
+        "desc": "Every group of live cells on the board (cells within two of each other), with how many cells it has, its width and height, and its shape: rows of o (alive) and . (dead) joined by /, in the one of its turned and flipped forms that sorts first, so a pattern reads the same whichever way it faces.",
+        "from": "the app's board, grouped cell by cell"
+      }
+    },
+    "functions": {
+      "fate": {
+        "params": {
+          "alive": "boolean",
+          "neighbours": "number",
+          "conway": "boolean",
+          "highlife": "boolean",
+          "no_death": "boolean"
+        },
+        "returns": "Fate",
+        "body": [
+          [
+            "no_death",
+            "highlife",
+            "conway",
+            "alive",
+            "neighbours",
+            "=>",
+            "# why"
+          ],
+          [
+            "true",
+            "-",
+            "-",
+            "true",
+            "-",
+            "survives",
+            "Life without death: a live cell never dies, whatever its neighbours."
+          ],
+          [
+            "-",
+            "true",
+            "-",
+            "false",
+            "6",
+            "is_born",
+            "HighLife: a dead cell with exactly six live neighbours is also born, which lets replicators grow."
+          ],
+          [
+            "-",
+            "-",
+            "true",
+            "true",
+            "< 2",
+            "dies_lonely",
+            "Underpopulation: a live cell with fewer than two live neighbours dies."
+          ],
+          [
+            "-",
+            "-",
+            "true",
+            "true",
+            "[2..3]",
+            "survives",
+            "Survival: a live cell with two or three live neighbours lives on to the next generation."
+          ],
+          [
+            "-",
+            "-",
+            "true",
+            "true",
+            "> 3",
+            "dies_crowded",
+            "Overpopulation: a live cell with more than three live neighbours dies."
+          ],
+          [
+            "-",
+            "-",
+            "true",
+            "false",
+            "3",
+            "is_born",
+            "Reproduction: a dead cell with exactly three live neighbours becomes a live cell."
+          ],
+          [
+            "-",
+            "-",
+            "-",
+            "true",
+            "-",
+            "dies_no_rule",
+            "No enabled rule keeps the live cell alive: it dies."
+          ],
+          [
+            "-",
+            "-",
+            "-",
+            "-",
+            "-",
+            "stays_empty",
+            "A dead cell no enabled rule brings to life stays dead."
+          ]
+        ]
+      },
+      "identify": {
+        "params": {
+          "cells": "number",
+          "width": "number",
+          "height": "number",
+          "shape": "string"
+        },
+        "returns": "Pattern",
+        "body": [
+          [
+            "cells",
+            "width",
+            "height",
+            "shape",
+            "=>",
+            "# why"
+          ],
+          [
+            "4",
+            "2",
+            "2",
+            "\"oo/oo\"",
+            "block",
+            "Block."
+          ],
+          [
+            "6",
+            "3",
+            "4",
+            "\".o./o.o/o.o/.o.\"",
+            "beehive",
+            "Beehive."
+          ],
+          [
+            "7",
+            "4",
+            "4",
+            "\"..o./.o.o/o..o/.oo.\"",
+            "loaf",
+            "Loaf."
+          ],
+          [
+            "5",
+            "3",
+            "3",
+            "\".o./o.o/.oo\"",
+            "boat",
+            "Boat."
+          ],
+          [
+            "4",
+            "3",
+            "3",
+            "\".o./o.o/.o.\"",
+            "tub",
+            "Tub."
+          ],
+          [
+            "3",
+            "1",
+            "3",
+            "\"o/o/o\"",
+            "blinker",
+            "Blinker."
+          ],
+          [
+            "6",
+            "2",
+            "4",
+            "\".o/oo/oo/o.\"",
+            "toad",
+            "Toad, one phase of its 2-generation cycle."
+          ],
+          [
+            "6",
+            "4",
+            "4",
+            "\"..o./o..o/o..o/.o..\"",
+            "toad",
+            "Toad, one phase of its 2-generation cycle."
+          ],
+          [
+            "8",
+            "4",
+            "4",
+            "\"..oo/..oo/oo../oo..\"",
+            "beacon",
+            "Beacon, one phase of its 2-generation cycle."
+          ],
+          [
+            "6",
+            "4",
+            "4",
+            "\"..oo/...o/o.../oo..\"",
+            "beacon",
+            "Beacon, one phase of its 2-generation cycle."
+          ],
+          [
+            "48",
+            "13",
+            "13",
+            "\"..ooo...ooo../............./o....o.o....o/o....o.o....o/o....o.o....o/..ooo...ooo../............./..ooo...ooo../o....o.o....o/o....o.o....o/o....o.o....o/............./..ooo...ooo..\"",
+            "pulsar",
+            "Pulsar, one phase of its 3-generation cycle."
+          ],
+          [
+            "56",
+            "15",
+            "15",
+            "\"....o.....o..../....o.....o..../....oo...oo..../.............../ooo..oo.oo..ooo/..o.o.o.o.o.o../....oo...oo..../.............../....oo...oo..../..o.o.o.o.o.o../ooo..oo.oo..ooo/.............../....oo...oo..../....o.....o..../....o.....o....\"",
+            "pulsar",
+            "Pulsar, one phase of its 3-generation cycle."
+          ],
+          [
+            "72",
+            "13",
+            "13",
+            "\"..oo.....oo../...oo...oo.../o..o.o.o.o..o/ooo.oo.oo.ooo/.o.o.o.o.o.o./..ooo...ooo../............./..ooo...ooo../.o.o.o.o.o.o./ooo.oo.oo.ooo/o..o.o.o.o..o/...oo...oo.../..oo.....oo..\"",
+            "pulsar",
+            "Pulsar, one phase of its 3-generation cycle."
+          ],
+          [
+            "12",
+            "10",
+            "3",
+            "\"..o....o../oo.oooo.oo/..o....o..\"",
+            "pentadecathlon",
+            "Penta-decathlon, one phase of its 15-generation cycle."
+          ],
+          [
+            "22",
+            "3",
+            "8",
+            "\"ooo/o.o/ooo/ooo/ooo/ooo/o.o/ooo\"",
+            "pentadecathlon",
+            "Penta-decathlon, one phase of its 15-generation cycle."
+          ],
+          [
+            "18",
+            "5",
+            "10",
+            "\"..o../.o.o./o...o/o...o/o...o/o...o/o...o/o...o/.o.o./..o..\"",
+            "pentadecathlon",
+            "Penta-decathlon, one phase of its 15-generation cycle."
+          ],
+          [
+            "40",
+            "7",
+            "10",
+            "\"...o.../..ooo../.oo.oo./ooo.ooo/ooo.ooo/ooo.ooo/ooo.ooo/.oo.oo./..ooo../...o...\"",
+            "pentadecathlon",
+            "Penta-decathlon, one phase of its 15-generation cycle."
+          ],
+          [
+            "18",
+            "10",
+            "9",
+            "\"....oo..../..o....o../.o......o./o........o/o........o/o........o/.o......o./..o....o../....oo....\"",
+            "pentadecathlon",
+            "Penta-decathlon, one phase of its 15-generation cycle."
+          ],
+          [
+            "18",
+            "12",
+            "5",
+            "\"..o......o../.oo......oo./ooo......ooo/.oo......oo./..o......o..\"",
+            "pentadecathlon",
+            "Penta-decathlon, one phase of its 15-generation cycle."
+          ],
+          [
+            "20",
+            "12",
+            "5",
+            "\".oo......oo./o..o....o..o/o..o....o..o/o..o....o..o/.oo......oo.\"",
+            "pentadecathlon",
+            "Penta-decathlon, one phase of its 15-generation cycle."
+          ],
+          [
+            "28",
+            "5",
+            "14",
+            "\"..o../.ooo./o.o.o/o.o.o/.ooo./..o../...../...../..o../.ooo./o.o.o/o.o.o/.ooo./..o..\"",
+            "pentadecathlon",
+            "Penta-decathlon, one phase of its 15-generation cycle."
+          ],
+          [
+            "20",
+            "14",
+            "5",
+            "\"..oo......oo../o....o..o....o/o....o..o....o/o....o..o....o/..oo......oo..\"",
+            "pentadecathlon",
+            "Penta-decathlon, one phase of its 15-generation cycle."
+          ],
+          [
+            "20",
+            "16",
+            "3",
+            "\"..o..o....o..o../ooo..oooooo..ooo/..o..o....o..o..\", \".o..oo....oo..o./o...ooo..ooo...o/.o..oo....oo..o.\"",
+            "pentadecathlon",
+            "Penta-decathlon, 2 phases of its 15-generation cycle."
+          ],
+          [
+            "22",
+            "12",
+            "3",
+            "\"o..o.oo.o..o/oooo.oo.oooo/o..o.oo.o..o\"",
+            "pentadecathlon",
+            "Penta-decathlon, one phase of its 15-generation cycle."
+          ],
+          [
+            "18",
+            "14",
+            "3",
+            "\".o..o.oo.o..o./oo..o....o..oo/.o..o.oo.o..o.\"",
+            "pentadecathlon",
+            "Penta-decathlon, one phase of its 15-generation cycle."
+          ],
+          [
+            "22",
+            "14",
+            "3",
+            "\"oo...o..o...oo/ooooo....ooooo/oo...o..o...oo\"",
+            "pentadecathlon",
+            "Penta-decathlon, one phase of its 15-generation cycle."
+          ],
+          [
+            "16",
+            "16",
+            "3",
+            "\"....o.o..o.o..../oo.o..o..o..o.oo/....o.o..o.o....\"",
+            "pentadecathlon",
+            "Penta-decathlon, one phase of its 15-generation cycle."
+          ],
+          [
+            "5",
+            "3",
+            "3",
+            "\"..o/o.o/.oo\", \"..o/oo./.oo\"",
+            "glider",
+            "Glider, 2 phases of its 4-generation cycle."
+          ],
+          [
+            "9",
+            "5",
+            "4",
+            "\".o..o/o..../o...o/oooo.\"",
+            "lwss",
+            "Light-weight spaceship, one phase of its 4-generation cycle."
+          ],
+          [
+            "12",
+            "4",
+            "5",
+            "\"..o./.ooo/oo.o/ooo./.oo.\"",
+            "lwss",
+            "Light-weight spaceship, one phase of its 4-generation cycle."
+          ],
+          [
+            "11",
+            "6",
+            "5",
+            "\"...o../.o...o/o...../o....o/ooooo.\"",
+            "mwss",
+            "Middle-weight spaceship, one phase of its 4-generation cycle."
+          ],
+          [
+            "15",
+            "6",
+            "4",
+            "\"...oo./ooo.oo/ooooo./.ooo..\"",
+            "mwss",
+            "Middle-weight spaceship, one phase of its 4-generation cycle."
+          ],
+          [
+            "13",
+            "7",
+            "5",
+            "\"...oo../.o....o/o....../o.....o/oooooo.\"",
+            "hwss",
+            "Heavy-weight spaceship, one phase of its 4-generation cycle."
+          ],
+          [
+            "18",
+            "7",
+            "4",
+            "\"....oo./oooo.oo/oooooo./.oooo..\"",
+            "hwss",
+            "Heavy-weight spaceship, one phase of its 4-generation cycle."
+          ],
+          [
+            "5",
+            "3",
+            "3",
+            "\"..o/ooo/.o.\"",
+            "r_pentomino",
+            "R-pentomino."
+          ],
+          [
+            "7",
+            "8",
+            "3",
+            "\"......o./oo....../.o...ooo\"",
+            "diehard",
+            "Diehard."
+          ],
+          [
+            "7",
+            "7",
+            "3",
+            "\".....o./...o.../ooo..oo\"",
+            "acorn",
+            "Acorn."
+          ],
+          [
+            "-",
+            "-",
+            "-",
+            "-",
+            "unknown",
+            "Not a pattern in the catalogue."
+          ]
+        ]
+      },
+      "kind_of": {
+        "params": {
+          "pattern": "Pattern"
+        },
+        "returns": "Kind",
+        "body": [
+          [
+            "pattern",
+            "=>",
+            "# why"
+          ],
+          [
+            "block",
+            "still_life",
+            "The block, the most common still life: four cells in a square that never change."
+          ],
+          [
+            "beehive",
+            "still_life",
+            "The beehive, a still life of six cells."
+          ],
+          [
+            "loaf",
+            "still_life",
+            "The loaf, a still life of seven cells."
+          ],
+          [
+            "boat",
+            "still_life",
+            "The boat, a still life of five cells."
+          ],
+          [
+            "tub",
+            "still_life",
+            "The tub, a still life of four cells around an empty one."
+          ],
+          [
+            "blinker",
+            "oscillator",
+            "The blinker, the most common oscillator: three cells in a row that turn every generation (period 2)."
+          ],
+          [
+            "toad",
+            "oscillator",
+            "The toad, an oscillator of period 2."
+          ],
+          [
+            "beacon",
+            "oscillator",
+            "The beacon, two blocks whose touching corners blink (period 2)."
+          ],
+          [
+            "pulsar",
+            "oscillator",
+            "The pulsar, the most common oscillator of period 3."
+          ],
+          [
+            "pentadecathlon",
+            "oscillator",
+            "The penta-decathlon, an oscillator of period 15."
+          ],
+          [
+            "glider",
+            "spaceship",
+            "The glider, the smallest spaceship: it crosses the board diagonally, one cell every four generations."
+          ],
+          [
+            "lwss",
+            "spaceship",
+            "The light-weight spaceship: it crosses the board in a straight line, two cells every four generations."
+          ],
+          [
+            "mwss",
+            "spaceship",
+            "The middle-weight spaceship: a longer ship, as fast as the light-weight one."
+          ],
+          [
+            "hwss",
+            "spaceship",
+            "The heavy-weight spaceship: the longest of the three, as fast as the others."
+          ],
+          [
+            "r_pentomino",
+            "methuselah",
+            "The R-pentomino, a methuselah: five cells that take 1,103 generations to settle, with six gliders escaping."
+          ],
+          [
+            "diehard",
+            "methuselah",
+            "Diehard, a methuselah that vanishes after 130 generations."
+          ],
+          [
+            "acorn",
+            "methuselah",
+            "The acorn, a methuselah: seven cells that take 5,206 generations to grow to 633 cells, with 13 gliders escaping."
+          ],
+          [
+            "-",
+            "unknown",
+            "Not in the catalogue: a soup, a pattern mid-change, or one the catalogue doesn't know."
+          ]
+        ]
+      }
+    },
+    "decisions": {
+      "fates": {
+        "type": [
+          "Fate"
+        ],
+        "desc": "What happens to the cells in each situation, in the order the situations were sent",
+        "expr": "for s in situations return fate(s.alive, s.neighbours, rules.conway, rules.highlife, rules.no_death)"
+      },
+      "alive_next": {
+        "type": [
+          "boolean"
+        ],
+        "desc": "Whether the cells in each situation are alive in the next generation, in the same order",
+        "expr": "for f in fates return f = \"survives\" or f = \"is_born\""
+      },
+      "population": {
+        "type": "number",
+        "desc": "Cells alive in this generation",
+        "expr": "if count(situations) = 0 then 0 else sum(for s in situations return if s.alive then s.cells else 0)"
+      },
+      "population_next": {
+        "type": "number",
+        "desc": "Cells alive in the next generation",
+        "expr": "if count(situations) = 0 then 0 else sum(for i in 1..count(situations) return if alive_next[i] then situations[i].cells else 0)"
+      },
+      "births": {
+        "type": "number",
+        "desc": "Cells born in the next generation",
+        "expr": "if count(situations) = 0 then 0 else sum(for i in 1..count(situations) return if fates[i] = \"is_born\" then situations[i].cells else 0)"
+      },
+      "deaths": {
+        "type": "number",
+        "desc": "Cells that die, of loneliness, crowding or no rule keeping them",
+        "expr": "if count(situations) = 0 then 0 else sum(for i in 1..count(situations) return if fates[i] = \"dies_lonely\" or fates[i] = \"dies_crowded\" or fates[i] = \"dies_no_rule\" then situations[i].cells else 0)"
+      },
+      "survivors": {
+        "type": "number",
+        "desc": "Cells that live on",
+        "expr": "if count(situations) = 0 then 0 else sum(for i in 1..count(situations) return if fates[i] = \"survives\" then situations[i].cells else 0)"
+      },
+      "next_generation": {
+        "type": "number",
+        "desc": "The generation after this one",
+        "expr": "generation + 1"
+      },
+      "patterns": {
+        "type": [
+          "Pattern"
+        ],
+        "desc": "What each cluster is, in the order the clusters were sent: a pattern of the catalogue, or unknown",
+        "expr": "for c in clusters return identify(c.cells, c.width, c.height, c.shape)"
+      },
+      "kinds": {
+        "type": [
+          "Kind"
+        ],
+        "desc": "What kind of pattern each cluster is, in the same order",
+        "expr": "for p in patterns return kind_of(p)"
+      },
+      "recognized": {
+        "type": "number",
+        "desc": "How many clusters are patterns of the catalogue",
+        "expr": "if count(clusters) = 0 then 0 else sum(for p in patterns return if p = \"unknown\" then 0 else 1)"
+      }
+    }
+  }
+}

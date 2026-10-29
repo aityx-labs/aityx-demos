@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Mortgage Hub: a house with a dollar sign, aityx orange on the page background. -->
+  <rect width="1024" height="1024" fill="#17161A"/>
+  <path d="M512 170 L870 480 L780 480 L780 850 L244 850 L244 480 L154 480 Z" fill="#E36742"/>
+  <rect x="650" y="230" width="80" height="170" fill="#E36742"/>
+  <text x="512" y="790" text-anchor="middle" font-family="Arial Black, Helvetica Neue, Arial, sans-serif" font-weight="900" font-size="420" fill="#17161A">$</text>
+</svg>

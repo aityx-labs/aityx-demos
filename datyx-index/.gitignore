@@ -1,0 +1,4 @@
+.devbox/
+*.log
+.DS_Store
+.env

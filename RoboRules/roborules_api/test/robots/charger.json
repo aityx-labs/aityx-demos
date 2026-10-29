@@ -1,0 +1,104 @@
+{
+  "name": "Charger",
+  "inputs": {
+    "enemy_distance": {
+      "type": "number",
+      "desc": "Distance to the nearest enemy, in pixels (9999 when none is left)"
+    },
+    "enemy_bearing": {
+      "type": "number",
+      "desc": "Where the nearest enemy is, in degrees from where the robot faces: negative to the left, positive to the right (-180 to 180)"
+    },
+    "gun_bearing": {
+      "type": "number",
+      "desc": "Where the nearest enemy is, in degrees from where the gun points"
+    },
+    "enemy_in_sight": {
+      "type": "boolean",
+      "desc": "Is the nearest enemy within 10 degrees of the gun?"
+    },
+    "my_energy": {
+      "type": "number",
+      "desc": "The robot's energy (it starts at 100)"
+    },
+    "enemy_energy": {
+      "type": "number",
+      "desc": "The nearest enemy's energy"
+    },
+    "near_wall": {
+      "type": "boolean",
+      "desc": "Is a wall within 80 pixels straight ahead?"
+    },
+    "wall_distance": {
+      "type": "number",
+      "desc": "Distance to the nearest wall, in pixels"
+    },
+    "gun_ready": {
+      "type": "boolean",
+      "desc": "Has the gun cooled down enough to fire?"
+    },
+    "was_hit": {
+      "type": "boolean",
+      "desc": "Was the robot hit by a bullet last turn?"
+    },
+    "speed": {
+      "type": "number",
+      "desc": "The robot's speed, -8 to 8 pixels a turn"
+    },
+    "enemies_left": {
+      "type": "number",
+      "desc": "How many enemies are still alive"
+    }
+  },
+  "decisions": {
+    "action": {
+      "desc": "What Charger does this turn",
+      "table": [
+        [
+          "near_wall",
+          "enemy_distance",
+          "gun_ready",
+          "=> drive: ahead|back|stop",
+          "=> turn: left|right|none|toward_enemy|away_from_enemy|perpendicular",
+          "=> gun: aim|sweep_left|sweep_right|hold",
+          "=> fire: number [0..3]",
+          "# why"
+        ],
+        {
+          "when": {
+            "near_wall": "true"
+          },
+          "then": {
+            "drive": "back",
+            "turn": "left",
+            "gun": "aim",
+            "fire": "0"
+          },
+          "why": "Back off the wall."
+        },
+        {
+          "when": {
+            "enemy_distance": "< 250",
+            "gun_ready": "true"
+          },
+          "then": {
+            "drive": "ahead",
+            "turn": "toward_enemy",
+            "gun": "aim",
+            "fire": "3"
+          },
+          "why": "Close: full power."
+        },
+        {
+          "then": {
+            "drive": "ahead",
+            "turn": "toward_enemy",
+            "gun": "aim",
+            "fire": "1"
+          },
+          "why": "Charge."
+        }
+      ]
+    }
+  }
+}

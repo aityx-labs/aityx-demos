@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- RoboRules: a tank seen from above, aityx orange on the page background: two tracks, a hull, a turret ringed by a gap in the background color, and a barrel. The favicon (web/favicon.svg) is the same art without the tile. -->
+  <rect width="1024" height="1024" fill="#17161A"/>
+  <g transform="translate(152 152) scale(2.25)">
+    <defs>
+      <mask id="turret-ring">
+        <rect width="320" height="320" fill="#fff"/>
+        <circle cx="160" cy="186" r="58" fill="#000"/>
+      </mask>
+    </defs>
+    <g fill="#E36742">
+      <g mask="url(#turret-ring)">
+        <rect x="28" y="60" width="62" height="228" rx="16"/>
+        <rect x="230" y="60" width="62" height="228" rx="16"/>
+        <rect x="100" y="84" width="120" height="188" rx="12"/>
+      </g>
+      <circle cx="160" cy="186" r="44"/>
+      <rect x="146" y="14" width="28" height="176" rx="6"/>
+    </g>
+  </g>
+</svg>

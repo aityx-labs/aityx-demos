@@ -1,0 +1,163 @@
+{
+  // ---------------------------------------------------------------------
+  // datyx demos
+  //
+  // The datyx group, started together: the datyx API (datyx/, Quarkus on
+  // GraalVM, with PostgreSQL, Elasticsearch and OpenMetadata in
+  // containers), the datyx dashboard (datyx-dashboard/, a Flutter web app
+  // calling it) and HealthHub (a Flutter app, a Dart API and PostgreSQL),
+  // and its index page (datyx-index/, port 9907) that links them. The folders whose group.id.txt says datyx.
+  //
+  // Source:  https://github.com/aityx-labs/aityx-demos
+  // Rules:   https://aityx.ai
+  // Aletyx:  https://aletyx.com
+  //          https://nu01.com
+  //
+  // One dev container per demo group: this one, and the aityx group's in
+  // .devcontainer/aityx/. Each has its own image. The scripts they run
+  // are shared, in .devcontainer/, and act on the group DEMOS_GROUP names.
+  // The name below is what GitHub shows in the "Dev container
+  // configuration" list when you create a codespace.
+  // ---------------------------------------------------------------------
+  "name": "datyx demos",
+  // The group's published image (image/Containerfile, built and pushed by
+  // `bash image/build-image.sh datyx`): Flutter, GraalVM, the GitHub CLI,
+  // process-compose, the datyx API's Maven dependencies and the release
+  // web builds of the dashboard and HealthHub, so nothing is downloaded
+  // or built when a codespace is created. The organization has GitHub's
+  // prebuilds switched off; this is the next best thing.
+  "image": "docker.io/aletyxcode/samples-and-demos-datyx:latest",
+  "remoteUser": "vscode",
+  // An SSH server, so `gh codespace ssh`, `gh codespace cp` and
+  // `gh codespace logs` reach the codespace from a terminal: that is how
+  // startup.log is read without the editor. Docker, for the databases
+  // and OpenMetadata: the containers of datyx/compose.yaml and
+  // HealthHub/compose.yaml, which process-compose starts with
+  // `docker compose up <service>`.
+  "features": {
+    "ghcr.io/devcontainers/features/sshd:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  // The 4-core, 16 GB Codespaces machine, the largest the organization
+  // allows (asking for more leaves no machine to create the codespace
+  // on). Elasticsearch and OpenMetadata take several GB on their own,
+  // beside the API's JVM and two PostgreSQL containers, so it is tight.
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb"
+  },
+  // The web servers must listen on every interface for the forwarded
+  // ports to reach them (only the container sees them). One variable per
+  // folder, as its scripts and compose.yaml name it.
+  "containerEnv": {
+    // The demos run on the image's Flutter, GraalVM and process-compose,
+    // not devbox (see demos-toolchain.sh).
+    "DEMOS_TOOLCHAIN": "image",
+    // The group: ./start-all.sh, ./stop-all.sh and ./build-all.sh act on
+    // its folders only, and the dev container scripts start it.
+    "DEMOS_GROUP": "datyx",
+    "INDEX_BIND_HOST": "0.0.0.0",
+    "DATYX_BIND_HOST": "0.0.0.0",
+    "HEALTHHUB_BIND_HOST": "0.0.0.0"
+  },
+  // Your own key, never the repository's: the AITYX_API_KEY secret the
+  // aityx group's dev container asks for too. Codespaces secrets belong
+  // to a user and are granted per repository, so a key already granted
+  // to this repository reaches this container with nothing to copy.
+  // GitHub asks for it when you create a codespace unless you already
+  // hold it, and passes it in as an environment variable, which the
+  // scripts read before falling back to the root .env. Change it at
+  // https://github.com/settings/codespaces.
+  //
+  // AITYX_URL is optional and defaults to https://api.aityx.ai. Set the
+  // secret to https://api-stage.aityx.ai when using a stage key.
+  "secrets": {
+    "AITYX_API_KEY": {
+      "description": "Your own aityx.ai API key, from the console's API keys page; the same one the aityx demos use. HealthHub will run its decisions on aityx, and the index page checks it.",
+      "documentationUrl": "https://aityx.ai/docs"
+    },
+    "AITYX_URL": {
+      "description": "Optional. API endpoint; leave unset for https://api.aityx.ai, or set https://api-stage.aityx.ai for a stage key."
+    }
+  },
+  // The image's flutter, dart and java on the PATH of every terminal.
+  // ${containerEnv:PATH} is the image's own PATH, GraalVM's bin among it.
+  "remoteEnv": {
+    "PATH": "/opt/flutter/bin:${containerEnv:PATH}"
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        // The Flutter SDK in the image (see image/Containerfile), there
+        // from the moment VS Code attaches, so the Dart extension doesn't
+        // offer to download one.
+        "dart.flutterSdkPath": "/opt/flutter",
+        "java.jdt.ls.java.home": "/opt/graalvm"
+      },
+      "extensions": [
+        "Dart-Code.dart-code",
+        "Dart-Code.flutter",
+        "redhat.java"
+      ]
+    }
+  },
+  // The index page and HealthHub's web app, public (post-start.sh). The
+  // datyx dashboard (9906) is public only once the datyx API requires a
+  // sign-in (OIDC_CLIENT_ID): without one, anyone with its URL could add
+  // or delete data sources through it. The datyx API (9900, its Swagger
+  // UI at /q/swagger-ui, which the index links to) and OpenMetadata's UI
+  // (9902) are forwarded too, but stay private: they open for you,
+  // signed in to GitHub, and nobody else.
+  // HealthHub's API (9801) and the databases stay inside the container:
+  // each app reaches its API through its web server's /api/ proxy.
+  // Plain HTTP, which is what the servers speak; switching a public port
+  // to HTTPS makes it private. Only the index opens a browser tab.
+  "forwardPorts": [9907, 9800, 9906, 9900, 9902],
+  "portsAttributes": {
+    "9907": {
+      "label": "datyx index: the group on one page",
+      "protocol": "http",
+      "onAutoForward": "openBrowserOnce"
+    },
+    "9800": {
+      "label": "HealthHub web app",
+      "protocol": "http",
+      "onAutoForward": "silent"
+    },
+    "9906": {
+      "label": "datyx dashboard (private without OIDC)",
+      "protocol": "http",
+      "onAutoForward": "silent"
+    },
+    "9900": {
+      "label": "datyx API (private)",
+      "protocol": "http",
+      "onAutoForward": "silent"
+    },
+    "9902": {
+      "label": "OpenMetadata (private)",
+      "protocol": "http",
+      "onAutoForward": "silent"
+    }
+  },
+  // All run from the repository root, in this order, when the codespace
+  // is created; the editor attaches after the first (waitFor), while any
+  // build goes on in the background with its progress in startup.log.
+  //   on-create.sh       the image's release web builds into the workspace
+  //                      (image/restore-builds.sh)
+  //   update-content.sh  ./build-all.sh: the group's release web builds,
+  //                      compiled servers and the API's jar, only what
+  //                      changed
+  //   post-create.sh     whether the aityx secrets arrived
+  // post-start.sh starts the index and the group with ./start-all.sh and
+  // makes the web ports public on every start.
+  "onCreateCommand": "bash -lc 'bash .devcontainer/on-create.sh'",
+  "updateContentCommand": "bash -lc 'bash .devcontainer/update-content.sh'",
+  "postCreateCommand": "bash -lc 'bash .devcontainer/post-create.sh'",
+  "waitFor": "onCreateCommand",
+  "postStartCommand": "bash -lc 'bash .devcontainer/post-start.sh'",
+  // Again each time VS Code attaches: a visibility set at start does not
+  // always stick, and users report it does from here.
+  "postAttachCommand": "bash .devcontainer/public-port.sh"
+}

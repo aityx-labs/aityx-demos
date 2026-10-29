@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>datyx</title>
+  <meta name="description" content="The datyx group: the datyx API, its dashboard, HealthHub and OpenMetadata, and where to open each.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <!-- Every link opens in a new tab: the index stays open. -->
+  <base target="_blank">
+  <style>
+    :root {
+      --bg0: #151418; --bg: #17161A; --bg1: #201E24; --bg2: #2A272E;
+      --border: #37333C; --dim: #47474D;
+      --fg0: #FFFFFF; --fg: #EFF2F4; --muted: #A9ACB6;
+      --orange: #E36742; --orange-light: #EB7B58;
+      --green: #4CC38A; --amber: #E8B04B; --red: #F0506E;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--fg); }
+    body {
+      font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 0 16px 48px;
+    }
+    a { color: var(--orange-light); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    header {
+      max-width: 1100px; margin: 0 auto; padding: 40px 0 24px;
+      display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+    }
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .brand svg { width: 44px; height: 44px; }
+    h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.01em; }
+    .tag { color: var(--muted); margin: 4px 0 0; }
+    .meta { color: var(--muted); font-size: 14px; text-align: right; align-self: flex-start; }
+    .meta a { color: var(--fg); }
+    main { max-width: 1100px; margin: 0 auto; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+    .card {
+      background: var(--bg1); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 10px;
+      transition: border-color .15s;
+    }
+    .card:hover { border-color: var(--dim); }
+    .head { display: flex; align-items: center; gap: 12px; }
+    .icon {
+      width: 40px; height: 40px; border-radius: 10px; flex: none;
+      background: var(--bg2); display: grid; place-items: center;
+    }
+    .icon svg { width: 24px; height: 24px; }
+    .head h2 { margin: 0; font-size: 18px; }
+    .head .what { margin: 0; color: var(--muted); font-size: 13px; }
+    .desc { margin: 0; color: var(--fg); font-size: 14.5px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      font-size: 11.5px; color: var(--muted); background: var(--bg2);
+      border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px;
+    }
+    .chip.aityx { color: var(--orange-light); border-color: rgba(227, 103, 66, .5); }
+    .status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-top: auto; }
+    .status + .actions { margin-top: 0; }
+    .status code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--fg); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      border-radius: 8px; padding: 7px 12px; font-size: 13.5px; font-weight: 600;
+      border: 1px solid var(--border); color: var(--fg); background: var(--bg2);
+    }
+    .btn:hover { text-decoration: none; border-color: var(--dim); }
+    .btn.primary { background: var(--orange); border-color: var(--orange); color: var(--fg0); }
+    .btn.primary:hover { background: var(--orange-light); }
+    .btn svg { width: 15px; height: 15px; }
+    h3.section { margin: 36px 0 12px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+    footer { max-width: 1100px; margin: 40px auto 0; color: var(--muted); font-size: 13.5px; border-top: 1px solid var(--border); padding-top: 18px; }
+    footer code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); }
+    .warning {
+      max-width: 1100px; margin: 16px auto 0; padding: 10px 14px; border-radius: 10px;
+      border: 1px solid rgba(232, 176, 75, .5); background: rgba(232, 176, 75, .1); color: var(--fg); font-size: 14px;
+    }
+    .warning[hidden] { display: none; }
+    .warning strong { color: var(--amber); }
+    .warning code, .aityx-status code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+    .aityx-status:focus-visible { outline: 2px solid var(--orange-light); outline-offset: 3px; border-radius: 4px; }
+    .aityx-status { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; color: var(--muted); }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--dim); flex: none; }
+    .dot.ok { background: var(--green); box-shadow: 0 0 0 3px rgba(76, 195, 138, .2); }
+    .dot.bad { background: var(--red); }
+    @media (max-width: 600px) { header { padding-top: 24px; } .meta { text-align: left; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        <rect width="48" height="48" rx="12" fill="#E36742"/>
+        <g transform="translate(9 9) scale(0.094)">
+          <path d="M160 24 C89 24 32 44 32 70 V250 C32 276 89 296 160 296 C231 296 288 276 288 250 V70 C288 44 231 24 160 24 Z" fill="#17161A"/>
+          <path d="M48 72 A112 34 0 0 0 272 72 M48 112 A112 34 0 0 0 272 112 M160 150 V190 M160 190 L112 236 M160 190 L208 236" fill="none" stroke="#E36742" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </svg>
+      <div>
+        <h1>datyx</h1>
+        <p class="tag">A data system in the making: its API, its dashboard, HealthHub, and the catalogue behind them.</p>
+      </div>
+    </div>
+    <div class="meta">
+      <a href="https://github.com/aityx-labs/aityx-demos">github.com/aityx-labs/aityx-demos</a>
+    </div>
+  </header>
+
+  <main>
+    <h3 class="section">The datyx group</h3>
+    <div class="grid" id="apps"></div>
+  </main>
+
+  <footer>
+    Everything runs locally on its own port, 9800 to 9907: start the group with <code>./start-datyx.sh</code> at the
+    root of the repository, stop it with <code>./stop-datyx.sh</code>; or <code>docker compose up</code> in each folder.
+    Or open the group in a <a href="https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Fdatyx%2Fdevcontainer.json&amp;machine=standardLinux32gb">GitHub codespace</a>.
+    The six aityx demos have an index of their own, on port 8800.
+  </footer>
+
+  <script>
+    // The group's systems, in the order shown. "folder" matches the
+    // repository's folders; "port" is the web app's, the FLUTTER_WEB_PORT
+    // default in its process-compose.yaml, or the server's for one with
+    // no app, and "path" what to open there (/app/ unless set).
+    const demos = [
+      {
+        folder: 'datyx-dashboard', port: 9906, name: 'datyx dashboard',
+        what: 'The views of datyx: a Flutter app that calls the datyx API',
+        desc: 'A Flutter web app, like every demo\'s, that invokes the datyx API and shows what it answers: the data sources on record, the catalogue, an audit of every request and response, the health of the API, PostgreSQL and OpenMetadata, and your profile. Views only; the data and the logic are the API\'s. Sign in with Google.',
+        chips: ['Flutter dashboard', 'calls the datyx API', 'Google sign-in'],
+        icon: 'data',
+      },
+      {
+        folder: 'datyx', port: 9900, path: '/q/swagger-ui', name: 'datyx API',
+        what: 'A Quarkus API with PostgreSQL and OpenMetadata',
+        desc: 'REST on Quarkus and GraalVM with Hibernate and Panache over PostgreSQL: the data sources users add, each in the profile of whoever added it, with its access details encrypted with that profile\'s key; users signed in with Google through OpenID Connect. API only: Open shows its Swagger UI. Ports 9900 to 9905.',
+        chips: ['Quarkus API', 'PostgreSQL', 'OpenID Connect'],
+        icon: 'api',
+      },
+      {
+        folder: 'HealthHub', port: 9800, name: 'HealthHub',
+        what: 'The app of the datyx group, with a database of its own',
+        desc: 'A Flutter app, a Dart API and PostgreSQL. The page you open is a map of where you are, with a welcome over it; signing in with Google leads home, a dashboard whose one tile is the same map, and its API reaches datyx with the same identity. Ports 9800 to 9802.',
+        chips: ['Flutter app', 'Dart API', 'PostgreSQL', 'Google sign-in'],
+        icon: 'heart',
+      },
+      {
+        folder: 'datyx', port: 9902, path: '/', name: 'OpenMetadata',
+        what: 'The catalogue: an OpenMetadata server with its Elasticsearch index',
+        desc: 'The OpenMetadata server the datyx API registers data in, started with the datyx stack (compose.yaml of datyx/), with Elasticsearch as its search index on 9904. Its own UI, on 9902: sign in as admin@open-metadata.org with the password admin.',
+        chips: ['OpenMetadata', 'Elasticsearch'],
+        icon: 'catalog', source: 'datyx/compose.yaml',
+      },
+    ];
+
+    const icons = {
+      data: '<path d="M12 3 C7.6 3 4 4.6 4 6.5 V17.5 C4 19.4 7.6 21 12 21 C16.4 21 20 19.4 20 17.5 V6.5 C20 4.6 16.4 3 12 3 Z M12 5 C15.9 5 18 6.2 18 6.5 C18 6.8 15.9 8 12 8 C8.1 8 6 6.8 6 6.5 C6 6.2 8.1 5 12 5 Z M6 9 C7.5 9.7 9.6 10 12 10 C14.4 10 16.5 9.7 18 9 V12 C18 12.3 15.9 13.5 12 13.5 C8.1 13.5 6 12.3 6 12 Z M6 14.5 C7.5 15.2 9.6 15.5 12 15.5 C14.4 15.5 16.5 15.2 18 14.5 V17.5 C18 17.8 15.9 19 12 19 C8.1 19 6 17.8 6 17.5 Z" fill-rule="evenodd"/>',
+      api: '<path d="M8 7 L3 12 L8 17 M16 7 L21 12 L16 17 M14 4 L10 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+      heart: '<path d="M12 20.5 L10.6 19.2 C5.4 14.5 2 11.4 2 7.6 C2 4.5 4.4 2 7.5 2 C9.2 2 10.9 2.8 12 4.1 C13.1 2.8 14.8 2 16.5 2 C19.6 2 22 4.5 22 7.6 C22 11.4 18.6 14.5 13.4 19.2 Z M7 10 H9.5 L10.8 7.5 L12.8 12.5 L14.2 10 H17" fill-rule="evenodd" stroke="#17161A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+      catalog: '<path d="M4 5 H20 V19 H4 Z M4 10 H20 M9 10 V19 M7 7.5 H9 M12 7.5 H17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    };
+    const github = 'https://github.com/aityx-labs/aityx-demos/tree/main/';
+    // Every card opens in the datyx group's codespace (.devcontainer/datyx/).
+    const codespace = 'https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=' +
+      encodeURIComponent('.devcontainer/datyx/devcontainer.json') + '&machine=standardLinux32gb';
+    // Where to open one from here. A codespace forwards each port on its
+    // own host, https://<codespace>-<port>.app.github.dev/, with no :port:
+    // this page's host with its port swapped. Anywhere else, the port on
+    // this host.
+    const forwarded = location.hostname.match(/^(.+)-(\d+)\.(app\.github\.dev)$/);
+    const appUrl = (port, path = '/app/') => forwarded
+      ? 'https://' + forwarded[1] + '-' + port + '.' + forwarded[3] + path
+      : 'http://' + location.hostname + ':' + port + path;
+    const ext = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M19 14v6H4V5h6"/></svg>';
+
+    function card(d) {
+      const el = document.createElement('article');
+      el.className = 'card';
+      el.id = 'demo-' + d.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const chips = d.chips.map(c => '<span class="chip">' + c + '</span>').join('');
+      el.innerHTML =
+        '<div class="head"><div class="icon"><svg viewBox="0 0 24 24" fill="currentColor" style="color:#E36742">' + icons[d.icon] + '</svg></div>' +
+        '<div><h2>' + d.name + '</h2><p class="what">' + d.what + '</p></div></div>' +
+        '<p class="desc">' + d.desc + '</p>' +
+        '<div class="chips">' + chips + '</div>' +
+        '<div class="actions">' +
+        '<a class="btn primary" href="' + appUrl(d.port, d.path) + '" target="_blank" rel="noopener">Open' + ext + '</a>' +
+        '<a class="btn" href="' + github + (d.source || d.folder) + '">Source ' + ext + '</a>' +
+        '<a class="btn" href="' + codespace + '">Codespace ' + ext + '</a>' +
+        '</div>';
+      return el;
+    }
+
+    document.getElementById('apps').replaceChildren(...demos.map(card));
+  </script>
+</body>
+</html>

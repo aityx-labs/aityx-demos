@@ -1,0 +1,49 @@
+name: mortgagehub_app
+description: "Mortgage Hub"
+publish_to: 'none'
+
+# The build scripts override this with X.Y.Z (scripts/version.sh).
+version: 1.0.0+1
+
+environment:
+  # ^3.13.0, not newer: the Nix Flutter in devbox ships Dart 3.13.0.
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  faker: ^2.2.0
+  http: ^1.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  # The JSON viewer's monospace font (see assets/fonts/README.md).
+  fonts:
+    - family: RobotoMono
+      fonts:
+        - asset: assets/fonts/RobotoMono-Regular.ttf
+
+# App icons for every platform, generated from assets/icon/ by
+# `dart run flutter_launcher_icons`. The masters are SVGs rendered to PNG
+# (see specs/app-icon.md).
+flutter_launcher_icons:
+  image_path: assets/icon/icon.png
+  android: launcher_icon
+  # Adaptive icon (Android 8+): the house on a solid background layer.
+  adaptive_icon_background: "#17161A"
+  adaptive_icon_foreground: assets/icon/icon_foreground.png
+  min_sdk_android: 21
+  ios: true
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: assets/icon/icon.png
+    background_color: "#17161A"
+    theme_color: "#17161A"

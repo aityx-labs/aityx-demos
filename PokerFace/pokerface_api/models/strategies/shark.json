@@ -1,0 +1,39 @@
+{
+  "id": "shark",
+  "name": "The Shark",
+  "tagline": "Tight and aggressive: good cards, position, continuation bets, semi-bluffs, and a steal now and then.",
+  "decisions": {
+    "steal_spot": {"type": "boolean", "desc": "Unopened pot before the flop, in late position: steal the blinds three times in five", "expr": "street = \"preflop\" and raises = 0 and position = \"late\" and random < 0.6"},
+    "cbet_spot": {"type": "boolean", "desc": "On the flop, nobody has bet and few players are left: a continuation bet two times in three", "expr": "street = \"flop\" and raises = 0 and players_in_hand <= 3 and random < 0.65"},
+    "semi_bluff": {"type": "boolean", "desc": "A flush draw or an open-ended straight draw: worth a bet, with outs if called", "expr": "flush_draw or straight_draw = \"open_ended\""},
+    "value_hand": {"type": "boolean", "desc": "Two pair or better, or a pair likely to be best", "expr": "not(made_hand = \"high_card\" or made_hand = \"pair\") or (made_hand = \"pair\" and equity >= 0.6)"},
+    "profitable_call": {"type": "boolean", "desc": "Does the chance of winning beat the pot odds?", "expr": "equity > pot_odds"},
+    "action": {
+      "type": "Action",
+      "desc": "What the player does",
+      "table": [
+        ["street", "hand", "position", "raises", "to_call", "big_blind", "steal_spot", "cbet_spot", "semi_bluff", "value_hand", "profitable_call", "equity", "can_check", "can_raise", "=>", "# why"],
+        {"when": {"street": "preflop", "hand": "premium, strong", "can_raise": "true"}, "then": "raise", "why": "Premium or strong cards: raise, or re-raise."},
+        {"when": {"street": "preflop", "hand": "premium, strong"}, "then": "call", "why": "Premium or strong cards and no raise possible: call."},
+        {"when": {"street": "preflop", "hand": "medium", "raises": "0", "can_raise": "true"}, "then": "raise", "why": "Medium cards in an unopened pot: open with a raise."},
+        {"when": {"street": "preflop", "hand": "medium", "raises": "1", "position": "late, blinds"}, "then": "call", "why": "Medium cards against one raise, with position or a discount: call."},
+        {"when": {"street": "preflop", "hand": "speculative", "raises": "<= 1", "to_call": "<= 3 * big_blind"}, "then": "call", "why": "Speculative cards, cheap to see a flop: call and hope to hit big."},
+        {"when": {"street": "preflop", "steal_spot": "true", "can_raise": "true"}, "then": "raise", "why": "Late position, nobody has entered: raise to steal the blinds."},
+        {"when": {"street": "preflop", "can_check": "true"}, "then": "check", "why": "In the big blind with nothing to call: a free flop."},
+        {"when": {"street": "preflop"}, "then": "fold", "why": "Not a hand to play from here: fold."},
+        {"when": {"value_hand": "true", "can_raise": "true"}, "then": "raise", "why": "A hand likely to be best: bet or raise for value."},
+        {"when": {"value_hand": "true"}, "then": "call", "why": "A hand likely to be best and no raise possible: call."},
+        {"when": {"semi_bluff": "true", "raises": "0", "can_raise": "true"}, "then": "raise", "why": "A strong draw and nobody has bet: semi-bluff, with outs if called."},
+        {"when": {"cbet_spot": "true", "can_raise": "true"}, "then": "raise", "why": "Nobody has bet on the flop and few players are left: a continuation bet takes it down often enough."},
+        {"when": {"profitable_call": "true", "equity": ">= 0.3"}, "then": "call", "why": "The chance of winning beats the pot odds: call."},
+        {"when": {"can_check": "true"}, "then": "check", "why": "Nothing to call: check."},
+        {"then": "fold", "why": "Neither a hand nor the odds: fold."}
+      ]
+    },
+    "raise_to": {
+      "type": "number",
+      "desc": "The total bet when raising: two and a half big blinds to open, three times the bet facing a raise, two thirds of the pot after the flop",
+      "expr": "if street = \"preflop\" then (if raises = 0 then decimal(2.5 * big_blind, 0) else 3 * current_bet) else decimal(pot * 0.66, 0)"
+    }
+  }
+}

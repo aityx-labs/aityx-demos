@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- icon.svg's art on transparency: Android's adaptive-icon foreground. -->
+  <path d="M330 200 H694 A150 150 0 0 1 844 350 V560 A150 150 0 0 1 694 710 H470 L290 850 L330 710 A150 150 0 0 1 180 560 V350 A150 150 0 0 1 330 200 Z" fill="#E36742"/>
+  <g fill="none" stroke="#17161A" stroke-width="44" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M300 455 H460"/>
+    <path d="M460 455 C540 455 540 330 640 330"/>
+    <path d="M460 455 H640"/>
+    <path d="M460 455 C540 455 540 580 640 580"/>
+  </g>
+  <circle cx="290" cy="455" r="48" fill="#17161A"/>
+  <circle cx="690" cy="330" r="44" fill="#17161A"/>
+  <circle cx="690" cy="455" r="56" fill="#FFFFFF"/>
+  <circle cx="690" cy="580" r="44" fill="#17161A"/>
+</svg>

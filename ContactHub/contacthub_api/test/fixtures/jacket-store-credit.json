@@ -1,0 +1,483 @@
+{
+  "answers": {
+    "topic": {
+      "type": "choice",
+      "choice": "customer_service",
+      "confidence": 1,
+      "probabilities": {
+        "customer_service": 1,
+        "billing": 0,
+        "marketing": 0,
+        "tech_support": 0,
+        "trust_safety": 0,
+        "hr": 0,
+        "seller_services": 0,
+        "procurement": 0,
+        "business_sales": 0,
+        "legal": 0,
+        "press": 0,
+        "investor_relations": 0,
+        "other": 0
+      }
+    },
+    "urgent_probability": {
+      "type": "noul",
+      "noul": 0.02
+    },
+    "sensitive_data_probability": {
+      "type": "noul",
+      "noul": 0.03
+    },
+    "abusive_probability": {
+      "type": "noul",
+      "noul": 0.01
+    },
+    "request_kind": {
+      "type": "choice",
+      "choice": "return_refund",
+      "confidence": 1,
+      "probabilities": {
+        "where_is_order": 0,
+        "return_refund": 1,
+        "damaged_defective": 0,
+        "cancel_order": 0,
+        "price_adjustment": 0,
+        "duplicate_charge": 0,
+        "none": 0
+      }
+    },
+    "evidence_threshold": {
+      "type": "number",
+      "number": 0.8,
+      "confidence": 1.0
+    },
+    "confidence_threshold": {
+      "type": "number",
+      "number": 0.6,
+      "confidence": 1.0
+    },
+    "urgent": {
+      "type": "noul",
+      "noul": 0.0
+    },
+    "sensitive_data": {
+      "type": "noul",
+      "noul": 0.0
+    },
+    "abusive": {
+      "type": "noul",
+      "noul": 0.0
+    },
+    "clear_topic": {
+      "type": "noul",
+      "noul": 1.0
+    },
+    "department": {
+      "type": "choice",
+      "choice": "customer_service",
+      "confidence": 1.0,
+      "probabilities": {
+        "customer_service": 1.0,
+        "billing": 0.0,
+        "marketing": 0.0,
+        "tech_support": 0.0,
+        "trust_safety": 0.0,
+        "hr": 0.0,
+        "seller_services": 0.0,
+        "procurement": 0.0,
+        "business_sales": 0.0,
+        "legal": 0.0,
+        "press": 0.0,
+        "investor_relations": 0.0,
+        "general_inquiries": 0.0
+      }
+    },
+    "return_window_days": {
+      "type": "number",
+      "number": 30,
+      "confidence": 1.0
+    },
+    "credit_window_days": {
+      "type": "number",
+      "number": 60,
+      "confidence": 1.0
+    },
+    "damage_window_days": {
+      "type": "number",
+      "number": 7,
+      "confidence": 1.0
+    },
+    "warranty_days": {
+      "type": "number",
+      "number": 365,
+      "confidence": 1.0
+    },
+    "price_match_days": {
+      "type": "number",
+      "number": 14,
+      "confidence": 1.0
+    },
+    "late_after_days": {
+      "type": "number",
+      "number": 10,
+      "confidence": 1.0
+    },
+    "manual_review_above": {
+      "type": "number",
+      "number": 500,
+      "confidence": 1.0
+    },
+    "restocking_fee_rate": {
+      "type": "number",
+      "number": 0.15,
+      "confidence": 1.0
+    },
+    "restocking_free_days": {
+      "type": "number",
+      "number": 14,
+      "confidence": 1.0
+    },
+    "refund_processing_days": {
+      "type": "number",
+      "number": 5,
+      "confidence": 1.0
+    },
+    "has_order": {
+      "type": "noul",
+      "noul": 1.0
+    },
+    "delivered": {
+      "type": "noul",
+      "noul": 1.0
+    },
+    "days_since_order": {
+      "type": "number",
+      "number": 50,
+      "confidence": 1.0
+    },
+    "days_since_delivery": {
+      "type": "number",
+      "number": 45,
+      "confidence": 1.0
+    },
+    "within_damage_window": {
+      "type": "noul",
+      "noul": 0.0
+    },
+    "within_return_window": {
+      "type": "noul",
+      "noul": 0.0
+    },
+    "within_credit_window": {
+      "type": "noul",
+      "noul": 1.0
+    },
+    "within_warranty": {
+      "type": "noul",
+      "noul": 0.0
+    },
+    "within_price_match": {
+      "type": "noul",
+      "noul": 0.0
+    },
+    "late": {
+      "type": "noul",
+      "noul": 0.0
+    },
+    "high_value": {
+      "type": "noul",
+      "noul": 0.0
+    },
+    "charged_twice": {
+      "type": "noul",
+      "noul": 0.0
+    },
+    "restocking_fee_applies": {
+      "type": "noul",
+      "noul": 0.0
+    },
+    "resolution": {
+      "type": "choice",
+      "choice": "store_credit",
+      "confidence": 1.0,
+      "probabilities": {
+        "none": 0.0,
+        "ask_for_order": 0.0,
+        "cancel_and_refund": 0.0,
+        "return_after_delivery": 0.0,
+        "share_tracking": 0.0,
+        "investigate_late": 0.0,
+        "refund_duplicate": 0.0,
+        "price_adjustment": 0.0,
+        "replace_or_refund": 0.0,
+        "warranty_repair": 0.0,
+        "refund": 0.0,
+        "store_credit": 1.0,
+        "manual_review": 0.0,
+        "not_eligible": 0.0
+      }
+    },
+    "refund_amount": {
+      "type": "number",
+      "number": 240,
+      "confidence": 1.0
+    },
+    "refund_by": {
+      "type": "date",
+      "date": "2026-10-26",
+      "confidence": 1.0
+    },
+    "priority": {
+      "type": "score",
+      "score": 1.0,
+      "level": "normal",
+      "confidence": 1.0,
+      "probabilities": {
+        "0": 0.0,
+        "1": 1.0,
+        "2": 0.0
+      }
+    },
+    "response_hours": {
+      "type": "number",
+      "number": 24,
+      "confidence": 1.0
+    },
+    "needs_review": {
+      "type": "noul",
+      "noul": 0.0
+    }
+  },
+  "receipt": {
+    "read": {
+      "topic": {
+        "value": "customer_service",
+        "source": "jev"
+      },
+      "topic_confidence": {
+        "value": 1,
+        "source": "jev",
+        "from": "jev:/answers/topic/confidence"
+      },
+      "urgent_probability": {
+        "value": 0.02,
+        "source": "jev"
+      },
+      "sensitive_data_probability": {
+        "value": 0.03,
+        "source": "jev"
+      },
+      "abusive_probability": {
+        "value": 0.01,
+        "source": "jev"
+      },
+      "request_kind": {
+        "value": "return_refund",
+        "source": "jev"
+      }
+    },
+    "provenance": {
+      "today": "state",
+      "order": "state",
+      "topic": "jev",
+      "urgent_probability": "jev",
+      "sensitive_data_probability": "jev",
+      "abusive_probability": "jev",
+      "request_kind": "jev",
+      "topic_confidence": "jev"
+    },
+    "decisions": {
+      "evidence_threshold": {
+        "value": 0.8
+      },
+      "confidence_threshold": {
+        "value": 0.6
+      },
+      "urgent": {
+        "value": false
+      },
+      "sensitive_data": {
+        "value": false
+      },
+      "abusive": {
+        "value": false
+      },
+      "clear_topic": {
+        "value": true
+      },
+      "department": {
+        "value": "customer_service",
+        "rule": 3,
+        "rows": "xxF...........+",
+        "cells": [
+          "FTT",
+          "TFT",
+          "TTT",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTF",
+          "TTT"
+        ]
+      },
+      "return_window_days": {
+        "value": 30
+      },
+      "credit_window_days": {
+        "value": 60
+      },
+      "damage_window_days": {
+        "value": 7
+      },
+      "warranty_days": {
+        "value": 365
+      },
+      "price_match_days": {
+        "value": 14
+      },
+      "late_after_days": {
+        "value": 10
+      },
+      "manual_review_above": {
+        "value": 500
+      },
+      "restocking_fee_rate": {
+        "value": 0.15
+      },
+      "restocking_free_days": {
+        "value": 14
+      },
+      "refund_processing_days": {
+        "value": 5
+      },
+      "has_order": {
+        "value": true
+      },
+      "delivered": {
+        "value": true
+      },
+      "days_since_order": {
+        "value": 50
+      },
+      "days_since_delivery": {
+        "value": 45,
+        "branches": {
+          "if delivered then (today - order.delivered_on).days else -1": {
+            "then": 1
+          }
+        }
+      },
+      "within_damage_window": {
+        "value": false
+      },
+      "within_return_window": {
+        "value": false
+      },
+      "within_credit_window": {
+        "value": true
+      },
+      "within_warranty": {
+        "value": false
+      },
+      "within_price_match": {
+        "value": false
+      },
+      "late": {
+        "value": false
+      },
+      "high_value": {
+        "value": false
+      },
+      "charged_twice": {
+        "value": false
+      },
+      "restocking_fee_applies": {
+        "value": false
+      },
+      "resolution": {
+        "value": "store_credit",
+        "rule": 17,
+        "rows": "xxxxxxxxxxxxxxxxF++",
+        "columns": {
+          "order.status": "delivered",
+          "order.category": "standard"
+        },
+        "cells": [
+          "FTTTTTTTTTTT",
+          "TFTTTTTTTTTT",
+          "FTFTTTTTTTTT",
+          "FTTTTTTTTTTT",
+          "FTTTFTTTTTTT",
+          "FTTTTTTTTTTT",
+          "FTTTTFTTTTTT",
+          "FTTTTTTTTTTT",
+          "FTTTTTFTTTTT",
+          "FTTTTTTTTTTT",
+          "FTTTTTTFTTTT",
+          "FTTTTTTTFTTT",
+          "TTFTTTTTTTTT",
+          "TTTFTTTTTTTT",
+          "TTTTTTTTTFTT",
+          "TTTTTTTTTTFT",
+          "TTTTTTTTTTTT",
+          "TTTTTTTTTTTT",
+          "TTTTTTTTTTTT"
+        ]
+      },
+      "refund_amount": {
+        "value": 240,
+        "rule": 1,
+        "rows": "F....+",
+        "cells": [
+          "TT",
+          "FT",
+          "FT",
+          "FF",
+          "FT",
+          "TT"
+        ]
+      },
+      "refund_by": {
+        "value": "2026-10-26"
+      },
+      "priority": {
+        "value": "normal",
+        "rule": 7,
+        "rows": "xxxxxxF",
+        "cells": [
+          "FTTTT",
+          "TFTTT",
+          "TTFTT",
+          "TTTFT",
+          "TTTTF",
+          "TTTTF",
+          "TTTTT"
+        ]
+      },
+      "response_hours": {
+        "value": 24,
+        "rule": 2,
+        "rows": "xF+",
+        "cells": [
+          "F",
+          "T",
+          "T"
+        ]
+      },
+      "needs_review": {
+        "value": false
+      }
+    }
+  },
+  "usage": {
+    "input_tokens": 4701,
+    "output_tokens": 1875
+  }
+}

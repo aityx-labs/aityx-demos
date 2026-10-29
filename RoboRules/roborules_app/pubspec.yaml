@@ -1,0 +1,28 @@
+name: roborules_app
+description: "RoboRules"
+publish_to: 'none'
+
+# The build scripts override this with X.Y.Z (scripts/version.sh).
+version: 1.0.0+1
+
+environment:
+  # ^3.13.0, not newer: the Nix Flutter in devbox ships Dart 3.13.0.
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  # The aityx call viewer's monospace font (see assets/fonts/README.md).
+  fonts:
+    - family: RobotoMono
+      fonts:
+        - asset: assets/fonts/RobotoMono-Regular.ttf

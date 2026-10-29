@@ -40,7 +40,7 @@ const refill = 0.9;
 /// Over a depot a plane drops at once to this share of its throttle's
 /// speed and holds it, as in the original, and beeps every
 /// [refuelBeepEvery] frames.
-const refuelSlow = 0.5;
+const refuelSlow = 0.35;
 const refuelBeepEvery = 6;
 
 /// Lives at the start (one flying, seven in reserve), and an extra one

@@ -52,6 +52,9 @@ while read -r demo hash; do
   rm -rf "$app/build/web"
   mkdir -p "$app/build"
   cp -a "$store/$demo/web" "$app/build/web"
+  # Writable, so a later rebuild can replace it: the canvaskit files come
+  # read-only from the Flutter SDK, and flutter build fails on them.
+  chmod -R u+w "$app/build/web"
   # Newer than the checkout, so scripts/build.sh sees the build as current
   # (it compares the build with the sources' times), and the record of the
   # settings it was made with newest of all (see scripts/build.sh).

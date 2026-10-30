@@ -23,9 +23,15 @@ Robocode-style battles, every turn played by aityx".
   800 × 600 scaled to fit: dark ground with a faint speckle and grid;
   tanks with two treads (moving with the tank), a body in the robot's color
   turned to its heading, a turret and barrel turned to the gun, a radar
-  dish sweeping; energy above, name and the rule it follows below; glowing
-  bullets sized by power; orange explosions for hits and bigger ones for
-  robots lost. Positions and angles ease between turns. Messages over it: how
+  dish sweeping; energy above, name and the rule it follows below; each
+  gun's line of sight, Robocode's radar beam: a cone in the robot's color
+  10° either side of the gun (where `enemy_in_sight` looks), fading with
+  distance and brighter while the nearest enemy is in it; glowing bullets
+  sized by power; vintage, arcade-sprite explosions that step through
+  their frames (a flash, a ragged fireball cooling from yellow to red,
+  square sparks), small for hits and, for a robot lost, bigger, with a
+  shock ring and rising smoke, leaving a dark scorch mark for the rest of
+  the round. Positions and angles ease between turns. Messages over it: how
   to start, "aityx is playing the next turns…", "Round n is over: aityx is
   scoring it…".
 - **Robots**, on the right (below on a narrow window): round and turn, and

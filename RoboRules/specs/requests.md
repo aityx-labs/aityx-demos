@@ -110,3 +110,13 @@ The requests that shaped RoboRules, oldest first, each with what changed.
     `AITYX_URL`, is reported as such), and the app shows it as a small
     grey, green or red dot over the top right of the window, with why in
     its tooltip. See [The window](window.md).
+
+11. **Make the robots' line of sight visible, as Robocode draws its radar
+    beams, and add a vintage explosion effect when they are done.** Each
+    gun now casts a translucent cone in its robot's color, 10° either side
+    of it, the arc `enemy_in_sight` checks, brighter while the nearest
+    enemy is in it. A robot lost blows up in an arcade-sprite style, with
+    stepped frames, a flash, a ragged fireball, square sparks, a shock ring
+    and smoke, over 1.6 seconds, and leaves a scorch mark for the rest of
+    the round; hits get a small burst in the same style. See [The
+    window](window.md).

@@ -88,7 +88,8 @@ class BoardLabel {
 }
 
 /// The board on an infinite grid: live cells in orange, those born in this
-/// generation in green, recognized patterns outlined and named. Drag to
+/// generation in green, those that died in it in grey, recognized patterns
+/// outlined and named. Drag to
 /// move, scroll or pinch to zoom, tap a cell to flip it.
 class BoardView extends StatefulWidget {
   const BoardView({
@@ -132,6 +133,9 @@ class _BoardViewState extends State<BoardView> {
                 event.localPosition,
                 math.exp(-event.scrollDelta.dy / 300),
               );
+            } else if (event is PointerScaleEvent) {
+              // A trackpad pinch in the browser.
+              widget.camera.zoomAt(event.localPosition, event.scale);
             }
           },
           child: GestureDetector(
@@ -231,10 +235,25 @@ class _BoardPainter extends CustomPainter {
       canvas.drawLine(Offset(0, origin.dy), Offset(size.width, origin.dy), axis);
     }
 
-    // The cells, with a hairline gap between them once there's room.
+    // The cells, with a hairline gap between them once there's room: those
+    // that just died in grey first, so a cell drawn back to life covers it.
     final alive = Paint()..color = Aityx.orange;
     final born = Paint()..color = Aityx.green;
+    final died = Paint()..color = Aityx.dim;
     final gap = s >= 6 ? 1.0 : 0.0;
+    for (final cell in board.died) {
+      if (cell.x < visible.left ||
+          cell.x > visible.right ||
+          cell.y < visible.top ||
+          cell.y > visible.bottom) {
+        continue;
+      }
+      final at = camera.toView(cell.x.toDouble(), cell.y.toDouble());
+      canvas.drawRect(
+        Rect.fromLTWH(at.dx + gap, at.dy + gap, s - gap, s - gap),
+        died,
+      );
+    }
     for (final cell in board.alive) {
       if (cell.x < visible.left ||
           cell.x > visible.right ||

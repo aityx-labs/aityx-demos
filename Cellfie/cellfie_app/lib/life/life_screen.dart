@@ -19,6 +19,7 @@ const accelerations = [0.5, 1.0, 2.0, 4.0, 8.0, double.infinity];
 
 String accelerationLabel(double perSecond) => switch (perSecond) {
   0.5 => '½ generation/s',
+  1.0 => '1 generation/s',
   double.infinity => 'as fast as aityx answers',
   _ => '${perSecond.toInt()} generations/s',
 };
@@ -36,13 +37,21 @@ const noticeFor = Duration(seconds: 8);
 /// The app's one screen: the board, its controls, and the side panel with
 /// the aityx calls.
 class LifeScreen extends StatefulWidget {
-  const LifeScreen({super.key, this.stepper, this.random});
+  const LifeScreen({
+    super.key,
+    this.stepper,
+    this.random,
+    this.start = StartKind.sparse,
+  });
 
   /// Runs the generations: aityx unless a test says.
   final GenerationStepper? stepper;
 
   /// For the random start: a seeded one in tests.
   final math.Random? random;
+
+  /// What the board opens with, over the cells in view: empty if null.
+  final StartKind? start;
 
   @override
   State<LifeScreen> createState() => _LifeScreenState();
@@ -62,7 +71,7 @@ class _LifeScreenState extends State<LifeScreen> {
   int _playbackRevision = 0;
   int _boardRevision = 0;
   int _nextCallId = 0;
-  int _acceleration = 2;
+  int _acceleration = 1;
   final _calls = <CallRecord>[];
   final _notes = <PatternNote>[];
   var _labels = const <BoardLabel>[];
@@ -74,6 +83,17 @@ class _LifeScreenState extends State<LifeScreen> {
   /// again on top of the answer.
   final _editsInFlight = <Cell, bool>{};
   int? _lastTookMs;
+
+  @override
+  void initState() {
+    super.initState();
+    final start = widget.start;
+    if (start == null) return;
+    // After the first layout, once the camera knows the view's size.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _board.alive.isEmpty) _randomStart(start);
+    });
+  }
 
   @override
   void dispose() {
@@ -337,14 +357,28 @@ class _LifeScreenState extends State<LifeScreen> {
     ),
   );
 
+  /// Where the board stands: the generation, the cells, and how aityx
+  /// answered the last one.
+  String get _status => [
+    'Generation ${_board.generation}',
+    '${_board.population} cells',
+    if (_stepping)
+      'asking aityx…'
+    else if (_lastTookMs case final ms?)
+      'aityx answered in $ms ms',
+  ].join(' · ');
+
+  void _zoomBy(double factor) =>
+      _camera.zoomAt(_camera.viewport.center(Offset.zero), factor);
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final wide = MediaQuery.sizeOf(context).width >= 1000;
     final panel = CallsPanel(
       calls: _calls,
       notes: _notes,
+      status: _status,
       onClear: _clearCalls,
     );
     final now = DateTime.now();
@@ -354,31 +388,44 @@ class _LifeScreenState extends State<LifeScreen> {
         .toList();
     return Scaffold(
       appBar: AppBar(
-        title: const Text(AppVersion.title),
+        title: Row(
+          children: [
+            const Text(AppVersion.title),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _Controls(
+                playing: _playing,
+                stepping: _stepping,
+                acceleration: _acceleration,
+                board: _board,
+                rulesOn: _rules.values.where((on) => on).length,
+                onRules: _editRules,
+                onPlay: _play,
+                onPause: _pause,
+                onStep: _step,
+                onRandom: _randomStart,
+                onClear: () => _reset(const Board()),
+                onAcceleration: (value) =>
+                    setState(() => _acceleration = value),
+              ),
+            ),
+          ],
+        ),
         actions: [
           if (!wide)
             Builder(
-              builder: (context) => TextButton.icon(
+              builder: (context) => IconButton(
+                tooltip: 'Calls (${_calls.length})',
                 onPressed: () => Scaffold.of(context).openEndDrawer(),
-                icon: const Icon(Icons.receipt_long_outlined),
-                label: Text('Calls (${_calls.length})'),
-              ),
-            ),
-          if (AppVersion.version.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Center(
-                child: Text(
-                  AppVersion.version,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.outline,
-                  ),
+                icon: Badge(
+                  isLabelVisible: _calls.isNotEmpty,
+                  label: Text('${_calls.length}'),
+                  child: const Icon(Icons.receipt_long_outlined),
                 ),
               ),
-            )
-          else
-            // Clear of the aityx status light in the corner.
-            const SizedBox(width: 16),
+            ),
+          // Clear of the aityx status light in the corner.
+          const SizedBox(width: 16),
         ],
       ),
       endDrawer: wide
@@ -389,24 +436,6 @@ class _LifeScreenState extends State<LifeScreen> {
             ),
       body: Column(
         children: [
-          _Controls(
-            playing: _playing,
-            stepping: _stepping,
-            acceleration: _acceleration,
-            board: _board,
-            lastTookMs: _lastTookMs,
-            rulesOn: _rules.values.where((on) => on).length,
-            onRules: _editRules,
-            onPlay: _play,
-            onPause: _pause,
-            onStep: _step,
-            onRandom: _randomStart,
-            onClear: () => _reset(const Board()),
-            onAcceleration: (value) => setState(() => _acceleration = value),
-            onZoomIn: () => _camera.zoomAt(_camera.viewport.center(Offset.zero), 1.5),
-            onZoomOut: () => _camera.zoomAt(_camera.viewport.center(Offset.zero), 1 / 1.5),
-            onCenter: _camera.reset,
-          ),
           const Divider(height: 1),
           Expanded(
             child: Row(
@@ -420,7 +449,7 @@ class _LifeScreenState extends State<LifeScreen> {
                         labels: _labels,
                         onToggle: _toggle,
                         hint: 'Press Random start, or tap cells to draw.\n'
-                            'Drag to move around the infinite board; scroll to zoom.',
+                            'Drag to move around the infinite board; scroll or pinch to zoom.',
                       ),
                       if (notices.isNotEmpty)
                         Positioned(
@@ -436,11 +465,39 @@ class _LifeScreenState extends State<LifeScreen> {
                             ),
                           ),
                         ),
+                      // The calls panel shows the status; without it, the
+                      // board does.
+                      if (!wide)
+                        Positioned(
+                          right: 12,
+                          top: 12,
+                          child: IgnorePointer(
+                            child: _Overlay(
+                              child: Text(
+                                _status,
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       Positioned(
                         left: 12,
+                        right: 72,
                         bottom: 10,
-                        child: IgnorePointer(
-                          child: _Legend(),
+                        child: Align(
+                          alignment: Alignment.bottomLeft,
+                          child: IgnorePointer(child: _Legend()),
+                        ),
+                      ),
+                      Positioned(
+                        right: 12,
+                        bottom: 12,
+                        child: _MapButtons(
+                          onZoomIn: () => _zoomBy(1.5),
+                          onZoomOut: () => _zoomBy(1 / 1.5),
+                          onCenter: _camera.reset,
                         ),
                       ),
                     ],
@@ -459,15 +516,16 @@ class _LifeScreenState extends State<LifeScreen> {
   }
 }
 
-/// The controls bar: play, step, random start, clear, the acceleration,
-/// the zoom, and where the board stands.
+/// The controls, on the right of the title: play, step, random start,
+/// clear, the rules and the acceleration. Without room for their labels
+/// the buttons are icons, with the labels as tooltips; without room for
+/// those either, they scroll.
 class _Controls extends StatelessWidget {
   const _Controls({
     required this.playing,
     required this.stepping,
     required this.acceleration,
     required this.board,
-    required this.lastTookMs,
     required this.rulesOn,
     required this.onRules,
     required this.onPlay,
@@ -476,16 +534,16 @@ class _Controls extends StatelessWidget {
     required this.onRandom,
     required this.onClear,
     required this.onAcceleration,
-    required this.onZoomIn,
-    required this.onZoomOut,
-    required this.onCenter,
   });
+
+  /// The width the controls take with their labels (about 890 px in the
+  /// browser; more with the test font).
+  static const labeledWidth = 900.0;
 
   final bool playing;
   final bool stepping;
   final int acceleration;
   final Board board;
-  final int? lastTookMs;
 
   /// How many rules are on, of [lifeRules].
   final int rulesOn;
@@ -496,39 +554,38 @@ class _Controls extends StatelessWidget {
   final ValueChanged<StartKind> onRandom;
   final VoidCallback onClear;
   final ValueChanged<int> onAcceleration;
-  final VoidCallback onZoomIn;
-  final VoidCallback onZoomOut;
-  final VoidCallback onCenter;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final status = [
-      'Generation ${board.generation}',
-      '${board.population} cells',
-      if (stepping)
-        'asking aityx…'
-      else if (lastTookMs case final ms?)
-        'aityx answered in $ms ms',
-    ];
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          FilledButton.icon(
-            onPressed: playing ? onPause : onPlay,
-            icon: Icon(playing ? Icons.pause : Icons.play_arrow),
-            label: Text(playing ? 'Pause' : 'Play'),
-          ),
-          OutlinedButton.icon(
-            onPressed: playing || stepping ? null : onStep,
-            icon: const Icon(Icons.skip_next),
-            label: const Text('Step'),
-          ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final labeled = constraints.maxWidth >= labeledWidth;
+        final rules = 'Rules ($rulesOn of ${lifeRules.length})';
+        final controls = [
+          labeled
+              ? FilledButton.icon(
+                  onPressed: playing ? onPause : onPlay,
+                  icon: Icon(playing ? Icons.pause : Icons.play_arrow),
+                  label: Text(playing ? 'Pause' : 'Play'),
+                )
+              : IconButton.filled(
+                  tooltip: playing ? 'Pause' : 'Play',
+                  onPressed: playing ? onPause : onPlay,
+                  icon: Icon(playing ? Icons.pause : Icons.play_arrow),
+                ),
+          labeled
+              ? OutlinedButton.icon(
+                  onPressed: playing || stepping ? null : onStep,
+                  icon: const Icon(Icons.skip_next),
+                  label: const Text('Step'),
+                )
+              : IconButton.outlined(
+                  tooltip: 'Step',
+                  onPressed: playing || stepping ? null : onStep,
+                  icon: const Icon(Icons.skip_next),
+                ),
           MenuAnchor(
             menuChildren: [
               for (final kind in StartKind.values)
@@ -548,36 +605,57 @@ class _Controls extends StatelessWidget {
                   ),
                 ),
             ],
-            builder: (context, controller, child) => OutlinedButton.icon(
-              onPressed: () =>
-                  controller.isOpen ? controller.close() : controller.open(),
-              icon: const Icon(Icons.casino_outlined),
-              label: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [Text('Random start'), Icon(Icons.arrow_drop_down)],
-              ),
-            ),
+            builder: (context, controller, child) {
+              void toggle() =>
+                  controller.isOpen ? controller.close() : controller.open();
+              return labeled
+                  ? OutlinedButton.icon(
+                      onPressed: toggle,
+                      icon: const Icon(Icons.casino_outlined),
+                      label: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Random start'),
+                          Icon(Icons.arrow_drop_down),
+                        ],
+                      ),
+                    )
+                  : IconButton.outlined(
+                      tooltip: 'Random start',
+                      onPressed: toggle,
+                      icon: const Icon(Icons.casino_outlined),
+                    );
+            },
           ),
-          TextButton.icon(
-            onPressed: board.alive.isEmpty ? null : onClear,
-            icon: const Icon(Icons.clear_all),
-            label: const Text('Clear'),
-          ),
-          OutlinedButton.icon(
-            onPressed: onRules,
-            icon: const Icon(Icons.rule),
-            label: Text('Rules ($rulesOn of ${lifeRules.length})'),
-          ),
+          labeled
+              ? TextButton.icon(
+                  onPressed: board.alive.isEmpty ? null : onClear,
+                  icon: const Icon(Icons.clear_all),
+                  label: const Text('Clear'),
+                )
+              : IconButton(
+                  tooltip: 'Clear',
+                  onPressed: board.alive.isEmpty ? null : onClear,
+                  icon: const Icon(Icons.clear_all),
+                ),
+          labeled
+              ? OutlinedButton.icon(
+                  onPressed: onRules,
+                  icon: const Icon(Icons.rule),
+                  label: Text(rules),
+                )
+              : IconButton.outlined(
+                  tooltip: rules,
+                  onPressed: onRules,
+                  icon: const Icon(Icons.rule),
+                ),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.speed, color: scheme.onSurfaceVariant, size: 20),
-              const SizedBox(width: 4),
-              Text('Acceleration', style: theme.textTheme.bodyMedium),
-              // Both give way on a narrow window, the slider down to 90 px.
-              Flexible(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 90, maxWidth: 170),
+              SizedBox(
+                width: labeled ? 170 : 110,
+                child: Tooltip(
+                  message: 'Acceleration',
                   child: Slider(
                     value: acceleration.toDouble(),
                     min: 0,
@@ -588,45 +666,108 @@ class _Controls extends StatelessWidget {
                   ),
                 ),
               ),
-              Flexible(
-                child: Text(
-                  accelerationLabel(accelerations[acceleration]),
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
+              Text(
+                accelerationLabel(accelerations[acceleration]),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
                 ),
               ),
             ],
           ),
-          Row(
+        ];
+        return Align(
+          alignment: Alignment.centerRight,
+          // Scrolled from the start, so Play shows on a phone.
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final (i, control) in controls.indexed) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  control,
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A translucent box over the board, for the legend and the status.
+class _Overlay extends StatelessWidget {
+  const _Overlay({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: Aityx.bg.withValues(alpha: 0.8),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: child,
+  );
+}
+
+/// The map buttons at the bottom right of the board, as on a map: back to
+/// the origin, and zoom in and out around the center.
+class _MapButtons extends StatelessWidget {
+  const _MapButtons({
+    required this.onZoomIn,
+    required this.onZoomOut,
+    required this.onCenter,
+  });
+
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onCenter;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget box(Widget child) => Material(
+      color: Aityx.bg1,
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        side: const BorderSide(color: Aityx.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: child,
+    );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        box(
+          IconButton(
+            tooltip: 'Back to the origin',
+            onPressed: onCenter,
+            icon: const Icon(Icons.center_focus_strong_outlined),
+          ),
+        ),
+        const SizedBox(height: 8),
+        box(
+          Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
-                tooltip: 'Zoom out',
-                onPressed: onZoomOut,
-                icon: const Icon(Icons.zoom_out),
-              ),
-              IconButton(
                 tooltip: 'Zoom in',
                 onPressed: onZoomIn,
-                icon: const Icon(Icons.zoom_in),
+                icon: const Icon(Icons.add),
               ),
+              const SizedBox(width: 32, child: Divider(height: 1)),
               IconButton(
-                tooltip: 'Back to the origin',
-                onPressed: onCenter,
-                icon: const Icon(Icons.center_focus_strong_outlined),
+                tooltip: 'Zoom out',
+                onPressed: onZoomOut,
+                icon: const Icon(Icons.remove),
               ),
             ],
           ),
-          Text(
-            status.join(' · '),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: scheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -690,20 +831,16 @@ class _Legend extends StatelessWidget {
       children: [
         Container(width: 10, height: 10, color: color),
         const SizedBox(width: 4),
-        Text(text, style: style),
-        const SizedBox(width: 10),
+        Flexible(child: Text(text, style: style)),
       ],
     );
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Aityx.bg.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(6),
-      ),
+    return _Overlay(
       child: Wrap(
+        spacing: 10,
         children: [
           swatch(Aityx.orange, 'alive'),
           swatch(Aityx.green, 'born this generation'),
+          swatch(Aityx.dim, 'died this generation'),
           swatch(Aityx.amber, 'pattern aityx recognized'),
         ],
       ),

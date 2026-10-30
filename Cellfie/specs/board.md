@@ -1,9 +1,12 @@
 # Board
 
 [LifeScreen](../cellfie_app/lib/life/life_screen.dart) is the app's one
-screen: the controls bar, the board, and (on windows 1000 px wide or more)
-the [calls panel](calls-panel.md) on the right, 440 px wide; on narrower
-windows the panel opens from **Calls (n)** in the app bar, as a drawer.
+screen: a single row at the top, the title on the left and the
+[controls](#controls) on its right, then the board, and (on windows 1000
+px wide or more) the [calls panel](calls-panel.md) on the right, 440 px
+wide. On narrower windows the panel opens as a drawer from the calls
+button at the end of the top row (its tooltip `Calls (n)`, the count as a
+badge once there are calls). The app's version isn't shown.
 
 ## The infinite board
 
@@ -13,25 +16,40 @@ number and the cells born in it. [BoardView](../cellfie_app/lib/life/board_view.
 draws it on a canvas through a camera (the cell at the view's center and
 the pixels per cell, 2 to 64, 14 at first):
 
-- live cells in orange, those born in the last generation in green, with
-  a hairline gap once a cell is 6 px or more;
+- live cells in orange, those born in the last generation in green, and
+  those that died in it in grey (for that one generation; a cell drawn
+  back to life over one shows orange), with a hairline gap once a cell
+  is 6 px or more;
 - a grid once a cell is 7 px or more; the axes through the origin always,
   so it can be found again;
 - the patterns aityx recognized outlined in amber with their name (see
   [Patterns](patterns.md));
-- a legend at the bottom left, and, over an empty board, the hint
+- a legend at the bottom left (alive, born this generation, died this
+  generation, pattern aityx recognized), and, over an empty board, the
+  hint
   "Press Random start, or tap cells to draw. Drag to move around the
-  infinite board; scroll to zoom."
+  infinite board; scroll or pinch to zoom.";
+- the map buttons at the bottom right, as on an online map: **Back to the
+  origin** on its own, and under it **Zoom in** (+) and **Zoom out** (−)
+  together;
+- without the calls panel (narrower windows), the status at the top
+  right (see [Controls](#controls)).
 
-Drag to move; the mouse wheel, a trackpad pinch or the **Zoom** buttons
-zoom around the pointer (the buttons, around the center); the **Back to
-the origin** button resets the view. Tap a cell to flip it, alive or dead,
+The board opens with a **Sparse soup** over the cells in view (see
+**Random start** below), so **Play** is all it takes to start.
+
+Drag to move. Zoom with the mouse wheel, a pinch on a touch screen or a
+trackpad (in the browser, too), or the + and − buttons: gestures zoom
+around the pointer or the fingers, the buttons around the center. **Back
+to the origin** resets the view. Tap a cell to flip it, alive or dead,
 also while playing: a cell flipped while aityx is answering is applied
 again on top of its answer.
 
 ## Controls
 
-The bar above the board, wrapping on narrow windows:
+On the right of the title. Where the window leaves them less than 900 px,
+the buttons are icons, their labels as tooltips; where even that doesn't
+fit (a phone), the row scrolls sideways, starting at **Play**:
 
 - **Play** / **Pause**: runs generations one after the other (see
   [Generation](generation.md)) until paused, or until the board is empty,
@@ -41,7 +59,7 @@ The bar above the board, wrapping on narrow windows:
   × 70), at generation 0; the patterns noticed start over
   ([startBoard](../cellfie_app/lib/life/board.dart)):
   - **Sparse soup**, **Soup** and **Dense soup**: each cell alive with
-    probability 0.12, 0.35 and 0.6;
+    probability 0.06, 0.35 and 0.6;
   - **Islands**: 4 to 16 discs (one per 600 cells in view) of radius 3 to
     6, each cell in them alive with probability 0.55;
   - **Glider fleet**: 3 to 20 gliders (one per 400 cells), each turned or
@@ -53,22 +71,27 @@ The bar above the board, wrapping on narrow windows:
   - **R-pentomino** and **Acorn**: the seed alone, in the middle.
   Each item shows a one-line summary.
 - **Clear**: empties the board, generation 0.
-- **Acceleration**: a slider with six stops: ½, 1, 2 (the default), 4 and
-  8 generations per second, and *as fast as aityx answers*. A generation
-  that takes longer than its slot runs late, never twice at once.
 - **Rules (n of 3)**: opens the [Rules](rules.md) dialog.
-- **Zoom out**, **Zoom in**, **Back to the origin**.
-- The status: `Generation N · M cells · aityx answered in T ms` (or
-  `asking aityx…` while it is).
+- **Acceleration**: a slider (its tooltip *Acceleration*) followed by the
+  speed, `1 generation/s`, with no label before it. Six stops: ½, 1 (the
+  default), 2, 4 and 8 generations per second, and *as fast as aityx
+  answers*. A generation that takes longer than its slot runs late, never
+  twice at once.
+
+The status, `Generation N · M cells · aityx answered in T ms` (or
+`asking aityx…` while it is), is in the calls panel, under its title;
+without the panel, over the board at the top right.
 
 ## Verified
 
 Widget tests draw a blinker by tapping, step it through a fake aityx and
 check the request (5 situations, one 1 × 3 cluster, Conway's rules
 alone), the next board, the call in the panel and the notice; switch a
-rule on in the dialog and see it in the next request; play at 2 generations/s until paused;
-a failed generation pausing with its message; the random start menu,
-a soup, and Clear; and the calls drawer on a 390 px phone.
+rule on in the dialog and see it in the next request; play at 1 generation/s until paused;
+a failed generation pausing with its message; the app opening on a
+sparse soup, with the buttons as icons, the map buttons and the status
+over the board at 800 px; the random start menu, a soup, and Clear; and
+the calls drawer on a 390 px phone.
 
 ## Known limitations
 

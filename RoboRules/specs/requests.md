@@ -145,3 +145,10 @@ The requests that shaped RoboRules, oldest first, each with what changed.
     removed; `scripts/model-test.sh` runs the app's tests tagged `aityx`.
     See [Development environment](dev-environment.md), [The
     battle](battle.md#the-call) and [The window](window.md).
+
+13. **Don't say where the key comes from; check that it works against the
+    URL and say that.** The status light's tooltip now reads `aityx: ready — the key works with
+    <url>` for any key, the user's or the index server's dev key, and a
+    dev key aityx refuses reads `aityx answered HTTP n`; neither names
+    `.env` or the environment any more. The index page's key section does
+    the same.

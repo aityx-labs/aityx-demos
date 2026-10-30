@@ -9,8 +9,7 @@ every aityx demo, mounted once through `MaterialApp.builder` with
 | Dot | Meaning | Tooltip |
 |---|---|---|
 | grey | a check is running | `aityx: checking` |
-| green | aityx accepts the user's key | `aityx: ready (your key, https://api.aityx.ai)` |
-| green | aityx accepts the index server's dev key | `aityx: ready (dev key from .env, https://api.aityx.ai)` |
+| green | aityx accepts the key in use (the user's, or the index server's dev key) | `aityx: ready — the key works with https://api.aityx.ai` |
 | red | no key anywhere | `aityx: no key — set yours on the index page` |
 | red | aityx refuses the key | `aityx: key rejected — <why>` |
 | red | no answer (network, CORS, a blocker, or the dev proxy can't reach aityx) | `aityx: not reachable — <why>` |

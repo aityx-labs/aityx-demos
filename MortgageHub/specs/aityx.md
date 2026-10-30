@@ -52,8 +52,8 @@ the app calls aityx itself, through the shared
   aityx_web's `AityxStatusLight`, mounted once through `MaterialApp.builder`
   (`withAityxStatus`): grey while it checks, green when aityx accepts the
   key, red otherwise. Its tooltip, also its screen reader label, says why:
-  `aityx: ready (your key, <url>)`, `aityx: ready (dev key from .env,
-  <url>)`, `aityx: no key — set yours on the index page`, `aityx: key
+  `aityx: ready — the key works with <url>`,
+  `aityx: no key — set yours on the index page`, `aityx: key
   rejected — ...`, `aityx: not reachable — ...` or `aityx: not working —
   ...`. A tap opens the index page's key section in the same tab. The
   check posts `{}` to `/v1/systemone`, which aityx answers 400

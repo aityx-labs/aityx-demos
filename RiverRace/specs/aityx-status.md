@@ -10,7 +10,7 @@ aityx can decide: an 8 px dot, slightly transparent, with no label.
 | Dot | When | Tooltip |
 |---|---|---|
 | Grey | a check is running | `aityx: checking` |
-| Green | aityx accepts the key | `aityx: ready (your key, <aityx URL>)`, or `aityx: ready (dev key from .env, <aityx URL>)` |
+| Green | aityx accepts the key | `aityx: ready — the key works with <aityx URL>` |
 | Red | no key, the user's or a dev key | `aityx: no key — set yours on the index page` |
 | Red | aityx refuses the key | `aityx: key rejected — <why>` |
 | Red | aityx doesn't answer | `aityx: not reachable — <why>` |

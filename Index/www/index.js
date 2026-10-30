@@ -245,15 +245,13 @@ async function describeKey() {
   now.innerHTML = '';
   if (user) {
     now.append('Your key ', strong(last4(user.key)), ' is set, ' +
-      (user.sessionOnly ? 'for this session only' : 'on this device') +
-      ' (' + user.url + '). Every demo here uses it.');
+      (user.sessionOnly ? 'for this session only' : 'on this device') + '.');
   } else if (dev) {
-    now.append('A key is set: the dev key from ' +
-      (dev.source === 'environment' ? 'the server’s environment' : '.env') +
-      ' (' + dev.url + '). Every demo here uses it.');
+    now.append('A key is set.');
   } else {
     now.append(strong('No key yet.'), ' The demos open, but they can’t call aityx until you set one.');
   }
+  if (user || dev) now.append(' ', keyCheck());
   const form = !user && (!dev || wantOwn);
   document.getElementById('key-form').hidden = !form;
   document.getElementById('key-help').hidden = !form;
@@ -262,6 +260,17 @@ async function describeKey() {
   document.getElementById('key-own').hidden = !!user || !dev;
   document.getElementById('key-cancel').hidden = !dev;
   if (form && wantOwn) document.getElementById('key-input').focus();
+}
+
+// The key in use, checked against its URL by checkAityx: whether it
+// works there, as a sentence. Filled in when the check answers.
+let lastCheckResult = null;
+
+function keyCheck() {
+  const el = document.createElement('span');
+  el.id = 'key-check';
+  el.textContent = lastCheckResult || 'Checking it with aityx…';
+  return el;
 }
 
 function strong(text) {
@@ -303,6 +312,7 @@ document.getElementById('key-form').addEventListener('submit', async (event) => 
     }
     input.value = '';
     wantOwn = false;
+    lastCheckResult = null;
     result('aityx accepts the key ' + last4(key) + ': saved ' +
       (sessionOnly ? 'for this session.' : 'on this device.'), true);
     await describeKey();
@@ -314,6 +324,7 @@ document.getElementById('key-form').addEventListener('submit', async (event) => 
 
 document.getElementById('key-forget').addEventListener('click', async () => {
   forgetKey();
+  lastCheckResult = null;
   result('Key forgotten.', true);
   await describeKey();
   checkAityx(true);
@@ -350,19 +361,23 @@ async function checkAityx(force = false) {
     const dot = status.querySelector('.dot');
     let state;
     const user = userKey();
-    if (user) {
-      const a = await check(user.url, user.key);
+    const dev = user ? null : await devConfig();
+    if (user || dev) {
+      const url = user ? user.url : dev.url;
+      const a = user ? await check(user.url, user.key) : await check('/aityx', null);
       state = { ok: a.ok, label: a.ok ? 'aityx: ready' : 'aityx: ' + a.reason,
-        tip: a.ok ? 'aityx: ready (your key, ' + user.url + ')' : 'aityx: ' + a.detail };
+        tip: a.ok ? 'aityx: ready — the key works with ' + url : 'aityx: ' + a.detail };
+      lastCheckResult = a.ok
+        ? 'It works with ' + url + ': every demo here uses it.'
+        : 'It doesn’t work with ' + url + ': ' + a.detail + '.';
     } else {
-      const dev = await devConfig();
-      if (dev) {
-        const a = await check('/aityx', null);
-        state = { ok: a.ok, label: a.ok ? 'aityx: ready' : 'aityx: ' + a.reason,
-          tip: a.ok ? 'aityx: ready (dev key from ' + (dev.source === 'environment' ? 'the environment' : '.env') + ', ' + dev.url + ')' : 'aityx: ' + a.detail };
-      } else {
-        state = { ok: false, label: 'aityx: no key', tip: 'aityx: no key — set yours on the index page' };
-      }
+      lastCheckResult = null;
+      state = { ok: false, label: 'aityx: no key', tip: 'aityx: no key — set yours on the index page' };
+    }
+    const shown = document.getElementById('key-check');
+    if (shown) {
+      shown.textContent = lastCheckResult || '';
+      shown.className = state.ok ? 'ok' : 'bad';
     }
     dot.className = 'dot ' + (state.ok ? 'ok' : 'bad');
     status.querySelector('.label').textContent = state.label;
@@ -382,6 +397,7 @@ checkAityx(true);
 window.addEventListener('focus', () => checkAityx());
 window.addEventListener('storage', (event) => {
   if (event.key === null || (event.key || '').startsWith('aityx.')) {
+    lastCheckResult = null;
     describeKey();
     checkAityx(true);
   }

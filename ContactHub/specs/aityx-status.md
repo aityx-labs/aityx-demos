@@ -12,7 +12,7 @@ so every screen has it; no screen has a control in that corner.
 | Dot | Means | Tooltip |
 |---|---|---|
 | Grey | a check is running | `aityx: checking` |
-| Green | aityx accepts the key | `aityx: ready (your key, <url>)`, or `aityx: ready (dev key from .env, <url>)` |
+| Green | aityx accepts the key | `aityx: ready — the key works with <url>` |
 | Red | no key | `aityx: no key — set yours on the index page` |
 | Red | aityx refused the key | `aityx: key rejected — <detail>` |
 | Red | no answer (network, CORS, a blocker, or the dev proxy couldn't reach aityx) | `aityx: not reachable — <detail>` |

@@ -96,7 +96,7 @@ void main() {
     answer.complete(ready);
     await settle(tester);
     expect(dotColor(tester), shown(AityxStatusLight.green));
-    expect(tip(tester), 'aityx: ready (your key, https://api.aityx.ai)');
+    expect(tip(tester), 'aityx: ready — the key works with https://api.aityx.ai');
   });
 
   testWidgets('red, with why', (tester) async {
@@ -133,7 +133,7 @@ void main() {
       ),
     );
     expect(
-      find.bySemanticsLabel('aityx: ready (your key, https://api.aityx.ai)'),
+      find.bySemanticsLabel('aityx: ready — the key works with https://api.aityx.ai'),
       findsOneWidget,
     );
     final node = tester.getSemantics(find.byType(AityxStatusLight));
@@ -313,7 +313,7 @@ void main() {
     await gesture.moveTo(tester.getCenter(find.byType(AityxStatusLight)));
     await tester.pumpAndSettle();
     expect(
-      find.text('aityx: ready (your key, https://api.aityx.ai)'),
+      find.text('aityx: ready — the key works with https://api.aityx.ai'),
       findsOneWidget,
     );
     await gesture.removePointer();

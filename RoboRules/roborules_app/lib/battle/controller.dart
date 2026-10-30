@@ -23,6 +23,9 @@ class Explosion {
   final double y;
   final bool big;
   final DateTime at;
+
+  /// How long it burns: a hit flashes, a robot lost blows up for longer.
+  int get millis => big ? 1600 : 700;
 }
 
 /// A call to aityx: what was asked and what it answered. Only the last
@@ -292,7 +295,9 @@ class BattleController extends ChangeNotifier {
 
   void _tick() {
     final now = DateTime.now();
-    explosions.removeWhere((e) => now.difference(e.at).inMilliseconds > 700);
+    explosions.removeWhere(
+      (e) => now.difference(e.at).inMilliseconds > e.millis,
+    );
     if (state == BattleState.running) {
       final interval = turnsPerSecond <= 0 ? 0 : 1000 / turnsPerSecond;
       if (_buffer.isNotEmpty &&

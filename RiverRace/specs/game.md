@@ -52,9 +52,9 @@ Planes don't collide with each other.
   original. It passes over land and stops at the first thing or standing
   bridge it hits, scoring for its plane.
 - **Fuel**: a full tank lasts about 24 seconds (0.07 a frame); over a
-  depot it fills at 0.9 a frame, and the plane drops at once to half its
-  throttle's speed and holds it until past the depot, as in the
-  original, so it fills more (slowing down fills more still); past it,
+  depot it fills at 0.9 a frame, and the plane drops at once to 35% of its
+  throttle's speed and holds it until past the depot, slower than the
+  original's half, so it fills more (slowing down fills more still); past it,
   it eases back up. Below a quarter the gauge turns red.
 - **Lost**: crashing into land, a ship, helicopter or jet, or a standing
   bridge, or running out of fuel. The plane explodes; after 50 frames it

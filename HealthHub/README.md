@@ -15,12 +15,13 @@ dashboard whose one tile is the same map. What HealthHub does with
 | App ([healthhub_app/](healthhub_app)) | [Flutter](https://flutter.dev) (Dart): web, Android, iOS and Linux from one codebase |
 | API ([healthhub_api/](healthhub_api)) | Dart (`dart:io`) with the [postgres](https://pub.dev/packages/postgres) package: holds the [aityx](https://aityx.ai) key, talks to the database, serves `/api/hello` and `/api/health`, verifies Google sign-ins ([openid_client](https://pub.dev/packages/openid_client)) and passes the user's token on to the datyx API |
 | Database | [PostgreSQL](https://www.postgresql.org) 17, the `postgres` service of [compose.yaml](compose.yaml); the API makes its own tables |
-| Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) in a [Dev Container](https://containers.dev/), process-compose for the services, Docker for the database; or [Docker Compose](compose.yaml) for everything |
+| Message stream | [Apache Kafka](https://kafka.apache.org) 4.3, one node in KRaft mode (the `kafka` service), reached over HTTP through [Karapace](https://github.com/Aiven-Open/karapace)'s REST proxy (the `kafka-rest` service, Confluent REST Proxy v2 compatible). In dev mode the API streams a simulation of people moving across the map through it |
+| Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) in a [Dev Container](https://containers.dev/), process-compose for the services, Docker for the database and Kafka; or [Docker Compose](compose.yaml) for everything |
 
 The toolchain is pinned in [devbox.json](devbox.json) and locked in
 [devbox.lock](devbox.lock): Flutter, GNU Make and curl. It is the same
 lock as Mortgage Hub's and Contact Hub's, so they share one Nix store.
-PostgreSQL is not in it: it runs as a container, so
+PostgreSQL and Kafka are not in it: they run as containers, so
 [Docker](https://docs.docker.com/get-docker/) is needed too.
 
 ## Run it locally with devbox
@@ -46,15 +47,31 @@ That starts, from [process-compose.yaml](process-compose.yaml):
 | http://localhost:9801/app/ | The app's release build, served by a small native web server ([scripts/flutter-web.sh](scripts/flutter-web.sh)). The first start builds it (about 25 s on a laptop, a minute or two on a 4-core codespace); later starts reuse it until the app changes |
 | http://localhost:9802/api/health | The API, compiled to a native executable ([scripts/api.sh](scripts/api.sh)); the web app reaches it as `/api/` on its own origin, through the web server's proxy. `/api/hello` is the greeting, from the database |
 | localhost:9803 | PostgreSQL, the `postgres` container of [compose.yaml](compose.yaml), started with `docker compose up postgres` ([scripts/infra.sh](scripts/infra.sh)); its data in a Docker volume. `bash scripts/infra.sh psql` opens a prompt on the `healthhub` database |
+| localhost:9804 | Kafka, the `kafka` container (one node, KRaft), for a Kafka client on the host; its data in a Docker volume. The topic `healthhub.people.moves` carries the simulated people's moves, and `healthhub.admissions` their arrivals at the hospital |
+| http://localhost:9805/topics | Kafka's REST proxy, the `kafka-rest` container (Karapace): how the API produces and consumes, at `HEALTHHUB_KAFKA_REST_URL` |
 
 That's what Docker Compose serves too. For hot reload while working on
 the app, run the Flutter dev server instead, with
 `WEB_MODE=debug devbox services up`, or on its own with `devbox run web`
 (press `r` in its terminal). `devbox run build` builds the web build and
 the executables ahead of time ([scripts/build.sh](scripts/build.sh)),
-only what changed; `devbox run db` starts only the database.
+only what changed; `devbox run db` starts only the database, `devbox run
+kafka` only Kafka and its REST proxy.
 
-The ports are 9801 to 9803, so HealthHub runs alongside Mortgage Hub
+In dev mode (`HEALTHHUB_MODE=dev`, the default) the API runs a
+simulation: `HEALTHHUB_SIM_PEOPLE` people (10) in each city with care
+centers, each with a name typical of the city, an age, an occupation and
+a common medical condition ([specs/conditions.md](specs/conditions.md)).
+A turn is `HEALTHHUB_SIM_TURN_MS` (1 s) of real time and
+`HEALTHHUB_SIM_MINUTES_PER_TURN` (60) of simulated time, so a second is
+an hour. People stay home until their condition calls for a visit, then
+walk, take city transport or drive to the nearest hospital, stay and come
+back. Every move goes through Kafka, and every arrival is an admission
+with what the person says at the desk, which the API records in the
+database and home highlights among the latest events.
+`HEALTHHUB_MODE=prod` turns it off.
+
+The ports are 9801 to 9805, so HealthHub runs alongside Mortgage Hub
 (8880), Contact Hub (8890) and PokerFace (8910). The app opens on the
 index: a map filling the screen, the browser asking to share your
 location, an orange dot where you are, and **Welcome to HealthHub** with
@@ -65,18 +82,20 @@ map as its tile (see [Index](specs/index.md), [Home](specs/home.md) and
 Once everything is ready, the `health-check` monitor prints where to open
 the app (in a codespace, its forwarded URL too), waits 5 s
 (`HEALTH_CHECK_DELAY`), then logs one line every 15 s
-(`HEALTH_CHECK_INTERVAL`); 🐘 Postgres is the API's own connection, and
-🤖 [aityx](https://aityx.ai) is ⚪ when the API has no key:
+(`HEALTH_CHECK_INTERVAL`); 🐘 Postgres is the API's own connection,
+🤖 [aityx](https://aityx.ai) is ⚪ when the API has no key, and 📨 Kafka
+is the REST proxy listing the topics:
 
 ```
 HealthHub is up. Open the app at:
   http://localhost:9801/app/
 Health checks start in 5 s, then every 15 s.
-2026-10-28 17:02:10 🌐 Web ✅ · 🔌 API ✅ · 🐘 Postgres ✅ · 🤖 aityx ⚪
+2026-10-30 19:04:05 🌐 Web ✅ · 🔌 API ✅ · 🐘 Postgres ✅ · 🤖 aityx ⚪ · 📨 Kafka ✅
 ```
 
-Stop everything with `devbox services stop`; the database's data stays in
-its volume (`bash scripts/infra.sh down -v` drops it). To run only the
+Stop everything with `devbox services stop`; the database's data and
+Kafka's stay in their volumes (`bash scripts/infra.sh down -v` drops
+them). To run only the
 app, use `devbox run web`, the dev server with hot reload (set
 `FLUTTER_WEB_PORT` to change the port, `WEB_MODE=release` for the release
 build); only the API, `devbox run api` (`API_PORT`; it needs the database).
@@ -120,19 +139,21 @@ docker compose up --build
 ```
 
 and open http://localhost:9801/app/. [compose.yaml](compose.yaml) builds
-and starts three services:
+and starts five services:
 
 | Service | What |
 |---|---|
 | `postgres` | PostgreSQL 17, with the `healthhub` database and user made on the first start by [docker/postgres-init.sh](docker/postgres-init.sh); its data in the `postgres-data` volume, published on 127.0.0.1:9803 |
-| `api` | The API compiled to a native executable ([healthhub_api/Dockerfile](healthhub_api/Dockerfile)); not published, reached only through `web`; starts once `postgres` is healthy |
+| `kafka` | Apache Kafka 4.3, one node in KRaft mode; its data in the `kafka-data` volume, published on 127.0.0.1:9804 (advertised as localhost:9804). Its health check also makes the `healthhub.people.moves` and `healthhub.admissions` topics |
+| `kafka-rest` | Karapace's REST proxy for Kafka, published on 127.0.0.1:9805; the API reaches it at http://kafka-rest:8082. Starts once `kafka` is healthy |
+| `api` | The API compiled to a native executable ([healthhub_api/Dockerfile](healthhub_api/Dockerfile)); not published, reached only through `web`; starts once `postgres` is healthy, and retries Kafka until `kafka-rest` answers |
 | `web` | The app's release web build ([docker/web.Dockerfile](docker/web.Dockerfile)), served by nginx under `/app/`, with `/api/` proxied to the API ([docker/nginx.conf](docker/nginx.conf)) |
 
 For the key, copy [.env.example](.env.example) to `.env` and fill in
 `AITYX_API_KEY` (or export it); it goes to the API only, as does the
 database password. The first build takes a few minutes (it downloads
 Flutter); later ones reuse Docker's cache. Set `FLUTTER_WEB_PORT` to
-change the port; the app and the database are bound to 127.0.0.1 unless
+change the port; the app, the database and Kafka are bound to 127.0.0.1 unless
 you set `HEALTHHUB_BIND_HOST=0.0.0.0`. Stop it with `docker compose
 down` (`-v` drops the data). Every service has a health check, so
 `docker compose up --wait` returns once they are healthy. There is no hot
@@ -175,8 +196,8 @@ their web ports public, HealthHub's **9801** among them. There is
 nothing to run: once the app is up, open port 9801 from the **Ports**
 panel, or HealthHub's card on the datyx index page (port 9800, which
 Codespaces opens in a browser tab for you). Its bare URL redirects to
-the app at `/app/`. The API (9802) and the database (9803) stay inside
-the codespace.
+the app at `/app/`. The API (9802), the database (9803) and Kafka (9804,
+9805) stay inside the codespace.
 
 Watch HealthHub's services with `process-compose attach -U -u
 /tmp/aityx-demos-HealthHub.sock` (or `devbox services attach` on a
@@ -230,5 +251,8 @@ as `OIDC_CLIENT_ID` (see [.env.example](.env.example)) and the app shows
 Google's sign-in button on the index, the API verifies the ID token on
 every call, and the same token goes on to the datyx API when HealthHub
 calls it, so datyx sees the same person (its `OIDC_EXTRA_AUDIENCES` lists this client).
+The client's authorized JavaScript origins must list the app's address,
+http://localhost:9801 and http://127.0.0.1:9801 (and a codespace's
+forwarded URL to sign in there), or Google refuses with `origin_mismatch`.
 Without a client id everything is anonymous. See [specs/api.md](specs/api.md)
 and [specs/index.md](specs/index.md).

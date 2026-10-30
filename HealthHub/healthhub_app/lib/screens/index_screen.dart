@@ -15,11 +15,19 @@ class IndexScreen extends StatelessWidget {
     super.key,
     required this.auth,
     required this.location,
+    this.careCenters,
+    this.people,
     this.showTiles = true,
   });
 
   final AuthController auth;
   final LocationController location;
+
+  /// Where the map's care centers come from: the API.
+  final CareCentersLoader? careCenters;
+
+  /// Where the map's simulated people come from: the API.
+  final PeopleLoader? people;
   final bool showTiles;
 
   @override
@@ -27,7 +35,12 @@ class IndexScreen extends StatelessWidget {
     body: Stack(
       children: [
         Positioned.fill(
-          child: UserLocationMap(location: location, showTiles: showTiles),
+          child: UserLocationMap(
+            location: location,
+            careCenters: careCenters,
+            people: people,
+            showTiles: showTiles,
+          ),
         ),
         SafeArea(
           child: Align(

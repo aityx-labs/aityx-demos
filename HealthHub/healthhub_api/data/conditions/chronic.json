@@ -1,0 +1,658 @@
+[
+  {
+    "code": "hypertension",
+    "name": "Hypertension",
+    "type": "chronic",
+    "prevalence": 30.0,
+    "min_age": 25,
+    "max_age": 90,
+    "summary": "Persistently raised arterial blood pressure (clinic readings of 140/90 mmHg or higher, confirmed by ambulatory or home monitoring) that increases the risk of stroke, heart, and kidney disease.",
+    "treatment": "Lifestyle measures (salt reduction, weight loss, exercise, limiting alcohol, stopping smoking) plus antihypertensives stepped up to target: ACE inhibitor or ARB, calcium channel blocker, and/or thiazide-like diuretic. Bloods and urine for target-organ damage at diagnosis, then blood pressure review every few weeks while titrating and at least yearly once controlled.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, with periodic review",
+    "visits": {
+      "count": 3,
+      "interval_days": 30,
+      "stay_hours": 1
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. I've had a dull headache at the back of my head most mornings this week, and the pharmacy machine read my blood pressure as 168 over 102 twice.",
+        "My name is {first_name}, I'm {age}. My GP measured my blood pressure high on three visits and sent me here for a check; I sometimes get a pounding in my ears but no chest pain.",
+        "Hello, I'm {name}, a {age}-year-old {occupation}. I bought a home monitor and it keeps showing around 160 over 100, and I've been a bit dizzy when I stand up quickly."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, back for my blood pressure review. I'm still taking the tablets every day; my home readings are about 145 over 92, but my ankles have been a little swollen.",
+        "I'm {first_name}, {age}, here for my follow-up. One of my blood pressure tablets gives me a dry, tickly cough, and my morning readings are still around 150.",
+        "Hello, {name} here, visit {visit_number} for hypertension. I'm keeping the salt down and walking most days, and the headaches have mostly gone, but my readings still go up when I'm stressed."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for the last check of this round of blood pressure reviews. My home readings have been around 128 over 80 since my last visit and I feel fine on the tablets.",
+        "{first_name} here, {age}. I've had my blood and urine tests for this review, and if they and today's reading are good I'd like to keep the same dose until my next check-up; I've had no side effects lately.",
+        "Hello, I'm {name}. I've brought my diary of home readings, they're mostly under target, and I'd like to confirm the dose and when my next review is due."
+      ]
+    }
+  },
+  {
+    "code": "hyperlipidemia",
+    "name": "Hyperlipidemia",
+    "type": "chronic",
+    "prevalence": 25.0,
+    "min_age": 25,
+    "max_age": 90,
+    "summary": "Raised blood levels of LDL cholesterol and/or triglycerides that accelerate atherosclerosis and raise cardiovascular risk, usually without symptoms.",
+    "treatment": "Cardiovascular risk assessment and lifestyle changes (diet low in saturated fat, exercise, weight loss, stopping smoking), with a statin as first-line drug therapy when risk warrants; ezetimibe or PCSK9-targeted therapy is added if targets are not met. Lipid profile and liver tests are repeated about 3 months after starting, then annually.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, with periodic review",
+    "visits": {
+      "count": 2,
+      "interval_days": 90,
+      "stay_hours": 1
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. A routine blood test showed my cholesterol is high, and my father had a heart attack in his fifties, so my GP asked me to come in about it.",
+        "My name is {first_name}, I'm {age}. I've got these small yellowish lumps near my eyelids and my blood test came back with very high cholesterol; I feel well otherwise.",
+        "Hello, I'm {name}, a {age}-year-old {occupation}. My risk score came out high at my health check, my LDL was well over the limit, and I'd like to know whether I need tablets."
+      ],
+      "repeat": [
+        "Hi, it's {name}, back with my repeat cholesterol test. I'm still taking the statin and watching my diet, but I've had some aching in my thighs.",
+        "{first_name} here, {age}, follow-up for cholesterol. My last result still wasn't at target on the tablets, and I want to talk about adding something else.",
+        "Hello, I'm {name}, visit {visit_number}. I stopped the statin for a week because of muscle cramps; they eased off, and I don't know whether to restart it."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my results. The nurse said my LDL is at target on the statin, so I'd like to keep the same plan until my next check.",
+        "{first_name} here, {age}. My liver tests came back normal and my cholesterol is about half what it was before treatment; I just need my repeat prescriptions sorted until the next review.",
+        "Hello, I'm {name}. My cholesterol is under control on treatment, and I'd like to confirm I stay on the same dose and when my next blood test is due."
+      ]
+    }
+  },
+  {
+    "code": "osteoarthritis",
+    "name": "Osteoarthritis",
+    "type": "chronic",
+    "prevalence": 15.0,
+    "min_age": 40,
+    "max_age": 90,
+    "summary": "Degenerative joint disease with cartilage loss and bony change, most often in the knees, hips, and hands, causing pain on use, brief morning stiffness, and reduced function.",
+    "treatment": "Education, weight loss, and structured exercise or physiotherapy as core treatment, with topical NSAIDs, then oral NSAIDs at the lowest effective dose with gastroprotection, and occasional intra-articular corticosteroid injections for flares. Joint replacement is considered when pain and disability persist despite these measures.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, with periodic review",
+    "visits": {
+      "count": 3,
+      "interval_days": 42,
+      "stay_hours": 2
+    },
+    "female_share": 0.6,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. My right knee has ached for months and it's much worse going downstairs; it's stiff for about twenty minutes in the morning, and paracetamol barely helps.",
+        "My name is {first_name}, I'm {age} and I'm a {occupation}. My left hip hurts in the groin when I walk more than ten minutes, and I've started limping.",
+        "Hello, I'm {name}. The joints at the ends of my fingers are swollen and sore, and I can't open jars anymore; it's been getting worse over the last year."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, back about my arthritis. I keep up the physio exercises and the anti-inflammatory gel helps a little, but the joint still swells and aches after a long day.",
+        "{first_name} here, {age}, follow-up for my osteoarthritis. The tablets help with the pain but upset my stomach, and the joint is still stiff and sore every morning.",
+        "Hello, I'm {name}, visit {visit_number}. I had a steroid injection into the joint last time and it was much better for a few weeks, but the pain is creeping back."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my arthritis review. With the exercises and keeping my weight down the pain is at a manageable level and I can get to {city} centre again, so I'd like to keep this plan until my next check-up.",
+        "{first_name} here, {age}. The painkillers aren't enough on bad days, and I'd like to talk about a referral to the orthopaedic surgeons before my next review.",
+        "Hello, I'm {name}. The joint is better with the support and the gel, so I'm happy to manage at home until my next review and come back sooner if it flares."
+      ]
+    }
+  },
+  {
+    "code": "gerd",
+    "name": "Gastro-oesophageal reflux disease",
+    "type": "chronic",
+    "prevalence": 15.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "Recurrent reflux of stomach contents into the oesophagus causing heartburn and regurgitation at least weekly, sometimes with oesophagitis.",
+    "treatment": "Lifestyle changes (weight loss, smaller meals, avoiding late meals and trigger foods, raising the head of the bed, stopping smoking) plus an 8-week course of a proton pump inhibitor, then stepping down to the lowest effective dose or on-demand use. Endoscopy if there are alarm features (difficulty swallowing, weight loss, bleeding, anaemia) or age over about 55 with new symptoms.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, with periodic review",
+    "visits": {
+      "count": 2,
+      "interval_days": 56,
+      "stay_hours": 2
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. I get a burning pain behind my breastbone after meals and when I lie down, nearly every night for two months, and antacids only help for an hour.",
+        "My name is {first_name}, I'm {age}. I keep waking up with a sour taste and acid in my throat, I've had a hoarse voice and a cough, and it's worse after coffee.",
+        "Hello, I'm {name}, a {age}-year-old {occupation}. I've had heartburn for weeks; last night it was bad enough that I worried it was my heart, but it's a burning that goes up into my throat."
+      ],
+      "repeat": [
+        "Hi, it's {name} again. I take the acid tablets every day and the heartburn is much better, but it comes back if I eat late.",
+        "{first_name} here, {age}, follow-up for reflux. The tablets help, but I've noticed food sometimes feels stuck when I swallow, so I was told to come back.",
+        "Hello, I'm {name}, visit {visit_number}. I raised the head of my bed and stopped eating after eight, and I only get heartburn a couple of times a week now."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my reflux review. The tablets are working, I've barely had heartburn, and I'd like to know how to cut down the dose until my next check.",
+        "{first_name} here, {age}. My last camera test was normal and the symptoms are controlled, so I'd like to try taking the tablets only when I need them until my next review.",
+        "Hello, I'm {name}. With the tablets and the diet changes I feel much better, and I'd like to confirm the plan and when I should come back for my next review."
+      ]
+    }
+  },
+  {
+    "code": "type_2_diabetes",
+    "name": "Type 2 diabetes mellitus",
+    "type": "chronic",
+    "prevalence": 10.0,
+    "min_age": 25,
+    "max_age": 90,
+    "summary": "Chronic hyperglycaemia from insulin resistance and progressive beta-cell failure, diagnosed by HbA1c of 48 mmol/mol (6.5%) or higher, with risk of cardiovascular, kidney, eye, and nerve complications.",
+    "treatment": "Structured education, diet, weight management, and exercise, with metformin first line and an SGLT2 inhibitor or GLP-1 receptor agonist added for cardiovascular or kidney risk or poor control, and insulin when needed. HbA1c every 3 to 6 months, plus annual eye screening, foot checks, kidney function, and blood pressure and lipid management.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, with periodic review",
+    "visits": {
+      "count": 4,
+      "interval_days": 90,
+      "stay_hours": 2
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. For the last month I've been very thirsty, going to the toilet at night three or four times, and I've lost weight without trying; my GP's finger-prick sugar was high.",
+        "My name is {first_name}, I'm {age}. My blood test showed diabetes, I've been really tired, and I have a cut on my foot that won't heal after three weeks.",
+        "Hello, I'm {name}, a {age}-year-old {occupation}. I've had blurry vision and tingling in my feet, and my sugar meter at home read over 15 this morning."
+      ],
+      "repeat": [
+        "Hi, it's {name}, back for my three-monthly diabetes check. I take my metformin every day, my stomach is fine with it now, and my home readings are around 8 in the morning.",
+        "{first_name} here, {age}, diabetes review number {visit_number}. My HbA1c came down a bit, but I've had a couple of shaky, sweaty spells before lunch.",
+        "Hello, I'm {name}. I'm here for my diabetes clinic; the weekly injection has helped me lose some weight, but I still get pins and needles in my toes at night."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my annual review. My HbA1c is at target, my eye screening was clear, and I'd like to go over my feet and kidney results.",
+        "{first_name} here, {age}. My sugars have been steady on the current tablets since my last check, so I'd like to keep the same plan and book my next review.",
+        "Hello, I'm {name}. I've lost eight kilos since I was diagnosed and my sugars look normal on the meter; I'd like to know whether we can reduce the medication before my next check-up."
+      ]
+    }
+  },
+  {
+    "code": "chronic_low_back_pain",
+    "name": "Chronic low back pain",
+    "type": "chronic",
+    "prevalence": 10.0,
+    "min_age": 20,
+    "max_age": 90,
+    "summary": "Non-specific pain in the lumbar region lasting more than 12 weeks, without a serious underlying cause, often with fluctuating flares and impact on work and sleep.",
+    "treatment": "Screening for red flags, reassurance, and staying active, with structured exercise, physiotherapy, and psychological approaches such as CBT; NSAIDs short-term for flares, avoiding long-term opioids. Imaging only for red flags or before a specialist procedure, and referral to a pain clinic or spinal service for persistent disabling pain or radicular symptoms.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, with periodic review",
+    "visits": {
+      "count": 3,
+      "interval_days": 28,
+      "stay_hours": 2
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. My lower back has hurt for about four months, worse after sitting for long; I'm a {occupation}, and ibuprofen only takes the edge off; no numbness or problems with the toilet.",
+        "My name is {first_name}, I'm {age}. My back flared up badly two days ago when I bent to lift a box, and the pain goes into my right buttock; I've had back trouble on and off for a year.",
+        "Hello, I'm {name}. I can't sleep because of aching in my lower back that's been there since spring; heat packs help a little, and I'm worried something is seriously wrong."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, about my back. I keep doing the physio exercises; the pain is a bit better but still bad after long drives.",
+        "{first_name} here, {age}, follow-up for back pain. The anti-inflammatories upset my stomach, and the pain still spreads down my leg some days.",
+        "Hello, I'm {name}, visit {visit_number}. The pain programme is helping me cope, I'm walking more, but I had a flare last week after gardening."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my back review. I'm managing my usual routine with only mild aching now, which the exercises keep under control, so I'd like to carry on as we are until the next check.",
+        "{first_name} here, {age}. My back is better with physio; I'd like an updated home exercise plan and to know what should make me come back before my next review.",
+        "Hello, I'm {name}. The leg pain is still there, so I'm here to hear the scan result and talk about a referral to the spinal clinic."
+      ]
+    }
+  },
+  {
+    "code": "chronic_kidney_disease",
+    "name": "Chronic kidney disease (stages 3-4)",
+    "type": "chronic",
+    "prevalence": 8.0,
+    "min_age": 40,
+    "max_age": 90,
+    "summary": "Reduced kidney function (eGFR below 60 mL/min/1.73m2) and/or kidney damage such as albuminuria persisting for more than 3 months, often due to diabetes or hypertension.",
+    "treatment": "Blood pressure control with an ACE inhibitor or ARB, an SGLT2 inhibitor where indicated, statin therapy, and glucose control in diabetes, avoiding nephrotoxic drugs such as NSAIDs. Regular monitoring of eGFR, albumin-to-creatinine ratio, potassium, and anaemia and bone markers, with nephrology review and planning for kidney replacement therapy if function keeps declining.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, with periodic review",
+    "visits": {
+      "count": 4,
+      "interval_days": 90,
+      "stay_hours": 2
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. My GP said my kidney blood test has been low for three months and there's protein in my urine, so I was referred to the kidney clinic; I've noticed my ankles swelling.",
+        "My name is {first_name}, I'm {age}. I've had diabetes for years, and now my kidney function is down; I'm more tired than usual and my legs puff up by evening.",
+        "Hello, I'm {name}, a {age}-year-old {occupation}. My blood pressure is hard to control and the tests show my kidneys are only working at about forty percent."
+      ],
+      "repeat": [
+        "Hi, it's {name}, back for my kidney check, visit {visit_number}. I've had my bloods done; I'm taking the kidney-protecting tablet every day, and my swelling is a bit better.",
+        "{first_name} here, {age}, kidney clinic follow-up. I've been more breathless climbing stairs and the nurse said I might be anaemic.",
+        "Hello, I'm {name}. It's been {days_since_first_visit} days since my first kidney appointment; I've stayed off ibuprofen like you asked, and I'd like to know if my numbers have held steady."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my yearly kidney review. My function has stayed stable since my last check, so I'm hoping we can keep the same plan until the next review.",
+        "{first_name} here, {age}. My kidney function has kept dropping, and I'm here to talk about dialysis options and the transplant assessment.",
+        "Hello, I'm {name}. My potassium and blood pressure are good on the current tablets, and I'd like to confirm the plan until my next check."
+      ]
+    }
+  },
+  {
+    "code": "asthma",
+    "name": "Asthma",
+    "type": "chronic",
+    "prevalence": 8.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "Chronic inflammatory airway disease with variable, reversible airflow obstruction causing episodic wheeze, breathlessness, chest tightness, and cough, with periodic exacerbations.",
+    "treatment": "Inhaled corticosteroid-containing maintenance therapy (often an ICS-formoterol combination as maintenance and reliever), stepped up with long-acting bronchodilators or biologics if uncontrolled, plus inhaler technique checks, trigger avoidance, and a written action plan. Exacerbations are treated with inhaled bronchodilators and a short course of oral corticosteroids, with review within days.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, with periodic review",
+    "visits": {
+      "count": 3,
+      "interval_days": 14,
+      "stay_hours": 4
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}, I have asthma. Since last night I've been wheezing and tight-chested, my blue inhaler only helps for an hour, and I can't finish a sentence without stopping.",
+        "My name is {first_name}, I'm {age}. I caught a cold three days ago and my asthma has got worse every day; I've used my reliever eight times today and my peak flow is half my normal.",
+        "Hello, I'm {name}. I've been coughing at night and short of breath on the stairs for two weeks, I've used my inhaler a lot more than usual, and this morning I was really frightened."
+      ],
+      "repeat": [
+        "Hi, it's {name}, back for my asthma review; I first came in {days_since_first_visit} days ago. I finished the steroid tablets, the wheeze is much better, but I still cough at night.",
+        "{first_name} here, {age}, asthma follow-up. I've been using my preventer twice a day, and I only needed the reliever once this week.",
+        "Hello, I'm {name}, visit {visit_number} for asthma. My peak flow is back to about ninety percent, but I'm not sure I'm using the inhaler correctly."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my asthma review. I haven't woken at night with symptoms since my last visit and my peak flow is normal, so I'd like to update my action plan until the next check.",
+        "{first_name} here, {age}. My breathing is back to normal after the flare-up, and I'd like to check whether I stay on this inhaler dose or step it down until my next review.",
+        "Hello, I'm {name}. I'm here for my breathing tests for this review; I'm getting through my usual day as a {occupation} without getting breathless."
+      ]
+    }
+  },
+  {
+    "code": "major_depressive_disorder",
+    "name": "Major depressive disorder",
+    "type": "chronic",
+    "prevalence": 7.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "A mood disorder with at least two weeks of persistently low mood or loss of interest plus symptoms such as sleep and appetite change, fatigue, poor concentration, guilt, and thoughts of death, often recurring.",
+    "treatment": "Risk assessment including suicidality, then psychological therapy (CBT, behavioural activation, interpersonal therapy) and/or an antidepressant, usually an SSRI first line, with review within 2 to 4 weeks of starting. Antidepressants are continued for at least 6 months after remission, longer for recurrent episodes, with urgent referral to mental health services for high risk or psychotic features.",
+    "treatment_duration_days": null,
+    "duration": "months to years, often recurring, with periodic review",
+    "visits": {
+      "count": 4,
+      "interval_days": 28,
+      "stay_hours": 1
+    },
+    "female_share": 0.65,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. For about two months I've felt flat and hopeless, I wake at four every morning, I've stopped seeing friends, and I can't concentrate on anything.",
+        "My name is {first_name}, I'm {age} and I'm a {occupation}. I've been crying most days and lost my appetite for over a month; I don't want to hurt myself, but I feel like there's no point.",
+        "Hello, I'm {name}. My family made me come because I've been sleeping all day and not eating properly for weeks; nothing I used to enjoy interests me anymore."
+      ],
+      "repeat": [
+        "Hi, it's {name}, back for my mood review. I'm still taking the antidepressant every day; the side effects have settled, and my sleep is a bit better.",
+        "{first_name} here, {age}, follow-up visit {visit_number}. I'm going to my therapy sessions; I still have bad days, but I'm getting out of bed and going for walks.",
+        "Hello, I'm {name}. My mood has lifted somewhat, but I still feel low in the evenings, and I'd like to talk about whether the dose is right."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my review with the team. I've felt more like myself since my last visit and I'm keeping up my normal routine, so I'd like to agree the plan until my next check-up.",
+        "{first_name} here, {age}. My mood has been stable, and we talked about staying on the tablets for at least six more months; I just need the relapse plan in writing.",
+        "Hello, I'm {name}. I'm sleeping and eating normally and I've finished this block of therapy sessions; I'd like to check the dose and book my next review."
+      ]
+    }
+  },
+  {
+    "code": "coronary_artery_disease",
+    "name": "Coronary artery disease (stable angina)",
+    "type": "chronic",
+    "prevalence": 6.0,
+    "min_age": 40,
+    "max_age": 90,
+    "summary": "Atherosclerotic narrowing of the coronary arteries causing exertional chest pain relieved by rest or nitrates, with a risk of acute coronary syndrome.",
+    "treatment": "Antiplatelet therapy (aspirin), high-intensity statin, sublingual nitrate for attacks, and anti-anginal therapy with a beta-blocker or calcium channel blocker, plus risk-factor control and cardiac rehabilitation. CT coronary angiography or functional testing confirms the diagnosis, with invasive angiography and PCI or bypass surgery if symptoms persist on medical therapy or anatomy is high risk.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, with periodic review",
+    "visits": {
+      "count": 3,
+      "interval_days": 42,
+      "stay_hours": 6
+    },
+    "female_share": 0.4,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. For three weeks I've had a heavy, squeezing pain in the middle of my chest when I walk uphill, it goes into my left arm, and it eases after a few minutes of rest.",
+        "My name is {first_name}, I'm {age}. I get tightness across my chest and shortness of breath when I climb stairs or walk in the cold; it lasted ten minutes this morning, which frightened me.",
+        "Hello, I'm {name}, a {age}-year-old {occupation}. I smoke and have high blood pressure, and lately I get a pressure in my chest and jaw when I rush for the bus."
+      ],
+      "repeat": [
+        "Hi, it's {name}, back to the heart clinic. I take my tablets every day and only needed the spray twice since my last visit, but the beta-blocker makes me tired.",
+        "{first_name} here, {age}, here for the scan of my heart arteries. The chest pain still comes on with brisk walking, though it's less often.",
+        "Hello, I'm {name}, visit {visit_number}. I keep up the cardiac rehab exercises and can walk further, but I get some tightness at the end of a session."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my cardiology review. I haven't had any chest pain since my last visit, I've stayed off cigarettes, and I'd like to go over which tablets I stay on until the next check.",
+        "{first_name} here, {age}. The angina is well controlled on the medication and I keep up the rehab exercises at home; I'd like to know when my next check-up is.",
+        "Hello, I'm {name}. I can walk a few kilometres without chest pain now; I'm here for my results and the plan until my next review."
+      ]
+    }
+  },
+  {
+    "code": "hypothyroidism",
+    "name": "Hypothyroidism",
+    "type": "chronic",
+    "prevalence": 5.0,
+    "min_age": 20,
+    "max_age": 90,
+    "summary": "Underactive thyroid, most often autoimmune (Hashimoto thyroiditis), with raised TSH and low free T4 causing fatigue, weight gain, cold intolerance, constipation, and dry skin.",
+    "treatment": "Levothyroxine replacement, started at a dose adjusted for age and cardiac disease and titrated against TSH measured 6 to 8 weeks after each change. Once stable, TSH is checked annually and treatment is continued for life.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, with periodic review",
+    "visits": {
+      "count": 3,
+      "interval_days": 42,
+      "stay_hours": 1
+    },
+    "female_share": 0.8,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. For months I've felt exhausted, cold all the time, and I've put on five kilos without eating more; my hair is thinning too.",
+        "My name is {first_name}, I'm {age}. My blood test showed an underactive thyroid; I've been constipated, my skin is very dry, and I feel slow and foggy all day.",
+        "Hello, I'm {name}, a {age}-year-old {occupation}. My neck looks a bit swollen at the front, my voice is hoarse, and I've been unusually tired and low for a few months."
+      ],
+      "repeat": [
+        "Hi, it's {name}, back for my thyroid blood test. I take the tablets every morning; I have a bit more energy, but I'm still cold and tired.",
+        "{first_name} here, {age}, thyroid follow-up. Since my dose was last changed I've had some palpitations and trouble sleeping, so I wanted it checked.",
+        "Hello, I'm {name}, visit {visit_number}. I've been taking the tablet every morning on an empty stomach, and the constipation is better."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my thyroid check. I feel well, and the nurse said my TSH is in range, so I'd like to confirm I stay on this dose until my next blood test.",
+        "{first_name} here, {age}. My energy is good and my weight is steady; I just need to know when my next thyroid blood test should be.",
+        "Hello, I'm {name}. My symptoms are under control on levothyroxine, and I'm here for the results and the plan until my next review."
+      ]
+    }
+  },
+  {
+    "code": "copd",
+    "name": "Chronic obstructive pulmonary disease",
+    "type": "chronic",
+    "prevalence": 5.0,
+    "min_age": 40,
+    "max_age": 90,
+    "summary": "Progressive, largely irreversible airflow limitation from chronic bronchitis and emphysema, usually caused by smoking, with chronic cough, sputum, breathlessness, and exacerbations.",
+    "treatment": "Smoking cessation, vaccinations, and pulmonary rehabilitation, with inhaled long-acting bronchodilators (LAMA and LABA), adding an inhaled corticosteroid for frequent exacerbations with raised eosinophils, and long-term oxygen for chronic hypoxaemia. Exacerbations are treated with short-acting bronchodilators, a short course of oral corticosteroids, and antibiotics if sputum is purulent, with follow-up within weeks.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, with periodic review",
+    "visits": {
+      "count": 3,
+      "interval_days": 30,
+      "stay_hours": 6
+    },
+    "female_share": 0.4,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}, I have COPD. For four days I've been much more breathless, coughing up thick green phlegm, and my inhalers aren't working like they normally do.",
+        "My name is {first_name}, I'm {age}. I smoked for thirty years and now I get out of breath walking to the shop; this week I can barely get dressed without stopping.",
+        "Hello, I'm {name}, a {age}-year-old {occupation}. I've had a cough with phlegm every morning for years, and now I'm wheezy and my lips felt blue on the stairs today."
+      ],
+      "repeat": [
+        "Hi, it's {name}, back for my chest follow-up, {days_since_first_visit} days since I first came in. I finished the steroids and antibiotics, the phlegm is clear now, but I'm still more breathless than usual.",
+        "{first_name} here, {age}, COPD review visit {visit_number}. I'm using the combined inhaler every day and I'm down to five cigarettes a day.",
+        "Hello, I'm {name}. I've been going to pulmonary rehab twice a week, I can walk a bit further, but I still get winded on hills."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my COPD review. I've stayed off cigarettes, my breathing is back to my usual, and I'd like to check my oxygen levels and inhaler plan until the next review.",
+        "{first_name} here, {age}. I've had my flu jab, and I'd like a rescue pack and a written plan for the next flare before my next check-up.",
+        "Hello, I'm {name}. I'm here for my breathing test for this review; I feel well, and I'd like to keep the same inhalers until my next check."
+      ]
+    }
+  },
+  {
+    "code": "generalized_anxiety_disorder",
+    "name": "Generalized anxiety disorder",
+    "type": "chronic",
+    "prevalence": 4.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "Excessive, hard-to-control worry about many areas of life on most days for at least six months, with restlessness, tension, poor sleep, irritability, and physical symptoms.",
+    "treatment": "Stepped care: education and guided self-help, then high-intensity CBT or applied relaxation, and/or an SSRI (or SNRI) first line, avoiding long-term benzodiazepines. Review 2 to 4 weeks after starting medication and continue for at least a year if effective.",
+    "treatment_duration_days": null,
+    "duration": "months to years, with periodic review",
+    "visits": {
+      "count": 4,
+      "interval_days": 28,
+      "stay_hours": 1
+    },
+    "female_share": 0.65,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. I've been worrying constantly about everything for months, my heart races, my muscles are tense, and I lie awake most of the night going over things.",
+        "My name is {first_name}, I'm {age}. I had a spell of shaking, sweating, and a tight chest this morning; it's been building for half a year and I can't switch my mind off.",
+        "Hello, I'm {name}, a {age}-year-old {occupation}. I feel on edge all the time, I get stomach cramps and headaches from stress, and I've started avoiding going out."
+      ],
+      "repeat": [
+        "Hi, it's {name}, back for my anxiety follow-up. I take the tablets every day; the jitteriness has settled, and I'm sleeping a bit better.",
+        "{first_name} here, {age}, visit {visit_number}. I'm going to my CBT sessions and using the breathing exercises, but deadlines and money worries still set me off.",
+        "Hello, I'm {name}. The worrying is less constant now, but I still get tension headaches most afternoons, and I'd like to review the dose."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my review. I've finished this block of CBT, I'm worrying much less, and I'm sleeping through most nights, so I'd like to keep the plan as it is until the next check.",
+        "{first_name} here, {age}. The anxiety has been manageable since my last visit; I'd like to agree whether to stay on the medication and what to do if it gets worse before my next review.",
+        "Hello, I'm {name}. I'm keeping up my normal routine and the panicky spells are rare now; I'd like to confirm the dose and book my next review."
+      ]
+    }
+  },
+  {
+    "code": "atrial_fibrillation",
+    "name": "Atrial fibrillation",
+    "type": "chronic",
+    "prevalence": 2.5,
+    "min_age": 45,
+    "max_age": 90,
+    "summary": "An irregularly irregular atrial arrhythmia causing palpitations, breathlessness, or fatigue, and a major risk factor for cardioembolic stroke.",
+    "treatment": "Stroke risk assessment (CHA2DS2-VASc) with a direct oral anticoagulant when indicated, rate control with a beta-blocker or rate-limiting calcium channel blocker, and rhythm control by cardioversion, antiarrhythmic drugs, or catheter ablation for selected patients. Treatment of triggers and comorbidities (hypertension, thyroid disease, alcohol, sleep apnoea) and regular review of rate, bleeding risk, and kidney function.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, with periodic review",
+    "visits": {
+      "count": 3,
+      "interval_days": 30,
+      "stay_hours": 6
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. Since this morning my heart has been racing and fluttering irregularly, I feel a bit short of breath and light-headed, and it hasn't settled after resting.",
+        "My name is {first_name}, I'm {age}. My smartwatch keeps alerting me to an irregular rhythm, and for a week I've had palpitations and been tired on my usual walks.",
+        "Hello, I'm {name}, a {age}-year-old {occupation}. I've had episodes of a thumping, uneven heartbeat for a few weeks; this one has lasted three hours and I feel weak."
+      ],
+      "repeat": [
+        "Hi, it's {name}, back to the heart rhythm clinic. I take the blood thinner and the rate tablet every day; the palpitations are less frequent, but I bruise easily.",
+        "{first_name} here, {age}, follow-up visit {visit_number}. My heart rate is steadier on my watch, around 80, but I still get breathless on stairs.",
+        "Hello, I'm {name}. I'm here for my rhythm check; I've taken the anticoagulant every day without missing a dose, and I'd like to know if I need another cardioversion."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my rhythm review. My heart has stayed in a normal rhythm since my last visit and I feel more energetic, so I'd like to keep the same tablets until the next check.",
+        "{first_name} here, {age}. The rate is controlled and I have no palpitations now; I'd like to confirm I stay on the blood thinner and what my GP should monitor until my next review.",
+        "Hello, I'm {name}. I'm feeling well on treatment, and I'm here for the heart tracing and kidney bloods for this review."
+      ]
+    }
+  },
+  {
+    "code": "heart_failure",
+    "name": "Heart failure",
+    "type": "chronic",
+    "prevalence": 2.5,
+    "min_age": 45,
+    "max_age": 90,
+    "summary": "A clinical syndrome in which structural or functional heart disease impairs filling or ejection, causing breathlessness, fatigue, and fluid retention, with raised natriuretic peptides.",
+    "treatment": "Loop diuretics for congestion, and for reduced ejection fraction the four pillars titrated to tolerated doses: ACE inhibitor/ARB or sacubitril-valsartan, beta-blocker, mineralocorticoid receptor antagonist, and SGLT2 inhibitor, plus device therapy where indicated. Specialist heart failure nurse follow-up every few weeks while titrating, with daily weight monitoring, fluid and salt advice, and cardiac rehabilitation.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, with periodic review",
+    "visits": {
+      "count": 4,
+      "interval_days": 14,
+      "stay_hours": 8
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. Over the last two weeks I've got more and more breathless, I need three pillows to sleep, and my ankles and legs are badly swollen.",
+        "My name is {first_name}, I'm {age}. I woke up twice last night gasping for air and had to sit on the edge of the bed; I've put on four kilos in a week.",
+        "Hello, I'm {name}, a {age}-year-old {occupation}. I had a heart attack a few years ago, and now I'm exhausted, short of breath walking across the room, and my belly feels bloated."
+      ],
+      "repeat": [
+        "Hi, it's {name}, back to the heart failure clinic, visit {visit_number}. The water tablets have taken my weight down three kilos, but I feel dizzy when I stand up.",
+        "{first_name} here, {age}. It's been {days_since_first_visit} days since I started treatment; I'm weighing myself every morning, my ankles are better, and I'm here to have the doses reviewed.",
+        "Hello, I'm {name}. I can walk to the end of the street now without stopping, but I've been going to the toilet a lot and I'd like my kidney bloods checked."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my clinic review. My weight has been stable since my last visit, I sleep flat with one pillow, and I'd like to confirm my full list of tablets until the next check.",
+        "{first_name} here, {age}. My last heart scan showed it's pumping better, and I'd like my plan with the community nurse and the rehab exercises until my next review.",
+        "Hello, I'm {name}. I feel much better than when I first came in; I'm here for my bloods and to agree what to do if my weight goes up again before my next check-up."
+      ]
+    }
+  },
+  {
+    "code": "alzheimer_disease",
+    "name": "Alzheimer disease",
+    "type": "chronic",
+    "prevalence": 1.0,
+    "min_age": 65,
+    "max_age": 90,
+    "summary": "A progressive neurodegenerative dementia with insidious decline in episodic memory and later language, visuospatial, and executive function, eventually affecting independence.",
+    "treatment": "Diagnosis in a memory clinic with cognitive testing, blood tests, and brain imaging, then an acetylcholinesterase inhibitor for mild to moderate disease and memantine for moderate to severe disease, with cognitive stimulation and carer support. Regular review of cognition, behaviour, safety, driving, and advance care planning, avoiding antipsychotics where possible.",
+    "treatment_duration_days": null,
+    "duration": "lifelong and progressive, with periodic review",
+    "visits": {
+      "count": 3,
+      "interval_days": 90,
+      "stay_hours": 2
+    },
+    "female_share": 0.65,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. My family says I keep repeating questions and forgetting conversations from yesterday, and last week I got lost driving home in {city}, which has never happened before.",
+        "My name is {first_name}, I'm {age}. For about a year I've been misplacing things and missing appointments, and my GP referred me to the memory clinic for tests.",
+        "Hello, I'm {name}. My relative came with me because I left the cooker on twice this month and I've been struggling with my bills; I know my memory isn't what it was."
+      ],
+      "repeat": [
+        "Hi, I'm {name}, back at the memory clinic. I take my memory tablet every day; it upset my stomach at first and I have vivid dreams, but my family thinks I'm a bit sharper.",
+        "{first_name} here, {age}, follow-up visit {visit_number}. I've been going to the memory group, but I've been more confused in the evenings and I'm not sleeping well.",
+        "Hello, I'm {name}. I'm here for my review; my relative has been helping with my pills, and I'd like to talk about whether I can still drive."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my review at the memory clinic. My memory is about the same as last time, and we want to sort out the care plan and power of attorney.",
+        "{first_name} here, {age}. Things have been steady on the tablets, so the doctor said my GP can keep an eye on me until my next memory clinic review.",
+        "Hello, I'm {name}. My family and I are here to go over the test results and the support at home, since my memory has got a bit worse since my last review."
+      ]
+    }
+  },
+  {
+    "code": "rheumatoid_arthritis",
+    "name": "Rheumatoid arthritis",
+    "type": "chronic",
+    "prevalence": 0.8,
+    "min_age": 25,
+    "max_age": 90,
+    "summary": "A chronic autoimmune inflammatory arthritis causing symmetrical swelling, pain, and prolonged morning stiffness of the small joints of the hands and feet, leading to joint damage if untreated.",
+    "treatment": "Early referral to rheumatology and a conventional DMARD (methotrexate first line) started promptly, with short-term corticosteroid bridging, escalating to biologic or targeted synthetic DMARDs if disease activity remains high. Monthly review with blood monitoring (blood count, liver and kidney function) until controlled, then every few months, plus physiotherapy and cardiovascular risk management.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, with periodic review",
+    "visits": {
+      "count": 4,
+      "interval_days": 56,
+      "stay_hours": 3
+    },
+    "female_share": 0.75,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. For two months the knuckles and wrists on both hands have been swollen and painful, and I'm stiff for over an hour every morning before I can grip anything.",
+        "My name is {first_name}, I'm {age}. The balls of my feet and my fingers ache and swell on both sides, I'm exhausted, and I'm a {occupation} struggling with everyday tasks.",
+        "Hello, I'm {name}. My GP's blood tests showed rheumatoid markers; my hands are hot and puffy in the morning and ibuprofen only helps a little."
+      ],
+      "repeat": [
+        "Hi, it's {name}, back to the rheumatology clinic. I'm still on weekly methotrexate; I feel a bit sick the day after, but the morning stiffness is down to half an hour.",
+        "{first_name} here, {age}, follow-up visit {visit_number}. My blood monitoring has been fine, but my right wrist is still swollen and I'd like it looked at.",
+        "Hello, I'm {name}. The steroid injection helped for a few weeks, but the joints are flaring again, and I'd like to talk about the next treatment."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my review. My joints have been quiet on the current treatment since my last visit, and I'd like to go over my blood monitoring before the next round of check-ups.",
+        "{first_name} here, {age}. On the biologic injections I've had almost no swelling and I'm doing all my usual activities; I'd like to confirm the monitoring plan until my next review.",
+        "Hello, I'm {name}. My disease score is in remission on treatment, and the nurse said we can keep the same plan until my next review."
+      ]
+    }
+  },
+  {
+    "code": "breast_cancer",
+    "name": "Breast cancer (under treatment)",
+    "type": "chronic",
+    "prevalence": 0.5,
+    "min_age": 30,
+    "max_age": 90,
+    "summary": "Malignant tumour of breast tissue, usually invasive ductal or lobular carcinoma, managed by a multidisciplinary team according to stage and receptor status (ER, PR, HER2).",
+    "treatment": "Surgery (breast-conserving surgery or mastectomy with sentinel node biopsy) combined according to stage and receptor status with chemotherapy given in cycles about every 3 weeks, HER2-targeted therapy, radiotherapy, and endocrine therapy for hormone-receptor-positive disease. Bloods and toxicity review before each chemotherapy cycle, then surveillance with clinical review and annual mammography.",
+    "treatment_duration_days": null,
+    "duration": "months of active treatment, then years of endocrine therapy and surveillance",
+    "visits": {
+      "count": 6,
+      "interval_days": 21,
+      "stay_hours": 6
+    },
+    "female_share": 0.99,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. I was diagnosed with breast cancer after the biopsy, and today is my first chemotherapy session at the day unit; I'm nervous but I feel well.",
+        "My name is {first_name}, I'm {age}. I'm here to start the treatment the cancer team planned after my surgery; the wound has healed and I have no fever.",
+        "Hello, I'm {name}, a {age}-year-old {occupation}. I found a lump in my breast two months ago, it was confirmed as cancer, and I'm here for my first cycle of chemotherapy."
+      ],
+      "repeat": [
+        "Hi, it's {name}, here for my next chemo cycle, visit {visit_number}. After the last one I had nausea for three days and mouth ulcers, but I've been eating again since the weekend.",
+        "{first_name} here, {age}, back for my next treatment. I've been very tired and had tingling in my fingertips, and I want to mention it before my bloods are checked.",
+        "Hello, I'm {name}. It's been {days_since_first_visit} days since I started treatment; my hair has fallen out, I had a mild temperature last week that settled, and I'm ready for this cycle."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for the last cycle of this round of chemotherapy. I'm tired but coping, and I'd like to go over the scans and the hormone tablets until my next review.",
+        "{first_name} here, {age}. This is the last session of this treatment block; I'd like to know how the scans look and when my next review is.",
+        "Hello, I'm {name}. I've reached the last cycle of this round; the numbness in my feet is still there and I'd like advice on it before my next check-up."
+      ]
+    }
+  },
+  {
+    "code": "end_stage_kidney_disease",
+    "name": "End-stage kidney disease on haemodialysis",
+    "type": "chronic",
+    "prevalence": 0.1,
+    "min_age": 30,
+    "max_age": 90,
+    "summary": "Stage 5 chronic kidney disease (eGFR below 15 mL/min/1.73m2) requiring kidney replacement therapy, here in-centre haemodialysis, with fluid, electrolyte, anaemia, and bone-mineral complications.",
+    "treatment": "In-centre haemodialysis three times a week for about 4 hours through an arteriovenous fistula or catheter, with fluid and potassium restriction, phosphate binders, vitamin D analogues, and erythropoiesis-stimulating agents with iron for anaemia. Monthly bloods and dialysis adequacy review, vascular access surveillance, and transplant assessment where suitable.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, or until kidney transplant",
+    "visits": {
+      "count": 12,
+      "interval_days": 2,
+      "stay_hours": 4
+    },
+    "course_gap_days": 0,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, {age}. My kidney function has fallen below fifteen percent, and today is my first haemodialysis session through my new fistula; I've been itchy, nauseous, and very tired.",
+        "My name is {first_name}, I'm {age}. The kidney team said it's time to start dialysis; my legs are swollen, I'm breathless lying flat, and I'm worried about the needles.",
+        "Hello, I'm {name}, a {age}-year-old {occupation}. I'm here to begin dialysis three times a week; I've stopped passing much urine and my potassium was high on the last test."
+      ],
+      "repeat": [
+        "Hi, it's {name}, here for my dialysis session. I've put on two kilos since last time, I've tried to keep to the fluid limit, and the buzz in my fistula feels normal.",
+        "{first_name} here, {age}, session {visit_number}. I had cramps and felt dizzy at the end of the last session, and I've been tired the day after.",
+        "Hello, I'm {name}. It's been {days_since_first_visit} days since I started dialysis; the itching is under control, I take the phosphate binders with meals, and I'm ready for today's session."
+      ],
+      "last": [
+        "Hi, I'm {name}, here for my last session of the month, with the monthly bloods. I'd like to know about my potassium and haemoglobin and how the transplant workup is going.",
+        "{first_name} here, {age}. Today's session comes with my monthly review; I'd like the team to go over my notes and my dry weight, and whether home dialysis training could suit me.",
+        "Hello, I'm {name}. Today I have my session and the monthly review with the kidney doctor about my dose; I've been keeping to my fluid limit."
+      ]
+    }
+  }
+]

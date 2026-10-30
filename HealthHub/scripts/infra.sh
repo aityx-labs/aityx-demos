@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# The database container of compose.yaml (PostgreSQL) from `devbox services
-# up` (process-compose.yaml), `devbox run db`, or by hand:
+# The infrastructure containers of compose.yaml (postgres, kafka and
+# kafka-rest) from `devbox services up` (process-compose.yaml), `devbox run
+# db`, `devbox run kafka` (kafka-rest, which starts kafka first), or by
+# hand:
 #   scripts/infra.sh up postgres         docker compose up, attached
 #   scripts/infra.sh stop postgres       docker compose stop
 #   scripts/infra.sh healthy postgres    exits 0 when its container is healthy
-#   scripts/infra.sh down                stops and removes the container;
-#                                        -v drops the data volume too
+#   scripts/infra.sh down                stops and removes the containers;
+#                                        -v drops the data volumes too
 #   scripts/infra.sh psql                psql in the container, on the
 #                                        healthhub database
 # Settings come from the environment, else .env (scripts/env.sh).

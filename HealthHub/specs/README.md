@@ -31,14 +31,27 @@ be specified.
 **Backend**
 
 - [API](api.md): `healthhub_api`, a Dart server that holds the aityx key,
-  talks to PostgreSQL and serves `GET /api/hello` and `GET /api/health`.
+  talks to PostgreSQL and to Kafka through its REST proxy, and serves
+  hello, health, sign-in, the care centers, the simulated people, their
+  events and their admissions.
+- [Simulation](simulation.md): in dev mode, people with a profile and a
+  medical condition who travel to their nearest hospital when a visit is
+  due and say what is wrong there, each its own async loop, every move
+  and admission streamed through Kafka and read back for the map, the
+  events and the database.
+- [Medical conditions](conditions.md): the common acute and chronic
+  conditions, their treatment and duration, the visits they bring, and
+  what a patient says on arrival.
 - [Database](database.md): PostgreSQL as a container, the `healthhub`
-  database and user, the `greetings` table the API makes.
+  database and user, the tables the API makes, among them the conditions
+  and the admissions.
+- [Care centers](care-centers.md): the hospitals, clinics and health
+  stations of seven cities, from official registries, seeded at start.
 
 **Project**
 
 - [Development environment](dev-environment.md): devbox, process-compose,
-  Docker for the database, the health monitor, the builds, Docker Compose
+  Docker for the database and Kafka, the health monitor, the builds, Docker Compose
   and the dev container.
 
 ## Workflow

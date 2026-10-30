@@ -5,7 +5,8 @@
   // The datyx group, started together: the datyx API (datyx/, Quarkus on
   // GraalVM, with PostgreSQL, Elasticsearch and OpenMetadata in
   // containers), the datyx dashboard (datyx-dashboard/, a Flutter web app
-  // calling it) and HealthHub (a Flutter app, a Dart API and PostgreSQL),
+  // calling it) and HealthHub (a Flutter app, a Dart API, PostgreSQL and
+  // Kafka),
   // and its index page (datyx-index/, port 9800) that links them. The folders whose group.id.txt says datyx.
   //
   // Source:  https://github.com/aityx-labs/aityx-demos
@@ -30,8 +31,8 @@
   "remoteUser": "vscode",
   // An SSH server, so `gh codespace ssh`, `gh codespace cp` and
   // `gh codespace logs` reach the codespace from a terminal: that is how
-  // startup.log is read without the editor. Docker, for the databases
-  // and OpenMetadata: the containers of datyx/compose.yaml and
+  // startup.log is read without the editor. Docker, for the databases,
+  // OpenMetadata and HealthHub's Kafka: the containers of datyx/compose.yaml and
   // HealthHub/compose.yaml, which process-compose starts with
   // `docker compose up <service>`.
   "features": {
@@ -41,7 +42,8 @@
   // The 4-core, 16 GB Codespaces machine, the largest the organization
   // allows (asking for more leaves no machine to create the codespace
   // on). Elasticsearch and OpenMetadata take several GB on their own,
-  // beside the API's JVM and two PostgreSQL containers, so it is tight.
+  // beside the API's JVM, two PostgreSQL containers and HealthHub's Kafka
+  // (its heap capped at 512 MB), so it is tight.
   "hostRequirements": {
     "cpus": 4,
     "memory": "16gb"

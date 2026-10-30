@@ -113,3 +113,115 @@ The feature files hold the current specification; see the
    The Google OAuth client needs http://localhost:9801 among its
    authorized JavaScript origins. See [Development
    environment](dev-environment.md).
+
+## 2026-10-30
+
+1. **Zoom the default map out one level and add zoom controls.** Once
+   the location is known, the map centres on it at zoom 14, from 15.
+   Zoom in and Zoom out buttons (+ and −) sit at the bottom right, above
+   Back to where you are, and step one level between zoom 2 and 19. See
+   [The map](map.md).
+
+1. **Fix the Google sign-in error at http://localhost:9801.** The
+   `healthhub` OAuth client still listed only the app's old origins, on
+   port 9800; http://localhost:9801 and http://127.0.0.1:9801 were added
+   to its authorized JavaScript origins in Google Cloud Console. The
+   README's Sign-in section now says which origins the client needs.
+
+1. **Add care center locations to the HealthHub database: every
+   hospital, clinic and health station of Cornudella de Montsant,
+   Barcelona, Reus, Miami, Fort Lauderdale, Rio de Janeiro and São
+   Paulo.** 7,256 care centers from each country's official registries
+   (the Spanish catalogues and Catalan directories, Florida's AHCA and
+   federal lists, Brazil's CNES), each city then checked independently,
+   in `healthhub_api/data/care_centers.jsonl`, compiled into the API and
+   seeded into a new `care_centers` table at every start. The CAP of
+   Cornudella de Montsant is in, and the CAPs and consultoris locals of
+   Reus and Barcelona were checked against the national primary-care
+   catalogue and the city directory. See [Care centers](care-centers.md)
+   and [Database](database.md).
+
+1. **Show the care centers on the map of the index and of home, with an
+   icon for each kind.** `GET /api/care-centers?bbox=` answers the
+   centers in the map's view (hospitals first, at most 500); the map
+   asks after every move and pins hospitals (red), clinics (blue) and
+   health stations (green), with a legend. See [The map](map.md) and
+   [API](api.md).
+
+1. **Keep the sign-in across a refresh.** The ID token is kept in the
+   tab's session storage until it expires or the user signs out, and
+   read as the app starts. See [Index](index.md).
+
+1. **Add a Kafka message stream to HealthHub, in the startup scripts,
+   Docker Compose, process-compose and devbox, with a health check; then,
+   in dev mode only, simulate people moving across the map, each its own
+   virtual thread in one of the cities, going to the nearest hospital by
+   day and home at night, starting from a random home, with homes and
+   people on the map.** Apache Kafka (`kafka`, KRaft, 127.0.0.1:9804) and
+   Karapace's REST proxy (`kafka-rest`, 127.0.0.1:9805) in compose and
+   process-compose (`4-kafka`, `5-kafka-rest`), a devbox `kafka` script,
+   and 📨 Kafka in the health monitor. The API, in Dart, talks to Kafka
+   over the REST proxy (Dart has no solid Kafka client), and, with
+   `HEALTHHUB_MODE=dev` (the default), runs one async loop per person,
+   Dart's nearest to a virtual thread: 10 people per city, publishing
+   every move to `healthhub.people.moves`, read back by the API's own
+   consumer for `GET /api/people`. `/api/health` adds `kafka` and
+   `simulation`. The map polls the people every 2 s and draws homes and
+   people, coloured by state, with the simulated time in the legend. A
+   review then made `/api/health` report a cached Kafka status, the API
+   delete its consumer when stopped, the feed check every field, and
+   Kafka bind to 127.0.0.1 only. See [Simulation](simulation.md),
+   [API](api.md), [The map](map.md) and [Development
+   environment](dev-environment.md).
+
+1. **Make the map on home larger: full width and a bit taller.** The
+   map's tile spans the page's width and 78% of the window's height
+   (520 to 1100 px), from a grid tile of at most 720 px wide at 4:3. See
+   [Home](home.md).
+
+1. **Update the map with the people in the view area every 5 seconds,
+   not at every turn.** `GET /api/people` takes the map's `bbox` and
+   answers the people there or living there; the map asks every 5
+   seconds, from every 2, and once the view settles after a move. See
+   [The map](map.md) and [API](api.md).
+
+1. **Add an events widget under the map with the latest events on the
+   stream.** The API's consumer keeps the latest 100 records it read,
+   with partition and offset, served newest first by `GET /api/events`;
+   home shows the latest 20 under the map, refreshed every 5 seconds, in
+   dev mode. See [Home](home.md) and [Simulation](simulation.md).
+
+1. **Create the table of medical conditions, the most common diseases
+   and illnesses, acute or chronic, with their treatment procedures and
+   duration, and a few complaint templates each for what a person says
+   at their first, repeated and last arrival at the hospital, filled with
+   their name, age and details. Record an admission event every time a
+   person reaches the hospital (movements need no database), highlight
+   them in the stream, run the simulation at one simulated hour per real
+   second, and make movement realistic.** 38 conditions (19 acute, 19
+   chronic), written and reviewed for clinical accuracy, with prevalence,
+   ages, share of women, treatment, duration, visit schedule, stays and 9
+   English templates each, in `healthhub_api/data/conditions/`, seeded
+   into `medical_conditions` and `complaint_templates`. People get a name
+   typical of their city, an age, a sex, an occupation, at most one
+   chronic condition (reviewed in courses for life) and acute episodes at
+   random; they stay home until a visit is due, travel at walking,
+   transit or car speed by distance (most trips within a city take
+   minutes, so within the hour's turn), are admitted at the arrival
+   minute at the nearest general hospital, and publish an admission with
+   the rendered complaint to `healthhub.admissions`. The API records each
+   admission once in `admissions` (`GET /api/admissions`) and home's
+   events card shows admissions highlighted with the complaint in full. A
+   review then made admission ids unique across runs, read admissions
+   from a stable consumer group, kept chronic patients from being
+   re-diagnosed, weighed conditions by sex, let emergencies arrive at
+   night, and skipped specialised and restricted hospitals. See
+   [Conditions](conditions.md), [Simulation](simulation.md),
+   [Database](database.md), [API](api.md) and [Home](home.md).
+- **Sync git (commit the work above).** A review before committing found
+  email addresses (two of them people's) that registries put in eleven
+  care centers' `website`: they are gone from the data, and the API reads
+  any website with an `@` as none. A view that settles while the map is
+  still waiting for the people of the old one is now asked for as soon
+  as that answer comes, and the old answer is dropped. See
+  [Care centers](care-centers.md) and [The map](map.md).

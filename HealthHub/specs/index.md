@@ -33,6 +33,17 @@ client id the API publishes, tries a silent sign-in, and hands the ID
 token to the API client, which sends it as a bearer on every call and
 retries once with a fresh one after a 401.
 
+The ID token is kept in the browser tab's session storage
+([lib/persist/](../healthhub_app/lib/persist/); memory off the web)
+until it expires or the user signs out, so a reload stays signed in
+without asking Google again. It is read as the app starts, so a reload
+opens home at once; when the API's configuration comes, a token issued
+for another client id, or any token while sign-in is off, is dropped. A
+token within a minute of its expiry is renewed with a silent sign-in
+before the next call; when Google can't renew it, the user is signed out
+and the index shows the sign-in. A new tab, or a closed and reopened
+browser, signs in again.
+
 ## Known limitations
 
 - Nothing on the index but the map and the welcome, for now.

@@ -2,8 +2,9 @@
 # open http://localhost:9801/app/. No devbox or Flutter needed on the host.
 #
 # The same file serves `devbox services up` (process-compose.yaml), which
-# runs only postgres from here (`docker compose up postgres`, through
-# scripts/infra.sh) and the API and the web app on the host's toolchain.
+# runs only postgres, kafka and kafka-rest from here (`docker compose up
+# <service>`, through scripts/infra.sh) and the API and the web app on the
+# host's toolchain.
 #
 # The aityx settings come from the environment, else this folder's .env
 # (see .env.example), and reach the API only, never the web app. So do
@@ -39,6 +40,106 @@ services:
       retries: 12
     restart: unless-stopped
 
+  kafka:
+    # The message stream: Apache Kafka, one node in KRaft mode (broker and
+    # controller in one process, no ZooKeeper). The API publishes the
+    # simulated people's moves to healthhub.people.moves and their
+    # arrivals at the hospital to healthhub.admissions (dev mode only), and
+    # reads them back through kafka-rest. The broker makes a topic on first
+    # use by a Kafka client; the health check makes these.
+    image: apache/kafka:4.3.2
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      # A fixed id, so the volume's data stays valid across recreations.
+      CLUSTER_ID: hEaLtHhUbKaFkA0000001w
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:19093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # Two listeners: kafka:19092 for the compose network (kafka-rest),
+      # and 9092 inside, published on the host and advertised as
+      # localhost, for a client on the host (the Kafka CLI, a debugger).
+      KAFKA_LISTENERS: INTERNAL://:19092,CONTROLLER://:19093,HOST://:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19092,HOST://localhost:${HEALTHHUB_KAFKA_PORT:-9804}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 1
+      # One node: every internal topic has one replica.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # A demo's stream: a day of moves is plenty.
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      # A small heap: the stream is a few hundred small records a second.
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    # Always on this host only, whatever HEALTHHUB_BIND_HOST says: the
+    # broker has no authentication, and nothing outside needs it (the API
+    # on the host reaches it locally, the compose API on the network).
+    ports:
+      - "127.0.0.1:${HEALTHHUB_KAFKA_PORT:-9804}:9092"
+    healthcheck:
+      # Healthy once the broker answers a client and the topics exist:
+      # healthhub.people.moves, healthhub.admissions, and healthhub.test for
+      # the API's live test, so a test never writes into the moves. The check makes them when
+      # missing, since kafka-rest answers 404 to a record for an unknown
+      # topic instead of letting the broker create it; --if-not-exists
+      # makes it a no-op afterwards. The tool is a JVM of its own: a small
+      # heap, not the broker's.
+      test: ["CMD-SHELL", "for t in healthhub.people.moves healthhub.admissions healthhub.test; do KAFKA_HEAP_OPTS=-Xmx64m /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic $$t > /dev/null 2>&1 || exit 1; done"]
+      interval: 10s
+      timeout: 10s
+      start_period: 60s
+      start_interval: 2s
+      retries: 6
+    restart: unless-stopped
+
+  kafka-rest:
+    # Kafka over HTTP: Karapace's REST proxy (Apache 2.0), compatible with
+    # Confluent's REST Proxy v2. The API produces and consumes through it,
+    # so it needs no Kafka client library. Only the REST proxy runs here,
+    # not Karapace's schema registry: the records are plain JSON.
+    image: ghcr.io/aiven-open/karapace:6.2.4
+    entrypoint: ["python3", "-m", "karapace.kafka_rest_apis"]
+    environment:
+      KARAPACE_KARAPACE_REST: "true"
+      KARAPACE_HOST: 0.0.0.0
+      KARAPACE_PORT: 8082
+      KARAPACE_ADVERTISED_HOSTNAME: kafka-rest
+      KARAPACE_BOOTSTRAP_URI: kafka:19092
+      # Fresh topic metadata, so a topic made by the first produce is seen
+      # at once.
+      KARAPACE_ADMIN_METADATA_MAX_AGE: 0
+      # A backstop for consumers an API left behind (killed before it
+      # could delete them): all of them go once nobody has called the
+      # proxy for 5 minutes. Without authentication every caller is the
+      # same proxy user, so while an API polls, nothing is idle; the API
+      # deletes its own consumer when it stops.
+      KARAPACE_CONSUMER_IDLE_DISCONNECT_TIMEOUT: 300
+      KARAPACE_LOG_LEVEL: WARNING
+      KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: "true"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    # Published for the API `devbox services up` runs on the host, and for
+    # curl; always on this host only, like kafka: it has no authentication.
+    ports:
+      - "127.0.0.1:${HEALTHHUB_KAFKA_REST_PORT:-9805}:8082"
+    healthcheck:
+      # Healthy once it lists the topics, which needs the broker too.
+      test: ["CMD", "curl", "-fs", "-o", "/dev/null", "http://127.0.0.1:8082/topics"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      start_interval: 2s
+      retries: 6
+    restart: unless-stopped
+
   api:
     build: healthhub_api
     environment:
@@ -59,6 +160,14 @@ services:
       # stack's network instead, since the bridge can't reach a port bound
       # to 127.0.0.1).
       DATYX_API_URL: ${DATYX_API_URL:-http://host.docker.internal:9900}
+      # The message stream and, in dev mode, the people simulation (see
+      # .env.example). The API retries until kafka-rest answers, so it
+      # doesn't wait for it.
+      HEALTHHUB_MODE: ${HEALTHHUB_MODE:-dev}
+      HEALTHHUB_KAFKA_REST_URL: http://kafka-rest:8082
+      HEALTHHUB_SIM_PEOPLE: ${HEALTHHUB_SIM_PEOPLE:-10}
+      HEALTHHUB_SIM_TURN_MS: ${HEALTHHUB_SIM_TURN_MS:-1000}
+      HEALTHHUB_SIM_MINUTES_PER_TURN: ${HEALTHHUB_SIM_MINUTES_PER_TURN:-60}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -97,3 +206,4 @@ services:
 
 volumes:
   postgres-data:
+  kafka-data:

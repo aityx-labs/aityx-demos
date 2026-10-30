@@ -2,6 +2,29 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-10-30: the health with the profile; hello, greetings and status gone
+
+Asked: a health check as the Quarkus SmallRye Health guide describes, with
+an attribute stating the execution mode or profile, injected by Quarkus;
+dev mode in local, process-compose and Docker Compose development; remove
+the greeting and hello resources, and the status resource, the greetings'
+table out of the migrations; reset the database to zero in dev mode.
+
+Changed: `ModeHealthCheck`, a liveness check named `datyx` in
+`/api/health`, always UP with the version, the profile (`quarkus.profile`),
+the launch mode (the injected `LaunchMode`), `jvm` or `native` and the
+start time. `GreetingResource`, `Greeting`, `HelloResource` and
+`StatusResource` are gone, with their tests (`HealthTest` covers the
+health); the greetings' table is out of the migrations altogether (V1 is
+now `V1__data_sources.sql`), and the dev profile starts from an empty
+database (`%dev.quarkus.flyway.clean-at-start=true`). The health
+monitor checks the API on `/api/health/live`, and the dashboard reads
+`/api/health` (its own spec says how). `API_MODE=dev` (`quarkus:dev`) was
+already the default for `devbox services up`; Docker Compose now builds and
+runs the API with the `dev` profile (`DATYX_API_PROFILE`, the Dockerfiles'
+`PROFILE` argument, `prod` when built without compose), so the dev data
+loads there too: Flyway's locations are fixed at build time.
+
 ## 2026-10-29: the index on 9800, HealthHub's database on 9803
 
 Asked: make the datyx index the first port of the group (9800).

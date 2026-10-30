@@ -37,7 +37,7 @@ which prints where to open it and then one status line per interval.
 | What | Where |
 |---|---|
 | The dashboard | http://localhost:9906/app/ |
-| The API, through the dashboard | http://localhost:9906/api/hello, health at `/api/health`, Swagger UI at `/q/swagger-ui`: the same paths on the API's own port, 9900, proxied |
+| The API, through the dashboard | http://localhost:9906/api/health, Swagger UI at `/q/swagger-ui`: the same paths on the API's own port, 9900, proxied |
 
 The dashboard calls `/api/` and `/q/` on its own origin; the web server
 (and the dev server, and nginx under Docker Compose) proxies them to the
@@ -76,8 +76,9 @@ One screen, five tabs: Data sources, the ones on record with a dialog
 to add one and a button to remove one; Catalog, what datyx makes of the
 data in each source (not read yet, so each shows as not catalogued);
 Audit, every call made: method, path, status, time, and the request and
-response bodies; Health, status cards (API, PostgreSQL, OpenMetadata,
-sign-in, records) from `/api/status`, refreshed every 15 s, and the
+response bodies; Health, status cards (API with its profile and mode,
+PostgreSQL, OpenMetadata, sign-in) from `/api/health`, refreshed every
+15 s, and the
 dashboard's own version; Profile, the signed-in user's profile and its
 identities. A reload keeps the open tab (in the address, `?tab=`), the
 sign-in and the audit (in the browser tab's session storage). See

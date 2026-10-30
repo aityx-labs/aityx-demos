@@ -51,13 +51,13 @@ reload).
   the response bodies pretty-printed. A button clears it. The calls are
   kept across a reload of the page.
 
-- **Health** (`HealthTab`): cards from `GET /api/status`: API (name and
-  version, uptime, started at), PostgreSQL (version, or the error),
-  OpenMetadata (version and URL, or the error), Sign-in (off, with no
-  `OIDC_CLIENT_ID` on the API; on and nobody signed in; or the issuer,
-  whom the API sees and their profile id, from `GET /api/me`), Records
-  (how many data sources and profiles),
-  and Dashboard: this build's version, when built by the scripts
+- **Health** (`HealthTab`): cards from `GET /api/health`'s checks: API
+  (the `datyx` check: name and version, its profile, launch mode and
+  `jvm` or `native`, as `dev profile, development, jvm`, uptime, started
+  at), PostgreSQL (ok, or the error), OpenMetadata (version and URL, or
+  the error), Sign-in (off, with no `OIDC_CLIENT_ID` on the API; on and
+  nobody signed in; or the issuer, whom the API sees and their profile
+  id, from `GET /api/me`), and Dashboard: this build's version, when built by the scripts
   (`dash 0.1.202610291200`; a bare `flutter run` or a test has none), and
   how often it asks the API. A green dot when the part is ok, red
   otherwise, and the same red line when the API didn't answer.
@@ -72,8 +72,8 @@ reload).
   authentication on and nobody signed in, it says to sign in and the
   profile isn't asked.
 
-The API's hello and greetings endpoints, which the first dashboard showed
-to prove the path, are not shown any more.
+The API's hello, greetings and status endpoints are gone; the health
+replaces the status.
 
 ## Kept across a reload
 
@@ -127,14 +127,18 @@ on every call, and request bodies logged with their secrets (`password`,
 `secretAccessKey`) replaced by dots; `API_BASE_URL`
 at build time is the API's base, empty meaning the app's own origin, so
 the app calls `/api/...` and whatever serves it proxies that to the API.
-A non-2xx answer or a failed call throws `ApiException`. `DataSource`
+A non-2xx answer or a failed call throws `ApiException`, except a 503
+from `/api/health`, which is a check down with the checks in the body. `DataSource`
 keeps the access details as the API answers them (a map under the
 type's key, secrets replaced by `passwordSet` and `secretAccessKeySet`)
 and summarizes them on one line; `NewDataSource` is the `POST` body.
 `Profile` and `ProfileIdentity` read `GET /api/profile`; `Me` carries
 the profile id.
-`SystemStatus` reads what the cards show; the status's `greetings` count
-is ignored.
+`SystemStatus.fromHealth` reads what the cards show from the health's
+checks by name (`datyx`, `Database connections health check`,
+`OpenMetadata`); `Dependency.fromCheck` takes a check's status, version,
+URL and error (`data.error`, else its other value, where the database
+check puts it).
 
 ## Serving
 

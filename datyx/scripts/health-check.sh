@@ -5,7 +5,7 @@
 # the time, then each check as its emoji, a short label and ✅ (ok) / ❌
 # (failed), separated by " · ":
 #   🔌 API · 🐘 Postgres · 🗂 OpenMetadata · 🔎 Search
-# API comes from /api/hello, Postgres from the API's /api/health (its
+# API comes from /api/health/live (its own check), Postgres from the API's /api/health (its
 # datasource check), OpenMetadata from its admin /healthcheck and Search
 # from Elasticsearch's cluster health. The dashboard has its own monitor,
 # in datyx-dashboard/.
@@ -41,7 +41,7 @@ get() {
     curl -fs -o /dev/null --max-time "$timeout" "$@"
 }
 
-check_api() { ok_if "🔌 API" get 5 "http://localhost:${DATYX_API_PORT}/api/hello"; }
+check_api() { ok_if "🔌 API" get 5 "http://localhost:${DATYX_API_PORT}/api/health/live"; }
 
 # The API's /api/health, pretty-printed: {"status": "UP", "checks": [{"name":
 # "Database connections health check", "status": "UP", ...}]}. Compared
@@ -84,13 +84,13 @@ run_checks() {
 # print_address: where to open things, before the first check.
 print_address() {
     echo "datyx is up."
-    echo "  API:          http://localhost:${DATYX_API_PORT}/api/hello  (health: /api/health, Swagger UI: /q/swagger-ui)"
+    echo "  API:          http://localhost:${DATYX_API_PORT}/api/health  (Swagger UI: /q/swagger-ui)"
     echo "  OpenMetadata: http://localhost:${DATYX_OPENMETADATA_PORT}/  (admin@open-metadata.org / admin)"
     echo "  PostgreSQL:   localhost:${DATYX_DB_PORT}  (datyx / openmetadata_db)"
     echo "  Search:       http://localhost:${DATYX_SEARCH_PORT}/"
     # A codespace forwards the ports to its own URLs; the Ports panel has them too.
     if [[ -n "${CODESPACE_NAME:-}" && -n "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]]; then
-        echo "  https://$CODESPACE_NAME-$DATYX_API_PORT.$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN/api/hello"
+        echo "  https://$CODESPACE_NAME-$DATYX_API_PORT.$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN/api/health"
         echo "  https://$CODESPACE_NAME-$DATYX_OPENMETADATA_PORT.$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN/"
     fi
     echo "  The dashboard is the datyx-dashboard/ folder's service (http://localhost:9906/app/ when up)."

@@ -58,8 +58,7 @@ An answer: the entity's fields, the type as its JSON name, and the
 details of its type, without secrets:
 `{"id":1,"name":"warehouse","type":"database","description":null,"createdAt":"...","createdBy":"alice@example.com","createdByName":"Alice","database":{"engine":"postgresql","host":"db","port":5432,"database":"dw","username":"u","passwordSet":true}}`.
 
-`GET /api/status` counts them all as `dataSources`; `GET /api/profile`
-counts the profile's.
+`GET /api/profile` counts the profile's.
 
 ## Development data
 

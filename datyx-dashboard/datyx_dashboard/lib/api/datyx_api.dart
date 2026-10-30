@@ -5,51 +5,76 @@ import 'package:http/http.dart' as http;
 
 import '../persist/session_store.dart';
 
-/// The system as the API sees it: `GET /api/status`.
+/// The system as the API sees it: `GET /api/health`, its checks by name.
+/// `datyx` is the API itself (its version, configuration profile, launch
+/// mode, jvm or native, and when it started), `Database connections health
+/// check` is PostgreSQL's, `OpenMetadata` the catalogue's.
 class SystemStatus {
   const SystemStatus({
     required this.name,
     required this.version,
     required this.startedAt,
-    required this.uptime,
     required this.database,
     required this.openMetadata,
-    this.dataSources = 0,
-    this.profiles = 0,
+    this.profile,
+    this.launchMode,
+    this.image,
   });
 
-  factory SystemStatus.fromJson(Map<String, Object?> json) => SystemStatus(
-    name: json['name'] as String? ?? '',
-    version: json['version'] as String? ?? '',
-    startedAt: DateTime.tryParse(json['startedAt'] as String? ?? ''),
-    uptime: Duration(seconds: (json['uptimeSeconds'] as num?)?.toInt() ?? 0),
-    database: Dependency.fromJson(json['database']),
-    openMetadata: Dependency.fromJson(json['openmetadata']),
-    dataSources: (json['dataSources'] as num?)?.toInt() ?? 0,
-    profiles: (json['profiles'] as num?)?.toInt() ?? 0,
-  );
+  factory SystemStatus.fromHealth(Map<String, Object?> json) {
+    final checks = {
+      for (final check in (json['checks'] as List? ?? const []))
+        if (check is Map) check['name'] as String? ?? '': check.cast<String, Object?>(),
+    };
+    final api = (checks[apiCheck]?['data'] as Map?)?.cast<String, Object?>() ?? const {};
+    return SystemStatus(
+      name: checks.containsKey(apiCheck) ? apiCheck : '',
+      version: api['version'] as String? ?? '',
+      profile: api['profile'] as String?,
+      launchMode: api['launchMode'] as String?,
+      image: api['image'] as String?,
+      startedAt: DateTime.tryParse(api['startedAt'] as String? ?? ''),
+      database: Dependency.fromCheck(checks['Database connections health check']),
+      openMetadata: Dependency.fromCheck(checks['OpenMetadata']),
+    );
+  }
+
+  /// The API's own check in `/api/health`.
+  static const apiCheck = 'datyx';
 
   final String name;
   final String version;
+  final String? profile;
+  final String? launchMode;
+  final String? image;
   final DateTime? startedAt;
-  final Duration uptime;
   final Dependency database;
   final Dependency openMetadata;
-  final int dataSources;
-  final int profiles;
+
+  Duration get uptime =>
+      startedAt == null ? Duration.zero : DateTime.now().difference(startedAt!);
 }
 
-/// A dependency's part of the status: ok, its version, or the error.
+/// A dependency's check in the health: ok, its version, or the error.
 class Dependency {
   const Dependency({required this.ok, this.version, this.url, this.error});
 
-  factory Dependency.fromJson(Object? json) {
-    final map = (json as Map?)?.cast<String, Object?>() ?? const {};
+  /// A check of `/api/health`: `{"name":..., "status":"UP"|"DOWN",
+  /// "data":{...}}`. The error is `data.error`, else the first other value
+  /// (the database check puts it under the datasource's name).
+  factory Dependency.fromCheck(Map<String, Object?>? check) {
+    if (check == null) return const Dependency(ok: false, error: 'no check');
+    final data = (check['data'] as Map?)?.cast<String, Object?>() ?? const {};
+    final ok = check['status'] == 'UP';
+    final other = data.entries
+        .where((e) => e.key != 'version' && e.key != 'url')
+        .map((e) => e.value?.toString())
+        .firstOrNull;
     return Dependency(
-      ok: map['ok'] == true,
-      version: map['version'] as String?,
-      url: map['url'] as String?,
-      error: map['error'] as String?,
+      ok: ok,
+      version: data['version'] as String?,
+      url: data['url'] as String?,
+      error: ok ? null : (data['error'] as String? ?? other),
     );
   }
 
@@ -483,6 +508,7 @@ class HttpDatyxApi implements DatyxApi {
     String path, {
     Map<String, String>? query,
     Object? body,
+    Set<int> alsoOk = const {},
   }) async {
     final uri = _uri(path, query);
     final requestBody = body == null ? null : jsonEncode(body);
@@ -524,7 +550,8 @@ class HttpDatyxApi implements DatyxApi {
           continue;
         }
       }
-      if (response.statusCode < 200 || response.statusCode >= 300) {
+      if ((response.statusCode < 200 || response.statusCode >= 300) &&
+          !alsoOk.contains(response.statusCode)) {
         throw ApiException(
           '$method $path answered ${response.statusCode}',
           status: response.statusCode,
@@ -571,7 +598,9 @@ class HttpDatyxApi implements DatyxApi {
     await _send('DELETE', '/api/datasources/$id');
   }
 
+  /// A 503 is a check down, with the checks still in the body.
   @override
-  Future<SystemStatus> status() async =>
-      SystemStatus.fromJson((await _send('GET', '/api/status') as Map).cast());
+  Future<SystemStatus> status() async => SystemStatus.fromHealth(
+    (await _send('GET', '/api/health', alsoOk: {503}) as Map).cast(),
+  );
 }

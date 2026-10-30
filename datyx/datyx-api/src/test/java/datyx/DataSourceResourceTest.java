@@ -136,9 +136,4 @@ class DataSourceResourceTest {
         given().contentType(ContentType.JSON).body(body.replace("Twice", "twice"))
             .when().post("/api/datasources").then().statusCode(409).body("error", containsString("already exists"));
     }
-
-    @Test
-    void countsThemInTheStatus() {
-        given().when().get("/api/status").then().statusCode(200).body("dataSources", notNullValue());
-    }
 }

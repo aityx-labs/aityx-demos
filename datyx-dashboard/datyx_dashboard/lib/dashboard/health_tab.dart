@@ -5,9 +5,9 @@ import '../app_version.dart';
 import '../auth/auth_controller.dart';
 import '../theme.dart';
 
-/// The Health tab: the system as `GET /api/status` reports it, in cards
-/// (the API, PostgreSQL, OpenMetadata), the sign-in, the records on file,
-/// and this dashboard build itself with its version.
+/// The Health tab: the system as `GET /api/health` reports it, in cards
+/// (the API with its profile and mode, PostgreSQL, OpenMetadata), the
+/// sign-in, and this dashboard build itself with its version.
 class HealthTab extends StatelessWidget {
   const HealthTab({
     super.key,
@@ -39,9 +39,11 @@ class HealthTab extends StatelessWidget {
               title: 'API',
               ok: s != null,
               lines: s == null
-                  ? const ['waiting for /api/status']
+                  ? const ['waiting for /api/health']
                   : [
                       '${s.name} ${s.version}',
+                      if (s.profile != null)
+                        '${s.profile} profile, ${s.launchMode}, ${s.image}',
                       'up ${_uptime(s.uptime)}',
                       if (s.startedAt != null)
                         'since ${s.startedAt!.toLocal().toString().substring(0, 19)}',
@@ -85,13 +87,6 @@ class HealthTab extends StatelessWidget {
                         'nobody signed in',
                       ],
               ),
-            ),
-            StatusCard(
-              title: 'Records',
-              ok: s != null,
-              lines: s == null
-                  ? const ['…']
-                  : ['${s.dataSources} data sources', '${s.profiles} profiles'],
             ),
             StatusCard(
               title: 'Dashboard',

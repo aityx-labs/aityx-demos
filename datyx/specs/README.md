@@ -13,7 +13,8 @@ logic live in the API; its views are the datyx dashboard, a Flutter app in
 a folder of its own ([../../datyx-dashboard/](../../datyx-dashboard/),
 specified there), which only asks and shows. The API, the dashboard and
 HealthHub are the datyx group, started and stopped together. The stack
-starts with one command; the API answers hello and its status, keeps the
+starts with one command; the API answers its health (how it runs and
+its dependencies), keeps the
 data sources users add, each in the profile of whoever added it and
 with its access details encrypted with that profile's key, and
 authenticates users with Google through OpenID Connect, an identity

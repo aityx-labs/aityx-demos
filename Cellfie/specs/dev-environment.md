@@ -56,7 +56,7 @@ works in every demo.
   (0.1 today), Z the build time as `YYYYMMDDHHMM` UTC; the build number is
   the same time in Unix seconds
   ([scripts/version.sh](../scripts/version.sh)). It reaches the app as the
-  `CELLFIE_VERSION` dart-define, shown in the app bar.
+  `CELLFIE_VERSION` dart-define; the app doesn't show it.
 - **Coordinates**: the group ID `aityx` from `group.id.txt` and the artifact
   ID `cellfie` from `artifact.id.txt`; with the version, `aityx:cellfie:X.Y.Z`.
 - **Builds**: the [Makefile](../Makefile) runs

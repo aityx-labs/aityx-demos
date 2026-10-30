@@ -7,7 +7,8 @@ Hub's and Contact Hub's: the page is near-black with a violet tint
 text is light gray (`#EFF2F4`), muted text `#A9ACB6`, and the primary
 color is the orange accent (`#E36742`), secondary green (`#4CC38A`) and
 tertiary amber (`#E8B04B`). On the board, live cells are orange, cells
-born in the last generation green, and recognized patterns amber; the
+born in the last generation green, cells that died in it grey
+(`#47474D`), and recognized patterns amber; the
 board itself is the darkest shade (`#151418`). App bars are flat and the
 page's color, with the title bold and on the left. The web manifest's
 background and theme color are `#17161A`.

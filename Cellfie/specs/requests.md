@@ -156,3 +156,33 @@ The feature files hold the current specification; see the
     dev key aityx refuses reads `aityx answered HTTP n`; neither names
     `.env` or the environment any more. The index page's key section does
     the same.
+
+13. **Make the Sparse soup sparser and open the board with it, so the
+    user only has to press Play.** The Sparse soup's density is now 0.06
+    (it was 0.12), and the board opens with one over the cells in view,
+    filled once the view has its size. See [Board](board.md).
+
+14. **When a cell dies, mark its place grey for one generation.** The
+    board keeps the cells that died in the last generation, as it does
+    those born, and paints them grey (`#47474D`) under the live cells;
+    the legend adds *died this generation*. See [Board](board.md) and
+    [Theme](theme.md).
+
+15. **Make the default speed 1 generation a second.** The Acceleration
+    slider starts at 1 generation/s (it was 2), and the label says
+    `1 generation/s`, singular. See [Board](board.md).
+
+16. **Zoom with gestures; overlay the zoom and origin buttons on the
+    board, as on a map; move the generation count and aityx's response
+    time to the side panel; put the controls beside the title, in one
+    row; omit the version; drop the label before the acceleration.** The
+    controls bar and the status row are gone: the controls sit on the
+    right of the title in the app bar (icons with tooltips below 900 px,
+    scrolling on a phone), the status is under the calls panel's title
+    (over the board's top right when there's no panel), and **Back to the
+    origin**, **Zoom in** (+) and **Zoom out** (−) float at the board's
+    bottom right. A trackpad pinch in the browser now zooms too (touch
+    pinch and the wheel already did). The version and the *Acceleration*
+    label (and its icon) are no longer shown; on narrow windows the calls
+    button is an icon with the count as a badge. See [Board](board.md)
+    and [Calls panel](calls-panel.md).

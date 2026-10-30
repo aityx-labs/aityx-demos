@@ -2,8 +2,10 @@
 
 [CallsPanel](../cellfie_app/lib/calls/calls_panel.dart): the side panel
 with every call to aityx, newest first (the last 100), under the header
-**aityx calls** with their count and a button that clears them. Before
-any call, it explains that every generation is one call to aityx.
+**aityx calls** with their count and a button that clears them. Under
+the header, where the board stands: `Generation N · M cells · aityx
+answered in T ms` (see [Board](board.md#controls)). Before any call, it
+explains that every generation is one call to aityx.
 
 ## Patterns noticed
 

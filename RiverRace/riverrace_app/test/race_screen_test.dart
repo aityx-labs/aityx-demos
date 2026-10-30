@@ -2,9 +2,8 @@ import 'package:flutter/services.dart';
 
 import 'dart:async';
 
+import 'package:aityx_web/aityx_web.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:riverrace_app/game/race.dart';
 import 'package:riverrace_app/main.dart';
 import 'package:riverrace_app/strategy/decide.dart';
@@ -39,9 +38,7 @@ Future<void> pumpApp(WidgetTester tester, Decider decider) async {
     RiverRaceApp(
       decider: decider,
       seed: 11,
-      statusClient: MockClient(
-        (_) async => http.Response('{"key": true, "ok": true}', 200),
-      ),
+      aityxLight: AityxStatusLight(check: () async => AityxState.noKey),
     ),
   );
 }
@@ -61,6 +58,20 @@ void main() {
     expect(find.text('Careful'), findsWidgets);
     expect(find.text('Daredevil'), findsWidgets);
     expect(find.text('You'), findsOneWidget);
+  });
+
+  testWidgets('the aityx status light is top right, with why', (tester) async {
+    await pumpApp(tester, FakeDecider());
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(AityxStatusLight), findsOneWidget);
+    expect(
+      find.byTooltip('aityx: no key — set yours on the index page'),
+      findsOneWidget,
+    );
+    final light = tester.getTopRight(find.byType(AityxStatusLight));
+    expect(light.dx, greaterThan(1500));
+    expect(light.dy, lessThan(20));
   });
 
   testWidgets('playing asks aityx for both pilots and shows the calls', (

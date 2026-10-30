@@ -5,7 +5,9 @@
 # the build away. The inputs are what scripts/build.sh compares the build
 # with, plus how it builds: the app package (lib/, web/, assets/,
 # pubspec), version.X.txt and version.Y.txt, scripts/ (build.sh and the
-# dart-defines) and devbox.lock (the Flutter version).
+# dart-defines), devbox.lock (the Flutter version) and, for an app that
+# depends on the repository's shared packages (packages/aityx_web, by
+# path), packages/.
 
 # app_package <demo>: the demo's Flutter app package in HEAD, relative to
 # the repository (Cellfie/cellfie_app, datyx-dashboard/datyx_dashboard):
@@ -28,7 +30,12 @@ build_key_paths() {
   local demo="$1" app path
   app="$(app_package "$demo")"
   [[ -n "$app" ]] || return 0
-  for path in "$app" "$demo/scripts" "$demo/version.X.txt" "$demo/version.Y.txt" "$demo/devbox.lock"; do
+  local paths=("$app" "$demo/scripts" "$demo/version.X.txt" "$demo/version.Y.txt" "$demo/devbox.lock")
+  # A path dependency on ../../packages/<name>: the shared packages too.
+  if git show "HEAD:$app/pubspec.yaml" 2>/dev/null | grep -q 'path: *["'"'"']\{0,1\}\(\.\./\)*packages/'; then
+    paths+=(packages)
+  fi
+  for path in "${paths[@]}"; do
     git rev-parse --quiet --verify "HEAD:$path" >/dev/null 2>&1 && echo "$path"
   done
 }

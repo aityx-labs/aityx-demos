@@ -1,6 +1,6 @@
 /// A ready-made request to try: one for each department, one for each of
-/// the store's order policies (they name orders in the API's order book,
-/// lib/orders.dart, with dates counted back from today), and a few that
+/// the store's order policies (they name orders in the order book,
+/// lib/aityx/orders.dart, with dates counted back from today), and a few that
 /// exercise the checks.
 class SampleRequest {
   const SampleRequest(this.department, this.title, this.text, {this.outcome});

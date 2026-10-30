@@ -39,7 +39,7 @@ title and, in the accent color, where it should go and, for orders, what
 the policy should offer. Three sections:
 
 - **Orders: the store's policy**: one for each policy outcome, naming
-  orders in the API's order book (see
+  orders in the app's order book (see
   [Order policy](order-policy.md#the-samples)).
 - **The other departments**: A question about a product (Marketing),
   Can't sign in (Technical Support), A phishing email (Trust & Safety), A
@@ -54,7 +54,8 @@ the policy should offer. Three sections:
   priority, reviewed) and An abusive message (Trust & Safety, whatever
   the topic).
 
-All 27 were sent through the live API and routed where their labels say.
+All 27 were sent through the live API (Contact Hub's, before the app called
+aityx itself) and routed where their labels say.
 
 ## Voice input, on the device only
 
@@ -108,5 +109,10 @@ typed text, the download, start-up and transcription states, and errors.
   WebGPU).
 - The model and the library are fetched from Hugging Face and jsDelivr on
   first use: the audio stays on the device, but those two sites see the
-  download.
+  download. transformers.js runs as a module in a Web Worker on the app's
+  origin, the one that holds the aityx key: a worker can't read
+  `localStorage` or `sessionStorage`, where your key is, but it can call
+  the index server's dev proxy (`/aityx/v1/systemone`) like the app. It is
+  pinned to 4.3.1, and only loads in a browser without on-device Web
+  Speech, once the microphone is pressed.
 - No voice input in the Android, iOS and Linux apps yet.

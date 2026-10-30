@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Serves the index page on http://localhost:${INDEX_PORT:-8800}/ with
-# bin/server.dart (Dart from the devbox's Flutter). Runs via
+# Serves the index page and the six aityx demos (/<slug>/) on
+# http://localhost:${INDEX_PORT:-8800}/ with bin/server.dart (Dart from
+# the devbox's Flutter). Runs via
 # `devbox services up` (see process-compose.yaml) or `devbox run serve`.
 set -euo pipefail
 

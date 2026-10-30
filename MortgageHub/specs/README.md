@@ -28,29 +28,27 @@ mortgage proposal.
 - [Regulatory check](regulatory-check.md): the summary's verdict
   (Processable / Requires review / Not processable) under current US rules
   (Fannie Mae's matrix, 2026 FHFA and FHA limits, FHA, VA and USDA rules,
-  DTI limits), executed by aityx.ai through the API.
+  DTI limits), executed by aityx.ai, which the app calls from the browser
+  with the model it carries as an asset.
 - [Theme](theme.md): the aityx dark palette ([colors](theme-colors.txt)).
 - [App icon](app-icon.md): a yellow house with a dollar sign, the favicon
   and every platform's icon, generated from SVG masters.
 
 **Integrations**
 
-- [aityx.ai](aityx.md): the API key in `.env` (never in the app), the
-  stage API, and `scripts/aityx-check.sh`, which runs the docs' example to
-  check the connection, and the status light, top right on every screen,
-  that says whether the API has a key and aityx accepts it.
-
-**Backend**
-
-- [Regulatory check](regulatory-check.md#the-rules-as-of-october-2026):
-  `mortgagehub_api`, a Dart server that holds the aityx key and serves
-  `POST /api/proposals/check`, `GET /api/aityx` (the status light's
-  check) and `GET /api/health`.
+- [aityx.ai](aityx.md): the key the user sets on the index page (else
+  the index server's dev key, through its proxy), the shared
+  `aityx_web` package that finds it and calls aityx, the status light,
+  top right on every screen, that says whether there's a key and aityx
+  accepts it, and `scripts/aityx-check.sh`, which runs the docs' example
+  with the repository's `.env` key. There is no backend: the
+  repository's index serves the app at `/mortgagehub/`.
 
 **Project**
 
-- [Development environment](dev-environment.md): devbox, process-compose,
-  the health monitor, the builds and the dev container.
+- [Development environment](dev-environment.md): devbox, the build the
+  index serves, the model tests, the native builds and the dev
+  container.
 
 ## Workflow
 

@@ -9,10 +9,11 @@
 # codespace is assigned to a user, so it has no Codespaces secrets: anything
 # that needs them is in post-create.sh.
 #
-# Every demo of the container's group (DEMOS_GROUP; see startup_demos in
-# startup-log.sh), its index page among them, gets `devbox install` in its
-# folder. The Flutter ones lock the same Flutter, so the Nix store is
-# filled once and the later installs are quick.
+# Every demo of the container's group (DEMOS_GROUP; see startup_demos and
+# startup_served in startup-log.sh), its index page among them, gets
+# `devbox install` in its folder (each that has a devbox.json). The
+# Flutter ones lock the same Flutter, so the Nix store is filled once and
+# the later installs are quick.
 #
 # Devbox has Nix resolve flakes through api.github.com: its own on
 # `devbox install`, and nixpkgs when `devbox services up` first installs
@@ -68,7 +69,8 @@ if [[ "$DEMOS_TOOLCHAIN" == image ]]; then
 else
   # Each devbox.lock records its packages' store paths, so `devbox install`
   # copies them from cache.nixos.org itself; only nixpkgs comes from GitHub.
-  for demo in $(startup_demos); do
+  for demo in $(startup_demos) $(startup_served); do
+    [[ -f "$demo/devbox.json" ]] || continue
     echo "on-create: devbox install in $demo/..."
     started=$SECONDS
     (cd "$demo" && devbox install) || fail "devbox install in $demo"

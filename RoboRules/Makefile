@@ -11,7 +11,7 @@ ifndef BUILD_NUMBER
 BUILD_NUMBER := $(shell date -u +%s)
 endif
 
-export MODE WEB_BASE_HREF API_BASE_URL BUILD_NUMBER VERSION_Z
+export MODE WEB_BASE_HREF BUILD_NUMBER VERSION_Z
 
 .PHONY: all web clean
 

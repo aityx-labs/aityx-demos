@@ -244,9 +244,7 @@ Future<void> showCall(BuildContext context, AityxCall call) {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           child: request == null || response == null
               ? Center(
-                  child: Text(
-                    call.error ?? 'The API did not include the aityx call.',
-                  ),
+                  child: Text(call.error ?? 'The aityx call is not shown.'),
                 )
               : AityxCallView(
                   request: request,

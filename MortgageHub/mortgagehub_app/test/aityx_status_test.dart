@@ -1,105 +1,68 @@
-import 'dart:convert';
-
+import 'package:aityx_web/aityx_web.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:mortgagehub_app/aityx_status.dart';
-import 'package:mortgagehub_app/theme.dart';
+import 'package:mortgagehub_app/main.dart';
 
-/// The light over a blank screen, its API answering [answer] (or failing).
-Future<void> pumpLight(
+/// The app with its status light on [store], aityx answering [answer].
+Future<void> pumpApp(
   WidgetTester tester,
-  Future<http.Response> Function(http.Request) answer,
-) async {
+  AityxKeyStore store, [
+  Future<http.Response> Function(http.Request)? answer,
+]) async {
   await tester.pumpWidget(
-    MaterialApp(
-      builder: (context, child) =>
-          WithAityxStatus(client: MockClient(answer), child: child),
-      home: const Scaffold(),
+    MortgageHubApp(
+      aityxLight: AityxStatusLight(
+        client: MockClient(answer ?? (_) async => http.Response('', 500)),
+        store: store,
+      ),
     ),
   );
+  // The check, then the light's rebuild.
+  await tester.pump();
   await tester.pump();
 }
 
-Color dotColor(WidgetTester tester) {
-  final box = tester.widget<Container>(
-    find.descendant(
-      of: find.byType(AityxStatus),
-      matching: find.byType(Container),
-    ),
-  );
-  return (box.decoration! as BoxDecoration).color!;
-}
-
-String tip(WidgetTester tester) =>
-    tester.widget<Tooltip>(find.byType(Tooltip)).message!;
-
-http.Response json(Object body) => http.Response(jsonEncode(body), 200);
+String tip(WidgetTester tester) => tester
+    .widget<Tooltip>(
+      find.descendant(
+        of: find.byType(AityxStatusLight),
+        matching: find.byType(Tooltip),
+      ),
+    )
+    .message!;
 
 void main() {
-  testWidgets('green when aityx accepts the key', (tester) async {
-    await pumpLight(
-      tester,
-      (call) async => json({
-        'key': true,
-        'ok': true,
-        'url': 'https://api.aityx.ai',
-        'detail': 'aityx accepts the key',
-      }),
-    );
-    expect(dotColor(tester), Aityx.green.withValues(alpha: 0.8));
-    expect(
-      tip(tester),
-      'aityx: ready — accepts the key (https://api.aityx.ai)',
-    );
+  testWidgets('red, saying where to set the key, without one', (tester) async {
+    await pumpApp(tester, AityxKeyStore.memory());
+    expect(find.byType(AityxStatusLight), findsOneWidget);
+    expect(tip(tester), 'aityx: no key — set yours on the index page');
   });
 
-  testWidgets('red without a key', (tester) async {
-    await pumpLight(
-      tester,
-      (call) async => json({
-        'key': false,
-        'ok': false,
-        'detail': 'AITYX_API_KEY is not set',
-      }),
-    );
-    expect(dotColor(tester), Aityx.red.withValues(alpha: 0.8));
-    expect(tip(tester), 'aityx: no key — AITYX_API_KEY is not set');
-  });
-
-  testWidgets('red, with why, when aityx refuses', (tester) async {
-    await pumpLight(
-      tester,
-      (call) async =>
-          json({'key': true, 'ok': false, 'detail': 'aityx answered HTTP 401'}),
-    );
-    expect(dotColor(tester), Aityx.red.withValues(alpha: 0.8));
-    expect(tip(tester), 'aityx: not working — aityx answered HTTP 401');
-  });
-
-  testWidgets('red when the API does not answer', (tester) async {
-    await pumpLight(tester, (call) async => http.Response('', 502));
-    expect(tip(tester), 'aityx: the API did not answer');
-  });
-
-  testWidgets('grey while checking, and asks /api/aityx', (tester) async {
+  testWidgets('green when aityx accepts the user\'s key', (tester) async {
     Uri? asked;
-    await tester.pumpWidget(
-      MaterialApp(
-        builder: (context, child) => WithAityxStatus(
-          client: MockClient((call) async {
-            asked = call.url;
-            return json({'key': true, 'ok': true, 'url': 'x'});
-          }),
-          child: child,
-        ),
-        home: const Scaffold(),
-      ),
+    String? auth;
+    await pumpApp(
+      tester,
+      AityxKeyStore.memory(local: {'aityx.key': 'test-key'}),
+      (call) async {
+        asked = call.url;
+        auth = call.headers['Authorization'];
+        return http.Response('{"code":"invalid_request"}', 400);
+      },
     );
-    expect(dotColor(tester), Aityx.dim.withValues(alpha: 0.8));
-    expect(tip(tester), 'aityx: checking');
-    await tester.pump();
-    expect(asked?.path, '/api/aityx');
+    expect(asked.toString(), 'https://api.aityx.ai/v1/systemone');
+    expect(auth, 'Bearer test-key');
+    expect(tip(tester), 'aityx: ready (your key, https://api.aityx.ai)');
+  });
+
+  testWidgets('red when aityx rejects the key', (tester) async {
+    await pumpApp(
+      tester,
+      AityxKeyStore.memory(local: {'aityx.key': 'bad-key'}),
+      (_) async => http.Response('{"detail":"invalid API key"}', 401),
+    );
+    expect(tip(tester), startsWith('aityx: key rejected'));
   });
 }

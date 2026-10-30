@@ -4,14 +4,16 @@
 # checks its answers. Prints only the HTTP status and the answers; never the
 # key.
 #
-# Settings, from the environment or the repo's .env (see .env.example):
-#   AITYX_API_KEY  the API key (secret: never passed to the Flutter app)
+# Settings, from the environment or the repository's .env (see
+# ../.env.example):
+#   AITYX_API_KEY  the API key (secret: never compiled into the Flutter app;
+#                  in the browser the app uses the key the user sets on the
+#                  index page, or the index server's dev proxy)
 #   AITYX_URL      the API's base URL; https://api.aityx.ai by default
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-# The demo's .env, else the repository's: a fresh checkout has no link
-# until start-all.sh makes it.
+# This folder's .env if there is one, else the repository's.
 env_file="$root/.env"
 [[ -f "$env_file" ]] || env_file="$root/../.env"
 setting() { # setting <name>: from the environment, else .env
@@ -24,7 +26,7 @@ setting() { # setting <name>: from the environment, else .env
 key="$(setting AITYX_API_KEY)"
 url="$(setting AITYX_URL)"
 url="${url:-https://api.aityx.ai}"
-[[ -n "$key" ]] || { echo "error: AITYX_API_KEY isn't set (see .env.example)" >&2; exit 1; }
+[[ -n "$key" ]] || { echo "error: AITYX_API_KEY isn't set (see ../.env.example)" >&2; exit 1; }
 [[ "$url" =~ ^https://[A-Za-z0-9.-]+$ ]] || { echo "error: AITYX_URL must be an https origin, not '$url'" >&2; exit 1; }
 
 work="$(mktemp -d)"

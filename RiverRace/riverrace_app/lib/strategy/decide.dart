@@ -1,16 +1,18 @@
-/// One decision asked of the API: what the aityx pilots sense and their
-/// rules go out; what each does, with the aityx call behind it, comes back.
+/// One decision asked of aityx, from the app itself: what the aityx pilots
+/// sense and their rules go out, as one call to aityx's /v1/systemone;
+/// what each does, with the call behind it, comes back.
 library;
 
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:http/http.dart' as http;
+import 'package:aityx_web/aityx_web.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
+import '../aityx/decision_request.dart' as aityx;
 import '../game/race.dart';
 import 'strategy.dart';
 
-/// A pilot as the API takes it.
+/// A pilot as aityx is asked about it.
 class PilotAsk {
   const PilotAsk(this.id, this.strategy, this.sense);
 
@@ -64,84 +66,126 @@ class Decision {
   final int? inputTokens;
 }
 
-/// Asks what the pilots do: the app's API unless a test says.
+/// Asks what the pilots do: aityx, from the app, unless a test says.
 abstract interface class Decider {
   Future<Decision> decide(int tick, List<PilotAsk> pilots);
 }
 
-/// Where `POST /api/decide` is: under [baseUrl] (API_BASE_URL) when set;
-/// else, on the web, the app's own origin (the web server's or nginx's
-/// /api/ proxy, [page] being the page's address), and in a native app,
-/// which has no origin, [nativeApi], the API `devbox services up` runs.
-Uri decideUrl(String baseUrl, {required bool web, required Uri page}) {
-  if (baseUrl.isNotEmpty) return Uri.parse('$baseUrl/api/decide');
-  if (web) return page.resolve('/api/decide');
-  return Uri.parse('$nativeApi/api/decide');
-}
+/// The decision model: the types the pilots' tables use.
+const modelAsset = 'assets/models/river.json';
 
-/// A native app's API when API_BASE_URL is empty, as scripts/make.sh's
-/// default. An Android emulator reaches the host at 10.0.2.2 instead:
-/// pass API_BASE_URL.
-const nativeApi = 'http://localhost:8941';
+/// How long a decision waits for aityx.
+const aityxDeadline = Duration(seconds: 30);
 
-/// The app's API, at API_BASE_URL: empty means the app's own origin on the
-/// web, [nativeApi] in a native app (see [decideUrl]).
-class ApiDecider implements Decider {
-  ApiDecider({http.Client? client, String? baseUrl})
-    : _client = client ?? http.Client(),
-      _baseUrl = baseUrl ?? _defaultBaseUrl;
+/// Asks aityx's /v1/systemone itself, on the key the index page set or the
+/// index server's dev key (aityx_web's AityxClient finds which; the key is
+/// in the request's headers, never in what the calls panel shows).
+class AityxDecider implements Decider {
+  AityxDecider({
+    AityxClient? client,
+    Future<Map<String, Object?>> Function()? model,
+  }) : _client = client ?? AityxClient(),
+       _loadModel = model ?? _bundledModel;
 
-  static const _defaultBaseUrl = String.fromEnvironment('API_BASE_URL');
+  final AityxClient _client;
+  final Future<Map<String, Object?>> Function() _loadModel;
+  Future<Map<String, Object?>>? _model;
 
-  final http.Client _client;
-  final String _baseUrl;
-
-  Uri get _url => decideUrl(_baseUrl, web: kIsWeb, page: Uri.base);
+  static Future<Map<String, Object?>> _bundledModel() async =>
+      (jsonDecode(await rootBundle.loadString(modelAsset)) as Map)
+          .cast<String, Object?>();
 
   /// Throws [DecideException] with a message for the user.
   @override
   Future<Decision> decide(int tick, List<PilotAsk> pilots) async {
-    final http.Response response;
+    final ({int tick, List<aityx.Pilot> pilots}) asked;
     try {
-      response = await _client
-          .post(
-            _url,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'tick': tick,
-              'pilots': [for (final p in pilots) p.toJson()],
-            }),
-          )
-          .timeout(const Duration(seconds: 40));
+      asked = aityx.requestFrom({
+        'tick': tick,
+        'pilots': [for (final p in pilots) p.toJson()],
+      });
+    } on aityx.InvalidRequest catch (error) {
+      throw DecideException('aityx could not decide: ${_sentence(error)}');
+    }
+    final Map<String, Object?> model;
+    try {
+      model = await (_model ??= _loadModel());
     } catch (_) {
-      throw DecideException(
-        'The API did not answer at ${_url.origin}.'
-        '${kIsWeb ? '' : ' Run it (devbox services up), or build the app with '
-                  '--dart-define=API_BASE_URL=<its address>.'}',
+      _model = null;
+      throw const DecideException(
+        'aityx could not decide: the model did not load.',
       );
     }
-    Object? json;
+    final sent = aityx.decisionRequest(model, asked.pilots);
+    // The key this call goes out on (none in dev mode), for the guard
+    // below; read now, so a key changed on the index page while aityx
+    // answers doesn't make the guard look for another one.
+    final String key;
+    final AityxAnswer answer;
     try {
-      json = jsonDecode(response.body);
-    } on FormatException {
-      json = null;
+      key = (await _client.connection()).key ?? '';
+      answer = await _client.systemone(sent, timeout: aityxDeadline);
+    } on AityxNoKey {
+      throw const DecideException(AityxNoKey.message);
+    } on AityxUnreachable {
+      throw const DecideException(AityxUnreachable.message);
     }
-    if (response.statusCode != 200) {
-      final error = json is Map ? json['error'] : null;
-      final problems = json is Map ? json['problems'] : null;
-      throw DecideException(
-        error is String
-            ? 'aityx could not decide: $error'
-                  '${problems is List && problems.isNotEmpty ? ' (${problems.join('; ')})' : ''}.'
-            : 'The API answered HTTP ${response.statusCode}.',
+    if (!answer.ok) throw DecideException(problemWith(answer));
+    final json = answer.json;
+    if (json is! Map) {
+      throw const DecideException(
+        'aityx could not decide: unexpected answer from aityx.',
       );
     }
+    final response = json.cast<String, Object?>();
+    final Map<String, Object?> actions;
     try {
-      return Decision.fromJson((json as Map).cast<String, Object?>());
-    } catch (_) {
-      throw const DecideException('The API answered without a decision.');
+      actions = aityx.toActions(asked.tick, asked.pilots, response);
+    } on aityx.DecisionFailed catch (error) {
+      throw DecideException(
+        'aityx could not decide: aityx could not decide it: '
+        '${_sentence(error)}',
+      );
     }
+    return Decision.fromJson(
+      aityx.withAityx(
+        actions,
+        sent,
+        response,
+        answer.text,
+        key,
+        tookMs: answer.took.inMilliseconds,
+      ),
+    );
   }
+}
+
+/// What a non-200 [answer] means, for the user: the key rejected, aityx not
+/// reached (the index server's dev proxy says so with 502), or aityx's
+/// status and detail with the messages of its problem details (a cell
+/// aityx can't read, for instance).
+String problemWith(AityxAnswer answer) {
+  if (answer.status == 401 || answer.status == 403) {
+    return answer.problem!;
+  }
+  if (answer.code == 'proxy_unreachable') return AityxUnreachable.message;
+  final json = answer.json;
+  final errors = json is Map ? json['errors'] : null;
+  final problems = [
+    if (errors is List)
+      for (final e in errors.take(5))
+        if (e is Map && e['message'] is String) e['message'] as String,
+  ];
+  return _sentence(
+    'aityx could not decide: ${answer.problem}'
+    '${problems.isEmpty ? '' : ' (${problems.join('; ')})'}',
+  );
+}
+
+/// [text] ending with one full stop.
+String _sentence(Object text) {
+  final s = '$text';
+  return s.endsWith('.') ? s : '$s.';
 }
 
 class DecideException implements Exception {

@@ -1,5 +1,6 @@
 # Sourced by start-all.sh, stop-all.sh, build-all.sh and the dev container
-# scripts: how a demo's services and builds are run, by DEMOS_TOOLCHAIN:
+# scripts: which demos the index serves itself (index_serves), and how a
+# demo's services and builds are run, by DEMOS_TOOLCHAIN:
 #   devbox  (the default, a laptop) each demo's devbox.json: `devbox
 #           services up`, `devbox services stop`, `devbox run`
 #   image   (a codespace, set by devcontainer.json) the dev container
@@ -14,6 +15,26 @@ case "$DEMOS_TOOLCHAIN" in
   devbox | image) ;;
   *) echo "error: DEMOS_TOOLCHAIN must be devbox or image (got '$DEMOS_TOOLCHAIN')" >&2; exit 2 ;;
 esac
+demos_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# index_serves <dir>: whether the folder is a demo the index (Index/)
+# serves itself, at /<slug>/ on its port, from the app's release web
+# build: a folder of the index's group (Index/group.id.txt: aityx), other
+# than Index/, with a scripts/build.sh. Such a demo runs in the browser
+# and has no services of its own: start-all.sh builds it and starts the
+# index, stop-all.sh stops the index.
+index_serves() {
+  local dir="${1%/}" group
+  [[ "$(basename "$dir")" != Index && -f "$dir/scripts/build.sh" ]] || return 1
+  group="$(tr -d '[:space:]' <"$demos_root/Index/group.id.txt" 2>/dev/null)"
+  [[ -n "$group" && "$(tr -d '[:space:]' <"$dir/group.id.txt" 2>/dev/null)" == "$group" ]]
+}
+
+# index_slug <dir>: the demo's path on the index, its folder's name in
+# lower case (MortgageHub: /mortgagehub/), as Index/bin/server.dart names it.
+index_slug() {
+  basename "${1%/}" | tr '[:upper:]' '[:lower:]'
+}
 
 # toolchain_missing <dir>: what the demo's toolchain still lacks to start
 # its services, one item per line; nothing when it is ready. The dev
@@ -89,10 +110,11 @@ services_attach_hint() {
   fi
 }
 
-# run_build <dir>: the demo's scripts/build.sh, under its toolchain.
+# run_build <dir>: the demo's scripts/build.sh, under its toolchain (a
+# folder without a devbox.json: the Flutter on the PATH).
 run_build() {
   local dir="$1"
-  if [[ "$DEMOS_TOOLCHAIN" == image ]]; then
+  if [[ "$DEMOS_TOOLCHAIN" == image || ! -f "$dir/devbox.json" ]]; then
     (cd "$dir" && bash scripts/build.sh)
   else
     (cd "$dir" && devbox run -- bash scripts/build.sh)

@@ -119,4 +119,33 @@ The feature files hold the current specification; see the
     why in its tooltip and for screen readers. The API gained
     `GET /api/aityx`, which checks the key against aityx at most once a
     minute; the app asks it at start and every minute. See [aityx status
-    light](aityx-status.md) and [API](api.md).
+    light](aityx-status.md) and the API's spec (since removed: see
+    entry 11).
+
+11. **Run the aityx demos entirely in the browser: no per-demo API; the
+    app calls aityx itself, on a key the user sets once on the index page,
+    with every demo and the index on one origin.** Cellfie's API
+    (`cellfie_api/`) is gone. Its Life logic moved into the app
+    (`lib/aityx/life.dart`, verbatim, with its tests), the Life model into
+    the app's assets (`assets/models/life.json`), and the generations are
+    now run by `AityxGenerationStepper`
+    (`lib/aityx/generation_stepper.dart`) through the shared package
+    `packages/aityx_web`: on the user's key straight to aityx, or, with
+    none, the index server's dev key through its proxy; the key never
+    shows in the calls panel. The API's checks and wording stay; a
+    missing key says `aityx is not set up: set your key on the index
+    page.`, with **Set your key**, and aityx's errors say `aityx rejected
+    the key`, `aityx did not answer` (`... in time` after the 30 s) or
+    `aityx answered HTTP n: <detail>`; an answer of the wrong shape says
+    `unexpected answer from aityx`.
+    The status light is aityx_web's: it checks the same key, at start, when
+    the key changes and on focus (at most every 30 s), and a tap opens the
+    index page's key section. The index server serves the release build at
+    `/cellfie/` (`--base-href /cellfie/ --no-web-resources-cdn`); the
+    per-demo services (process-compose, the health monitor, the web
+    server, `scripts/api.sh` and `scripts/flutter-web.sh`), Docker
+    Compose and its `docker/` are removed, `scripts/build.sh` builds only
+    the web app, and `scripts/model-test.sh` runs the app's
+    `aityx`-tagged tests with the key from the root `.env`. See [aityx
+    calls](aityx-calls.md), [aityx status light](aityx-status.md) and
+    [Development environment](dev-environment.md).

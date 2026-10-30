@@ -1,3 +1,4 @@
+import 'package:aityx_web/aityx_web.dart' show openAityxKeyPage;
 import 'package:flutter/material.dart';
 
 import 'call_view.dart';
@@ -40,7 +41,7 @@ class RoutingScreen extends StatefulWidget {
 
   final String message;
 
-  /// Who routes it: the app's API unless a test says.
+  /// Who routes it: aityx, from the app, unless a test says.
   final RequestRouter? router;
 
   @override
@@ -48,7 +49,7 @@ class RoutingScreen extends StatefulWidget {
 }
 
 class _RoutingScreenState extends State<RoutingScreen> {
-  late final RequestRouter _router = widget.router ?? ApiRequestRouter();
+  late final RequestRouter _router = widget.router ?? AityxRequestRouter();
   late Future<RoutingOutcome> _outcome = _router.route(widget.message);
   final _call = CallController();
 
@@ -88,6 +89,7 @@ class _RoutingScreenState extends State<RoutingScreen> {
                       AsyncSnapshot(:final error?) => _Failure(
                         '$error',
                         _retry,
+                        noKey: error is RoutingException && error.noKey,
                       ),
                       _ => const _Routing(),
                     },
@@ -152,10 +154,13 @@ class _Routing extends StatelessWidget {
 }
 
 class _Failure extends StatelessWidget {
-  const _Failure(this.message, this.onRetry);
+  const _Failure(this.message, this.onRetry, {this.noKey = false});
 
   final String message;
   final VoidCallback onRetry;
+
+  /// No aityx key: offer the index page's key section too.
+  final bool noKey;
 
   @override
   Widget build(BuildContext context) {
@@ -168,7 +173,22 @@ class _Failure extends StatelessWidget {
           const SizedBox(height: 8),
           Text(message, textAlign: TextAlign.center),
           const SizedBox(height: 12),
-          OutlinedButton(onPressed: onRetry, child: const Text('Try again')),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (noKey)
+                FilledButton(
+                  onPressed: openAityxKeyPage,
+                  child: const Text('Set your key'),
+                ),
+              OutlinedButton(
+                onPressed: onRetry,
+                child: const Text('Try again'),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -339,7 +359,7 @@ class _Outcome extends StatelessWidget {
             request: outcome.aityxRequest,
             response: decision,
             fullResponse: outcome.aityxResponse,
-            requestSubtitle: 'POST /v1/systemone, as the API sent it',
+            requestSubtitle: 'POST /v1/systemone, as the app sent it',
             responseSubtitle:
                 'what was read, the answers that decide the route and the '
                 'rules that fired; the probability maps are left out',
@@ -348,7 +368,9 @@ class _Outcome extends StatelessWidget {
             height: _paneHeight(context, layout.rows.length),
           )
         else
-          const Text('The API did not include the aityx call.'),
+          const Text(
+            "The aityx call is left out: aityx's answer contained the key.",
+          ),
       ],
     );
   }
@@ -590,14 +612,14 @@ List<JsonTarget> callTargets(Routing r) {
       req,
       'state.today',
       'Today',
-      "The request's date, from the API's clock: every window counts from "
-          'it.',
+      "The request's date, from this device's clock (UTC): every window "
+          'counts from it.',
     ),
     const JsonTarget(
       req,
       'state.order',
       'The order',
-      'The order on file the API sent, found by the number in the message.',
+      'The order on file the app sent, found by the number in the message.',
     ),
     const JsonTarget(
       req,

@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:aityx_web/aityx_web.dart';
 import 'package:flutter/material.dart';
 
+import '../aityx/generation_stepper.dart';
 import '../app_version.dart';
 import '../calls/calls_panel.dart';
 import '../theme.dart';
@@ -21,7 +23,8 @@ String accelerationLabel(double perSecond) => switch (perSecond) {
   _ => '${perSecond.toInt()} generations/s',
 };
 
-/// The most clusters sent with a generation (the API's limit).
+/// The most clusters sent with a generation (the limit stateFrom
+/// checks, lib/aityx/life.dart).
 const maxClustersSent = 24;
 
 /// The widest or tallest cluster described to aityx.
@@ -35,7 +38,7 @@ const noticeFor = Duration(seconds: 8);
 class LifeScreen extends StatefulWidget {
   const LifeScreen({super.key, this.stepper, this.random});
 
-  /// Runs the generations: the app's API unless a test says.
+  /// Runs the generations: aityx unless a test says.
   final GenerationStepper? stepper;
 
   /// For the random start: a seeded one in tests.
@@ -47,7 +50,7 @@ class LifeScreen extends StatefulWidget {
 
 class _LifeScreenState extends State<LifeScreen> {
   late final GenerationStepper _stepper =
-      widget.stepper ?? ApiGenerationStepper();
+      widget.stepper ?? AityxGenerationStepper();
   final _camera = BoardCamera();
 
   Board _board = const Board();
@@ -110,7 +113,7 @@ class _LifeScreenState extends State<LifeScreen> {
     setState(() => _playing = false);
   }
 
-  /// One generation: the board's situations and clusters go to the API,
+  /// One generation: the board's situations and clusters go to aityx,
   /// and the answer becomes the next board, a call in the panel, and the
   /// patterns noticed.
   Future<void> _step() {
@@ -157,7 +160,16 @@ class _LifeScreenState extends State<LifeScreen> {
         _playing = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
+        SnackBar(
+          content: Text(error.message),
+          // Without a key: the index page's key section, in this tab.
+          action: error.noKey
+              ? SnackBarAction(
+                  label: 'Set your key',
+                  onPressed: () => openAityxKeyPage(),
+                )
+              : null,
+        ),
       );
       return;
     }

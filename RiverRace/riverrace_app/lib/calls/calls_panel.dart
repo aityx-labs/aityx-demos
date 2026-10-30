@@ -11,8 +11,8 @@ class PilotLabel {
   final Color color;
 }
 
-/// One decision's call to aityx, as the API answered it, or the error it
-/// answered instead.
+/// One decision's call to aityx, as aityx answered it, or the error that
+/// came instead.
 class CallRecord {
   const CallRecord(
     this.id,

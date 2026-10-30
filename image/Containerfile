@@ -3,8 +3,9 @@
 # group's devcontainer.json in .devcontainer/<group>/ (`image`, not
 # `build`): Flutter, the GitHub CLI, process-compose, for datyx a JDK
 # (GraalVM) and its API's Maven dependencies, and the group's release web
-# builds already made, so a codespace starts the demos in seconds instead
-# of building for ten minutes. The organization has GitHub's prebuilds and
+# builds already made (for aityx, the six apps the index serves at
+# /<slug>/), so a codespace starts the demos in seconds instead of
+# building for ten minutes. The organization has GitHub's prebuilds and
 # Actions switched off, so the image is built on a laptop and pushed (see
 # README.md here). Everything is pinned and checked against its published
 # checksum. Nix and devbox are not in the image: in a codespace the demos
@@ -131,7 +132,9 @@ FROM toolchain-${GROUP}
 
 # The packages every app and API depend on, fetched into the pub cache now,
 # so a demo that has to build in the codespace (one that changed since the
-# image was made) doesn't download them first. Only the pubspecs come in.
+# image was made) doesn't download them first. Only the pubspecs come in,
+# at their places in the repository, so an app's path dependency on the
+# shared packages (../../packages/aityx_web) resolves.
 COPY --chown=vscode:vscode pubspecs/ /tmp/pubspecs/
 RUN for dir in /tmp/pubspecs/*/*; do \
       (cd "$dir" && if [ -f pubspec.yaml ]; then \

@@ -8,7 +8,7 @@ import 'json_layout.dart';
 
 /// Which half of the aityx call.
 enum CallSide {
-  request('Request', 'What the API sent to aityx'),
+  request('Request', 'What the app sent to aityx'),
   response('Response', "aityx's answer");
 
   const CallSide(this.label, this.description);
@@ -153,7 +153,7 @@ class _AityxCallViewState extends State<AityxCallView> {
       widget.request,
       widget.response,
       requestTitle: 'REQUEST',
-      requestSubtitle: 'POST /v1/systemone, as the API sent it',
+      requestSubtitle: 'POST /v1/systemone, as the app sent it',
       responseTitle: 'RESPONSE',
       responseSubtitle: widget.responseSubtitle,
     );

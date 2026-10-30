@@ -7,10 +7,16 @@
 #   MODE          release (default), profile or debug
 #   IOS_CODESIGN  1 to sign the iOS build (needs a signing team in Xcode);
 #                 unsigned by default
-#   API_BASE_URL  the API the app will call for each generation
-#                 (default http://localhost:8931; empty: the app's origin)
-#   WEB_BASE_HREF the web build's base href, e.g. /app/ to serve it where the
-#                 dev server does; / by default
+#   WEB_BASE_HREF the web build's base href: /cellfie/ by default, where
+#                 the index server serves it
+#
+# The app calls aityx itself (packages/aityx_web). The web build is made
+# with --no-web-resources-cdn, so CanvasKit comes from the app's own
+# origin and no third-party script runs where the user's key is kept; its
+# key is the one set on the index page, or the index server's dev key.
+# The native builds (android, ios, linux) have no index page and no dev
+# proxy, and keep a key only in memory: they run, but every generation
+# says aityx is not set up.
 #
 # The version is X.Y.Z: X and Y from version.X.txt and version.Y.txt, Z the
 # build time as YYYYMMDDHHMM (UTC); the build number is the same time in
@@ -28,8 +34,7 @@ cd "$(dirname "$0")/../cellfie_app"
 source ../scripts/version.sh
 # CELLFIE_VERSION: X.Y.Z, shown at the bottom of the welcome screen.
 BUILD_ARGS=(--build-name "$VERSION" --build-number "$BUILD_NUMBER"
-  --dart-define="CELLFIE_VERSION=$VERSION"
-  --dart-define="API_BASE_URL=${API_BASE_URL-http://localhost:8931}")
+  --dart-define="CELLFIE_VERSION=$VERSION")
 
 # can_build <target>: whether this host's OS can build the target.
 can_build() {
@@ -49,9 +54,8 @@ build() {
   echo "==> $target ($MODE, version $VERSION, build $BUILD_NUMBER)"
   case "$target" in
     web)
-      local base=()
-      [[ -n "${WEB_BASE_HREF:-}" ]] && base=(--base-href "$WEB_BASE_HREF")
-      flutter build web "--$MODE" ${base[@]+"${base[@]}"} "${BUILD_ARGS[@]}"
+      flutter build web "--$MODE" --base-href "${WEB_BASE_HREF:-/cellfie/}" \
+        --no-web-resources-cdn "${BUILD_ARGS[@]}"
       echo "==> web: cellfie_app/build/web/"
       ;;
     android)

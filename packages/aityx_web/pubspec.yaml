@@ -1,0 +1,22 @@
+name: aityx_web
+description: "aityx from the browser: the key, the systemone call and the status light, shared by the aityx demos."
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  # ^3.13.0, not newer: the Nix Flutter in devbox ships Dart 3.13.0.
+  sdk: ^3.13.0
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.6.0
+  # localStorage, sessionStorage and window events, on the web only
+  # (lib/src/platform/).
+  web: ^1.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

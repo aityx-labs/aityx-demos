@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Runs after on-create.sh when the container is created, and again whenever
 # Codespaces refreshes a prebuild (updateContentCommand): builds what each
-# demo of the container's group (DEMOS_GROUP) serves with ./build-all.sh (each demo's scripts/build.sh: the app's
-# release web build, and the API and web server compiled to native
-# executables), only what is missing or older than its sources. A prebuild's
+# demo of the container's group (DEMOS_GROUP) serves with ./build-all.sh
+# (each demo's scripts/build.sh: the app's release web build, which, for
+# the aityx demos, the index serves at /<slug>/; for the datyx group's,
+# also the API and web server compiled to native executables), only what
+# is missing or older than its sources. A prebuild's
 # snapshot keeps the builds, so a codespace created from one starts every
 # demo in seconds; without a prebuild this is the slow part of creating a
 # codespace, a minute or two per demo on a 4-core machine, during which the

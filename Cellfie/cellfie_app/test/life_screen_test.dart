@@ -13,6 +13,9 @@ import 'package:cellfie_app/main.dart';
 class FakeStepper implements GenerationStepper {
   final asked = <Map<String, Object?>>[];
   Object? failWith;
+
+  /// Fails as when there's no aityx key.
+  bool noKey = false;
   Completer<void>? waitOn;
   bool killNext = false;
 
@@ -32,7 +35,7 @@ class FakeStepper implements GenerationStepper {
     final body = generationBody(generation, rules, situations, clusters);
     asked.add(body);
     if (failWith case final String message) {
-      throw GenerationException(message);
+      throw GenerationException(message, noKey: noKey);
     }
     if (waitOn case final wait?) await wait.future;
     final fates = [
@@ -426,7 +429,8 @@ void main() {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final stepper = FakeStepper()..failWith = 'The API did not answer.';
+    final stepper = FakeStepper()
+      ..failWith = 'Could not run the generation: aityx did not answer.';
     await tester.pumpWidget(MaterialApp(home: LifeScreen(stepper: stepper)));
     final view = tester.getRect(find.byType(BoardView));
     await tester.tapAt(view.center + const Offset(7, 7));
@@ -435,8 +439,34 @@ void main() {
     await tester.tap(find.text('Play'));
     await tester.pump();
     await tester.pump();
-    expect(find.text('The API did not answer.'), findsOneWidget);
+    expect(
+      find.text('Could not run the generation: aityx did not answer.'),
+      findsOneWidget,
+    );
     expect(find.text('Play'), findsOneWidget);
+    expect(find.text('Set your key'), findsNothing);
+  });
+
+  testWidgets('without a key, the notice offers to set it', (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final stepper = FakeStepper()
+      ..failWith = 'aityx is not set up: set your key on the index page.'
+      ..noKey = true;
+    await tester.pumpWidget(MaterialApp(home: LifeScreen(stepper: stepper)));
+    final view = tester.getRect(find.byType(BoardView));
+    await tester.tapAt(view.center + const Offset(7, 7));
+    await tester.pump();
+
+    await tester.tap(find.text('Step'));
+    await tester.pump();
+    await tester.pump();
+    expect(
+      find.text('aityx is not set up: set your key on the index page.'),
+      findsOneWidget,
+    );
+    expect(find.text('Set your key'), findsOneWidget);
   });
 
   testWidgets('on a phone the calls open from the app bar', (tester) async {

@@ -22,7 +22,7 @@ The feature files hold the current specification; see the
    call: the app computes the player's situation (cards, hand class, made
    hand, draws, equity by Monte Carlo, pot, pot odds, position, players
    to act, a random number) and the API runs the player's strategy on it
-   ([Strategies](strategies.md), [API](api.md)). Five preset strategies,
+   ([Strategies](strategies.md), the API, since replaced by [Deciding on aityx](aityx.md)). Five preset strategies,
    each a file of rules with a `why` per row: the Rock, the Maniac, the
    Calling Station, the Mathematician and the Shark, verified on aityx by
    `scripts/model-test.sh`. The sidebar lists every call with the
@@ -122,4 +122,32 @@ The feature files hold the current specification; see the
    key, red otherwise, with the reason in its tooltip
    ([The aityx light](aityx-status.md)). The API answers it on the new
    `GET /api/aityx`, which checks the key against aityx at most once a
-   minute ([API](api.md)).
+   minute (the API, since replaced by [Deciding on aityx](aityx.md)).
+
+## 2026-10-30 (later)
+
+10. **Run the aityx demos entirely in the browser, with no per-demo API:
+    the app calls aityx itself, all the demos and the index share one
+    origin, and a key the user sets once on the index page is reused by
+    every demo.** `pokerface_api` is gone, with `scripts/api.sh`,
+    `scripts/flutter-web.sh`, `scripts/health-check.sh`,
+    `process-compose.yaml`, `compose.yaml`, `docker/`, `.dockerignore`,
+    `.env.example`, `web_dev_config.yaml` and the `web` and `api` devbox
+    scripts. Its table logic (the checks, the body sent to aityx, the
+    action read back) is in the app, `lib/aityx/table.dart`, and the
+    models are the app's assets (`assets/models/`). `AityxPokerApi`
+    implements the app's `PokerApi` on `AityxClient` from the new shared
+    package `packages/aityx_web`: the user's key from the index page,
+    else the index server's dev key through its proxy, else "aityx is
+    not set up: set your key on the index page". The API's checks and
+    error wording are kept, with "aityx rejected the key" and "aityx did
+    not answer" for a bad key and no answer; the calls sidebar shows the
+    body the app sent, never the headers. The aityx light is the shared
+    package's ([The aityx light](aityx-status.md)). The API's tests are
+    ported (the table logic verbatim, the call against a MockClient, the
+    scenarios on aityx still tagged `aityx`, run by
+    `scripts/model-test.sh` with the root `.env`). `scripts/build.sh`
+    builds only the web app, `--base-href /pokerface/
+    --no-web-resources-cdn`, which the index server serves at
+    `/pokerface/`. See [Deciding on aityx](aityx.md) and [Development
+    environment](dev-environment.md).

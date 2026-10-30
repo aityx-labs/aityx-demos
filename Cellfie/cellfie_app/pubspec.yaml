@@ -14,6 +14,10 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   http: ^1.6.0
+  # aityx from the browser: the key, the systemone calls and the status
+  # light, shared by the aityx demos.
+  aityx_web:
+    path: ../../packages/aityx_web
 
 dev_dependencies:
   flutter_test:
@@ -23,6 +27,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # The Life model, sent to aityx with every generation.
+  assets:
+    - assets/models/life.json
   # The calls panel's monospace font (see assets/fonts/README.md).
   fonts:
     - family: RobotoMono

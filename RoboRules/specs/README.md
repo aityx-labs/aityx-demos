@@ -22,8 +22,9 @@ which rules win, with every event and every aityx call in the log.
 - [Scoring](scoring.md): Robocode's round score, as an aityx model.
 - [The window](window.md): Robocode's look, the battlefield, the controls,
   the speed, the dialogs, the aityx call viewer, the aityx light.
-- [Development environment](dev-environment.md): devbox, ports, Docker
-  Compose, the dev container, the tests.
+- [Development environment](dev-environment.md): the app on the index
+  server at `/roborules/`, where the aityx key comes from, the build, the
+  dev container, the tests.
 - [App icon](app-icon.md): a tank seen from above, orange on the dark
   background; the favicon in aityx\'s style, and the web icons.
 

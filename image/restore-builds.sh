@@ -57,9 +57,10 @@ while read -r demo hash; do
   chmod -R u+w "$app/build/web"
   # Newer than the checkout, so scripts/build.sh sees the build as current
   # (it compares the build with the sources' times), and the record of the
-  # settings it was made with newest of all (see scripts/build.sh).
+  # settings it was made with (a dotfile in build/web, whatever its name:
+  # see scripts/build.sh) newest of all.
   find "$app/build/web" -exec touch {} +
-  for stamp in "$app/build/web"/.*-services; do
+  for stamp in "$app/build/web"/.[!.]*; do
     [[ -f "$stamp" ]] && touch "$stamp"
   done
   echo "✅ $demo: build restored from the image (${hash:0:7})"

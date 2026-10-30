@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:aityx_web/aityx_web.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pokerface_app/api/poker_api.dart';
@@ -84,9 +85,15 @@ void main() {
     expect(find.text('Max'), findsOneWidget);
     expect(find.text('Press play to deal.'), findsOneWidget);
     expect(find.text('aityx calls (0)'), findsOneWidget);
+    // The aityx light, top right; with no key in the test (no browser
+    // storage, no dev proxy), red and saying where to set one.
+    expect(find.byType(AityxStatusLight), findsOneWidget);
+    await tester.pump();
+    await tester.pump();
+    expect(find.bySemanticsLabel(RegExp('aityx: no key')), findsOneWidget);
   });
 
-  testWidgets('a step deals, the next asks the API and plays the answer', (
+  testWidgets('a step deals, the next asks aityx and plays the answer', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1400, 900);

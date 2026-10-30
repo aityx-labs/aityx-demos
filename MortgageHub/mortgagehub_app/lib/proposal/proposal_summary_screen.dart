@@ -13,7 +13,7 @@ class ProposalSummaryScreen extends StatelessWidget {
 
   final ProposalRequest request;
 
-  /// Who runs the regulatory check: the app's API unless a test says.
+  /// Who runs the regulatory check: aityx, from the app, unless a test says.
   final ProposalChecker? checker;
 
   @override
@@ -232,7 +232,7 @@ class RegulatoryCheckCard extends StatefulWidget {
   final ProposalRequest request;
 
   /// Who runs the check; without one, the card makes (and closes) an
-  /// [ApiProposalChecker].
+  /// [AityxProposalChecker].
   final ProposalChecker? checker;
 
   @override
@@ -240,9 +240,9 @@ class RegulatoryCheckCard extends StatefulWidget {
 }
 
 class _RegulatoryCheckCardState extends State<RegulatoryCheckCard> {
-  ApiProposalChecker? _owned;
+  AityxProposalChecker? _owned;
   late final ProposalChecker _checker =
-      widget.checker ?? (_owned = ApiProposalChecker());
+      widget.checker ?? (_owned = AityxProposalChecker());
   late Future<ProposalCheck> _check = _checker.check(widget.request);
   bool _showAityx = false;
 

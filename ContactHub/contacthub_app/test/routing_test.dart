@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:aityx_web/aityx_web.dart';
 import 'package:contacthub_app/main.dart';
 import 'package:contacthub_app/routing/json_layout.dart';
 import 'package:contacthub_app/routing/routing.dart';
@@ -10,7 +12,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
-/// A real answer of the API: a tablet returned 20 days after delivery,
+/// A routed request as the routing screen reads it (withAityx), from a
+/// real aityx answer: a tablet returned 20 days after delivery,
 /// routed to Customer Service by department rule 3, and refunded less the
 /// restocking fee by policy rule 16.
 final _fixture = File('test/fixtures/route-tablet.json').readAsStringSync();
@@ -42,7 +45,7 @@ double _offset(WidgetTester tester) =>
     tester.widget<ListView>(find.byType(ListView)).controller!.offset;
 
 void main() {
-  test('reads the API\'s answer', () {
+  test('reads a routing', () {
     final o = _outcome();
     final r = o.routing;
     expect(r.department.name, 'Customer Service');
@@ -100,40 +103,241 @@ void main() {
     expect((receipt['provenance'] as Map)['order'], 'state');
   });
 
-  group('ApiRequestRouter', () {
-    test('posts the message to /api/route', () async {
-      late http.Request sent;
-      final router = ApiRequestRouter(
-        baseUrl: 'http://localhost:8891',
-        client: MockClient((request) async {
-          sent = request;
-          return http.Response(_fixture, 200);
-        }),
-      );
+  group('AityxRequestRouter', () {
+    final model = (jsonDecode(
+      File('assets/models/routing.json').readAsStringSync(),
+    ) as Map).cast<String, Object?>();
+    final tablet = File('test/fixtures/aityx/tablet-restocking.json')
+        .readAsStringSync();
+    const message = "I'd like to return the tablet from order 120-5150";
 
-      final outcome = await router.route('Any jobs?');
-      expect(sent.url, Uri.parse('http://localhost:8891/api/route'));
-      expect(jsonDecode(sent.body), {'message': 'Any jobs?'});
-      expect(outcome.routing.department.id, 'customer_service');
+    /// A router on [key] whose aityx answers [answer].
+    AityxRequestRouter router(
+      Future<http.Response> Function(http.Request request) answer, {
+      String key = 'test-key',
+    }) => AityxRequestRouter(
+      aityx: AityxClient(
+        client: MockClient(answer),
+        connection: AityxConnection.user(key),
+      ),
+      model: () async => model,
+      today: () => DateTime.utc(2026, 10, 21),
+    );
+
+    Matcher fails(String message, {bool noKey = false}) => throwsA(
+      isA<RoutingException>()
+          .having((e) => e.message, 'message', message)
+          .having((e) => e.noKey, 'noKey', noKey),
+    );
+
+    test('posts the model and the message to systemone, on the key', () async {
+      late http.Request sent;
+      final outcome = await router((request) async {
+        sent = request;
+        return http.Response(tablet, 200);
+      }).route('  $message  ');
+
+      expect(sent.url, Uri.parse('https://api.aityx.ai/v1/systemone'));
+      expect(sent.headers['authorization'], 'Bearer test-key');
+      final body = jsonDecode(sent.body) as Map;
+      expect(body['questions'], model['questions']);
+      expect(body['decision'], model['decision']);
+      expect(body['state'], {
+        'message': message,
+        'today': '2026-10-21',
+        'order': {
+          'number': '120-5150',
+          'item': 'Tablet',
+          'placed_on': '2026-09-26',
+          'delivered_on': '2026-10-01',
+          'amount': 329.0,
+          'current_price': 329.0,
+          'category': 'electronics',
+          'status': 'delivered',
+          'charges': 1,
+        },
+      });
+
+      final r = outcome.routing;
+      expect(r.department.id, 'customer_service');
+      expect(r.policy!.resolution, 'refund');
+      expect(r.policy!.refundAmount, 279.65);
+      // The call shown is the body sent, never the headers with the key.
+      expect(outcome.aityxRequest, body);
+      expect(jsonEncode(outcome.aityxRequest), isNot(contains('test-key')));
+      expect(outcome.aityxResponse, jsonDecode(tablet));
     });
 
-    test("says the API's error", () {
-      final router = ApiRequestRouter(
-        baseUrl: 'http://localhost:8891',
-        client: MockClient(
-          (_) async => http.Response('{"error":"message is empty"}', 400),
+    test('refuses an empty message without calling aityx', () {
+      var calls = 0;
+      expect(
+        router((_) async {
+          calls++;
+          return http.Response(tablet, 200);
+        }).route('   '),
+        fails('Could not route it: message is empty.'),
+      );
+      expect(calls, 0);
+    });
+
+    test('without a key, says to set one on the index page', () {
+      final noKey = AityxRequestRouter(
+        aityx: AityxClient(
+          client: MockClient((_) async => fail('no call without a key')),
+          connection: AityxConnection.none,
+        ),
+        model: () async => model,
+      );
+      expect(
+        noKey.route(message),
+        fails(
+          'aityx is not set up: set your key on the index page.',
+          noKey: true,
+        ),
+      );
+    });
+
+    test('says when aityx rejects the key', () {
+      expect(
+        router((_) async => http.Response('{"detail":"invalid API key"}', 401))
+            .route(message),
+        fails('Could not route it: aityx rejected the key.'),
+      );
+    });
+
+    test("says aityx's status and detail on another error", () {
+      expect(
+        router(
+          (_) async => http.Response(
+            '{"code":"rate_limited","detail":"too many requests."}',
+            429,
+          ),
+        ).route(message),
+        fails(
+          'Could not route it: aityx answered HTTP 429: too many requests.',
+        ),
+      );
+    });
+
+    test('says when aityx does not answer', () {
+      expect(
+        router((_) async => throw http.ClientException('offline'))
+            .route(message),
+        fails('aityx did not answer.'),
+      );
+    });
+
+    test('says when the routing model failed', () {
+      expect(
+        router(
+          (_) async => http.Response(
+            jsonEncode({
+              'answers': {},
+              'decision_error': {'code': 'evaluation_failed', 'detail': 'x'},
+            }),
+            200,
+          ),
+        ).route(message),
+        fails(
+          'Could not route it: aityx could not route it: '
+          'the routing model failed: evaluation_failed.',
         ),
       );
       expect(
-        router.route(' '),
-        throwsA(
-          isA<RoutingException>().having(
-            (e) => e.message,
-            'message',
-            'Could not route it: message is empty.',
+        router((_) async => http.Response('<html>', 200)).route(message),
+        fails('Could not route it: unexpected answer from aityx.'),
+      );
+    });
+
+    test('in dev mode, posts to the index server, with no key', () async {
+      late http.Request sent;
+      final outcome = await AityxRequestRouter(
+        aityx: AityxClient(
+          client: MockClient((request) async {
+            sent = request;
+            return http.Response(tablet, 200);
+          }),
+          connection: AityxConnection.dev(
+            Uri.parse('http://localhost:8800/contacthub/'),
+            url: 'https://api.aityx.ai',
+            devKeyFrom: '.env',
           ),
         ),
+        model: () async => model,
+        today: () => DateTime.utc(2026, 10, 21),
+      ).route(message);
+
+      expect(sent.url, Uri.parse('http://localhost:8800/aityx/v1/systemone'));
+      expect(
+        sent.headers.keys.map((h) => h.toLowerCase()),
+        isNot(contains('authorization')),
       );
+      // No key in the app, so nothing to leave out: the call is shown.
+      expect(outcome.aityxRequest, jsonDecode(sent.body));
+      expect(outcome.aityxResponse, jsonDecode(tablet));
+    });
+
+    test('refuses a message over 2000 characters without calling aityx', () {
+      var calls = 0;
+      expect(
+        router((_) async {
+          calls++;
+          return http.Response(tablet, 200);
+        }).route('a' * 2001),
+        fails('Could not route it: message is longer than 2000 characters.'),
+      );
+      expect(calls, 0);
+    });
+
+    test('a 403 is a rejected key too', () {
+      expect(
+        router((_) async => http.Response('{}', 403)).route(message),
+        fails('Could not route it: aityx rejected the key.'),
+      );
+    });
+
+    test("in dev mode, the proxy's unreachable aityx did not answer", () {
+      expect(
+        router(
+          (_) async => http.Response(
+            '{"code":"proxy_unreachable",'
+            '"detail":"aityx did not answer: SocketException"}',
+            502,
+          ),
+        ).route(message),
+        fails('aityx did not answer.'),
+      );
+    });
+
+    testWidgets('says when aityx does not answer in 100 s', (tester) async {
+      final never = Completer<http.Response>();
+      Object? error;
+      unawaited(
+        router((_) => never.future)
+            .route(message)
+            .then<void>((_) {}, onError: (Object e) => error = e),
+      );
+      await tester.pump(const Duration(seconds: 99));
+      expect(error, isNull);
+      await tester.pump(const Duration(seconds: 2));
+      expect(
+        error,
+        isA<RoutingException>().having(
+          (e) => e.message,
+          'message',
+          'aityx did not answer in time.',
+        ),
+      );
+    });
+
+    test("leaves out the call if aityx's answer contains the key", () async {
+      final outcome = await router(
+        (_) async => http.Response(tablet, 200),
+        key: 'customer_service',
+      ).route(message);
+      expect(outcome.routing.department.id, 'customer_service');
+      expect(outcome.aityxRequest, isNull);
+      expect(outcome.aityxResponse, isNull);
     });
   });
 
@@ -342,16 +546,35 @@ void main() {
 
     testWidgets('says when routing failed, and tries again', (tester) async {
       final router = FakeRouter(
-        const RoutingException('The API did not answer.'),
+        const RoutingException('aityx did not answer.'),
       );
       await pump(tester, router);
-      expect(find.text('The API did not answer.'), findsOneWidget);
+      expect(find.text('aityx did not answer.'), findsOneWidget);
+      expect(find.text('Set your key'), findsNothing);
 
       router.answer = null;
       await tester.tap(find.text('Try again'));
       await tester.pumpAndSettle();
       expect(find.text('Maria Lopez'), findsOneWidget);
       expect(router.asked.length, 2);
+    });
+
+    testWidgets('without a key, offers the index page', (tester) async {
+      await pump(
+        tester,
+        FakeRouter(
+          const RoutingException(
+            'aityx is not set up: set your key on the index page.',
+            noKey: true,
+          ),
+        ),
+      );
+      expect(
+        find.text('aityx is not set up: set your key on the index page.'),
+        findsOneWidget,
+      );
+      expect(find.text('Set your key'), findsOneWidget);
+      expect(find.text('Try again'), findsOneWidget);
     });
   });
 }

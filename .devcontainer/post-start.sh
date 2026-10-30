@@ -9,15 +9,16 @@
 #
 # start-all.sh starts each demo's services (`devbox services up -b`, or the
 # image's process-compose: see demos-toolchain.sh). The aityx group: the
-# web app and the API of Mortgage Hub (8880), Contact Hub (8890),
-# PokerFace (8910), RoboRules (8920), Cellfie (8930) and RiverRace (8940).
-# The datyx group: the datyx API (9900, with PostgreSQL, Elasticsearch
-# and OpenMetadata in containers), the datyx dashboard (9906) and
-# HealthHub (9801, with its PostgreSQL container on 9803). Each group's
-# index: 8800 for aityx (Index/), 9800 for datyx (datyx-index/). Each demo serves its release build and a compiled API,
-# built by update-content.sh when the codespace was created (or in its
-# prebuild), so they are up in seconds; a demo whose build is missing or
-# older than its sources builds first, a minute or two. Watch one with
+# index (Index/, 8800), which serves the release web builds of Mortgage
+# Hub, Contact Hub, PokerFace, RoboRules, Cellfie and RiverRace itself, at
+# /mortgagehub/, /contacthub/, ... on its port; each app calls aityx from
+# the browser. The datyx group: the datyx API (9900, with PostgreSQL,
+# Elasticsearch and OpenMetadata in containers), the datyx dashboard
+# (9906), HealthHub (9801, with its PostgreSQL container on 9803) and
+# its index, datyx-index/ (9800). The builds are made by update-content.sh
+# when the codespace was created (or come from the image), so the demos
+# are up in seconds; a demo whose build is missing or older than its
+# sources builds first, a minute or two. Watch one with
 # `process-compose attach -U -u /tmp/aityx-demos-<demo>.sock` (see
 # demos-toolchain.sh); stop them with ./stop-all.sh, which, like
 # ./start-all.sh, acts on the container's group only.

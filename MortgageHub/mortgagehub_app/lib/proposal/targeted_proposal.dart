@@ -13,7 +13,8 @@ import 'random_proposal.dart';
 ///
 /// It aims, it doesn't decide: aityx gives the verdict. The amounts keep
 /// clear of the limits, and the income is worked out for a DTI with the
-/// API's default rate (6.5%), so another ASSUMED_RATE can move a DTI case.
+/// check's assumed rate (6.5%, lib/aityx/proposal_model.dart), so another
+/// rate can move a DTI case.
 ProposalRequest targetedProposal(CheckStatus target, [Faker? faker]) {
   final f = faker ?? Faker();
   final draft = _Draft.processable(f);

@@ -13,7 +13,7 @@ void main() {
     // So the app's canonical shapes and the model's rows can't drift:
     // `dart run tool/catalogue.dart` rewrites the table.
     final model =
-        jsonDecode(File('../cellfie_api/models/life.json').readAsStringSync())
+        jsonDecode(File('assets/models/life.json').readAsStringSync())
             as Map;
     final functions = (model['decision'] as Map)['functions'] as Map;
     final table = (functions['identify'] as Map)['body'];
@@ -42,7 +42,7 @@ void main() {
 
   test('the app\'s rules are the model\'s switches', () {
     final model =
-        jsonDecode(File('../cellfie_api/models/life.json').readAsStringSync())
+        jsonDecode(File('assets/models/life.json').readAsStringSync())
             as Map;
     final decision = model['decision'] as Map;
     final switches = ((decision['types'] as Map)['Rules'] as Map).keys;

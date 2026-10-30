@@ -19,7 +19,8 @@ Each call is a card. Its header, which opens and closes the card:
 
 - **Generation 12 → 13**;
 - the facts: how many situations and clusters were sent, how long aityx
-  took (as the API measured it) and the input tokens it counted;
+  took (as the app measured it, from sending the request to reading the
+  whole answer) and the input tokens it counted;
 - pills: `134 → 141 cells`, `+12 born` (green), `−5 died` (red),
   `129 live on` (orange), and each pattern recognized, with `×n` when
   there are several (amber).
@@ -31,7 +32,8 @@ Open, the card shows:
   decided it; the rule's why as a tooltip), then a row per cluster (its
   size and shape, the pattern or *not a known pattern*, and the catalogue
   row that matched; what the pattern is as a tooltip);
-- **REQUEST**: the whole body sent to `POST /v1/systemone`;
+- **REQUEST**: the whole body sent to `POST /v1/systemone` (the body
+  only: never the headers, which hold the key);
 - **RESPONSE**: the whole answer.
 
 ## The JSON

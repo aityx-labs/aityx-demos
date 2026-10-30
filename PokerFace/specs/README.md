@@ -11,10 +11,11 @@ PokerFace is a poker simulator, no-limit Texas hold'em at a table of up
 to nine, where every player is a set of rules run on aityx. The app plays
 the hands and computes each player's situation; one aityx call per turn
 runs the player's strategy on it and answers with the action, the amount
-and the rule that decided it. The table shows the hand like an online
-poker room, a sidebar shows every aityx call, a slider sets the pace, and
-players with different strategies, preset or written in the app, can be
-added at any time.
+and the rule that decided it. The app calls aityx itself, from the
+browser: there is no server of its own. The table shows the hand like an
+online poker room, a sidebar shows every aityx call, a slider sets the
+pace, and players with different strategies, preset or written in the
+app, can be added at any time.
 
 ## Features
 
@@ -31,7 +32,8 @@ added at any time.
   changing a player's strategy, the preset strategies, and the editor for
   strategies of your own, with **Try it on aityx**.
 - [The aityx light](aityx-status.md): the dot, top right, that says
-  whether the API has its aityx key and aityx accepts it.
+  whether there is an aityx key (the user's, or the dev key) and aityx
+  accepts it.
 - [Theme](theme.md): the aityx dark palette, and the felt.
 - [App icon](app-icon.md): an orange ace of spades with a chip.
 
@@ -40,16 +42,18 @@ added at any time.
 - [Strategies](strategies.md): the table model (what a player sees) and
   how a strategy's rules are written; the five presets.
 
-**Backend**
+**aityx**
 
-- [API](api.md): `pokerface_api`, a Dart server that holds the aityx key
-  and serves `GET /api/strategies`, `POST /api/act`, `GET /api/health` and
-  `GET /api/aityx`.
+- [Deciding on aityx](aityx.md): the app calls aityx from the browser,
+  one systemone call per decision, on the key the user set on the index
+  page or the index server's dev key; the presets from the app's assets,
+  the checks before a call, and the errors.
 
 **Project**
 
-- [Development environment](dev-environment.md): devbox, process-compose,
-  the health monitor, the builds, Docker Compose and the dev container.
+- [Development environment](dev-environment.md): devbox, the web build
+  the index server serves at `/pokerface/`, the tests, the native builds
+  and the dev container.
 
 ## Workflow
 

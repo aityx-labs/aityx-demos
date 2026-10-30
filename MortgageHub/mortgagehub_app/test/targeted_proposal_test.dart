@@ -27,7 +27,7 @@ void expectFormValid(ProposalRequest r) {
 }
 
 /// The monthly housing payment the model estimates: principal and interest
-/// at the API's default rate of 6.5%, plus taxes, insurance and any HOA
+/// at the check's assumed rate of 6.5%, plus taxes, insurance and any HOA
 /// dues. Where taxes or insurance are left out, the model estimates them at
 /// 1% and 0.35% of the value a year, as fitIncome does.
 double monthlyHousing(ProposalRequest r) {

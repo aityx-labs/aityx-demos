@@ -15,20 +15,24 @@ echo "===== post-create: $(date -u '+%Y-%m-%d %H:%M:%S') UTC"
 
 cd "$startup_root" || { echo "post-create: cannot find $startup_root" >&2; exit 1; }
 
-# The aityx key and optional endpoint are the user's own Codespaces secrets
-# (see devcontainer.json) or can be set in the root .env.
+# The aityx key: each user of the demos sets their own on the index page
+# (kept in their browser). The AITYX_API_KEY Codespaces secret (see
+# devcontainer.json) or the root .env is optional: for the aityx demos it
+# is a dev key, which the index server lends, through its proxy, to every
+# visitor of this codespace without a key of their own.
 if [[ -n "${AITYX_API_KEY:-}" ]]; then
-  echo "post-create: AITYX_API_KEY is set; the demos can call aityx"
+  echo "post-create: AITYX_API_KEY is set: the index server lends it as a dev key"
+  echo "post-create: to every visitor of this codespace without a key of their own"
 else
-  echo "post-create: AITYX_API_KEY is not set. The apps open without it, but"
-  echo "post-create: nothing that runs on aityx works. To set it, add a"
+  echo "post-create: AITYX_API_KEY is not set: each user sets their own aityx key"
+  echo "post-create: in \"Your aityx key\" on the index page (port 8800). A"
   echo "post-create: Codespaces secret at https://github.com/settings/codespaces,"
-  echo "post-create: or copy .env.example to .env at the root and fill it in."
+  echo "post-create: or the root .env (see .env.example), sets a dev key instead."
 fi
 if [[ -n "${AITYX_URL:-}" ]]; then
-  echo "post-create: AITYX_URL is set; the demos will use that endpoint"
+  echo "post-create: AITYX_URL is set; the dev key goes to that endpoint"
 else
-  echo "post-create: AITYX_URL is not set; demos use https://api.aityx.ai"
+  echo "post-create: AITYX_URL is not set; the dev key goes to https://api.aityx.ai"
 fi
 
 # Whether this codespace came from a prebuild, with the toolchains and the

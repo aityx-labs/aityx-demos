@@ -21,50 +21,58 @@ as aityx answers.
 
 | Part | Technology |
 |---|---|
-| App ([cellfie_app/](cellfie_app)) | [Flutter](https://flutter.dev) (Dart): web, Android, iOS and Linux from one codebase |
-| API ([cellfie_api/](cellfie_api)) | Dart (`dart:io`): holds the [aityx](https://aityx.ai) key and runs each generation on aityx |
-| Rules | The Life model, [cellfie_api/models/life.json](cellfie_api/models/life.json): a decision table with a why on every row, and the pattern catalogue |
-| Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) on a laptop, or a [Dev Container](https://containers.dev/) from the [published image](../image/), process-compose for the services either way; or [Docker Compose](compose.yaml) |
+| App ([cellfie_app/](cellfie_app)) | [Flutter](https://flutter.dev) (Dart): web, Android, iOS and Linux from one codebase. It calls [aityx](https://aityx.ai) itself, from the browser, through the repository's shared package [aityx_web](../packages/aityx_web/README.md): there's no Cellfie API |
+| Rules | The Life model, [cellfie_app/assets/models/life.json](cellfie_app/assets/models/life.json): a decision table with a why on every row, and the pattern catalogue |
+| Serving | The repository's index server ([Index/](../Index)) serves the release web build at `/cellfie/`, beside the index page and the other aityx demos, on one origin |
+| Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) on a laptop, or a [Dev Container](https://containers.dev/) from the [published image](../image/) |
 
 The toolchain is pinned in [devbox.json](devbox.json) and locked in
 [devbox.lock](devbox.lock): Flutter, GNU Make and curl. It is the same
-lock as Mortgage Hub's and Contact Hub's, so the three share one Nix
-store.
+lock as Mortgage Hub's and Contact Hub's, so they share one Nix store.
 
-## Run it locally with devbox
+## The aityx key
 
-1. Install [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/).
-2. Put your [aityx](https://aityx.ai) key in `.env` (copy
-   [.env.example](.env.example)): the same `AITYX_API_KEY` as Mortgage
-   Hub's and Contact Hub's, for instance
-   `grep '^AITYX_' ../ContactHub/.env > .env`. Without it the app runs,
-   but no generation can.
-3. From this folder:
+Every generation is a call to aityx on a key:
+
+1. **Yours**: open the index page, http://localhost:8800/, and paste your
+   key in **Your aityx key** (sign up at [aityx.ai](https://aityx.ai),
+   then **API keys** in [console.aityx.ai](https://console.aityx.ai)). It
+   stays in your browser, and every aityx demo uses it: the app calls
+   aityx directly with it.
+2. **A dev key**: with none of yours, if the repository's `.env` (see
+   [../.env.example](../.env.example)) or the index server's environment
+   has `AITYX_API_KEY`, the index server adds it to the calls through its
+   own proxy. It never reaches the browser.
+
+Without either, the board works, but a generation says
+`aityx is not set up: set your key on the index page.` The dot at the top
+right says which key is in use and whether aityx accepts it; tap it to
+open the index page's key section.
+
+## Run it locally
+
+1. Install [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/),
+   or have Flutter (Dart 3.13 or newer) on your path.
+2. From the repository root:
 
    ```bash
-   devbox services up           # add --pcflags "--tui=false" when not in a terminal
+   ./start-aityx.sh Cellfie     # builds the app if it changed, starts the index server
    ```
 
-That starts, from [process-compose.yaml](process-compose.yaml):
+3. Open http://localhost:8800/cellfie/ (and set your key on
+   http://localhost:8800/ if you haven't).
 
-| URL | What |
-|---|---|
-| http://localhost:8930/app/ | The app's release build, served by a small native web server ([scripts/flutter-web.sh](scripts/flutter-web.sh)). The first start builds it (about 20 s on a laptop, a minute or two on a 4-core codespace); later starts reuse it until the app changes |
-| http://localhost:8931/api/health | The API, compiled to a native executable ([scripts/api.sh](scripts/api.sh)); the web app reaches it as `/api/` on its own origin, through the web server's proxy |
+`bash scripts/build.sh` (or `devbox run build`) builds the app's release
+web build, `cellfie_app/build/web/`, only when it changed:
+`flutter build web --release --base-href /cellfie/ --no-web-resources-cdn`
+(CanvasKit from the app's own origin, so no third-party script runs where
+your key is kept). The first build takes about 25 s on a laptop, a minute
+or two on a 4-core codespace; the index server serves a new build on the
+next reload.
 
-That's what Docker Compose serves too, and it keeps the machine free:
-the two servers hold about 35 MB between them. For hot reload while
-working on the app, run the Flutter dev server instead, with
-`WEB_MODE=debug devbox services up`, or on its own with `devbox run web`
-(press `r` in its terminal). `devbox run build` builds the web build and
-the executables ahead of time ([scripts/build.sh](scripts/build.sh)),
-only what changed.
-
-The ports are 8930 and 8931, so Cellfie runs alongside Mortgage Hub
-(8880, 8881) and Contact Hub (8890, 8891). Pick a **Random start** over the cells
-in view (soups of three densities, islands, a glider fleet, a zoo with
-one of each pattern, the R-pentomino or the acorn), or tap cells to
-draw; drag to move around the
+Pick a **Random start** over the cells in view (soups of three
+densities, islands, a glider fleet, a zoo with one of each pattern, the
+R-pentomino or the acorn), or tap cells to draw; drag to move around the
 infinite board and scroll to zoom. **Play** runs generations at the
 **Acceleration** you set, **Step** runs one. Each generation is a call
 to aityx, shown in the panel on the right with what it decided and the
@@ -73,37 +81,20 @@ recognizes are named on the board, and a notice says when one appears
 (see [Patterns](specs/patterns.md)). **Rules** switches rules on and off
 (see [Rules](specs/rules.md)).
 
-Once both are ready, the `health-check` monitor prints where to open the
-app (in a codespace, its forwarded URL too), waits 5 s
-(`HEALTH_CHECK_DELAY`), then logs one line every 15 s
-(`HEALTH_CHECK_INTERVAL`); 🤖 [aityx](https://aityx.ai) is ⚪ when the API
-has no key:
-
-```
-Cellfie is up. Open the app at:
-  http://localhost:8930/app/
-Health checks start in 5 s, then every 15 s.
-2026-10-23 12:07:31 🌐 Web ✅ · 🔌 API ✅ · 🤖 aityx ✅
-```
-
-Stop everything with `devbox services stop`. To run only the app, use
-`devbox run web`, the dev server with hot reload (set `FLUTTER_WEB_PORT`
-to change the port, `WEB_MODE=release` for the release build); only the
-API, `devbox run api` (`API_PORT`).
-
 ### The model
 
-[cellfie_api/models/life.json](cellfie_api/models/life.json) is sent
-with every generation as the `decision` of `POST /v1/systemone`, with
-the board as the `state`. Its `fate` function is the rules, a decision
-table where each rule's rows fire only when its switch in `state.rules`
-is on; its `identify` function is the pattern catalogue, one row per
-phase of each pattern, generated from seeds by
+[cellfie_app/assets/models/life.json](cellfie_app/assets/models/life.json)
+is sent with every generation as the `decision` of `POST /v1/systemone`,
+with the board as the `state`. Its `fate` function is the rules, a
+decision table where each rule's rows fire only when its switch in
+`state.rules` is on; its `identify` function is the pattern catalogue,
+one row per phase of each pattern, generated from seeds by
 `dart run tool/catalogue.dart` in `cellfie_app/` (`--check` says if it's
 out of date); its `kind_of` function says what each pattern is. After
-changing it, `bash scripts/model-test.sh` runs it on aityx: all 18
-situations against Conway's rules, the other rules, every shape of the
-catalogue, and an empty board. See [Generation](specs/generation.md).
+changing it, `bash scripts/model-test.sh` runs it on aityx with the key
+from the repository's `.env`: all 18 situations against Conway's rules,
+the other rules, every shape of the catalogue, and an empty board. See
+[Generation](specs/generation.md).
 
 ### Building the binaries
 
@@ -112,47 +103,22 @@ The [Makefile](Makefile) builds release binaries through
 
 ```bash
 make            # every platform this host can build
-make web        # cellfie_app/build/web/
+make web        # cellfie_app/build/web/, under /cellfie/
 make android    # cellfie_app/build/app/outputs/flutter-apk/app-release.apk
 make ios        # cellfie_app/build/ios/iphoneos/Runner.app (macOS, unsigned)
 make linux      # cellfie_app/build/linux/<arch>/release/bundle/ (Linux only)
 make clean
 ```
 
-Pass `MODE=profile` or `MODE=debug` for other build modes, and
-`IOS_CODESIGN=1` to sign the iOS build (this needs a signing team in Xcode).
-The version is `X.Y.Z`: X and Y from [version.X.txt](version.X.txt) and
-[version.Y.txt](version.Y.txt), Z the build time (see
-[scripts/version.sh](scripts/version.sh)).
-The artifact's group and artifact IDs, `aityx:cellfie`, are in
+Pass `MODE=profile` or `MODE=debug` for other build modes,
+`WEB_BASE_HREF` to serve the web build elsewhere, and `IOS_CODESIGN=1` to
+sign the iOS build (this needs a signing team in Xcode). The native
+builds have no index page and no dev proxy, and keep a key only in
+memory: they run, but no generation can. The version is `X.Y.Z`: X and Y
+from [version.X.txt](version.X.txt) and [version.Y.txt](version.Y.txt),
+Z the build time (see [scripts/version.sh](scripts/version.sh)). The
+artifact's group and artifact IDs, `aityx:cellfie`, are in
 [group.id.txt](group.id.txt) and [artifact.id.txt](artifact.id.txt).
-
-## Run it with Docker Compose
-
-With only [Docker](https://docs.docker.com/get-docker/) installed (no
-devbox, no Flutter), from this folder:
-
-```bash
-docker compose up --build
-```
-
-and open http://localhost:8930/app/. [compose.yaml](compose.yaml) builds
-and starts two services:
-
-| Service | What |
-|---|---|
-| `web` | The app's release web build ([docker/web.Dockerfile](docker/web.Dockerfile)), served by nginx under `/app/`, with `/api/` proxied to the API ([docker/nginx.conf](docker/nginx.conf)) |
-| `api` | The API compiled to a native executable ([cellfie_api/Dockerfile](cellfie_api/Dockerfile)); not published, reached only through `web` |
-
-For the key, copy [.env.example](.env.example) to `.env` and fill in
-`AITYX_API_KEY` (or export it); optionally set `AITYX_URL` for another
-HTTPS endpoint. Both values go to the API only, never the web app. The first build
-takes a few minutes (it downloads Flutter); later ones
-reuse Docker's cache. Set `FLUTTER_WEB_PORT` to change the port; the app
-is bound to 127.0.0.1 unless you set `CELLFIE_BIND_HOST=0.0.0.0`. Stop
-it with `docker compose down`. Both services have health checks, so
-`docker compose up --wait` returns once they are healthy. There is no hot
-reload: rebuild after a change.
 
 ## Run it in a codespace
 
@@ -167,55 +133,39 @@ Codespaces → New with options* and pick **aityx demos** as the dev
 container configuration — the repository holds two groups of demos, each
 with its own, so the configuration matters.
 
-The codespace uses your [aityx](https://aityx.ai) key, the same
-`AITYX_API_KEY` Codespaces secret as Mortgage Hub's and Contact Hub's.
-The optional `AITYX_URL` secret selects a non-default HTTPS endpoint;
-otherwise the API uses `https://api.aityx.ai`. Both settings are passed
-only to the API process, never to Flutter or the web service.
-GitHub keeps Codespaces secrets per user and grants them per repository,
-so if your key already reaches this repository, there is nothing to do.
-Otherwise add it at
-[github.com/settings/codespaces](https://github.com/settings/codespaces)
-(**New secret**, name `AITYX_API_KEY`, access to
-`aityx-labs/aityx-demos`), or enter it when GitHub asks on the creation
-page. Without it the app runs, but no generation can.
-
 When the codespace is created,
 [on-create.sh](../.devcontainer/on-create.sh) copies the group's
 release web builds from the [published image](../image/) into the
 workspace (a demo that changed since the image was made builds itself
-instead, a minute or two),
-[update-content.sh](../.devcontainer/update-content.sh) compiles each
-API and web server (a few seconds each) and
-[post-create.sh](../.devcontainer/post-create.sh) says whether your key
-arrived. Then, on that and every later start,
-[post-start.sh](../.devcontainer/post-start.sh) starts the index page
-and the aityx group in the background with `./start-all.sh` and makes
-their ports public, Cellfie's **8930** among them. There is nothing to
-run: the codespace is available about three minutes after you ask for
-it and the apps answer within a minute after that; open port 8930
-from the **Ports** panel, or Cellfie's card on the index page (port
-8800, which Codespaces opens in a browser tab for you). Its bare URL
-redirects to the app at `/app/`.
+instead, a minute or two). Then, on that and every later start,
+[post-start.sh](../.devcontainer/post-start.sh) starts the index server,
+which serves the index page and every aityx demo on port **8800**, the
+only port, made public so the link can be shared. When the index page
+opens, paste your [aityx](https://aityx.ai) key in **Your aityx key**,
+then open Cellfie from its card, at `/cellfie/` on the same address.
+Anyone you share the link with sets their own key.
 
-Watch Cellfie's services with `process-compose attach -U -u
-/tmp/aityx-demos-Cellfie.sock`. Stop the group with `./stop-all.sh` from
-the repository root and start it again with `./start-all.sh`: in the
-codespace both act on the aityx group only (`DEMOS_GROUP=aityx`). There
-is no devbox in a codespace: the demos run on the image's own Flutter
-and process-compose (`DEMOS_TOOLCHAIN=image`, see
-[demos-toolchain.sh](../demos-toolchain.sh)); `devbox services` is for a
-laptop.
+Optionally, an `AITYX_API_KEY` Codespaces secret (at
+[github.com/settings/codespaces](https://github.com/settings/codespaces),
+**New secret**, with access to `aityx-labs/aityx-demos`) is a dev key
+every visitor of your codespace uses unless they set their own: the index
+server adds it to the calls through its own proxy, and it never reaches
+a browser. `AITYX_URL` optionally selects another aityx endpoint for it.
+
+Stop the group with `./stop-all.sh` from the repository root and start
+it again with `./start-all.sh`: in the codespace both act on the aityx
+group only (`DEMOS_GROUP=aityx`). There is no devbox in a codespace: the
+demos are built with the image's own Flutter (`DEMOS_TOOLCHAIN=image`,
+see [demos-toolchain.sh](../demos-toolchain.sh)).
 
 **If the app doesn't start, send us `startup.log` from the root of the
 repository.** Every step of the codespace's start goes there,
-timestamped, including a line saying when each demo's web app and API
-first answered. It holds no secrets.
+timestamped. It holds no secrets.
 
 **Check the port's visibility.** In the **Ports** panel, the
-*Visibility* column for 8930 should say **Public**. If it says
+*Visibility* column for 8800 should say **Public**. If it says
 **Private**, right-click the port, choose **Port Visibility → Public**
-and reload the app.
+and reload the page.
 
 ## Run it in a dev container locally
 
@@ -235,11 +185,10 @@ and the six aityx demos' release web builds.
 
 1. Create a branch from an up-to-date `main`.
 2. Make one change per pull request, with its tests. Run `flutter analyze`
-   and `flutter test` in `cellfie_app/`, and `dart analyze` and
-   `dart test` in `cellfie_api/`. After changing the model, `bash
-   scripts/model-test.sh` runs it on aityx; after changing the pattern
-   seeds, `dart run tool/catalogue.dart` in `cellfie_app/` rewrites the
-   catalogue.
+   and `flutter test` in `cellfie_app/`, then `bash scripts/build.sh`.
+   After changing the model, `bash scripts/model-test.sh` runs it on
+   aityx; after changing the pattern seeds, `dart run tool/catalogue.dart`
+   in `cellfie_app/` rewrites the catalogue.
 3. Update the matching feature spec in [specs/](specs/) and add an entry to
    [specs/requests.md](specs/requests.md).
 4. Open a pull request against `main`.

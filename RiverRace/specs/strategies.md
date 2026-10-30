@@ -41,7 +41,7 @@ Each rule sets three, the table's outputs:
 - `fire`: true or false.
 
 A rule without tests always matches. With no rule matching, the plane
-flies straight on at normal speed without firing (the else row the API
+flies straight on at normal speed without firing (the else row the app
 adds).
 
 ## The strategies to pick

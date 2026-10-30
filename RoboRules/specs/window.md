@@ -6,15 +6,21 @@ light gray panels, beveled buttons, a blue gradient title bar, "RoboRules:
 Robocode-style battles, every turn played by aityx".
 
 - **aityx light**, top right over the title bar on every screen
-  ([aityx_status.dart](../roborules_app/lib/aityx/aityx_status.dart)): an
-  8 px dot, grey while checking, green when aityx accepts the API's key,
-  red otherwise; its tooltip says why ("aityx: ready — accepts the key
-  (url)", "aityx: no key — AITYX_API_KEY is not set", "aityx: not
-  working — …", "aityx: the API did not answer"). It asks the API's
-  `GET /api/aityx` at start and every minute; the API posts an empty
-  request to aityx's `/v1/systemone` at most once a minute (a working key
-  gets 400 `invalid_request`, without running a model) and never returns
-  the key ([aityx_check.dart](../roborules_api/lib/aityx_check.dart)).
+  (`withAityxStatus` from the shared
+  [aityx_web](../../packages/aityx_web) package, in `MaterialApp.builder`):
+  an 8 px dot, grey while checking, green when aityx accepts the key the
+  app calls it with, red otherwise; its tooltip says why ("aityx: ready
+  (your key, https://api.aityx.ai)", "aityx: ready (dev key from .env,
+  …)", "aityx: no key — set yours on the index page", "aityx: key
+  rejected — …", "aityx: not reachable — …", "aityx: not working — …").
+  The key is the user's, saved on the index page, else the index server's
+  dev key (see [Development environment](dev-environment.md#the-aityx-key)).
+  It checks by posting an empty request to aityx's `/v1/systemone` (a
+  working key gets 400 `invalid_request`, without running a model) at
+  start, when the key is saved or forgotten on the index page, and when the
+  window regains focus, at most once every 30 s there; no timer polling,
+  since each check spends a request of the user's quota. A tap opens the
+  index page's key section (`/#aityx-key`) in the same tab.
 - **Menu bar**: **Battle** (New…, Start, Pause/Resume, Stop, Results…),
   **Robot** (Add a robot…, each robot's rules, Remove each robot; adding
   and removing only between battles), **Options** (speeds), **Help** (the
@@ -55,7 +61,10 @@ Robocode-style battles, every turn played by aityx".
 - **Controls**: Start/Pause/Resume, Next turn, Stop, Restart, New battle…,
   **Speed** (1 to 60 turns a second, or Max), aityx's measured turns a
   second, **aityx call**, and any error (a failed call pauses the battle
-  until Resume; a round aityx fails to score waits with **Retry scoring**,
+  until Resume, and says why: "aityx is not set up: set your key on the
+  index page", "aityx rejected the key", "aityx did not answer", "aityx
+  answered HTTP n: …" with aityx's reasons, or a robot's rules the app
+  refuses before calling aityx; a round aityx fails to score waits with **Retry scoring**,
   since moving on would leave it out of the totals).
 - **Dialogs**:
   - **New Battle**, as Robocode's: **Available robots** on the left (the

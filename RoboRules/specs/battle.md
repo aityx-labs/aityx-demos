@@ -5,8 +5,9 @@ draws the frames it returns.
 
 ## The world model
 
-[models/world.json](../roborules_api/models/world.json), written by
-[tool/build_world.py](../roborules_api/tool/build_world.py). Its types:
+[assets/models/world.json](../roborules_app/assets/models/world.json), an
+asset of the app, written by
+[tool/build_world.py](../roborules_app/tool/build_world.py). Its types:
 `Bot` (`id`, `x`, `y`, `heading`, `v`, `gun`, `energy`, `heat`, `alive`,
 `rule`, `hit`, `damage`, `fired`, `died`), `Bullet` (`owner`, `x`, `y`,
 `heading`, `power`), `World` (`tick`, `bots`, `bullets`), `Sense` (the 12
@@ -22,8 +23,8 @@ Each turn (`step`):
    ahead, the distance to the nearest wall, the gun ready (heat 0), being
    hit last turn, speed, enemies left.
 2. **Deciding** (`brain_of`): each robot's own rules, `brain_r1`,
-   `brain_r2`..., added per battle by the API
-   ([lib/battle.dart](../roborules_api/lib/battle.dart)) from each robot's
+   `brain_r2`..., added per battle by the app
+   ([lib/aityx/battle.dart](../roborules_app/lib/aityx/battle.dart)) from each robot's
    model, with a `rule` output: the number of the row that fired.
 3. **Moving** (`move`, `place`, `walled`), as Robocode does: speed +1 a turn
    ahead (to 8), braking 2; turning at most 10 − 0.75·|v| degrees; the gun
@@ -51,16 +52,24 @@ parameters apart from the fields they build (`nx`, `ny`, `nv` in `walled`).
 Functions have no local variables, so steps pass computed values down to
 the next function.
 
-## The API
+## The call
 
-`POST /api/battle/turns` takes `robots` (2 to 10 robot models, in order:
-r1, r2...), `world` (its bots' ids r1, r2... in the same order) and `turns`
-(1 to 50), checks the robots (known sensors, the four commands, each
-command's values, a fire power 0 to 3), builds the battle's model and
-sends one call to aityx's `/v1/systemone`, with a 90 s deadline. It
-answers `frames`, and, with `explain: true`, the call (`aityx.request`,
-`aityx.response`) unless aityx's answer contains the key. aityx's reasons
-for a model it can't run come back as `detail`.
+The app calls aityx itself ([AityxBattleApi](../roborules_app/lib/battle/api.dart),
+on the shared [aityx_web](../../packages/aityx_web) package's
+`AityxClient`). For a batch of turns it takes the robots (2 to 10 robot
+models, in order: r1, r2...), the world (its bots' ids r1, r2... in the
+same order) and the turns (1 to 50), checks the robots (known sensors, the
+four commands, each command's values, a fire power 0 to 3) before calling
+aityx, builds the battle's model and sends one call to aityx's
+`/v1/systemone`, with a 90 s deadline. It reads the frames, and keeps the
+call (the request's body and aityx's answer, never the headers, which
+carry the key) for the [viewer](window.md), unless aityx's answer holds
+the user's key: then the call isn't kept. A failed call says why:
+"aityx is not set up: set your key on the index page" (no key; nothing is
+sent), "aityx rejected the key" (401, 403), "aityx did not answer" (no
+answer, or not in time), or "aityx answered HTTP n: …" with aityx's
+`detail` and `errors`, its reasons for a model it can't run; "the battle
+failed: …" for a decision error.
 
 The app asks for 20 turns a call and fetches the next batch while it
 shows this one; a round ends with one robot left, or after 1,500 turns.

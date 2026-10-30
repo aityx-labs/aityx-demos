@@ -3,14 +3,16 @@
 # VS Code attaches (postAttachCommand), since a visibility set at start
 # does not always stick: makes the index page's and each web app's
 # forwarded port public, so their URLs open without a GitHub sign-in and
-# can be shared for a demo.
+# can be shared for a demo. The aityx group has one port, the index's
+# (8800), which serves its six apps too.
 #
 # devcontainer.json cannot declare a port public; Codespaces only accept it
 # through the API, so this asks `gh`, authenticated by the codespace's own
 # GITHUB_TOKEN. Only the web ports are made public: the APIs are not
 # forwarded, and each app reaches its own through the web server's /api/
-# proxy. Anyone with a URL can use that app, and so run its decisions on
-# your aityx key.
+# proxy. Anyone with a URL can use that app: an aityx demo with their own
+# key, set on the index page, or, when the codespace has an AITYX_API_KEY
+# secret, with that dev key, through the index server's proxy.
 #
 # A port is forwarded only once something listens on it, and the demos
 # come up one by one as they compile, so this retries each port in the
@@ -19,8 +21,9 @@
 # log.
 set -uo pipefail
 
-# The index's port and each demo's web port (the FLUTTER_WEB_PORT default
-# in its process-compose.yaml), the same way start-all.sh reads them.
+# The index's port and each service's web port (the FLUTTER_WEB_PORT
+# default in its process-compose.yaml), the same way start-all.sh reads
+# them; the demos the index serves have none of their own.
 # Its progress goes to startup.log at the root (see startup-log.sh).
 # shellcheck source=startup-log.sh
 source "$(dirname "${BASH_SOURCE[0]}")/startup-log.sh"

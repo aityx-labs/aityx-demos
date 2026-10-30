@@ -1,14 +1,16 @@
 # Routing
 
-**Send** opens the routing screen, which asks the API to route the
-request and shows where it went, why, and the aityx call behind it.
+**Send** opens the routing screen, which routes the request on aityx,
+from the app itself (there's no Contact Hub API), and shows where it
+went, why, and the aityx call behind it.
 
 ## How a request is routed
 
 One call to aityx's `POST /v1/systemone`, built by
-[lib/routing.dart](../contacthub_api/lib/routing.dart) from
-[models/routing.json](../contacthub_api/models/routing.json), with the
-the message, today and the order it names as the state (see
+[lib/aityx/routing.dart](../contacthub_app/lib/aityx/routing.dart) from
+the routing model, the app's asset
+[assets/models/routing.json](../contacthub_app/assets/models/routing.json),
+with the message, today and the order it names as the state (see
 [Order policy](order-policy.md)):
 
 1. **Jev** (`model: "jev-latest"`) answers five questions about the
@@ -39,7 +41,7 @@ the message, today and the order it names as the state (see
      data or abuse, or the policy needs a person to approve it;
    - the store's policy for the order: see [Order policy](order-policy.md).
 
-The API reads the department and priority from `answers`, the topic,
+The app reads the department and priority from `answers`, the topic,
 its confidence and the request kind as Jev answered them, and the reason
 for each decision from the `# why` of the table row that fired, whose
 number it finds in `receipt.decisions.<decision>.rule`.
@@ -47,7 +49,8 @@ number it finds in `receipt.decisions.<decision>.rule`.
 ## Departments
 
 The usual departments of a large online store, each with a person (made
-up, with `@contacthub.example` addresses) in the API's directory:
+up, with `@contacthub.example` addresses) in the app's directory
+(`departments` in [lib/aityx/routing.dart](../contacthub_app/lib/aityx/routing.dart)):
 
 | Department | Handles | Person |
 |---|---|---|
@@ -140,18 +143,64 @@ in Mortgage Hub, with the key parts highlighted and labeled:
   result's links use the same mechanism; links to parts of the response
   the pane doesn't show are left out.
 
-The API includes the call only if aityx's answer doesn't contain the key.
+The request shown is the body sent, never the headers: the key, in
+`Authorization`, is in neither pane. The call is left out ("The aityx call
+is left out: aityx's answer contained the key.") if aityx's answer
+somehow contains the key.
+
+## Calling aityx
+
+[AityxRequestRouter](../contacthub_app/lib/routing/routing.dart), the
+app's `RequestRouter`, sends the call with `AityxClient` from the shared
+package [aityx_web](../../packages/aityx_web/README.md), on the key it
+finds in this order:
+
+1. **Your key**, set on the index page ("Your aityx key"), which the app
+   shares because the index and every demo are served from one origin
+   (the index server, `Index/`, at `/contacthub/`). The app calls
+   `<url>/v1/systemone` (by default `https://api.aityx.ai`) directly, with
+   `Authorization: Bearer <key>`.
+2. **The dev key**: with no key of yours, the index server's
+   `/aityx/config` says whether it has one (`AITYX_API_KEY`, or the
+   repository's `.env`); the app then POSTs to `/aityx/v1/systemone` on
+   its own origin and the server adds the key, which never reaches the
+   browser.
+3. **None**: nothing is sent.
+
+The model is loaded once, with `rootBundle`. The message is trimmed;
+today is the device's clock, in UTC. The call may take 100 s. What the
+screen says when it fails:
+
+| When | It says |
+|---|---|
+| The message is empty or over 2000 characters | `Could not route it: message is empty.` (or `... is longer than 2000 characters.`), without calling aityx |
+| No key | `aityx is not set up: set your key on the index page.`, with **Set your key** (the index page's key section, `/#aityx-key`, in the same tab) beside **Try again** |
+| aityx refuses the key (401, 403) | `Could not route it: aityx rejected the key.` |
+| Another HTTP status | `Could not route it: aityx answered HTTP n: <aityx's detail>.` (in dev mode, also the index server's 502 when aityx redirects it, as to a login) |
+| No answer (network, CORS, a blocker, or in dev mode the index server's 502 `proxy_unreachable`), or none in 100 s | `aityx did not answer.`, or `aityx did not answer in time.` |
+| A `decision_error`, or no routing in the answer | `Could not route it: aityx could not route it: <why>.` |
+| An answer that isn't JSON, or not a routing | `Could not route it: unexpected answer from aityx.` |
+
+Tests run the router against a `MockClient` (the request's URL, header
+and body, on your key and in dev mode, where it has no Authorization
+header; each failure's wording, the 100 s timeout included; the call left
+out when the answer holds the key) and the routing logic against real aityx answers in
+`test/fixtures/aityx/`.
 
 ### Verified
 
-Against the live API (`api.aityx.ai`): in Chrome, the links and chips
+Against the live aityx (`api.aityx.ai`): in Chrome, the links and chips
 landed on exactly their values (a question's wrapped instructions,
 department rule 3, the topic read and the provenance in the response),
 and full screen opened at the marked value. Widget tests check the
 scroll offset of a jump to the pixel, on both sides, that a question
-wraps onto unnumbered rows, and that the screen fits a 390 px phone.
+wraps onto unnumbered rows, and that the screen fits a 390 px phone. On
+2026-10-30, the release build served by the index server at
+`/contacthub/` routed the tablet return in Chrome on the dev key, from
+the browser: Customer Service, a $279.65 refund by rule 16.
 `dart run tool/route_samples.dart` in `contacthub_app/` routes every
-sample through a running API and says where each went against its label
+sample on aityx, as the app does, with the key from `AITYX_API_KEY` or
+the repository's `.env`, and says where each went against its label
 (see [Request box](request.md#samples)).
 
 ## Known limitations
@@ -159,3 +208,5 @@ sample through a running API and says where each went against its label
 - Jev's answers can vary between calls; the rules don't.
 - The people are made up; nothing is sent to them.
 - English only.
+- Your key is in the browser's storage, where any script on the origin
+  can read it; see [aityx status light](aityx-status.md).

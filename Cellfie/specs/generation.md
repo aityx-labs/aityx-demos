@@ -1,8 +1,8 @@
 # Generation
 
-A generation is one call to aityx's `POST /v1/systemone`, through the
-[API](api.md), with the Life model
-([models/life.json](../cellfie_api/models/life.json)) as the `decision`
+A generation is one call to aityx's `POST /v1/systemone`, made by the
+app itself ([aityx calls](aityx-calls.md)), with the Life model
+([models/life.json](../cellfie_app/assets/models/life.json)) as the `decision`
 and what the app counted on the board as the `state`. No questions are
 asked: the board is facts, and the rules decide.
 
@@ -63,8 +63,8 @@ aityx answers the lists as `value`s and the counts as `number`s, and its
 receipt holds, under `functions.fate`, one entry per call to `fate` in
 the order of the situations, with the `rule` (the 1-based row) that
 fired; likewise `functions.identify` and `functions.kind_of` per cluster.
-The API turns that into the fate of each situation with its rule and
-why, and the pattern of each cluster with the row that matched and what
+The app ([lib/aityx/life.dart](../cellfie_app/lib/aityx/life.dart))
+turns that into the fate of each situation with its rule and why, and the pattern of each cluster with the row that matched and what
 the pattern is.
 
 ## The next board
@@ -78,12 +78,13 @@ the board, and the patterns noticed are updated (see
 ## Verified
 
 `bash scripts/model-test.sh` runs the model on aityx
-([model_scenarios_test.dart](../cellfie_api/test/model_scenarios_test.dart)):
+([model_scenarios_test.dart](../cellfie_app/test/aityx/model_scenarios_test.dart),
+tagged `aityx`, with the key from the repository's `.env`):
 all 18 situations against Conway's rules, with the counts; HighLife, Life
 without death and no rule on; every shape in the catalogue recognized;
 shapes that aren't, unknown; an empty board.
-The API's unit tests read a real answer
-([generation-7.json](../cellfie_api/test/fixtures/generation-7.json)).
+The unit tests in `test/aityx/` read a real answer
+([generation-7.json](../cellfie_app/test/fixtures/generation-7.json)).
 The app's tests check the counting on a blinker, a block, a glider and
 a beacon, and that Conway's rules, run locally for the tests, turn a
 blinker.

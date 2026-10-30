@@ -72,7 +72,7 @@ class Totals {
 /// playing them at [turnsPerSecond], scoring each round on aityx.
 class BattleController extends ChangeNotifier {
   BattleController({BattleApi? api, RobotFactory? factory})
-    : _api = api ?? HttpBattleApi(),
+    : _api = api ?? AityxBattleApi(),
       factory = factory ?? RobotFactory();
 
   final BattleApi _api;

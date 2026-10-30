@@ -7,10 +7,15 @@
 #   MODE          release (default), profile or debug
 #   IOS_CODESIGN  1 to sign the iOS build (needs a signing team in Xcode);
 #                 unsigned by default
-#   API_BASE_URL  the API the app will call for each decision
-#                 (default http://localhost:8941; empty: the app's origin)
-#   WEB_BASE_HREF the web build's base href, e.g. /app/ to serve it where the
-#                 dev server does; / by default
+#   WEB_BASE_HREF the web build's base href: /riverrace/ to serve it where
+#                 the index server does (scripts/build.sh); / by default
+#
+# The app calls aityx itself. The web build keeps CanvasKit on its own
+# origin (--no-web-resources-cdn), so no third-party script runs on the
+# origin that holds the user's aityx key. A native build (android, ios,
+# linux) has no index page and no dev proxy, and keeps a key only in
+# memory, which nothing sets yet: it runs the game, but its aityx pilots
+# say "aityx is not set up" and fly straight on.
 #
 # The version is X.Y.Z: X and Y from version.X.txt and version.Y.txt, Z the
 # build time as YYYYMMDDHHMM (UTC); the build number is the same time in
@@ -28,8 +33,7 @@ cd "$(dirname "$0")/../riverrace_app"
 source ../scripts/version.sh
 # RIVERRACE_VERSION: X.Y.Z, shown at the bottom of the welcome screen.
 BUILD_ARGS=(--build-name "$VERSION" --build-number "$BUILD_NUMBER"
-  --dart-define="RIVERRACE_VERSION=$VERSION"
-  --dart-define="API_BASE_URL=${API_BASE_URL-http://localhost:8941}")
+  --dart-define="RIVERRACE_VERSION=$VERSION")
 
 # can_build <target>: whether this host's OS can build the target.
 can_build() {
@@ -51,7 +55,8 @@ build() {
     web)
       local base=()
       [[ -n "${WEB_BASE_HREF:-}" ]] && base=(--base-href "$WEB_BASE_HREF")
-      flutter build web "--$MODE" ${base[@]+"${base[@]}"} "${BUILD_ARGS[@]}"
+      flutter build web "--$MODE" ${base[@]+"${base[@]}"} --no-web-resources-cdn \
+        "${BUILD_ARGS[@]}"
       echo "==> web: riverrace_app/build/web/"
       ;;
     android)

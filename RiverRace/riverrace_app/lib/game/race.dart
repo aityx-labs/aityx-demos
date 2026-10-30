@@ -620,7 +620,7 @@ class Race {
     return p.x + (goRight ? 10 : -10);
   }
 
-  /// What [p] senses now, as the API and aityx take it.
+  /// What [p] senses now, as aityx takes it (and the app checks it).
   Map<String, Object> sense(Plane p) {
     var landDistance = 999;
     for (var d = 2.0; d <= lookAhead + 40; d += 2) {

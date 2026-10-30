@@ -368,9 +368,34 @@ class _Settings {
 _Settings? _settingsCache;
 DateTime _settingsAt = DateTime(0);
 
-/// The key and URL: each from the environment (a Codespaces secret), else
-/// from the repo's .env, read again at most every 10 s, so a key added
-/// after the start is picked up.
+/// A codespace's secrets, as Codespaces keeps them for its processes:
+/// NAME=<base64 of the value>, one per line. Empty outside a codespace.
+Future<Map<String, String>> _codespaceSecrets() async {
+  final file = File('/workspaces/.codespaces/shared/.env-secrets');
+  final secrets = <String, String>{};
+  try {
+    if (!await file.exists()) return secrets;
+    for (final line in await file.readAsLines()) {
+      final at = line.indexOf('=');
+      if (at <= 0) continue;
+      try {
+        secrets[line.substring(0, at)] = utf8
+            .decode(base64.decode(line.substring(at + 1).trim()))
+            .trim();
+      } on FormatException {
+        continue;
+      }
+    }
+  } on FileSystemException {
+    return secrets;
+  }
+  return secrets;
+}
+
+/// The key and URL: each from the environment (a Codespaces secret, also
+/// read from the codespace's secrets file), else from the repo's .env,
+/// read again at most every 10 s, so a key added after the start is
+/// picked up.
 Future<_Settings> _settings() async {
   final cached = _settingsCache;
   if (cached != null &&
@@ -401,9 +426,15 @@ Future<_Settings> _settings() async {
     return value;
   }
 
-  final envKey = env['AITYX_API_KEY'] ?? '';
+  // A codespace's secrets reach the processes its startup runs, but not
+  // an SSH session's: a server restarted from one reads them from the
+  // file Codespaces keeps them in.
+  final secrets = await _codespaceSecrets();
+  var envKey = env['AITYX_API_KEY'] ?? '';
+  if (envKey.isEmpty) envKey = secrets['AITYX_API_KEY'] ?? '';
   final key = envKey.isNotEmpty ? envKey : fromFile('AITYX_API_KEY');
-  final envUrl = env['AITYX_URL'] ?? '';
+  var envUrl = env['AITYX_URL'] ?? '';
+  if (envUrl.isEmpty) envUrl = secrets['AITYX_URL'] ?? '';
   var url = envUrl.isNotEmpty ? envUrl : fromFile('AITYX_URL');
   if (url.isEmpty) url = _defaultUrl;
   url = url.replaceFirst(RegExp(r'/+$'), '');

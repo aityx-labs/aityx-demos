@@ -62,7 +62,10 @@ if ! command -v gh >/dev/null; then
 fi
 
 if [[ "${1:-}" != --wait ]]; then
-  if [[ -f "$pidfile" ]] && kill -0 "$(cat "$pidfile")" 2>/dev/null; then
+  # The pidfile outlives a codespace's stop and start; after one its PID
+  # may be another process's, so it counts only if that is still us.
+  if [[ -f "$pidfile" ]] &&
+    ps -o args= -p "$(cat "$pidfile")" 2>/dev/null | grep -q public-port; then
     echo "public-port: already making ports ${ports[*]} public (log: startup.log)"
     exit 0
   fi

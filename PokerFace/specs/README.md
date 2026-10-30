@@ -30,6 +30,8 @@ added at any time.
 - [Players and strategies](players.md): adding and removing players,
   changing a player's strategy, the preset strategies, and the editor for
   strategies of your own, with **Try it on aityx**.
+- [The aityx light](aityx-status.md): the dot, top right, that says
+  whether the API has its aityx key and aityx accepts it.
 - [Theme](theme.md): the aityx dark palette, and the felt.
 - [App icon](app-icon.md): an orange ace of spades with a chip.
 
@@ -41,7 +43,8 @@ added at any time.
 **Backend**
 
 - [API](api.md): `pokerface_api`, a Dart server that holds the aityx key
-  and serves `GET /api/strategies`, `POST /api/act` and `GET /api/health`.
+  and serves `GET /api/strategies`, `POST /api/act`, `GET /api/health` and
+  `GET /api/aityx`.
 
 **Project**
 

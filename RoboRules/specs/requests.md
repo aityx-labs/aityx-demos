@@ -99,3 +99,14 @@ The requests that shaped RoboRules, oldest first, each with what changed.
    `startup.log` at the repository root. The README's codespace link
    points at the group's container. See [Development
    environment](dev-environment.md).
+
+## 2026-10-30
+
+10. **Add a discreet health indicator, top right in every demo, saying
+    whether the aityx key is set and aityx is reachable and answering,
+    with a tooltip.** The API answers `GET /api/aityx` with whether it has
+    a key and whether aityx accepts it (an empty `/v1/systemone` call,
+    kept for a minute; a redirect, such as a login in front of
+    `AITYX_URL`, is reported as such), and the app shows it as a small
+    grey, green or red dot over the top right of the window, with why in
+    its tooltip. See [The window](window.md).

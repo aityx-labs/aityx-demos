@@ -21,7 +21,7 @@ which rules win, with every event and every aityx call in the log.
   random robots, the rules editor.
 - [Scoring](scoring.md): Robocode's round score, as an aityx model.
 - [The window](window.md): Robocode's look, the battlefield, the controls,
-  the speed, the dialogs, the aityx call viewer.
+  the speed, the dialogs, the aityx call viewer, the aityx light.
 - [Development environment](dev-environment.md): devbox, ports, Docker
   Compose, the dev container, the tests.
 - [App icon](app-icon.md): a tank seen from above, orange on the dark

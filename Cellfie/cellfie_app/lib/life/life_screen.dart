@@ -363,7 +363,10 @@ class _LifeScreenState extends State<LifeScreen> {
                   ),
                 ),
               ),
-            ),
+            )
+          else
+            // Clear of the aityx status light in the corner.
+            const SizedBox(width: 16),
         ],
       ),
       endDrawer: wide

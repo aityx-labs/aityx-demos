@@ -34,6 +34,9 @@ by Jev and aityx.
   days, store credit within 60, final sale, damage within 7 days, warranty,
   restocking fee, price drops, cancellations, late packages), with the
   amount and the date it's paid by; the order book of the samples.
+- [aityx status light](aityx-status.md): a discreet dot at the top right
+  of every screen, green when aityx accepts the API's key, red when there
+  is no key or aityx doesn't work, with why in its tooltip.
 - [Theme](theme.md): the aityx dark palette.
 - [App icon](app-icon.md): an orange speech bubble with a route that
   branches three ways, the chosen branch lit; the favicon and every
@@ -42,7 +45,7 @@ by Jev and aityx.
 **Backend**
 
 - [API](api.md): `contacthub_api`, a Dart server that holds the aityx key
-  and serves `POST /api/route` and `GET /api/health`.
+  and serves `POST /api/route`, `GET /api/health` and `GET /api/aityx`.
 
 **Project**
 

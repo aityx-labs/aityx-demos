@@ -10,6 +10,7 @@ aityx pilots do ([Decisions](decisions.md)). Routes in
 |---|---|
 | `GET /` | 302 to `/app/`, so a forwarded port's bare URL opens the app |
 | `GET /api/health` | `{"ok": true, "aityx": <whether the API has its key>}` |
+| `GET /api/aityx` | `{"key", "ok", "url", "detail"}`: whether the API has its key and aityx accepts it, checked at most once a minute, for the app's [status light](aityx-status.md) |
 | `POST /api/decide` | `{"tick": 120, "pilots": [{"id": "p1", "name": "Careful", "rules": [...], "sense": {...}}, ...]}` → `{"tick": 120, "actions": {"p1": {"steer", "throttle", "fire", "rule", "why"}, ...}, "aityx": {"request", "response", "took_ms"}}` |
 | `OPTIONS` anything | 204 |
 | anything else | 404 `{"error": "not found"}` |

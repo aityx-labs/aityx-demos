@@ -2,6 +2,9 @@
 /// app, and answers:
 ///
 ///   GET  /api/health           {"ok": true, "aityx": true when the key is set}
+///   GET  /api/aityx            {"key", "ok", "url", "detail"}: whether the
+///                              key is set and aityx accepts it, checked at
+///                              most once a minute (see lib/aityx_status.dart)
 ///   POST /api/proposals/check  a ProposalRequest's JSON → the regulatory
 ///                              check (see lib/proposal_check.dart), with
 ///                              the body sent to aityx and its answer under
@@ -25,6 +28,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:mortgagehub_api/aityx_status.dart';
 import 'package:mortgagehub_api/proposal_check.dart';
 
 const _maxBody = 64 * 1024;
@@ -57,6 +61,7 @@ Future<void> main(List<String> args) async {
   if (key.isEmpty) stderr.writeln('warning: AITYX_API_KEY is not set');
 
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
+  final status = AityxStatus(key, aityx, client);
   final server = await HttpServer.bind(host, port);
   stdout.writeln(
     'mortgagehub_api on http://$host:$port (aityx: ${aityx.host})',
@@ -64,7 +69,7 @@ Future<void> main(List<String> args) async {
 
   await for (final request in server) {
     unawaited(
-      _handle(request, key, aityx, origins, assumedRate, model, client),
+      _handle(request, key, aityx, origins, assumedRate, model, client, status),
     );
   }
 }
@@ -99,6 +104,7 @@ Future<void> _handle(
   double assumedRate,
   Object? model,
   HttpClient client,
+  AityxStatus status,
 ) async {
   final response = request.response;
   final origin = request.headers.value('origin');
@@ -122,6 +128,8 @@ Future<void> _handle(
         ..headers.set(HttpHeaders.locationHeader, '/app/');
     } else if (path == '/api/health' && request.method == 'GET') {
       _json(response, 200, {'ok': true, 'aityx': key.isNotEmpty});
+    } else if (path == '/api/aityx' && request.method == 'GET') {
+      _json(response, 200, await status.get());
     } else if (path == '/api/proposals/check' && request.method == 'POST') {
       await _check(request, key, aityx, assumedRate, model, client);
     } else {

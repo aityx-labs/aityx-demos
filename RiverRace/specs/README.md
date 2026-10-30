@@ -31,11 +31,13 @@ fired. Which strategy wins?
 - [Theme](theme.md): the aityx dark palette, and the Atari's colors on the
   river.
 - [App icon](app-icon.md): the yellow plane over the river, in pixels.
+- [aityx status](aityx-status.md): the light, top right, that says
+  whether the API has its key and aityx accepts it.
 
 **Backend**
 
 - [API](api.md): `riverrace_api`, a Dart server that holds the aityx key and
-  serves `POST /api/decide` and `GET /api/health`.
+  serves `POST /api/decide`, `GET /api/health` and `GET /api/aityx`.
 
 **Project**
 

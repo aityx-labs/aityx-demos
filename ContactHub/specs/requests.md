@@ -212,3 +212,15 @@ The feature files hold the current specification; see the
     `startup.log` at the repository root. The README's codespace link
     points at the group's container. See [Development
     environment](dev-environment.md).
+
+## 2026-10-30
+
+18. **Add a discreet health indicator at the top right of every demo,
+    saying whether the aityx key is set and aityx is reachable and
+    answering, with a tooltip.** The API answers `GET /api/aityx` with
+    whether it has its key and whether aityx accepts it (an empty request
+    to `/v1/systemone`, kept a minute, redirects named as a possible
+    login), and the app shows an 8 px dot at the top right of every
+    screen: grey while checking, green when ready, red otherwise, with
+    why in its tooltip. See [aityx status light](aityx-status.md) and
+    [API](api.md).

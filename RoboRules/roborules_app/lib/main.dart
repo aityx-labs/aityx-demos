@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'aityx/aityx_status.dart';
 import 'battle/controller.dart';
 import 'ui/battle_screen.dart';
 import 'ui/classic.dart';
@@ -22,6 +23,7 @@ class RoboRulesApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: classicTheme(),
       home: BattleScreen(controller: controller),
+      builder: (context, child) => AityxStatus.over(child),
     );
   }
 }

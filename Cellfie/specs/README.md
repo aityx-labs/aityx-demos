@@ -36,6 +36,9 @@ and response, in a side panel.
 - [Calls panel](calls-panel.md): the side panel with every call to aityx,
   newest first: what it decided, and the request and the response as
   readable JSON with the key parts labeled; the patterns noticed.
+- [aityx status light](aityx-status.md): a small dot, top right on every
+  screen, green when aityx accepts the API's key and red otherwise, with
+  why in its tooltip.
 - [Theme](theme.md): the aityx dark palette.
 - [App icon](app-icon.md): a glider on the dark background; the favicon
   and every platform's icon, generated from SVG masters.
@@ -43,7 +46,7 @@ and response, in a side panel.
 **Backend**
 
 - [API](api.md): `cellfie_api`, a Dart server that holds the aityx key and
-  serves `POST /api/step` and `GET /api/health`.
+  serves `POST /api/step`, `GET /api/aityx` and `GET /api/health`.
 
 **Project**
 

@@ -4,6 +4,10 @@
 ///   GET  /                  302 to /app/, so a forwarded port's bare URL
 ///                           opens the app (the dev server proxies it here)
 ///   GET  /api/health        {"ok": true, "aityx": true when the key is set}
+///   GET  /api/aityx         {"key", "ok", "url", "detail"}: whether the key
+///                           is set and aityx accepts it, for the app's
+///                           status light (lib/aityx_check.dart); checked
+///                           at most once a minute
 ///   POST /api/battle/turns  {"robots": [robot models], "world": {...},
 ///                           "turns": n, "explain": bool} → {"frames": [the
 ///                           world after each turn]}, with the aityx call
@@ -31,6 +35,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:roborules_api/aityx_check.dart';
 import 'package:roborules_api/battle.dart';
 import 'package:roborules_api/routes.dart';
 
@@ -144,6 +149,8 @@ Future<void> _handle(
       await _post(request, aityx, _turns);
     } else if (request.method == 'POST' && path == '/api/battle/score') {
       await _post(request, aityx, _score);
+    } else if (request.method == 'GET' && path == '/api/aityx') {
+      _json(response, 200, await _status(aityx));
     } else {
       final answer = route(request.method, path, aityx: aityx.key.isNotEmpty);
       response.statusCode = answer.status;
@@ -157,6 +164,49 @@ Future<void> _handle(
     _json(response, 500, {'error': 'internal error'});
   } finally {
     await response.close();
+  }
+}
+
+/// The /api/aityx check, kept for a minute so the app's polling doesn't
+/// call aityx each time; requests that arrive while it runs share it.
+Future<Map<String, Object?>>? _statusCheck;
+DateTime _statusAt = DateTime(0);
+
+Future<Map<String, Object?>> _status(_Aityx aityx) {
+  final check = _statusCheck;
+  if (check != null &&
+      DateTime.now().difference(_statusAt) < const Duration(minutes: 1)) {
+    return check;
+  }
+  _statusAt = DateTime.now();
+  return _statusCheck = _checkStatus(aityx);
+}
+
+/// Posts an empty request to /v1/systemone (see aityxStatus): the key is
+/// a header, never in the answer.
+Future<Map<String, Object?>> _checkStatus(_Aityx aityx) async {
+  if (aityx.key.isEmpty) return noKey;
+  final url = aityx.url.origin;
+  try {
+    final call = await aityx.client.postUrl(aityx.url.resolve('/v1/systemone'));
+    call
+      ..followRedirects = false
+      ..headers.set('Authorization', 'Bearer ${aityx.key}')
+      ..headers.contentType = ContentType.json
+      ..write('{}');
+    final answer = await call.close().timeout(const Duration(seconds: 10));
+    final text = await answer
+        .transform(utf8.decoder)
+        .join()
+        .timeout(const Duration(seconds: 10));
+    return aityxStatus(
+      url: url,
+      status: answer.statusCode,
+      body: text,
+      location: answer.headers.value(HttpHeaders.locationHeader),
+    );
+  } catch (error) {
+    return aityxUnreachable(url, error);
   }
 }
 

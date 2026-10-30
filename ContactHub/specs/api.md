@@ -10,6 +10,7 @@ on aityx ([Routing](routing.md)). Routes in
 |---|---|
 | `GET /` | 302 to `/app/`, so a forwarded port's bare URL opens the app |
 | `GET /api/health` | `{"ok": true, "aityx": <whether the API has its key>}` |
+| `GET /api/aityx` | `{"key": <whether the API has its key>, "ok": <whether aityx accepts it>, "url": <aityx's origin>, "detail": "..."}`, for the [aityx status light](aityx-status.md); checked at most once a minute |
 | `POST /api/route` | `{"message": "..."}` → `{"routing": {...}, "aityx": {"request", "response"}}` |
 | `OPTIONS` anything | 204 |
 | anything else | 404 `{"error": "not found"}` |

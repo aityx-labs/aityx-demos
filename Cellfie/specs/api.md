@@ -10,6 +10,7 @@ on aityx ([Generation](generation.md)). Routes in
 |---|---|
 | `GET /` | 302 to `/app/`, so a forwarded port's bare URL opens the app |
 | `GET /api/health` | `{"ok": true, "aityx": <whether the API has its key>}` |
+| `GET /api/aityx` | `{"key": <whether the API has its key>, "ok": <whether aityx accepts it>, "url": "https://<aityx host>", "detail": "<why>"}`, for the [status light](aityx-status.md) |
 | `POST /api/step` | `{"generation": 12, "rules": {...}, "situations": [...], "clusters": [...]}` → `{"generation": {...}, "aityx": {"request", "response", "took_ms"}}` |
 | `OPTIONS` anything | 204 |
 | anything else | 404 `{"error": "not found"}` |
@@ -17,6 +18,17 @@ on aityx ([Generation](generation.md)). Routes in
 The API reads `AITYX_API_KEY` and `AITYX_URL` (default
 `https://api.aityx.ai`, which must be https) from its environment;
 `scripts/api.sh` falls back to `.env`.
+
+`GET /api/aityx` ([lib/aityx_check.dart](../cellfie_api/lib/aityx_check.dart))
+posts an empty request to aityx's `/v1/systemone` with the key: aityx
+checks the key first, so a working one gets 400 `invalid_request`
+(`ok: true`, "aityx accepts the key") without running a model. Any other
+answer is `ok: false` with why: no key ("AITYX_API_KEY is not set", and
+no call), a URL that isn't https, `aityx answered HTTP <code>` with
+aityx's detail, a redirect, named with where it leads ("AITYX_URL may be
+behind a login"), or `aityx did not answer` after 10 s. The answer is
+kept for a minute and checks asked meanwhile share it; neither the answer
+nor the log holds the key.
 
 `POST /api/step` ([lib/life.dart](../cellfie_api/lib/life.dart)) refuses,
 with 400 and `{"error": ...}`, a body over 64 KB, invalid JSON, a

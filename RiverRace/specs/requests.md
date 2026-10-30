@@ -109,3 +109,13 @@ The feature files hold the current specification; see the
     every 6 frames at 1× and proportionally more often in frames as the
     game speeds up. Fair race, which held the game for aityx's answers,
     is gone (see [Game](game.md#playing) and [Decisions](decisions.md)).
+
+## 2026-10-30
+
+15. **Add a discreet health indicator, top right in every demo, saying
+    whether the aityx key is set and aityx is reachable and answering,
+    with a tooltip.** A small light sits in the top right corner over
+    every screen: green when the API has its key and aityx accepts it,
+    red when not, grey while it checks, with the reason on hover. The
+    [API](api.md) answers it at `GET /api/aityx`, checking aityx at most
+    once a minute (see [aityx status](aityx-status.md)).

@@ -10,6 +10,7 @@ player's strategy on aityx ([Strategies](strategies.md)). Routes in
 |---|---|
 | `GET /` | 302 to `/app/`, so a forwarded port's bare URL opens the app |
 | `GET /api/health` | `{"ok": true, "aityx": <whether the API has its key>}` |
+| `GET /api/aityx` | `{"key", "ok", "url", "detail"}`: whether the API has its key and aityx accepts it, for [the aityx light](aityx-status.md). It posts an empty request to aityx's `/v1/systemone`, which checks the key first: 400 `invalid_request` means the key works, without running a model; a redirect (a login page in front of `AITYX_URL`), another status or no answer says why in `detail`. Kept for a minute; never includes the key ([lib/aityx_check.dart](../pokerface_api/lib/aityx_check.dart)) |
 | `GET /api/strategies` | `{"strategies": [{"id", "name", "tagline", "decisions"}, ...]}`: the presets, in file order |
 | `POST /api/act` | `{"strategy": "shark" \| {"name", "tagline", "decisions"}, "situation": {...}}` → `{"action": {...}, "aityx": {"request", "response", "took_ms"}}` |
 | `OPTIONS` anything | 204 |

@@ -109,6 +109,8 @@ with the image's own toolchain (`DEMOS_TOOLCHAIN=image`, see
 
 ## Mortgage Hub
 
+![Mortgage Hub: a proposal request, filled in and sent, and aityx's regulatory check](Index/www/mortgagehub.gif)
+
 [MortgageHub/](MortgageHub/) brings a home buyer's mortgage, from
 application to closing, into one place. A buyer fills in a proposal
 request, and a regulatory check says whether a lender can process it under
@@ -165,6 +167,8 @@ http://localhost:8800/, or put a dev key in the root `.env` (copy
 
 ## Contact Hub
 
+![Contact Hub: a refund request, routed by aityx to Customer Service, and the aityx response behind it](Index/www/contacthub.gif)
+
 [ContactHub/](ContactHub/) will let someone ask anything and route the
 question to the right department or person, with its checks run on the
 way. Built like Mortgage Hub: an app takes the request (typed,
@@ -183,6 +187,8 @@ the key you set on the index page. The badge above opens it in a
 codespace. See the [Contact Hub README](ContactHub/README.md).
 
 ## Cellfie
+
+![Cellfie: the pattern zoo playing, with the patterns aityx recognizes labelled on the board](Index/www/cellfie.gif)
 
 [Cellfie/](Cellfie/) plays Conway's Game of Life on an infinite board,
 with the rules and pattern catalogue run as an aityx decision model.
@@ -204,6 +210,8 @@ index page. See the [Cellfie README](Cellfie/README.md).
 
 ## RiverRace
 
+![RiverRace: planes up the river, flown by aityx, with every aityx decision in the side panel](Index/www/riverrace.gif)
+
 [RiverRace/](RiverRace/) remakes the 1982 Atari river shooter: a river
 with banks, islands and bridges, tankers, helicopters, jets and fuel
 depots, fuel that runs out, and points for what you shoot. Three planes
@@ -224,6 +232,8 @@ and open http://localhost:8800/riverrace/. See the
 
 ## RoboRules
 
+![RoboRules: Rammer and Dodger in battle, each turn played by aityx](Index/www/roborules.gif)
+
 [RoboRules/](RoboRules/) is a web take on the old Robocode, in its look:
 tanks fight on a dark battlefield until one is left. Each robot's behavior
 is an aityx decision model, a table of rules over what it senses (the
@@ -241,6 +251,8 @@ and open http://localhost:8800/roborules/, beside the other demos. See
 the [RoboRules README](RoboRules/README.md).
 
 ## PokerFace
+
+![PokerFace: hands of hold'em, each player's move decided by aityx, every call in the sidebar](Index/www/pokerface.gif)
 
 [PokerFace/](PokerFace/) is a poker simulator, no-limit Texas hold'em at
 a table of up to nine, where every player is a set of rules: a decision

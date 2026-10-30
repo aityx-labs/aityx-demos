@@ -76,7 +76,11 @@ function card(d) {
   el.className = 'card';
   el.id = 'demo-' + d.folder;
   const chips = d.chips.map(c => '<span class="chip' + (c.includes('aityx') ? ' aityx' : '') + '">' + c + '</span>').join('');
+  // Its animation, www/<slug>.gif (a recording of the app, 720 px wide),
+  // opens the app too.
   el.innerHTML =
+    '<a class="shot" href="' + appPath(d) + '" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">' +
+    '<img src="' + d.folder.toLowerCase() + '.gif" alt="" width="720" height="362" loading="lazy" decoding="async"></a>' +
     '<div class="head"><div class="icon"><svg viewBox="0 0 24 24" fill="currentColor">' + icons[d.icon] + '</svg></div>' +
     '<div><h2>' + d.name + '</h2><p class="what">' + d.what + '</p></div></div>' +
     '<p class="desc">' + d.desc + '</p>' +

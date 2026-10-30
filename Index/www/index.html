@@ -46,6 +46,11 @@
       transition: border-color .15s;
     }
     .card:hover { border-color: var(--dim); }
+    .shot {
+      display: block; margin: -18px -18px 4px; border-bottom: 1px solid var(--border);
+      border-radius: 11px 11px 0 0; overflow: hidden; background: var(--bg);
+    }
+    .shot img { display: block; width: 100%; height: auto; aspect-ratio: 720 / 362; object-fit: cover; object-position: top; }
     .head { display: flex; align-items: center; gap: 12px; }
     .icon {
       width: 40px; height: 40px; border-radius: 10px; flex: none;

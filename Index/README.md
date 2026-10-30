@@ -2,8 +2,9 @@
 
 The aityx demos on one origin: the index page, in the aityx palette,
 with a card for each of the six (Mortgage Hub, Contact Hub, Cellfie,
-RoboRules, PokerFace, RiverRace: what it shows, its technology, **Open**,
-**Source** on GitHub, and **Codespace**), the six apps themselves, each
+RoboRules, PokerFace, RiverRace: an animation of the app, what it shows,
+its technology, **Open**, **Source** on GitHub, and **Codespace**), the
+six apps themselves, each
 under its own path, and "Your aityx key". The datyx group has its own
 index, [../datyx-index/](../datyx-index/).
 
@@ -16,6 +17,7 @@ origin, so they share the browser's storage.
 | Path | What |
 |---|---|
 | `/` (and `/app/`) | the page, [www/](www/) |
+| `/<slug>.gif` | a card's animation, `www/<slug>.gif`: a recording of the app, 720 px wide |
 | `/mortgagehub/` | `MortgageHub/mortgagehub_app/build/web` |
 | `/contacthub/` | `ContactHub/contacthub_app/build/web` |
 | `/pokerface/` | `PokerFace/pokerface_app/build/web` |

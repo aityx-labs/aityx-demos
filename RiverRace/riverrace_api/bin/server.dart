@@ -4,6 +4,10 @@
 ///   GET  /             302 to /app/, so a forwarded port's bare URL opens
 ///                      the app (the dev server proxies the root here)
 ///   GET  /api/health   {"ok": true, "aityx": true when the key is set}
+///   GET  /api/aityx    {"key", "ok", "url", "detail"}: whether the key is
+///                      set and aityx accepts it, checked at most once a
+///                      minute (see lib/aityx_check.dart); for the app's
+///                      status light
 ///   POST /api/decide   {"tick": 120, "pilots": [{"id": "p1", "name":
 ///                      ..., "rules": [...], "sense": {...}}, ...]} → what
 ///                      each aityx pilot does now (see lib/strategy.dart):
@@ -31,6 +35,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:riverrace_api/aityx_check.dart';
 import 'package:riverrace_api/strategy.dart';
 import 'package:riverrace_api/routes.dart';
 
@@ -50,6 +55,7 @@ class _Aityx {
   final Uri url;
   final Map<String, Object?> model;
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
+  late final check = AityxCheck(key, url, client);
 }
 
 Future<void> main(List<String> args) async {
@@ -136,6 +142,8 @@ Future<void> _handle(
         return _json(response, refused.status, refused.body!);
       }
       await _decide(request, aityx);
+    } else if (request.method == 'GET' && request.uri.path == '/api/aityx') {
+      _json(response, 200, await aityx.check.status());
     } else {
       final answer = route(
         request.method,

@@ -37,13 +37,15 @@ mortgage proposal.
 
 - [aityx.ai](aityx.md): the API key in `.env` (never in the app), the
   stage API, and `scripts/aityx-check.sh`, which runs the docs' example to
-  check the connection.
+  check the connection, and the status light, top right on every screen,
+  that says whether the API has a key and aityx accepts it.
 
 **Backend**
 
 - [Regulatory check](regulatory-check.md#the-rules-as-of-october-2026):
   `mortgagehub_api`, a Dart server that holds the aityx key and serves
-  `POST /api/proposals/check` and `GET /api/health`.
+  `POST /api/proposals/check`, `GET /api/aityx` (the status light's
+  check) and `GET /api/health`.
 
 **Project**
 

@@ -4,6 +4,10 @@
 ///   GET  /             302 to /app/, so a forwarded port's bare URL opens
 ///                      the app (the dev server proxies the root here)
 ///   GET  /api/health   {"ok": true, "aityx": true when the key is set}
+///   GET  /api/aityx    {"key": ..., "ok": ..., "url": ..., "detail": ...}:
+///                      whether the key is set and aityx accepts it, for
+///                      the app's status light (see lib/aityx_check.dart);
+///                      checked at most once a minute, never with the key
 ///   POST /api/route    {"message": "..."} → the routing (see
 ///                      lib/routing.dart): Jev classifies the message and
 ///                      the routing model picks the department, on aityx's
@@ -28,6 +32,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:contacthub_api/aityx_check.dart';
 import 'package:contacthub_api/routes.dart';
 import 'package:contacthub_api/routing.dart';
 
@@ -40,12 +45,15 @@ const _healthcheckDeadline = Duration(seconds: 3);
 /// What a routing call needs: the key, where aityx is, the model and a
 /// client.
 class _Aityx {
-  _Aityx(this.key, this.url, this.model);
+  _Aityx(this.key, this.url, this.model) : check = AityxCheck(key, url);
 
   final String key;
   final Uri url;
   final Map<String, Object?> model;
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
+
+  /// GET /api/aityx.
+  final AityxCheck check;
 }
 
 Future<void> main(List<String> args) async {
@@ -133,6 +141,8 @@ Future<void> _handle(
   try {
     if (request.method == 'POST' && request.uri.path == '/api/route') {
       await _route(request, aityx);
+    } else if (request.method == 'GET' && request.uri.path == '/api/aityx') {
+      _json(response, 200, await aityx.check.status());
     } else {
       final answer = route(
         request.method,

@@ -4,6 +4,10 @@
 ///   GET  /             302 to /app/, so a forwarded port's bare URL opens
 ///                      the app (the dev server proxies the root here)
 ///   GET  /api/health   {"ok": true, "aityx": true when the key is set}
+///   GET  /api/aityx    {"key": ..., "ok": ..., "url": ..., "detail": ...}:
+///                      whether the key is set and aityx accepts it (see
+///                      lib/aityx_check.dart), checked at most once a
+///                      minute; for the app's status light
 ///   POST /api/step     {"generation": 12, "situations": [...],
 ///                      "clusters": [...]} → the next generation (see
 ///                      lib/life.dart): the Life model on aityx's
@@ -30,6 +34,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cellfie_api/aityx_check.dart';
 import 'package:cellfie_api/life.dart';
 import 'package:cellfie_api/routes.dart';
 
@@ -43,12 +48,13 @@ const _aityxDeadline = Duration(seconds: 30);
 /// What a generation needs: the key, where aityx is, the model and a
 /// client.
 class _Aityx {
-  _Aityx(this.key, this.url, this.model);
+  _Aityx(this.key, this.url, this.model) : check = AityxCheck(key, url);
 
   final String key;
   final Uri url;
   final Map<String, Object?> model;
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
+  final AityxCheck check;
 }
 
 Future<void> main(List<String> args) async {
@@ -126,6 +132,8 @@ Future<void> _handle(
   try {
     if (request.method == 'POST' && request.uri.path == '/api/step') {
       await _step(request, aityx);
+    } else if (request.method == 'GET' && request.uri.path == '/api/aityx') {
+      _json(response, 200, await aityx.check.status());
     } else {
       final answer = route(
         request.method,

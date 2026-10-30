@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:riverrace_app/game/race.dart';
 import 'package:riverrace_app/main.dart';
 import 'package:riverrace_app/strategy/decide.dart';
@@ -33,7 +35,15 @@ Future<void> pumpApp(WidgetTester tester, Decider decider) async {
   tester.view.physicalSize = const Size(1600, 1400);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  await tester.pumpWidget(RiverRaceApp(decider: decider, seed: 11));
+  await tester.pumpWidget(
+    RiverRaceApp(
+      decider: decider,
+      seed: 11,
+      statusClient: MockClient(
+        (_) async => http.Response('{"key": true, "ok": true}', 200),
+      ),
+    ),
+  );
 }
 
 /// Lets the race run for [frames] frames.

@@ -5,6 +5,16 @@ Robocode's Java Swing window ([classic.dart](../roborules_app/lib/ui/classic.dar
 light gray panels, beveled buttons, a blue gradient title bar, "RoboRules:
 Robocode-style battles, every turn played by aityx".
 
+- **aityx light**, top right over the title bar on every screen
+  ([aityx_status.dart](../roborules_app/lib/aityx/aityx_status.dart)): an
+  8 px dot, grey while checking, green when aityx accepts the API's key,
+  red otherwise; its tooltip says why ("aityx: ready — accepts the key
+  (url)", "aityx: no key — AITYX_API_KEY is not set", "aityx: not
+  working — …", "aityx: the API did not answer"). It asks the API's
+  `GET /api/aityx` at start and every minute; the API posts an empty
+  request to aityx's `/v1/systemone` at most once a minute (a working key
+  gets 400 `invalid_request`, without running a model) and never returns
+  the key ([aityx_check.dart](../roborules_api/lib/aityx_check.dart)).
 - **Menu bar**: **Battle** (New…, Start, Pause/Resume, Stop, Results…),
   **Robot** (Add a robot…, each robot's rules, Remove each robot; adding
   and removing only between battles), **Options** (speeds), **Help** (the

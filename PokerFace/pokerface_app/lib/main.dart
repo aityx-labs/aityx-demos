@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'aityx_status.dart';
 import 'api/poker_api.dart';
 import 'app_version.dart';
 import 'game/controller.dart';
@@ -39,6 +40,8 @@ class _PokerFaceAppState extends State<PokerFaceApp> {
       title: AppVersion.title,
       debugShowCheckedModeBanner: false,
       theme: aityxDarkTheme(),
+      // The aityx light, top right over every screen.
+      builder: (context, child) => WithAityxStatus(child: child!),
       home: TableScreen(controller: _controller),
     );
   }

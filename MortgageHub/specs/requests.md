@@ -340,3 +340,12 @@ spec.
     gives its scripts URLs of their own, and nginx sends `no-cache` too.
     See [Regulatory check](regulatory-check.md) and [Development
     environment](dev-environment.md).
+
+## 2026-10-30
+
+42. **Add a discreet health indicator, top right of every screen, saying
+    whether the aityx key is set and aityx is reachable and answering,
+    with a tooltip.** A dot (grey while checking, green, red) over the
+    top right corner of every screen, with why in its tooltip; the API's
+    new `GET /api/aityx` checks the key against aityx at most once a
+    minute. See [aityx.ai integration](aityx.md).

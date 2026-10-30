@@ -30,6 +30,20 @@ The [regulatory check](regulatory-check.md) uses it, through the API
   \$20, 2026-10-28). It prints only the status and the answers; the key
   goes to curl on stdin, never on a command line. Needs `jq`.
 
+- **Status light:** a small dot in the top right corner of every screen
+  (`mortgagehub_app/lib/aityx_status.dart`, mounted once through
+  `MaterialApp.builder`): grey while it checks, green when the API has a
+  key and aityx accepts it, red otherwise. Its tooltip, also its screen
+  reader label, says why: `aityx: ready — accepts the key (<url>)`,
+  `aityx: no key — AITYX_API_KEY is not set`, `aityx: not working —
+  <detail>` or `aityx: the API did not answer`. It asks the API's `GET
+  /api/aityx` at start and every minute. The API
+  (`mortgagehub_api/lib/aityx_status.dart`) answers `{key, ok, url,
+  detail}`: it posts an empty request to `/v1/systemone`, which aityx
+  answers 400 `invalid_request` when it accepts the key and 401 when it
+  doesn't, without running a model; a redirect (stage behind a login)
+  names the host it goes to. The result is kept for a minute, and the key
+  is never in it.
 - **What aityx returns:** each answer typed (`choice`, `number`,
   `value` for strings and table structs, `noul` for booleans as `1.0` /
   `0.0`), and a receipt with the rule each table matched. Strict mode

@@ -109,3 +109,14 @@ The feature files hold the current specification; see the
    `startup.log` at the repository root. The README's codespace link
    points at the group's container. See [Development
    environment](dev-environment.md).
+
+## 2026-10-30
+
+10. **Add a discreet health indicator, top right on every screen, saying
+    whether the aityx key is set and aityx is reachable and answering,
+    with a tooltip.** The app shows an 8 px dot in the corner: grey while
+    checking, green when aityx accepts the API's key, red otherwise, with
+    why in its tooltip and for screen readers. The API gained
+    `GET /api/aityx`, which checks the key against aityx at most once a
+    minute; the app asks it at start and every minute. See [aityx status
+    light](aityx-status.md) and [API](api.md).

@@ -74,8 +74,9 @@ class AityxState {
 
   /// The light's tooltip, also its Semantics label.
   String get tooltip => switch (kind) {
-    AityxStateKind.ready =>
-      'aityx: ready ($whose${url == null || url!.isEmpty ? '' : ', $url'})',
+    AityxStateKind.ready => url == null || url!.isEmpty
+        ? 'aityx: ready — the key works'
+        : 'aityx: ready — the key works with $url',
     AityxStateKind.noKey => 'aityx: no key — set yours on the index page',
     AityxStateKind.rejected => 'aityx: key rejected — $detail',
     AityxStateKind.unreachable => 'aityx: not reachable — $detail',
@@ -161,7 +162,7 @@ AityxState classifyAityx({
       AityxStateKind.rejected,
       connection.source == AityxSource.user
           ? 'aityx answered $said: set a new key on the index page'
-          : 'the ${connection.whose} got $said',
+          : 'aityx answered $said',
     );
   }
   // The index server's proxy, when it couldn't reach aityx.

@@ -43,7 +43,7 @@ void main() {
     tester,
   ) async {
     await pumpWith(tester, withKey());
-    expect(tooltip(tester), 'aityx: ready (your key, https://api.aityx.ai)');
+    expect(tooltip(tester), 'aityx: ready — the key works with https://api.aityx.ai');
   });
 
   testWidgets('says to set a key on the index page without one', (

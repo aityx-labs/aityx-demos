@@ -151,3 +151,10 @@ The feature files hold the current specification; see the
     --no-web-resources-cdn`, which the index server serves at
     `/pokerface/`. See [Deciding on aityx](aityx.md) and [Development
     environment](dev-environment.md).
+
+11. **Don't say where the key comes from; check that it works against the
+    URL and say that.** The status light's tooltip now reads `aityx: ready — the key works with
+    <url>` for any key, the user's or the index server's dev key, and a
+    dev key aityx refuses reads `aityx answered HTTP n`; neither names
+    `.env` or the environment any more. The index page's key section does
+    the same.

@@ -22,14 +22,14 @@ void main() {
         '{"code":"invalid_request","detail":"state is required"}',
         user,
         AityxStateKind.ready,
-        'aityx: ready (your key, https://api.aityx.ai)',
+        'aityx: ready — the key works with https://api.aityx.ai',
       ),
       (
         400,
         '{"code":"invalid_request"}',
         dev,
         AityxStateKind.ready,
-        'aityx: ready (dev key from .env, https://api.aityx.ai)',
+        'aityx: ready — the key works with https://api.aityx.ai',
       ),
       (
         401,
@@ -52,7 +52,7 @@ void main() {
         '{"detail":"invalid API key"}',
         dev,
         AityxStateKind.rejected,
-        'aityx: key rejected — the dev key from .env got HTTP 401: '
+        'aityx: key rejected — aityx answered HTTP 401: '
             'invalid API key',
       ),
       (
@@ -146,7 +146,7 @@ void main() {
           devKeyFrom: 'environment',
         ),
       );
-      expect(state.tooltip, 'aityx: ready (dev key from the environment)');
+      expect(state.tooltip, 'aityx: ready — the key works');
     });
   });
 
@@ -194,7 +194,7 @@ void main() {
       expect(state.source, AityxSource.dev);
       expect(
         state.tooltip,
-        'aityx: ready (dev key from .env, https://api.aityx.ai)',
+        'aityx: ready — the key works with https://api.aityx.ai',
       );
     });
 

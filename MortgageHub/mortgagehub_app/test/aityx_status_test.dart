@@ -54,7 +54,7 @@ void main() {
     );
     expect(asked.toString(), 'https://api.aityx.ai/v1/systemone');
     expect(auth, 'Bearer test-key');
-    expect(tip(tester), 'aityx: ready (your key, https://api.aityx.ai)');
+    expect(tip(tester), 'aityx: ready — the key works with https://api.aityx.ai');
   });
 
   testWidgets('red when aityx rejects the key', (tester) async {

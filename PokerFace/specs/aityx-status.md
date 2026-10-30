@@ -11,7 +11,7 @@ through to the app. A tap on the dot opens the index page's key section
 | Dot | Means | Tooltip (and screen-reader label) |
 |---|---|---|
 | grey | a check is running | `aityx: checking` |
-| green | aityx accepts the key | `aityx: ready (your key, https://api.aityx.ai)`, or `(dev key from .env, ...)` |
+| green | aityx accepts the key | `aityx: ready — the key works with https://api.aityx.ai` |
 | red | no key at all | `aityx: no key — set yours on the index page` |
 | red | aityx refuses the key | `aityx: key rejected — <why>` |
 | red | aityx (or the dev proxy) can't be reached | `aityx: not reachable — <why>` |

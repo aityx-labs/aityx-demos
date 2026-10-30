@@ -50,9 +50,9 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
-    expect(tooltip(tester), 'aityx: ready (your key, https://api.aityx.ai)');
+    expect(tooltip(tester), 'aityx: ready — the key works with https://api.aityx.ai');
     expect(
-      find.bySemanticsLabel('aityx: ready (your key, https://api.aityx.ai)'),
+      find.bySemanticsLabel('aityx: ready — the key works with https://api.aityx.ai'),
       findsOneWidget,
     );
   });

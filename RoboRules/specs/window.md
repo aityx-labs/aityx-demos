@@ -9,9 +9,8 @@ Robocode-style battles, every turn played by aityx".
   (`withAityxStatus` from the shared
   [aityx_web](../../packages/aityx_web) package, in `MaterialApp.builder`):
   an 8 px dot, grey while checking, green when aityx accepts the key the
-  app calls it with, red otherwise; its tooltip says why ("aityx: ready
-  (your key, https://api.aityx.ai)", "aityx: ready (dev key from .env,
-  …)", "aityx: no key — set yours on the index page", "aityx: key
+  app calls it with, red otherwise; its tooltip says why ("aityx: ready — the key works with
+  https://api.aityx.ai", "aityx: no key — set yours on the index page", "aityx: key
   rejected — …", "aityx: not reachable — …", "aityx: not working — …").
   The key is the user's, saved on the index page, else the index server's
   dev key (see [Development environment](dev-environment.md#the-aityx-key)).

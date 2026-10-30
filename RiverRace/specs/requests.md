@@ -141,3 +141,10 @@ The feature files hold the current specification; see the
     builds only the web app, for the index server at `/riverrace/`,
     without the CDN; `scripts/model-test.sh` runs the app's `aityx`
     tests (see [Development environment](dev-environment.md)).
+
+18. **Don't say where the key comes from; check that it works against the
+    URL and say that.** The status light's tooltip now reads `aityx: ready — the key works with
+    <url>` for any key, the user's or the index server's dev key, and a
+    dev key aityx refuses reads `aityx answered HTTP n`; neither names
+    `.env` or the environment any more. The index page's key section does
+    the same.

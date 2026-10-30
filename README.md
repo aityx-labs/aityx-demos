@@ -19,6 +19,10 @@ launching:
 5. Under **Repository access**, select `aityx-labs/aityx-demos`, then
    choose **Add secret**.
 
+On your own machine, with a clone, skip the secret:
+`export AITYX_API_KEY=<your key>` (or put it in the root `.env`, see
+[.env.example](.env.example)), then run `./start-aityx.sh`.
+
 Then open the demos in a codespace:
 
 [![Open the aityx demos in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Faityx%2Fdevcontainer.json&machine=standardLinux32gb)

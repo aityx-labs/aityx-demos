@@ -8,5 +8,33 @@ logs/
 # The dev container image build context (see image/build-image.sh)
 image/context/
 
-# Local settings (the aityx key): one .env here, linked from each demo.
+# Local settings (the aityx key): one .env here, read by the index server
+# and the model tests. Any other .env.* too, but the examples.
 .env
+.env.*
+!.env.example
+
+# Credentials, wherever they turn up: keys and certificates, signing
+# keystores, tokens for git, npm, PyPI and Docker, cloud credentials.
+# sync-dockerignore.sh copies these rules into every .dockerignore, so
+# they never reach an image either.
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+key.properties
+id_rsa*
+id_ecdsa*
+id_ed25519*
+.netrc
+.git-credentials
+.npmrc
+.pypirc
+.dockercfg
+credentials.json
+service-account*.json
+.aws/
+.gcloud/
+*.tfvars

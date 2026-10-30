@@ -4,46 +4,37 @@ Working examples of business automation with aityx: processes, decision
 models, and applications built around them. Each folder is a self-contained
 sample with its own documentation.
 
-The demos that run as apps come in two groups. Each group opens in a
-GitHub codespace of its own, with its own dev container and image, and
-starts there with its index page, which links the group's apps: the
-aityx group's on port 8800 ([Index/](Index/)), the datyx group's on port
-9800 ([datyx-index/](datyx-index/)). Both need your own `AITYX_API_KEY` Codespaces secret (see
-[Launching it](#launching-it)). On a laptop, `./start-aityx.sh` or
-`./start-datyx.sh` starts a group (see [Run all the demos](#run-all-the-demos)).
+## aityx demos
 
-## aityx group
+The demos call [aityx.ai](https://aityx.ai) with your own API key, which
+the codespace reads from a Codespaces secret. Set it up once, before
+launching:
+
+1. Sign up at [aityx.ai](https://aityx.ai).
+2. In the [aityx console](https://console.aityx.ai), open the **API keys**
+   page and copy a key.
+3. Go to [github.com/settings/codespaces](https://github.com/settings/codespaces)
+   and, under **Codespaces secrets**, choose **New secret**.
+4. Name it exactly `AITYX_API_KEY` and paste the key as the value.
+5. Under **Repository access**, select `aityx-labs/aityx-demos`, then
+   choose **Add secret**.
+
+Then open the demos in a codespace:
 
 [![Open the aityx demos in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Faityx%2Fdevcontainer.json&machine=standardLinux32gb)
 
-Six demos whose decisions run on [aityx.ai](https://aityx.ai), each a
-Flutter app and a Dart API. Dev container
+Six demos whose decisions run on [aityx.ai](https://aityx.ai), each an
+app and an API. Dev container
 [.devcontainer/aityx/](.devcontainer/aityx/devcontainer.json).
 
 | Demo | What it shows |
 |---|---|
-| [Mortgage Hub](MortgageHub/) | A mortgage application from request to verdict: a Flutter app, a Dart API, and a decision model run by [aityx.ai](https://aityx.ai) |
-| [Contact Hub](ContactHub/) | Ask anything and have it routed to the right department or person. A request, typed or dictated on the device, routed by an aityx decision model: a Flutter app and a Dart API |
+| [Mortgage Hub](MortgageHub/) | A mortgage application from request to verdict: an app, an API, and a decision model run by [aityx.ai](https://aityx.ai) |
+| [Contact Hub](ContactHub/) | Ask anything and have it routed to the right department or person. A request, typed or dictated on the device, routed by an aityx decision model: an app and an API |
 | [Cellfie](Cellfie/) | The cells take a picture of themselves every generation, and aityx says who's in it: Conway's Game of Life on an infinite board, with the rules and pattern catalogue as an aityx decision model; one call per generation, with the board and every request and response shown in the app |
 | [RiverRace](RiverRace/) | The 1982 Atari river shooter, remade with three planes up one river at once: two flown by aityx, each by its own editable rules, and one flown by you; every aityx call, sent and received, in a sidebar |
 | [RoboRules](RoboRules/) | A web take on the old Robocode: robots whose behavior is an aityx decision model, fighting battles played turn by turn by aityx |
-| [PokerFace](PokerFace/) | A poker simulator where every player is a set of rules run by [aityx.ai](https://aityx.ai): no-limit hold'em at a table of nine, every aityx call in a sidebar, the pace in your hands, and strategies you can read or write. A Flutter app and a Dart API |
-
-## datyx group
-
-[![Open the datyx demos in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Fdatyx%2Fdevcontainer.json&machine=standardLinux32gb)
-
-The datyx data system and the demos built on a database, with
-PostgreSQL, Elasticsearch and OpenMetadata running in Docker. Dev
-container [.devcontainer/datyx/](.devcontainer/datyx/devcontainer.json),
-on a 4-core, 16 GB machine.
-
-| Demo | What it shows |
-|---|---|
-| [datyx](datyx/) | A data system in the making, API only: REST on Quarkus and GraalVM (Hibernate, Panache, PostgreSQL) and an OpenMetadata server with Elasticsearch; on ports 9900 to 9905, apart from the demos |
-| [datyx-dashboard](datyx-dashboard/) | The views of datyx: a Flutter web app, like the demos' apps, that calls the datyx API and shows what it answers, with every request and response; on port 9906 |
-| [HealthHub](HealthHub/) | The first demo with a database: a Flutter app, a Dart API and PostgreSQL, built like the others; for now a map of where you are, and a dashboard after signing in |
-| [datyx-index](datyx-index/) | One page linking the datyx group: the dashboard, the API, HealthHub and OpenMetadata; on port 9800 |
+| [PokerFace](PokerFace/) | A poker simulator where every player is a set of rules run by [aityx.ai](https://aityx.ai): no-limit hold'em at a table of nine, every aityx call in a sidebar, the pace in your hands, and strategies you can read or write. An app and an API |
 
 ## Run all the demos
 
@@ -53,19 +44,11 @@ from the root of this repository with [Devbox](https://www.jetify.com/devbox):
 
 ```bash
 ./start-all.sh              # every demo, detached; waits until each answers
-./start-aityx.sh            # the aityx group: Mortgage Hub, Contact Hub, PokerFace, RoboRules, Cellfie, RiverRace, and their index
-./start-datyx.sh            # the datyx group: the datyx API, its dashboard, HealthHub, and their index
+./start-aityx.sh            # the aityx demos: Mortgage Hub, Contact Hub, PokerFace, RoboRules, Cellfie, RiverRace, and their index
 ./start-all.sh ContactHub   # only the ones named
-./stop-all.sh               # stops them all; ./stop-aityx.sh and ./stop-datyx.sh one group
+./stop-all.sh               # stops them all; ./stop-aityx.sh only the aityx demos
 ```
 
-The demos run in two groups, each with its own start and stop scripts
-and its own index page: **aityx**, the six demos whose decisions run on
-aityx, with their index on port 8800 ([Index/](Index/)), and **datyx**,
-the datyx API, the datyx dashboard and HealthHub, with their index on
-port 9800 ([datyx-index/](datyx-index/)). A folder's group is its
-`group.id.txt`, which the group scripts read; `start-all.sh` and
-`stop-all.sh` take both groups.
 [start-all.sh](start-all.sh) runs `devbox services up -b` in each folder
 and then prints where to open each app once its web app and API answer.
 Each demo serves its app's release build and a compiled API, so a start
@@ -88,39 +71,35 @@ image: [sync-dockerignore.sh](sync-dockerignore.sh) copies the
 `devbox services attach -c <demo>`; [stop-all.sh](stop-all.sh) runs
 `devbox services stop` in each folder that is running.
 
-The same, in a codespace, one demo group at a time: each group has its
-own dev container, with its own image, and starts the index page and the
-group's demos on each start, as `./start-aityx.sh` or `./start-datyx.sh`
-would. Both need your own `AITYX_API_KEY` Codespaces secret and,
+The same, in a codespace: its dev container, with its own image, starts
+the index page and the demos on each start, as `./start-aityx.sh` would.
+It needs your own `AITYX_API_KEY` Codespaces secret and,
 optionally, an `AITYX_URL` secret (see [Launching it](#launching-it)
 below).
 
 | Dev container | Starts | Image | Machine |
 |---|---|---|---|
 | [aityx demos](.devcontainer/aityx/devcontainer.json) | Mortgage Hub, Contact Hub, Cellfie, RoboRules, RiverRace, PokerFace | `docker.io/aletyxcode/samples-and-demos-aityx` | 4-core, 16 GB |
-| [datyx demos](.devcontainer/datyx/devcontainer.json) | the datyx API (with PostgreSQL, Elasticsearch and OpenMetadata in Docker), the datyx dashboard, HealthHub | `docker.io/aletyxcode/samples-and-demos-datyx` | 4-core, 16 GB |
 
 Once it starts, the index page opens on port **8800** and links each
-demo; the group's web apps are in the **Ports** panel too, made public so
-the links can be shared (the datyx API and OpenMetadata are forwarded
-privately). In a group's codespace, `./start-all.sh`, `./stop-all.sh` and
-`./build-all.sh` act on that group only (`DEMOS_GROUP`, set by its
+demo; the web apps are in the **Ports** panel too, made public so
+the links can be shared. In the codespace, `./start-all.sh`, `./stop-all.sh` and
+`./build-all.sh` act on the aityx demos only (`DEMOS_GROUP`, set by its
 `devcontainer.json`). Every step of the start goes to `startup.log` at
 the root.
 
-### Ready when it opens: the published images
+### Ready when it opens: the published image
 
-Each group's dev container uses its own published image (built from
+The dev container uses its own published image (built from
 [image/Containerfile](image/Containerfile) by
-`bash image/build-image.sh <group>`, see [image/](image/)): Flutter,
-process-compose, for datyx GraalVM and the API's Maven dependencies, and
-**the release web build of each of the group's demos**. Creating a
+`bash image/build-image.sh aityx`, see [image/](image/)): the toolchain,
+process-compose, and **the release web build of each demo**. Creating a
 codespace pulls it, copies the builds of the demos that haven't changed
 since the image was made into the workspace (`onCreateCommand`) and
 starts them (`postStartCommand`); a demo that did change builds itself,
 a minute or two on 4 cores, while the others are already up. GitHub's
 prebuilds and Actions are switched off for this organization, so the
-images are built on a laptop and pushed after merging to `main`; an old
+image is built on a laptop and pushed after merging to `main`; an old
 image slows a changed demo down but breaks nothing. The demos run on the
 image's own toolchain (`DEMOS_TOOLCHAIN=image`, see
 [demos-toolchain.sh](demos-toolchain.sh)); devbox is for a laptop.
@@ -136,8 +115,8 @@ model on [aityx.ai](https://aityx.ai).
 
 | Part | Technology |
 |---|---|
-| App | [Flutter](https://flutter.dev): web, Android, iOS and Linux from one codebase |
-| API | Dart (`dart:io`); holds the [aityx](https://aityx.ai) key and runs the check |
+| App | Web, Android, iOS and Linux from one codebase |
+| API | Holds the [aityx](https://aityx.ai) key and runs the check |
 | Rules | An [aityx.ai](https://aityx.ai) decision model |
 | Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) in a [dev container](https://containers.dev/) |
 
@@ -155,16 +134,16 @@ For a non-default endpoint, add an `AITYX_URL` secret and set it to
 `https://api-stage.aityx.ai` for a stage key; leave it unset to use
 `https://api.aityx.ai`. Give it access to this repository too. The
 [Mortgage Hub README](MortgageHub/README.md#run-it-in-a-codespace) shows
-the secret setup and codespace creation. Each group's dev container
+the secret setup and codespace creation. The dev container
 passes both values to each API service; they are not written to disk or logged.
 The same secrets can be used for every demo.
 
-Then launch the aityx group with its badge under
-[aityx group](#aityx-group) at the top. That opens its dev container, **aityx demos**, on a 4-core
+Then launch the demos with the badge under
+[aityx demos](#aityx-demos-1) at the top. That opens its dev container, **aityx demos**, on a 4-core
 machine (16 GB RAM): it starts Mortgage Hub with the other aityx demos
 and the index page. If you create the codespace yourself through *Code →
 Codespaces → New with options*, choose **aityx demos** as the dev
-container configuration; **datyx demos** is the other group.
+container configuration.
 
 Once it starts, the apps start too: when Mortgage Hub answers, seconds
 from the image, or after its build, open port **8880** from the **Ports**
@@ -196,9 +175,9 @@ Both serve the app at http://localhost:8880/app/. Stop them with
 
 [ContactHub/](ContactHub/) will let someone ask anything and route the
 question to the right department or person, with its checks run on the
-way. Built like Mortgage Hub: a Flutter app takes the request (typed,
+way. Built like Mortgage Hub: an app takes the request (typed,
 dictated with speech recognized in the browser, or picked from samples),
-and a Dart API routes it with one aityx call, in which Jev classifies and
+and an API routes it with one aityx call, in which Jev classifies and
 checks the message and a decision model picks the department, the person
 and the priority. The app shows why, and the aityx call, with links to
 exactly the JSON behind each item. Put your key in the root `.env`
@@ -308,28 +287,6 @@ Both serve the app at http://localhost:8910/app/, alongside the other
 samples. The badge above opens it in a codespace, with the same
 `AITYX_API_KEY` Codespaces secret. See the
 [PokerFace README](PokerFace/README.md).
-
-## HealthHub
-
-[HealthHub/](HealthHub/) is the next demo, and the first with a
-database: a Flutter app, a Dart API and PostgreSQL 17, laid out like the
-others so the same scripts, dev containers and launchers run it. For
-now the app is a map: the index, for someone not signed in, shows where
-they are with a welcome over it, and home, after signing in, is a
-dashboard whose one tile is the same map. The database is a Docker container (the `postgres`
-service of its [compose.yaml](HealthHub/compose.yaml)), which
-`devbox services up` starts too, so Docker must be running; the dev
-containers add it. From the root of this repository:
-
-```bash
-devbox services up -c HealthHub --pcflags "--tui=false"
-# or, with Docker alone
-docker compose -f HealthHub/compose.yaml up --build
-```
-
-Both serve the app at http://localhost:9801/app/, with the API on 9802
-and PostgreSQL on 9803, alongside the other samples. Nothing calls aityx
-yet. See the [HealthHub README](HealthHub/README.md).
 
 ## License
 

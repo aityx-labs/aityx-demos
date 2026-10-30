@@ -4,8 +4,6 @@ Working examples of business automation with aityx: processes, decision
 models, and applications built around them. Each folder is a self-contained
 sample with its own documentation.
 
-## aityx demos
-
 The demos call [aityx.ai](https://aityx.ai) with your own API key, which
 you set once, in your browser, on their index page:
 
@@ -60,7 +58,7 @@ model on [aityx.ai](https://aityx.ai).
 with this repository. Without one the app still opens, but the
 regulatory check, the point of the demo, cannot run.
 
-Launch the demos with the badge under [aityx demos](#aityx-demos-1) at
+Launch the demos with the badge under [aityx demos](#aityx-demos) at
 the top. That opens its dev container, **aityx demos**, on a 4-core
 machine (16 GB RAM): it starts the index, which serves Mortgage Hub with
 the other aityx demos. If you create the codespace yourself through

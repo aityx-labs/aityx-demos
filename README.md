@@ -37,76 +37,6 @@ Flutter web app that calls aityx from the browser, all served by the
 | [RoboRules](RoboRules/) | `/roborules/` | A web take on the old Robocode: robots whose behavior is an aityx decision model, fighting battles played turn by turn by aityx |
 | [PokerFace](PokerFace/) | `/pokerface/` | A poker simulator where every player is a set of rules run by [aityx.ai](https://aityx.ai): no-limit hold'em at a table of nine, every aityx call in a sidebar, the pace in your hands, and strategies you can read or write |
 
-## Run all the demos
-
-From the root of this repository, with [Devbox](https://www.jetify.com/devbox):
-
-```bash
-./start-aityx.sh            # the six aityx demos, on http://localhost:8800/
-./start-all.sh              # every demo, the datyx group too
-./start-aityx.sh ContactHub # only the ones named (and the index)
-./stop-aityx.sh             # stops them; ./stop-all.sh stops everything
-```
-
-Then open http://localhost:8800/, set your key in **Your aityx key**,
-and open a demo from its card, or at its path:
-http://localhost:8800/mortgagehub/, /contacthub/, /pokerface/,
-/roborules/, /cellfie/, /riverrace/.
-
-[start-all.sh](start-all.sh) builds each aityx demo's release web build
-whose build is missing or older than its sources (its `scripts/build.sh`,
-a minute or two, one demo at a time; up to date, a second or two), then
-starts the index ([Index/](Index/)), which serves the page and the six
-apps, and prints each demo's link once it answers. The demos have no
-servers of their own. [build-all.sh](build-all.sh) builds them all ahead,
-showing each build. Watch the index with
-`devbox services attach -c Index`; [stop-all.sh](stop-all.sh) stops it.
-
-**A dev key.** Without a key of your own in the browser, the apps ask the
-index server whether it has one: `AITYX_API_KEY` in its environment, or
-in the root `.env` (copy [.env.example](.env.example)). If it does, it
-lends it through its own proxy, so the key never reaches the browser,
-and the demos work with nothing set on the page. `AITYX_URL` defaults to
-`https://api.aityx.ai`. The same `.env` key runs each demo's
-`scripts/model-test.sh`, the tests that call aityx. No `.env`, nor
-anything else git ignores, goes into a Docker image:
-[sync-dockerignore.sh](sync-dockerignore.sh) copies the `.gitignore`
-rules into every `.dockerignore`; run it after changing a `.gitignore` or
-adding a Dockerfile (`--check` says whether one is stale).
-
-The same, in a codespace: its dev container, with its own image, starts
-the index, which serves the six demos, on each start, as
-`./start-aityx.sh` would.
-
-| Dev container | Starts | Image | Machine |
-|---|---|---|---|
-| [aityx demos](.devcontainer/aityx/devcontainer.json) | Mortgage Hub, Contact Hub, Cellfie, RoboRules, RiverRace, PokerFace | `docker.io/aletyxcode/samples-and-demos-aityx` | 4-core, 16 GB |
-
-Once it starts, the index page opens on port **8800**, the only port,
-made public so the link can be shared: each visitor sets their own key on
-it. Optionally, an `AITYX_API_KEY` Codespaces secret is a dev key every
-visitor of your codespace uses unless they set their own (see
-[Launching it](#launching-it) below). In the codespace, `./start-all.sh`,
-`./stop-all.sh` and `./build-all.sh` act on the aityx demos only
-(`DEMOS_GROUP`, set by its `devcontainer.json`). Every step of the start
-goes to `startup.log` at the root.
-
-### Ready when it opens: the published image
-
-The dev container uses its own published image (built from
-[image/Containerfile](image/Containerfile) by
-`bash image/build-image.sh aityx`, see [image/](image/)): the toolchain,
-process-compose, and **the release web build of each demo**. Creating a
-codespace pulls it, copies the builds of the demos that haven't changed
-since the image was made into the workspace (`onCreateCommand`) and
-starts the index (`postStartCommand`); a demo that did change builds
-itself, a minute or two on 4 cores, while the others are already up.
-GitHub's prebuilds and Actions are switched off for this organization, so
-the image is built on a laptop and pushed after merging to `main`; an old
-image slows a changed demo down but breaks nothing. The demos are built
-with the image's own toolchain (`DEMOS_TOOLCHAIN=image`, see
-[demos-toolchain.sh](demos-toolchain.sh)); devbox is for a laptop.
-
 ## Mortgage Hub
 
 ![Mortgage Hub: a proposal request, filled in and sent, and aityx's regulatory check](Index/www/mortgagehub.gif)
@@ -272,6 +202,76 @@ slider sets the pace. From the root of this repository:
 serves it at http://localhost:8800/pokerface/, alongside the other
 demos, with the key you set on the index page. The badge above opens it
 in a codespace. See the [PokerFace README](PokerFace/README.md).
+
+## Run all the demos
+
+From the root of this repository, with [Devbox](https://www.jetify.com/devbox):
+
+```bash
+./start-aityx.sh            # the six aityx demos, on http://localhost:8800/
+./start-all.sh              # every demo, the datyx group too
+./start-aityx.sh ContactHub # only the ones named (and the index)
+./stop-aityx.sh             # stops them; ./stop-all.sh stops everything
+```
+
+Then open http://localhost:8800/, set your key in **Your aityx key**,
+and open a demo from its card, or at its path:
+http://localhost:8800/mortgagehub/, /contacthub/, /pokerface/,
+/roborules/, /cellfie/, /riverrace/.
+
+[start-all.sh](start-all.sh) builds each aityx demo's release web build
+whose build is missing or older than its sources (its `scripts/build.sh`,
+a minute or two, one demo at a time; up to date, a second or two), then
+starts the index ([Index/](Index/)), which serves the page and the six
+apps, and prints each demo's link once it answers. The demos have no
+servers of their own. [build-all.sh](build-all.sh) builds them all ahead,
+showing each build. Watch the index with
+`devbox services attach -c Index`; [stop-all.sh](stop-all.sh) stops it.
+
+**A dev key.** Without a key of your own in the browser, the apps ask the
+index server whether it has one: `AITYX_API_KEY` in its environment, or
+in the root `.env` (copy [.env.example](.env.example)). If it does, it
+lends it through its own proxy, so the key never reaches the browser,
+and the demos work with nothing set on the page. `AITYX_URL` defaults to
+`https://api.aityx.ai`. The same `.env` key runs each demo's
+`scripts/model-test.sh`, the tests that call aityx. No `.env`, nor
+anything else git ignores, goes into a Docker image:
+[sync-dockerignore.sh](sync-dockerignore.sh) copies the `.gitignore`
+rules into every `.dockerignore`; run it after changing a `.gitignore` or
+adding a Dockerfile (`--check` says whether one is stale).
+
+The same, in a codespace: its dev container, with its own image, starts
+the index, which serves the six demos, on each start, as
+`./start-aityx.sh` would.
+
+| Dev container | Starts | Image | Machine |
+|---|---|---|---|
+| [aityx demos](.devcontainer/aityx/devcontainer.json) | Mortgage Hub, Contact Hub, Cellfie, RoboRules, RiverRace, PokerFace | `docker.io/aletyxcode/samples-and-demos-aityx` | 4-core, 16 GB |
+
+Once it starts, the index page opens on port **8800**, the only port,
+made public so the link can be shared: each visitor sets their own key on
+it. Optionally, an `AITYX_API_KEY` Codespaces secret is a dev key every
+visitor of your codespace uses unless they set their own (see
+[Launching it](#launching-it), under Mortgage Hub). In the codespace, `./start-all.sh`,
+`./stop-all.sh` and `./build-all.sh` act on the aityx demos only
+(`DEMOS_GROUP`, set by its `devcontainer.json`). Every step of the start
+goes to `startup.log` at the root.
+
+### Ready when it opens: the published image
+
+The dev container uses its own published image (built from
+[image/Containerfile](image/Containerfile) by
+`bash image/build-image.sh aityx`, see [image/](image/)): the toolchain,
+process-compose, and **the release web build of each demo**. Creating a
+codespace pulls it, copies the builds of the demos that haven't changed
+since the image was made into the workspace (`onCreateCommand`) and
+starts the index (`postStartCommand`); a demo that did change builds
+itself, a minute or two on 4 cores, while the others are already up.
+GitHub's prebuilds and Actions are switched off for this organization, so
+the image is built on a laptop and pushed after merging to `main`; an old
+image slows a changed demo down but breaks nothing. The demos are built
+with the image's own toolchain (`DEMOS_TOOLCHAIN=image`, see
+[demos-toolchain.sh](demos-toolchain.sh)); devbox is for a laptop.
 
 ## License
 

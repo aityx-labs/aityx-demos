@@ -119,3 +119,7 @@ The feature files hold the current specification; see the
     red when not, grey while it checks, with the reason on hover. The
     [API](api.md) answers it at `GET /api/aityx`, checking aityx at most
     once a minute (see [aityx status](aityx-status.md)).
+16. **Make the plane slow down a little more while over the recharge
+    pad.** Over a fuel depot a plane now drops to 35% of its throttle's
+    speed, from half, so it stays longer and fills more (see
+    [Game](game.md#the-planes)).

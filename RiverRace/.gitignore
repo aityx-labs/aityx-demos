@@ -2,7 +2,7 @@
 .devbox/
 .envrc.local
 
-# --- Local settings (see .env.example) ---
+# --- Local settings (the repository's, see ../.env.example) ---
 .env
 .env.*
 !.env.example

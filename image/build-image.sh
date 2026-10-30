@@ -6,7 +6,8 @@
 # commit and as latest. One image per group, each used by its own dev
 # container (.devcontainer/<group>/):
 #   aityx  docker.io/aletyxcode/samples-and-demos-aityx: Flutter and the
-#          six aityx demos' builds
+#          six aityx demos' release web builds, which the index serves
+#          at /<slug>/ (the demos have no APIs)
 #   datyx  docker.io/aletyxcode/samples-and-demos-datyx: Flutter, GraalVM
 #          and the datyx API's Maven dependencies, and the builds of the
 #          datyx dashboard and HealthHub
@@ -21,11 +22,13 @@
 # The web builds are platform-independent, so they are made here natively
 # with ./build-all.sh (devbox) and copied into the image, which is built
 # for linux/amd64, the Codespaces machines, through Docker's emulation
-# (its Flutter steps take a few minutes). The APIs' binaries are not in
-# the image: a codespace compiles them in seconds.
+# (its Flutter steps take a few minutes). No API binaries are in the
+# image: the aityx demos have none, and the datyx group's compile in a
+# codespace in seconds.
 #
 # The staging folder image/context/<group>/ (git-ignored) holds what the
-# Containerfile copies: the pubspecs, the Maven projects' poms (for their
+# Containerfile copies: the pubspecs (the shared packages/ ones too), the
+# Maven projects' poms (for their
 # dependencies), the builds and the manifest, which records each demo's
 # build key (build-key.sh: the git ids of what the web build is made
 # from); restore-builds.sh reuses a build only for a demo whose key is
@@ -42,16 +45,17 @@ image="${IMAGE:-docker.io/aletyxcode/samples-and-demos-$group}"
 cd "$root"
 # shellcheck source=build-key.sh
 source "$root/image/build-key.sh"
+# shellcheck source=../demos-toolchain.sh
+source "$root/demos-toolchain.sh"
 
 sha="$(git rev-parse --short HEAD)"
 # The group's demos with a web build to carry: a committed app package and
 # a scripts/build.sh. A folder without one (new, or not a Flutter demo) is
 # left out; its codespace builds it.
 demos=()
-for config in */devbox.json; do
-  dir="$(dirname "$config")"
+for build in */scripts/build.sh; do
+  dir="${build%%/*}"
   [[ "$(tr -d '[:space:]' <"$dir/group.id.txt" 2>/dev/null)" == "$group" ]] || continue
-  [[ -f "$dir/scripts/build.sh" ]] || continue
   if [[ -z "$(build_key "$dir")" ]]; then
     echo "· $dir: no Flutter app committed: no web build for the image to carry"
     continue
@@ -78,9 +82,16 @@ mkdir -p "$context/builds" "$context/pubspecs" "$context/maven"
 : >"$context/builds/manifest"
 for demo in "${demos[@]}"; do
   app="$(app_package "$demo")"
+  if index_serves "$demo"; then
+    # A demo the index serves: built for its own path there.
+    slug="$(index_slug "$demo")"
+    if ! grep -q "<base href=\"/$slug/\">" "$app/build/web/index.html" 2>/dev/null; then
+      echo "error: $app/build/web isn't built for /$slug/ (its index.html's base href)" >&2
+      exit 1
+    fi
   # The record of the settings scripts/build.sh made the build with
-  # (.aityx-services, or .datyx-services for the datyx dashboard).
-  if ! compgen -G "$app/build/web/.*-services" >/dev/null; then
+  # (.datyx-services for the datyx dashboard, ...).
+  elif ! compgen -G "$app/build/web/.*-services" >/dev/null; then
     echo "error: $app/build/web isn't a services build" >&2
     exit 1
   fi
@@ -90,7 +101,8 @@ for demo in "${demos[@]}"; do
 done
 # Every Dart and Flutter package of the group's folders (apps and APIs),
 # and every Maven project (datyx's API): only what fetching their
-# dependencies needs.
+# dependencies needs. Then the shared packages (packages/<name>) the
+# group's apps depend on by path, at the same place relative to them.
 for dir in */; do
   dir="${dir%/}"
   [[ "$(tr -d '[:space:]' <"$dir/group.id.txt" 2>/dev/null)" == "$group" ]] || continue
@@ -106,6 +118,15 @@ for dir in */; do
     fi
   done
 done
+if grep -rqs --include=pubspec.yaml 'packages/' "$context/pubspecs"; then
+  for pkg in packages/*/; do
+    pkg="${pkg%/}"
+    [[ -f "$pkg/pubspec.yaml" ]] || continue
+    mkdir -p "$context/pubspecs/$pkg"
+    cp "$pkg/pubspec.yaml" "$context/pubspecs/$pkg/"
+    [[ -f "$pkg/pubspec.lock" ]] && cp "$pkg/pubspec.lock" "$context/pubspecs/$pkg/"
+  done
+fi
 echo "==> manifest:"
 cat "$context/builds/manifest"
 echo "==> packages: $(cd "$context" && find pubspecs maven -name pubspec.yaml -o -name pom.xml | sort | tr '\n' ' ')"

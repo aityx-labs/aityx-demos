@@ -123,3 +123,21 @@ The feature files hold the current specification; see the
     pad.** Over a fuel depot a plane now drops to 35% of its throttle's
     speed, from half, so it stays longer and fills more (see
     [Game](game.md#the-planes)).
+17. **Run the aityx demos entirely in the browser: no per-demo API, the
+    Flutter web app calls aityx itself, and the six demos and the index
+    page share one origin, so a key set once on the index page works in
+    every demo.** `riverrace_api` is gone, with `scripts/api.sh`,
+    `scripts/flutter-web.sh`, `scripts/health-check.sh`,
+    `process-compose.yaml`, Docker Compose (`compose.yaml`, `docker/`,
+    `.dockerignore`), `.env.example` and the `web` and `api` devbox
+    scripts. Its pure logic moved into the app
+    (`lib/aityx/decision_request.dart`, with its tests), the model into
+    the app's assets (`assets/models/river.json`), and the app's
+    `Decider` is now `AityxDecider`, which calls aityx's `/v1/systemone`
+    through the shared package `packages/aityx_web`, on the user's key or
+    the index server's dev key, checking a request as the API did and
+    keeping its wording (see [aityx calls](api.md)). The status light is
+    aityx_web's (see [aityx status](aityx-status.md)). `scripts/build.sh`
+    builds only the web app, for the index server at `/riverrace/`,
+    without the CDN; `scripts/model-test.sh` runs the app's `aityx`
+    tests (see [Development environment](dev-environment.md)).

@@ -8,7 +8,7 @@ import 'json_layout.dart';
 
 /// Which half of a call.
 enum CallSide {
-  request('Request', 'What the API sent'),
+  request('Request', 'What the app sent'),
   response('Response', 'The answer');
 
   const CallSide(this.label, this.description);

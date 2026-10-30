@@ -32,17 +32,18 @@ fired. Which strategy wins?
   river.
 - [App icon](app-icon.md): the yellow plane over the river, in pixels.
 - [aityx status](aityx-status.md): the light, top right, that says
-  whether the API has its key and aityx accepts it.
-
-**Backend**
-
-- [API](api.md): `riverrace_api`, a Dart server that holds the aityx key and
-  serves `POST /api/decide`, `GET /api/health` and `GET /api/aityx`.
+  whether there is a key (the user's, or the index server's dev key) and
+  aityx accepts it.
+- [aityx calls](api.md): no API of its own; the app calls aityx from the
+  browser, on the key the user set on the index page, or through the
+  index server's dev proxy; the checks before a call, and the messages
+  when one fails.
 
 **Project**
 
-- [Development environment](dev-environment.md): devbox, process-compose,
-  the health monitor, the builds, Docker Compose and the dev container.
+- [Development environment](dev-environment.md): devbox, the web build
+  the index server serves at `/riverrace/`, the native builds, the model
+  tests and the dev container.
 
 ## Workflow
 

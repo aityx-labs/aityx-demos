@@ -1,6 +1,16 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
+import 'package:aityx_web/aityx_web.dart';
+import 'package:flutter/services.dart' show rootBundle;
+
+import '../aityx/routing.dart'
+    show
+        InvalidRequest,
+        RoutingFailed,
+        messageFrom,
+        routingRequest,
+        toRouting,
+        withAityx;
 
 /// The department a request went to, and who there handles it.
 class Department {
@@ -53,7 +63,8 @@ class RoutingCheck {
   final double? probability;
 }
 
-/// The order a request names, as the API's order book has it.
+/// The order a request names, as the order book (lib/aityx/orders.dart)
+/// has it.
 class OrderOnFile {
   const OrderOnFile({
     required this.number,
@@ -162,7 +173,7 @@ class OrderPolicy {
   bool get applies => resolution != 'none';
 }
 
-/// Where the API routed a request: aityx's decision, read for the app.
+/// Where a request was routed: aityx's decision, read for the app.
 class Routing {
   const Routing({
     required this.department,
@@ -242,8 +253,8 @@ class Routing {
   final OrderPolicy? policy;
 }
 
-/// A routed request: the [routing], and the aityx call behind it, when the
-/// API sent it.
+/// A routed request: the [routing], and the aityx call behind it, unless
+/// it was left out (see withAityx).
 class RoutingOutcome {
   const RoutingOutcome(this.routing, {this.aityxRequest, this.aityxResponse});
 
@@ -261,68 +272,118 @@ class RoutingOutcome {
   final Object? aityxResponse;
 }
 
-/// Routes a request: the app's API unless a test says.
+/// Routes a request: aityx, from the app, unless a test says.
 abstract interface class RequestRouter {
   Future<RoutingOutcome> route(String message);
 }
 
-/// The app's API, at API_BASE_URL: empty means the app's own origin (the
-/// dev server's or nginx's /api/ proxy).
-class ApiRequestRouter implements RequestRouter {
-  ApiRequestRouter({http.Client? client, String? baseUrl})
-    : _client = client ?? http.Client(),
-      _baseUrl = baseUrl ?? _defaultBaseUrl;
+/// The routing model, assets/models/routing.json, read once.
+Future<Map<String, Object?>> loadRoutingModel() => _routingModel ??= rootBundle
+    .loadString('assets/models/routing.json')
+    .then((text) => (jsonDecode(text) as Map).cast<String, Object?>())
+    .catchError((Object error) {
+      _routingModel = null;
+      throw error;
+    });
 
-  static const _defaultBaseUrl = String.fromEnvironment('API_BASE_URL');
+Future<Map<String, Object?>>? _routingModel;
 
-  final http.Client _client;
-  final String _baseUrl;
+/// Routes on aityx, from the app itself: the routing model with the
+/// message, today and the order it names as its state (lib/aityx/), POSTed
+/// to /v1/systemone on the user's key, or in dev mode through the index
+/// server, which adds its own (package:aityx_web).
+class AityxRequestRouter implements RequestRouter {
+  AityxRequestRouter({
+    AityxClient? aityx,
+    Future<Map<String, Object?>> Function()? model,
+    this.today,
+  }) : _aityx = aityx ?? _sharedClient,
+       _model = model ?? loadRoutingModel;
 
-  Uri get _routeUrl => _baseUrl.isEmpty
-      ? Uri.base.resolve('/api/route')
-      : Uri.parse('$_baseUrl/api/route');
+  /// One client for the app's routings: it resolves the key once, and
+  /// again when the index page changes it.
+  static final _sharedClient = AityxClient();
+
+  /// The most a routing may take: Jev reads the message, then the rules
+  /// run.
+  static const timeout = Duration(seconds: 100);
+
+  final AityxClient _aityx;
+  final Future<Map<String, Object?>> Function() _model;
+
+  /// Today, in UTC: the device's clock unless a test says.
+  final DateTime Function()? today;
 
   /// Throws [RoutingException] with a message for the user.
   @override
   Future<RoutingOutcome> route(String message) async {
-    final http.Response response;
+    final String text;
     try {
-      response = await _client
-          .post(
-            _routeUrl,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'message': message}),
-          )
-          .timeout(const Duration(seconds: 110));
-    } catch (_) {
-      throw const RoutingException('The API did not answer.');
+      text = messageFrom({'message': message});
+    } on InvalidRequest catch (error) {
+      throw RoutingException(_couldNot(error.message));
     }
-    Object? json;
+    final sent = routingRequest(await _model(), text, today: today?.call());
+    // The key the call goes out on, to keep it off the screen below; read
+    // again after the call, in case the index page changed it meanwhile.
+    final before = (await _aityx.connection()).key;
+    final AityxAnswer answer;
     try {
-      json = jsonDecode(response.body);
-    } on FormatException {
-      json = null;
-    }
-    if (response.statusCode != 200) {
-      final error = json is Map ? json['error'] : null;
+      answer = await _aityx.systemone(sent, timeout: timeout);
+    } on AityxNoKey {
+      throw const RoutingException('${AityxNoKey.message}.', noKey: true);
+    } on AityxUnreachable catch (error) {
       throw RoutingException(
-        error is String
-            ? 'Could not route it: $error.'
-            : 'The API answered HTTP ${response.statusCode}.',
+        error.cause?.startsWith('timed out') ?? false
+            ? '${AityxUnreachable.message} in time.'
+            : '${AityxUnreachable.message}.',
       );
     }
+    // In dev mode, the index server's proxy answers 502 proxy_unreachable
+    // when aityx doesn't answer it: the same as no answer at all.
+    if (answer.code == 'proxy_unreachable') {
+      throw const RoutingException('${AityxUnreachable.message}.');
+    }
+    if (!answer.ok) throw RoutingException(_couldNot(answer.problem!));
+    final json = answer.json;
+    if (json is! Map) {
+      throw RoutingException(_couldNot('unexpected answer from aityx'));
+    }
     try {
-      return RoutingOutcome.fromJson((json as Map).cast<String, Object?>());
+      final received = json.cast<String, Object?>();
+      final routing = toRouting(sent, received);
+      final shown = withAityx(
+        routing,
+        sent,
+        received,
+        answer.text,
+        before ?? '',
+      );
+      final after = (await _aityx.connection()).key;
+      if (after != null && after.isNotEmpty && answer.text.contains(after)) {
+        shown.remove('aityx');
+      }
+      return RoutingOutcome.fromJson(shown);
+    } on RoutingFailed catch (error) {
+      throw RoutingException(_couldNot('aityx could not route it: $error'));
     } catch (_) {
-      throw const RoutingException('The API answered without a routing.');
+      throw RoutingException(_couldNot('unexpected answer from aityx'));
     }
   }
+
+  /// "Could not route it: [why]." with one final period.
+  static String _couldNot(String why) =>
+      'Could not route it: ${why.endsWith('.') ? why.substring(0, why.length - 1) : why}.';
 }
 
 class RoutingException implements Exception {
-  const RoutingException(this.message);
+  const RoutingException(this.message, {this.noKey = false});
 
   final String message;
+
+  /// Whether it failed for want of a key: the screen offers the index
+  /// page's key section.
+  final bool noKey;
 
   @override
   String toString() => message;

@@ -1,10 +1,7 @@
-/// One generation asked of the API: what's on the board, and what aityx
-/// decided for it, with the call behind it.
+/// One generation asked of aityx: what's on the board, and what aityx
+/// decided for it, with the call behind it. The call itself is in
+/// lib/aityx/generation_stepper.dart.
 library;
-
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
 
 import 'board.dart';
 
@@ -144,7 +141,8 @@ class Generation {
   List<bool> get aliveNext => [for (final s in situations) s.aliveNext];
 }
 
-/// A generation and the aityx call behind it, as the API answered.
+/// A generation and the aityx call behind it, as lib/aityx/life.dart's
+/// withAityx puts them.
 class GenerationOutcome {
   const GenerationOutcome(
     this.generation, {
@@ -170,7 +168,7 @@ class GenerationOutcome {
   final Object? aityxRequest;
   final Object? aityxResponse;
 
-  /// How long aityx took to answer, as the API measured it.
+  /// How long aityx took to answer, as the app measured it.
   final int? tookMs;
   final int? inputTokens;
 }
@@ -192,8 +190,10 @@ Map<String, Object?> generationBody(
   'clusters': [for (final cluster in clusters) cluster.toJson()],
 };
 
-/// Asks for the next generation: the app's API unless a test says.
+/// Asks for the next generation: aityx (AityxGenerationStepper, in
+/// lib/aityx/generation_stepper.dart) unless a test says.
 abstract interface class GenerationStepper {
+  /// Throws [GenerationException] with a message for the user.
   Future<GenerationOutcome> step(
     int generation,
     Map<String, bool> rules,
@@ -202,70 +202,14 @@ abstract interface class GenerationStepper {
   );
 }
 
-/// The app's API, at API_BASE_URL: empty means the app's own origin (the
-/// dev server's or nginx's /api/ proxy).
-class ApiGenerationStepper implements GenerationStepper {
-  ApiGenerationStepper({http.Client? client, String? baseUrl})
-    : _client = client ?? http.Client(),
-      _baseUrl = baseUrl ?? _defaultBaseUrl;
-
-  static const _defaultBaseUrl = String.fromEnvironment('API_BASE_URL');
-
-  final http.Client _client;
-  final String _baseUrl;
-
-  Uri get _stepUrl => _baseUrl.isEmpty
-      ? Uri.base.resolve('/api/step')
-      : Uri.parse('$_baseUrl/api/step');
-
-  /// Throws [GenerationException] with a message for the user.
-  @override
-  Future<GenerationOutcome> step(
-    int generation,
-    Map<String, bool> rules,
-    Map<SituationKey, List<Cell>> situations,
-    List<Cluster> clusters,
-  ) async {
-    final http.Response response;
-    try {
-      response = await _client
-          .post(
-            _stepUrl,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(
-              generationBody(generation, rules, situations, clusters),
-            ),
-          )
-          .timeout(const Duration(seconds: 40));
-    } catch (_) {
-      throw const GenerationException('The API did not answer.');
-    }
-    Object? json;
-    try {
-      json = jsonDecode(response.body);
-    } on FormatException {
-      json = null;
-    }
-    if (response.statusCode != 200) {
-      final error = json is Map ? json['error'] : null;
-      throw GenerationException(
-        error is String
-            ? 'Could not run the generation: $error.'
-            : 'The API answered HTTP ${response.statusCode}.',
-      );
-    }
-    try {
-      return GenerationOutcome.fromJson((json as Map).cast<String, Object?>());
-    } catch (_) {
-      throw const GenerationException('The API answered without a generation.');
-    }
-  }
-}
-
+/// A generation that couldn't run, with why, for the user.
 class GenerationException implements Exception {
-  const GenerationException(this.message);
+  const GenerationException(this.message, {this.noKey = false});
 
   final String message;
+
+  /// There's no aityx key: the user can set theirs on the index page.
+  final bool noKey;
 
   @override
   String toString() => message;

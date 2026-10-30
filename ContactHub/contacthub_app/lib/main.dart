@@ -1,8 +1,6 @@
+import 'package:aityx_web/aityx_web.dart';
 import 'package:flutter/material.dart';
 
-import 'package:http/http.dart' as http;
-
-import 'aityx_status.dart';
 import 'app_version.dart';
 import 'request/voice_input.dart';
 import 'routing/routing.dart';
@@ -18,17 +16,17 @@ void main() {
 }
 
 class ContactHubApp extends StatelessWidget {
-  const ContactHubApp({super.key, this.voice, this.router, this.aityxClient});
+  const ContactHubApp({super.key, this.voice, this.router, this.aityxLight});
 
   /// Dictation in the request box: the browser's unless a test says.
   final VoiceInput? voice;
 
-  /// Routes requests: the app's API unless a test says.
+  /// Routes requests: aityx, from the app, unless a test says.
   final RequestRouter? router;
 
-  /// Asks the API's /api/aityx for the status light: a real client unless
-  /// a test says.
-  final http.Client? aityxClient;
+  /// The aityx status light, top right on every screen: aityx_web's,
+  /// checking the key the index page set, unless a test says.
+  final Widget? aityxLight;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +35,7 @@ class ContactHubApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: aityxDarkTheme(),
       builder: (context, child) =>
-          WithAityxStatus(client: aityxClient, child: child!),
+          withAityxStatus(context, child, light: aityxLight),
       home: WelcomeScreen(voice: voice, router: router),
     );
   }

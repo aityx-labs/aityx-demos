@@ -63,7 +63,7 @@ The feature files hold the current specification; see the
    Removed the Hello page and its greeter from the app, with the **Say
    hello** link and the `http` package only it used, and `GET /api/hello`
    from the API. The API stays, with `/` and `/api/health` and the aityx
-   key, for routing; its spec moved from `hello.md` to [API](api.md).
+   key, for routing; its spec moved from `hello.md` to `api.md` (removed in 19).
 7. **Add routing: with aityx and Jev, classify the text and route it to
    the appropriate person (orders to Customer Service, product questions
    to Marketing, job applications to HR, and so on), with all the usual
@@ -223,4 +223,30 @@ The feature files hold the current specification; see the
     login), and the app shows an 8 px dot at the top right of every
     screen: grey while checking, green when ready, red otherwise, with
     why in its tooltip. See [aityx status light](aityx-status.md) and
-    [API](api.md).
+    `api.md` (removed in 19).
+
+19. **Make the aityx demos run entirely in the browser: no per-demo API,
+    the app calls aityx itself, and every demo and the index share one
+    origin, so a key set once on the index page is reused by all.** The
+    API, `contacthub_api`, is gone; its routing logic (`messageFrom`,
+    `routingRequest`, `toRouting`, the departments, the order book) moved
+    to [lib/aityx/](../contacthub_app/lib/aityx), the model to the asset
+    `assets/models/routing.json`, and its tests to the app's `test/`
+    (the real aityx answers in `test/fixtures/aityx/`; the model scenarios
+    still tagged `aityx`, which `scripts/model-test.sh` now runs with
+    `flutter test`). `AityxRequestRouter` replaces `ApiRequestRouter`: one
+    `/v1/systemone` call through the shared package
+    [aityx_web](../../packages/aityx_web/README.md), on your key from the
+    index page, else the index server's dev key, keeping the screen's
+    results, the aityx call and the API's wording where people see it
+    (no key: "aityx is not set up: set your key on the index page.", with
+    **Set your key**; "aityx rejected the key"; "aityx did not answer";
+    "aityx answered HTTP n: detail"). The status light is aityx_web's,
+    which checks the same key from the browser. The index server serves
+    the release build at `/contacthub/`, built by `scripts/build.sh` with
+    `--base-href /contacthub/ --no-web-resources-cdn`. Removed:
+    `scripts/api.sh`, `scripts/flutter-web.sh`, `scripts/health-check.sh`,
+    `process-compose.yaml`, `compose.yaml`, `docker/`, `.dockerignore` and
+    devbox's `web` and `api` scripts. See [Routing](routing.md#calling-aityx),
+    [aityx status light](aityx-status.md) and
+    [Development environment](dev-environment.md).

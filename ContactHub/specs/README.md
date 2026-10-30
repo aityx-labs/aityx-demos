@@ -26,31 +26,29 @@ by Jev and aityx.
   tiny run by transformers.js in a Web Worker.
 - [Routing](routing.md): Jev classifies the message and checks it, the
   routing model picks the department, the person, the priority and
-  whether it's reviewed; the screen shows why, with links to exactly the
-  JSON behind each item, and the aityx call, large, with exact
-  navigation.
+  whether it's reviewed, in one aityx call the app makes itself, on the
+  key set on the index page (or the index server's dev key); the screen
+  shows why, with links to exactly the JSON behind each item, and the
+  aityx call, large, with exact navigation.
 - [Order policy](order-policy.md): for a request about an order, the
   store's policy from the order's dates and amounts (refund within 30
   days, store credit within 60, final sale, damage within 7 days, warranty,
   restocking fee, price drops, cancellations, late packages), with the
   amount and the date it's paid by; the order book of the samples.
 - [aityx status light](aityx-status.md): a discreet dot at the top right
-  of every screen, green when aityx accepts the API's key, red when there
-  is no key or aityx doesn't work, with why in its tooltip.
+  of every screen, the aityx demos' shared light, green when aityx accepts
+  the key, red when there is no key or aityx doesn't work, with why in its
+  tooltip.
 - [Theme](theme.md): the aityx dark palette.
 - [App icon](app-icon.md): an orange speech bubble with a route that
   branches three ways, the chosen branch lit; the favicon and every
   platform's icon, generated from SVG masters.
 
-**Backend**
-
-- [API](api.md): `contacthub_api`, a Dart server that holds the aityx key
-  and serves `POST /api/route`, `GET /api/health` and `GET /api/aityx`.
-
 **Project**
 
-- [Development environment](dev-environment.md): devbox, process-compose,
-  the health monitor, the builds, Docker Compose and the dev container.
+- [Development environment](dev-environment.md): the index server that
+  serves the app at `/contacthub/`, the shared aityx_web package, devbox,
+  the builds and the dev container. There's no backend of its own.
 
 ## Workflow
 

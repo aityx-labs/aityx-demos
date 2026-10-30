@@ -349,3 +349,32 @@ spec.
     top right corner of every screen, with why in its tooltip; the API's
     new `GET /api/aityx` checks the key against aityx at most once a
     minute. See [aityx.ai integration](aityx.md).
+
+43. **Run the aityx demos entirely in the browser: no per-demo API, the
+    Flutter web app calls aityx itself, and every demo and the index
+    share one origin, so a key the user sets once on the index page is
+    reused by every demo.** The regulatory check now runs in the app
+    (`AityxProposalChecker`, on the shared `packages/aityx_web`
+    package's `AityxClient`): the API's mapping moved to
+    `mortgagehub_app/lib/aityx/proposal_model.dart`, the model to the
+    app's assets (`assets/models/proposal-check.json`), and the API's
+    tests to the app's `test/` (the model scenarios still tagged `aityx`,
+    run by `scripts/model-test.sh` with the repository's `.env` key).
+    The check shows what it showed, with the API's wording where users
+    see it, and new wording for the key: *aityx is not set up: set your
+    key on the index page*, *aityx rejected the key*, *aityx did not
+    answer*, *aityx answered HTTP n: ...*, and *the rules (the aityx model) didn't
+    load* (loaded again on **Try again**). The payment's assumed rate is
+    fixed at 6.5% (`ASSUMED_RATE` was the API's setting). The status
+    light is now aityx_web's (`withAityxStatus`), which checks the key in
+    the browser and opens the index page's key section on a tap. Deleted:
+    `mortgagehub_api/` (the API, the web server, their Dockerfile),
+    `scripts/api.sh`, `scripts/flutter-web.sh`,
+    `scripts/health-check.sh`, `process-compose.yaml`, `compose.yaml`,
+    `docker/`, `.dockerignore`, `API_BASE_URL`, and devbox's `web` and
+    `api` scripts. `scripts/build.sh` builds only the web app, for the
+    index at `/mortgagehub/`, without the CDN
+    (`--no-web-resources-cdn`); the app is at
+    http://localhost:8800/mortgagehub/. See [aityx.ai
+    integration](aityx.md), [Regulatory check](regulatory-check.md) and
+    [Development environment](dev-environment.md).

@@ -29,80 +29,61 @@ the response received.
 
 | Part | Technology |
 |---|---|
-| App ([riverrace_app/](riverrace_app)) | [Flutter](https://flutter.dev) (Dart): web, Android, iOS and Linux from one codebase |
-| API ([riverrace_api/](riverrace_api)) | Dart (`dart:io`): holds the [aityx](https://aityx.ai) key and asks aityx what the pilots do |
-| Rules | Each aityx pilot's strategy, a FIRST decision table built by [riverrace_api/lib/strategy.dart](riverrace_api/lib/strategy.dart) on the types in [riverrace_api/models/river.json](riverrace_api/models/river.json) |
-| Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) on a laptop, or a [Dev Container](https://containers.dev/) from the [published image](../image/), process-compose for the services either way; or [Docker Compose](compose.yaml) |
+| App ([riverrace_app/](riverrace_app)) | [Flutter](https://flutter.dev) (Dart), on the web: it asks [aityx](https://aityx.ai) what the pilots do itself, from the browser, through the shared package [aityx_web](../packages/aityx_web/README.md). No API of its own |
+| Rules | Each aityx pilot's strategy, a FIRST decision table built by [lib/aityx/decision_request.dart](riverrace_app/lib/aityx/decision_request.dart) on the types in [assets/models/river.json](riverrace_app/assets/models/river.json) |
+| Served by | The [index server](../Index/), with the index page and the other aityx demos, at `/riverrace/` on one origin |
+| Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) on a laptop, or a [Dev Container](https://containers.dev/) from the [published image](../image/) |
 
 The toolchain is pinned in [devbox.json](devbox.json) and locked in
 [devbox.lock](devbox.lock): Flutter, GNU Make and curl. It is the same
 lock as the other aityx demos', so they share one Nix store.
 
-## Run it locally with devbox
+## Run it locally
 
-1. Install [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/).
-2. Put your [aityx](https://aityx.ai) key in `.env` (copy
-   [.env.example](.env.example)): the same `AITYX_API_KEY` as Mortgage
-   Hub's and Contact Hub's, for instance
-   `grep '^AITYX_' ../ContactHub/.env > .env`. Without it the game runs,
-   but the aityx pilots fly straight on.
-3. From this folder:
+1. Install [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/),
+   or Flutter itself.
+2. From the repository root:
 
    ```bash
-   devbox services up           # add --pcflags "--tui=false" when not in a terminal
+   ./start-all.sh               # or ./start-aityx.sh for the aityx demos alone
    ```
 
-That starts, from [process-compose.yaml](process-compose.yaml):
+   It builds RiverRace's web app when it changed
+   ([scripts/build.sh](scripts/build.sh): `flutter build web --release
+   --base-href /riverrace/ --no-web-resources-cdn`, about 20 s on a
+   laptop) and starts the index server, which serves it at
+   **http://localhost:8800/riverrace/**, with the index page and the other
+   aityx demos on the same origin.
+3. Set your [aityx](https://aityx.ai) key once, in **Your aityx key** on
+   the index page (http://localhost:8800/#aityx-key): sign up at aityx.ai,
+   then create a key under API keys in console.aityx.ai. Every aityx demo
+   uses it. Or put `AITYX_API_KEY` in the repository's `.env` (see
+   [../.env.example](../.env.example)) for a dev key: the index server
+   adds it to the app's calls, and it never reaches the browser.
+   Without a key the game runs, but the aityx pilots fly straight on and
+   the light in the top right corner is red.
 
-| URL | What |
-|---|---|
-| http://localhost:8940/app/ | The app's release build, served by a small native web server ([scripts/flutter-web.sh](scripts/flutter-web.sh)). The first start builds it (about 20 s on a laptop, a minute or two on a 4-core codespace); later starts reuse it until the app changes |
-| http://localhost:8941/api/health | The API, compiled to a native executable ([scripts/api.sh](scripts/api.sh)); the web app reaches it as `/api/` on its own origin, through the web server's proxy |
+Press **Start** and fly; see [Game](specs/game.md) for the rules of play,
+[Strategies](specs/strategies.md) for the sensors, commands and rule
+editor, [Decisions](specs/decisions.md) for how aityx flies the pilots,
+[aityx calls](specs/api.md) for whose key a call uses, and
+[Calls panel](specs/calls-panel.md).
 
-That's what Docker Compose serves too, and it keeps the machine free:
-the two servers hold about 35 MB between them. For hot reload while
-working on the app, run the Flutter dev server instead, with
-`WEB_MODE=debug devbox services up`, or on its own with `devbox run web`
-(press `r` in its terminal). `devbox run build` builds the web build and
-the executables ahead of time ([scripts/build.sh](scripts/build.sh)),
-only what changed.
-
-The ports are 8940 and 8941, so RiverRace runs alongside the other
-demos (Mortgage Hub 8880, Contact Hub 8890, PokerFace 8910, RoboRules
-8920, Cellfie 8930). Press **Start** and fly; see [Game](specs/game.md)
-for the rules of play, [Strategies](specs/strategies.md) for the sensors,
-commands and rule editor, [Decisions](specs/decisions.md) for how aityx
-flies the pilots, and [Calls panel](specs/calls-panel.md).
-
-Once both are ready, the `health-check` monitor prints where to open the
-app (in a codespace, its forwarded URL too), waits 5 s
-(`HEALTH_CHECK_DELAY`), then logs one line every 15 s
-(`HEALTH_CHECK_INTERVAL`); 🤖 [aityx](https://aityx.ai) is ⚪ when the API
-has no key:
-
-```
-RiverRace is up. Open the app at:
-  http://localhost:8940/app/
-Health checks start in 5 s, then every 15 s.
-2026-10-23 12:07:31 🌐 Web ✅ · 🔌 API ✅ · 🤖 aityx ✅
-```
-
-Stop everything with `devbox services stop`. To run only the app, use
-`devbox run web`, the dev server with hot reload (set `FLUTTER_WEB_PORT`
-to change the port, `WEB_MODE=release` for the release build); only the
-API, `devbox run api` (`API_PORT`).
+`devbox run build` (or `bash scripts/build.sh`) builds the web app ahead
+of time, only when it changed. There is no hot reload: rebuild and reload
+the page.
 
 ### The model
 
-[riverrace_api/models/river.json](riverrace_api/models/river.json)
+[riverrace_app/assets/models/river.json](riverrace_app/assets/models/river.json)
 holds the types (`Sense`, what a plane senses, and `Act`, what it does).
-For each decision the API adds, per aityx pilot, an input with what its
+For each decision the app adds, per aityx pilot, an input with what its
 plane senses, a function `strategy_p1` or `strategy_p2` with its rules as
 a FIRST decision table (with an else row, straight on, when the
 strategy has none), and a decision calling it, and sends that as the
 `decision` of `POST /v1/systemone`. After changing it, `bash
-scripts/model-test.sh` runs strategies on aityx. See
-[Decisions](specs/decisions.md).
+scripts/model-test.sh` runs strategies on aityx, with the key from the
+repository's `.env`. See [Decisions](specs/decisions.md).
 
 ### Building the binaries
 
@@ -120,38 +101,14 @@ make clean
 
 Pass `MODE=profile` or `MODE=debug` for other build modes, and
 `IOS_CODESIGN=1` to sign the iOS build (this needs a signing team in Xcode).
+A native build has no index page and no dev proxy, and keeps a key only in
+memory, which nothing sets yet: the game runs, but its aityx pilots fly
+straight on.
 The version is `X.Y.Z`: X and Y from [version.X.txt](version.X.txt) and
 [version.Y.txt](version.Y.txt), Z the build time (see
 [scripts/version.sh](scripts/version.sh)).
 The artifact's group and artifact IDs, `aityx:riverrace`, are in
 [group.id.txt](group.id.txt) and [artifact.id.txt](artifact.id.txt).
-
-## Run it with Docker Compose
-
-With only [Docker](https://docs.docker.com/get-docker/) installed (no
-devbox, no Flutter), from this folder:
-
-```bash
-docker compose up --build
-```
-
-and open http://localhost:8940/app/. [compose.yaml](compose.yaml) builds
-and starts two services:
-
-| Service | What |
-|---|---|
-| `web` | The app's release web build ([docker/web.Dockerfile](docker/web.Dockerfile)), served by nginx under `/app/`, with `/api/` proxied to the API ([docker/nginx.conf](docker/nginx.conf)) |
-| `api` | The API compiled to a native executable ([riverrace_api/Dockerfile](riverrace_api/Dockerfile)); not published, reached only through `web` |
-
-For the key, copy [.env.example](.env.example) to `.env` and fill in
-`AITYX_API_KEY` (or export it); optionally set `AITYX_URL` for another
-HTTPS endpoint. Both values go to the API only, never the web app. The first build
-takes a few minutes (it downloads Flutter); later ones
-reuse Docker's cache. Set `FLUTTER_WEB_PORT` to change the port; the app
-is bound to 127.0.0.1 unless you set `RIVERRACE_BIND_HOST=0.0.0.0`. Stop
-it with `docker compose down`. Both services have health checks, so
-`docker compose up --wait` returns once they are healthy. There is no hot
-reload: rebuild after a change.
 
 ## Run it in a codespace
 
@@ -166,55 +123,26 @@ that links them. To choose for yourself instead, use *Code → Codespaces
 configuration — the repository holds two groups of demos, each with its
 own, so the configuration matters.
 
-The codespace uses your [aityx](https://aityx.ai) key, the same
-`AITYX_API_KEY` Codespaces secret as Mortgage Hub's and Contact Hub's.
-The optional `AITYX_URL` secret selects a non-default HTTPS endpoint;
-otherwise the API uses `https://api.aityx.ai`. Both settings are passed
-only to the API process, never to Flutter or the web service.
-GitHub keeps Codespaces secrets per user and grants them per repository,
-so if your key already reaches this repository, there is nothing to do.
-Otherwise add it at
-[github.com/settings/codespaces](https://github.com/settings/codespaces)
-(**New secret**, name `AITYX_API_KEY`, access to
-`aityx-labs/aityx-demos`), or enter it when GitHub asks on the creation
-page. Without it the game runs, but the aityx pilots fly straight on.
+Set your [aityx](https://aityx.ai) key in **Your aityx key** on the
+index page, as when running locally. Optionally, an `AITYX_API_KEY`
+Codespaces secret (at
+[github.com/settings/codespaces](https://github.com/settings/codespaces),
+with access to `aityx-labs/aityx-demos`) gives the index server a dev key
+that every visitor of your codespace uses.
 
 When the codespace is created,
 [on-create.sh](../.devcontainer/on-create.sh) copies the group's
 release web builds from the [published image](../image/) into the
 workspace (a demo that changed since the image was made builds itself
-instead, a minute or two),
-[update-content.sh](../.devcontainer/update-content.sh) compiles each
-API and web server (a few seconds each) and
-[post-create.sh](../.devcontainer/post-create.sh) says whether your key
-arrived. Then, on that and every later start,
-[post-start.sh](../.devcontainer/post-start.sh) starts the index page
-and the aityx group in the background with `./start-all.sh` and makes
-their ports public, RiverRace's **8940** among them. There is nothing to
-run: the codespace is available about three minutes after you ask for
-it and the apps answer within a minute after that; open port 8940
-from the **Ports** panel, or RiverRace's card on the index page (port
-8800, which Codespaces opens in a browser tab for you). Its bare URL
-redirects to the app at `/app/`.
-
-Watch RiverRace's services with `process-compose attach -U -u
-/tmp/aityx-demos-RiverRace.sock`. Stop the group with `./stop-all.sh`
-from the repository root and start it again with `./start-all.sh`: in
-the codespace both act on the aityx group only (`DEMOS_GROUP=aityx`).
-There is no devbox in a codespace: the demos run on the image's own
-Flutter and process-compose (`DEMOS_TOOLCHAIN=image`, see
-[demos-toolchain.sh](../demos-toolchain.sh)); `devbox services` is for a
-laptop.
+instead, a minute or two). Then, on that and every later start,
+[post-start.sh](../.devcontainer/post-start.sh) starts the index server,
+which serves RiverRace at `/riverrace/` on port **8800**; Codespaces
+opens it in a browser tab for you, or open it from the **Ports** panel and
+add `/riverrace/`, or use RiverRace's card on the index page.
 
 **If the app doesn't start, send us `startup.log` from the root of the
 repository.** Every step of the codespace's start goes there,
-timestamped, including a line saying when each demo's web app and API
-first answered. It holds no secrets.
-
-**Check the port's visibility.** In the **Ports** panel, the
-*Visibility* column for 8940 should say **Public**. If it says
-**Private**, right-click the port, choose **Port Visibility → Public**
-and reload the app.
+timestamped. It holds no secrets.
 
 ## Run it in a dev container locally
 
@@ -234,10 +162,10 @@ and the six aityx demos' release web builds.
 
 1. Create a branch from an up-to-date `main`.
 2. Make one change per pull request, with its tests. Run `flutter analyze`
-   and `flutter test` in `riverrace_app/`, and `dart analyze` and
-   `dart test` in `riverrace_api/`. After changing the model or
-   `riverrace_api/lib/strategy.dart`, `bash scripts/model-test.sh` runs
-   strategies on aityx.
+   and `flutter test` in `riverrace_app/`, and `bash scripts/build.sh`.
+   After changing the model or
+   `riverrace_app/lib/aityx/decision_request.dart`, `bash
+   scripts/model-test.sh` runs strategies on aityx.
 3. Update the matching feature spec in [specs/](specs/) and add an entry to
    [specs/requests.md](specs/requests.md).
 4. Open a pull request against `main`.

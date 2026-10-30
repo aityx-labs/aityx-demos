@@ -1,4 +1,0 @@
-tags:
-  aityx:
-    # Calls aityx.ai with the real key: run with scripts/model-test.sh.
-    skip: "Calls aityx.ai: run it with scripts/model-test.sh"

@@ -1,6 +1,6 @@
 /// A pilot's strategy: rules, the first that matches deciding what the
-/// plane does. The API turns it into an aityx FIRST decision table (see
-/// riverrace_api/lib/strategy.dart, which checks the same sensors and
+/// plane does. The app turns it into an aityx FIRST decision table (see
+/// lib/aityx/decision_request.dart, which checks the same sensors and
 /// commands).
 library;
 

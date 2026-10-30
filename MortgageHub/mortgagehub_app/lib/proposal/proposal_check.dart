@@ -1,13 +1,15 @@
 import 'dart:convert';
 
+import 'package:aityx_web/aityx_web.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart';
 
+import '../aityx/proposal_model.dart';
 import 'proposal_request.dart';
 
 /// The regulatory check of a proposal request: aityx.ai's verdict under
-/// current US rules, through the app's API (mortgagehub_api), which holds
-/// the aityx key.
+/// current US rules, which the app asks aityx for itself
+/// (AityxProposalChecker).
 class ProposalCheck {
   const ProposalCheck({
     required this.status,
@@ -53,9 +55,9 @@ class ProposalCheck {
   /// The annual rate, in percent, the payment is estimated with.
   final double assumedRate;
 
-  /// The body the API sent to aityx (the model and its inputs; the key is a
-  /// header, so not in it), and aityx's answer, as JSON. Null when the API
-  /// didn't include them.
+  /// The body sent to aityx (the model and its inputs; the key is a
+  /// header, so not in it), and aityx's answer, as JSON. Null when they
+  /// were left out.
   final Object? aityxRequest;
   final Object? aityxResponse;
 }
@@ -126,55 +128,81 @@ abstract interface class ProposalChecker {
   Future<ProposalCheck> check(ProposalRequest request);
 }
 
-/// The app's API, at API_BASE_URL: empty means the app's own origin (the
-/// dev server proxies /api/ to the API; see scripts/flutter-web.sh).
-class ApiProposalChecker implements ProposalChecker {
-  ApiProposalChecker({http.Client? client, String? baseUrl})
-    : _client = client ?? http.Client(),
-      _ownsClient = client == null,
-      _baseUrl = baseUrl ?? _defaultBaseUrl;
+/// Runs the check with aityx, from the browser: maps the request to the
+/// model's inputs (lib/aityx/proposal_model.dart), without the borrower's
+/// name, email or phone, posts them with the model to System One on the
+/// user's key (or the index server's dev key), and maps the answers back.
+class AityxProposalChecker implements ProposalChecker {
+  /// [aityx] calls aityx (a new AityxClient, which finds the key, unless
+  /// given); [model] loads the model (the app's asset unless given).
+  AityxProposalChecker({AityxClient? aityx, Future<Object?> Function()? model})
+    : _aityx = aityx ?? AityxClient(),
+      _ownsAityx = aityx == null,
+      _loadModel = model ?? _assetModel;
 
-  static const _defaultBaseUrl = String.fromEnvironment('API_BASE_URL');
+  final AityxClient _aityx;
+  final bool _ownsAityx;
+  final Future<Object?> Function() _loadModel;
+  Future<Object?>? _model;
 
-  final http.Client _client;
-  final bool _ownsClient;
-  final String _baseUrl;
+  static Future<Object?> _assetModel() async =>
+      jsonDecode(await rootBundle.loadString(modelAsset));
 
-  Uri get _checkUrl => _baseUrl.isEmpty
-      ? Uri.base.resolve('/api/proposals/check')
-      : Uri.parse('$_baseUrl/api/proposals/check');
-
-  /// Closes the HTTP client it made; a client passed in is the caller's.
+  /// Closes the AityxClient it made; one passed in is the caller's.
   void close() {
-    if (_ownsClient) _client.close();
+    if (_ownsAityx) _aityx.close();
   }
 
   @override
   Future<ProposalCheck> check(ProposalRequest request) async {
-    final response = await _client
-        .post(
-          _checkUrl,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(request.toJson()),
-        )
-        .timeout(const Duration(seconds: 90));
-    if (response.statusCode != 200) {
-      final error = switch (_tryDecode(response.body)) {
-        {'error': final String message} => message,
-        _ => 'HTTP ${response.statusCode}',
-      };
-      throw ProposalCheckException(error);
-    }
-    return ProposalCheck.fromJson(
-      jsonDecode(response.body) as Map<String, Object?>,
-    );
-  }
-
-  static Object? _tryDecode(String body) {
+    final Map<String, Object?> state;
     try {
-      return jsonDecode(body);
+      // Through JSON, as the request reached the API before.
+      final json = jsonDecode(jsonEncode(request.toJson()));
+      if (json is! Map<String, Object?>) {
+        throw InvalidRequest('expected an object');
+      }
+      state = toState(json, assumedRate);
+    } on InvalidRequest catch (error) {
+      throw ProposalCheckException(error.message);
+    }
+    final Object? model;
+    try {
+      model = await (_model ??= _loadModel());
+    } catch (_) {
+      // Loaded again on Try again, rather than failing for good.
+      _model = null;
+      throw ProposalCheckException("the rules (the aityx model) didn't load");
+    }
+    final sent = {'decision': model, 'state': state};
+    final AityxAnswer answer;
+    try {
+      answer = await _aityx.systemone(sent);
+    } on AityxNoKey {
+      throw ProposalCheckException(AityxNoKey.message);
+    } on AityxUnreachable {
+      throw ProposalCheckException(AityxUnreachable.message);
+    }
+    if (!answer.ok) throw ProposalCheckException(answer.problem!);
+    final answers = answer.json;
+    if (answers is! Map<String, Object?>) {
+      throw ProposalCheckException('unexpected answer from aityx');
+    }
+    final Map<String, Object?> result;
+    try {
+      result = toResult(answers, assumedRate);
     } on FormatException {
-      return null;
+      throw ProposalCheckException('unexpected answer from aityx');
+    }
+    // The key is a header, so it's in neither the body nor the answer.
+    final key = (await _aityx.connection()).key ?? '';
+    try {
+      return ProposalCheck.fromJson(
+        withAityx(result, sent, answers, answer.text, key),
+      );
+    } on Error {
+      // A verdict or a check result the app doesn't know.
+      throw ProposalCheckException('unexpected answer from aityx');
     }
   }
 }

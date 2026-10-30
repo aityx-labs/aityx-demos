@@ -20,7 +20,6 @@
 .vscode/*
 **/*.local*
 **/.claude
-roborules_api/**/.dart_tool
 roborules_app/**/*.class
 roborules_app/**/*.log
 roborules_app/**/*.pyc

@@ -14,9 +14,10 @@
   for any value.
 
 It runs alone in aityx too, given the sensors as its state. Rules may also
-be written as `{"when": {...}, "then": {...}, "why": "..."}`. The API refuses
+be written as `{"when": {...}, "then": {...}, "why": "..."}`. The app refuses
 an unknown sensor, a missing command, a command value it doesn't know and a
-fire power outside 0 to 3 ([lib/battle.dart](../roborules_api/lib/battle.dart)),
+fire power outside 0 to 3 before calling aityx
+([lib/aityx/battle.dart](../roborules_app/lib/aityx/battle.dart)),
 since aityx takes any word in an output column as a value.
 
 ## Predefined robots

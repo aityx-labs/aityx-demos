@@ -123,10 +123,11 @@ a processable VA draft can run above $832,750.
 
 Every request still passes the form's own checks, so the failures are
 ones only the regulatory check catches. The income is worked out for the
-DTI with the API's default rate (6.5%). The generator aims; aityx gives
+DTI with the check's assumed rate (6.5%). The generator aims; aityx gives
 the verdict. Checked live: 270 of 270 requests (90 per verdict, two seed
-sets) got their verdict; `flutter test --run-skipped --tags aityx` reruns
-it against the running API.
+sets) got their verdict; `bash scripts/model-test.sh
+test/targeted_proposal_live_test.dart` reruns it on aityx with the
+repository's `.env` key.
 
 ## What's not asked, and why
 

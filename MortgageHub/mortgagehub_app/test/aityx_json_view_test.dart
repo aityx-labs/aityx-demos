@@ -5,10 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mortgagehub_app/proposal/aityx_json_view.dart';
 
-/// The body the API sends: the real model, and a state.
+/// The body the app sends: the real model, and a state.
 final request = {
   'decision': jsonDecode(
-    File('../mortgagehub_api/models/proposal-check.json').readAsStringSync(),
+    File('assets/models/proposal-check.json').readAsStringSync(),
   ),
   'state': {
     'loan_purpose': 'purchase',

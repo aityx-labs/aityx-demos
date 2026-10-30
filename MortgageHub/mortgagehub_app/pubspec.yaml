@@ -15,6 +15,10 @@ dependencies:
   cupertino_icons: ^1.0.8
   faker: ^2.2.0
   http: ^1.6.0
+  # aityx from the browser: the user's key (or the index server's dev
+  # key), systemone calls and the status light. Shared by the aityx demos.
+  aityx_web:
+    path: ../../packages/aityx_web
 
 dev_dependencies:
   flutter_test:
@@ -24,6 +28,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # The aityx decision model of the regulatory check, sent with each call.
+  assets:
+    - assets/models/
   # The JSON viewer's monospace font (see assets/fonts/README.md).
   fonts:
     - family: RobotoMono

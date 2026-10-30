@@ -15,13 +15,14 @@ entry says:
   action table that fired, the rule's reason (its `why`), how long aityx
   took, and in amber the table's note when the decision was made legal
   (see [The table](table.md));
-- or, in red, what went wrong (the API's error, which for a strategy
-  written in the app carries aityx's validation message).
+- or, in red, what went wrong (see [Deciding on aityx](aityx.md#errors):
+  no key, a rejected key, no answer, or aityx's error, which for a
+  strategy written in the app carries aityx's validation message).
 
 Tapping an entry opens the whole call full screen:
 [AityxCallView](../pokerface_app/lib/calls/aityx_call_view.dart), the
 same viewer as Contact Hub's, with the request (`POST /v1/systemone` as
-the API sent it) and the response, pretty-printed, numbered and colored,
+the app sent it: the body, never the headers, which hold the key) and the response, pretty-printed, numbered and colored,
 and the key parts highlighted and listed in a **Jump to** bar, each with
 a line that explains it when jumped to:
 

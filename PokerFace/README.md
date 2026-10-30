@@ -2,7 +2,8 @@
 
 PokerFace is a poker simulator, a no-limit Texas hold'em tournament at
 a table of up to nine, where every player is a set of rules. The rules are a decision
-model run on [aityx.ai](https://aityx.ai): at each turn the app works out
+model run on [aityx.ai](https://aityx.ai), called from the browser: at
+each turn the app works out
 the player's situation (cards, hand, equity, the pot, what it costs to
 call, position, who is still to act, and a random number for strategies
 that mix their play), and one aityx call runs the player's strategy on it
@@ -25,81 +26,70 @@ it at the table.
 
 | Part | Technology |
 |---|---|
-| App ([pokerface_app/](pokerface_app)) | [Flutter](https://flutter.dev) (Dart): web, Android, iOS and Linux from one codebase. The table itself (the deal, the betting rounds, side pots, the showdown) runs in the app |
-| API ([pokerface_api/](pokerface_api)) | Dart (`dart:io`): holds the [aityx](https://aityx.ai) key, serves the strategies and runs each decision on aityx |
-| Rules ([pokerface_api/models/](pokerface_api/models)) | [table.json](pokerface_api/models/table.json), the situation a player sees, and one [strategy](pokerface_api/models/strategies) per file: the decisions of the model, an action table and a raise expression |
-| Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) on a laptop, or a [Dev Container](https://containers.dev/) from the [published image](../image/), process-compose for the services either way; or [Docker Compose](compose.yaml) |
+| App ([pokerface_app/](pokerface_app)) | [Flutter](https://flutter.dev) (Dart): web, Android, iOS and Linux from one codebase. The table itself (the deal, the betting rounds, side pots, the showdown) runs in the app, and so does every call to aityx: there is no server of its own |
+| aityx from the browser ([packages/aityx_web](../packages/aityx_web/README.md)) | The repository's shared package: finds the key (the one you set on the index page, else the index server's dev key), calls aityx's `/v1/systemone`, and draws the aityx light |
+| Rules ([pokerface_app/assets/models/](pokerface_app/assets/models)) | [table.json](pokerface_app/assets/models/table.json), the situation a player sees, and one [strategy](pokerface_app/assets/models/strategies) per file: the decisions of the model, an action table and a raise expression |
+| Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) on a laptop, or a [Dev Container](https://containers.dev/) from the [published image](../image/) |
 
 The toolchain is pinned in [devbox.json](devbox.json) and locked in
 [devbox.lock](devbox.lock): Flutter, GNU Make and curl. It is the same
 lock as Mortgage Hub's and Contact Hub's, so they share one Nix store.
 
-## Run it locally with devbox
+## Run it locally
 
 1. Install [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/).
-2. Put your [aityx](https://aityx.ai) key in `.env` (copy
-   [.env.example](.env.example)): the same `AITYX_API_KEY` as Mortgage
-   Hub's, for instance `grep '^AITYX_' ../MortgageHub/.env > .env`.
-   Without it the app opens, but nobody can act.
-3. From this folder:
+2. From the repository root:
 
    ```bash
-   devbox services up           # add --pcflags "--tui=false" when not in a terminal
+   ./start-aityx.sh PokerFace
    ```
 
-That starts, from [process-compose.yaml](process-compose.yaml):
+   That builds the app's release web build if it's missing or stale
+   ([scripts/build.sh](scripts/build.sh): about 30 s on a laptop, a
+   minute or two on a 4-core codespace) and starts the index server,
+   which serves it at **http://localhost:8800/pokerface/**, with the index
+   page and the other aityx demos on the same origin.
+3. Set your [aityx](https://aityx.ai) key once, in **Your aityx key** on
+   the index page (http://localhost:8800/#aityx-key): sign up at
+   aityx.ai, then create a key under API keys in console.aityx.ai. Every
+   aityx demo on that origin uses it. Or, for development, put
+   `AITYX_API_KEY` in the repository's root `.env` (see
+   [../.env.example](../.env.example)): the index server then adds it to
+   the app's calls through its dev proxy, and the key never reaches the
+   browser.
 
-| URL | What |
-|---|---|
-| http://localhost:8910/app/ | The app's release build, served by a small native web server ([scripts/flutter-web.sh](scripts/flutter-web.sh)). The first start builds it (about 25 s on a laptop, a minute or two on a 4-core codespace); later starts reuse it until the app changes |
-| http://localhost:8911/api/health | The API, compiled to a native executable ([scripts/api.sh](scripts/api.sh)); the web app reaches it as `/api/` on its own origin, through the web server's proxy |
-
-That's what Docker Compose serves too, and it keeps the machine free:
-the two servers hold about 30 MB between them. For hot reload while
-working on the app, run the Flutter dev server instead, with
-`WEB_MODE=debug devbox services up`, or on its own with `devbox run web`
-(press `r` in its terminal). `devbox run build` builds the web build and
-the executables ahead of time ([scripts/build.sh](scripts/build.sh)),
-only what changed.
-
-The ports are 8910 and 8911, so PokerFace runs alongside Mortgage Hub
-(8880) and Contact Hub (8890). The table opens with five players, one per
-strategy. Press **Play** and watch; the slider sets the pace, **Step**
-plays one step at a time while paused, a tap on a seat shows and edits
-that player's rules, **Players** adds and removes players and shows the
+Without a key the app opens, but nobody can act: the light at the top
+right is red, and each decision says "aityx is not set up: set your key
+on the index page". The table opens with five players, one per strategy.
+Press **Play** and watch; the slider sets the pace, **Step** plays one
+step at a time while paused, a tap on a seat shows and edits that
+player's rules, **Players** adds and removes players and shows the
 strategies (see [The table](specs/table.md) and [Players and
-strategies](specs/players.md)). The sidebar lists every
-call to aityx; tap one for the whole request and response (see
-[The aityx calls](specs/calls.md)).
+strategies](specs/players.md)). The sidebar lists every call to aityx;
+tap one for the whole request and response (see [The aityx
+calls](specs/calls.md)).
 
-Once both are ready, the `health-check` monitor prints where to open the
-app (in a codespace, its forwarded URL too), waits 5 s
-(`HEALTH_CHECK_DELAY`), then logs one line every 15 s
-(`HEALTH_CHECK_INTERVAL`); 🤖 [aityx](https://aityx.ai) is ⚪ when the API
-has no key:
+`bash scripts/build.sh` (or `devbox run build`) builds the web app ahead
+of time, only when it changed. `flutter run -d chrome` in
+`pokerface_app/` gives hot reload, but on an origin of its own: it sees
+neither the key set on the index page nor the dev proxy, so decisions
+need a key saved in that origin's storage (`aityx.key` in
+`localStorage`).
 
-```
-PokerFace is up. Open the app at:
-  http://localhost:8910/app/
-Health checks start in 5 s, then every 15 s.
-2026-10-23 14:02:10 🌐 Web ✅ · 🔌 API ✅ · 🤖 aityx ✅
-```
+### Testing
 
-Stop everything with `devbox services stop`. To run only the app, use
-`devbox run web`, the dev server with hot reload (set `FLUTTER_WEB_PORT`
-to change the port, `WEB_MODE=release` for the release build); only the
-API, `devbox run api` (`API_PORT`).
-
-### Testing the strategies on aityx
+In `pokerface_app/`, `flutter analyze` and `flutter test`: the table's
+engine (hand ranks, side pots, the betting rounds), the screens, the
+table logic and every aityx call path against a mock (see [Deciding on
+aityx](specs/aityx.md)).
 
 `bash scripts/model-test.sh` runs every strategy on aityx with fixed
 situations (a premium hand before the flop, a flush draw facing a bet, a
 free flop in the big blind, ...) and checks that each plays in character:
-[model_scenarios_test.dart](pokerface_api/test/model_scenarios_test.dart).
-Run it after changing a model. `dart test` in `pokerface_api/` skips it,
-and checks the API's own logic; `flutter test` in `pokerface_app/` runs
-the table's engine through its paces (hand ranks, side pots, the betting
-rounds) and the screens.
+[model_scenarios_test.dart](pokerface_app/test/model_scenarios_test.dart),
+tagged `aityx`, which `flutter test` skips. It reads `AITYX_API_KEY` from
+the environment, else the repository's root `.env`. Run it after changing
+a model.
 
 ### Building the binaries
 
@@ -108,7 +98,7 @@ The [Makefile](Makefile) builds release binaries through
 
 ```bash
 make            # every platform this host can build
-make web        # pokerface_app/build/web/
+make web        # pokerface_app/build/web/ (base href /pokerface/)
 make android    # pokerface_app/build/app/outputs/flutter-apk/app-release.apk
 make ios        # pokerface_app/build/ios/iphoneos/Runner.app (macOS, unsigned)
 make linux      # pokerface_app/build/linux/<arch>/release/bundle/ (Linux only)
@@ -117,37 +107,13 @@ make clean
 
 Pass `MODE=profile` or `MODE=debug` for other build modes, and
 `IOS_CODESIGN=1` to sign the iOS build (this needs a signing team in Xcode).
+The native builds have no dev proxy and only an in-memory key store,
+empty at start, so they can't call aityx yet.
 The version is `X.Y.Z`: X and Y from [version.X.txt](version.X.txt) and
 [version.Y.txt](version.Y.txt), Z the build time (see
 [scripts/version.sh](scripts/version.sh)).
 The artifact's group and artifact IDs, `aityx:pokerface`, are in
 [group.id.txt](group.id.txt) and [artifact.id.txt](artifact.id.txt).
-
-## Run it with Docker Compose
-
-With only [Docker](https://docs.docker.com/get-docker/) installed (no
-devbox, no Flutter), from this folder:
-
-```bash
-docker compose up --build
-```
-
-and open http://localhost:8910/app/. [compose.yaml](compose.yaml) builds
-and starts two services:
-
-| Service | What |
-|---|---|
-| `web` | The app's release web build ([docker/web.Dockerfile](docker/web.Dockerfile)), served by nginx under `/app/`, with `/api/` proxied to the API ([docker/nginx.conf](docker/nginx.conf)) |
-| `api` | The API compiled to a native executable ([pokerface_api/Dockerfile](pokerface_api/Dockerfile)), with the models; not published, reached only through `web` |
-
-For the key, copy [.env.example](.env.example) to `.env` and fill in
-`AITYX_API_KEY` (or export it); it goes to the API only. The first build
-takes a few minutes (it downloads Flutter); later ones reuse Docker's
-cache. Set `FLUTTER_WEB_PORT` to change the port; the app is bound to
-127.0.0.1 unless you set `POKERFACE_BIND_HOST=0.0.0.0`. Stop it with
-`docker compose down`. Both services have health checks, so
-`docker compose up --wait` returns once they are healthy. There is no hot
-reload: rebuild after a change.
 
 ## Run it in a codespace
 
@@ -155,59 +121,38 @@ reload: rebuild after a change.
 
 That link opens this repository's **aityx demos** dev container on a
 4-core machine (16 GB RAM), which is what the Flutter builds want. It
-starts PokerFace with the rest of its group, the aityx demos (Mortgage
+serves PokerFace with the rest of its group, the aityx demos (Mortgage
 Hub, Contact Hub, Cellfie, RoboRules and RiverRace), and the index page
-that links them. To choose for yourself instead, use *Code → Codespaces
-→ New with options* and pick **aityx demos** as the dev container
-configuration — the repository holds two groups of demos, each with its
-own, so the configuration matters.
-
-The codespace uses your [aityx](https://aityx.ai) key, the same
-`AITYX_API_KEY` Codespaces secret as Mortgage Hub's and Contact Hub's.
-GitHub keeps Codespaces secrets per user and grants them per repository,
-so if your key already reaches this repository, there is nothing to do.
-Otherwise add it at
-[github.com/settings/codespaces](https://github.com/settings/codespaces)
-(**New secret**, name `AITYX_API_KEY`, access to
-`aityx-labs/aityx-demos`), or enter it when GitHub asks on the creation
-page. Without it the app opens, but nobody can act.
+that links them, all on the index's port, 8800. To choose for yourself
+instead, use *Code → Codespaces → New with options* and pick **aityx
+demos** as the dev container configuration — the repository holds two
+groups of demos, each with its own, so the configuration matters.
 
 When the codespace is created,
-[on-create.sh](../.devcontainer/on-create.sh) copies the group's
-release web builds from the [published image](../image/) into the
-workspace (a demo that changed since the image was made builds itself
-instead, a minute or two),
-[update-content.sh](../.devcontainer/update-content.sh) compiles each
-API and web server (a few seconds each) and
-[post-create.sh](../.devcontainer/post-create.sh) says whether your key
-arrived. Then, on that and every later start,
-[post-start.sh](../.devcontainer/post-start.sh) starts the index page
-and the aityx group in the background with `./start-all.sh` and makes
-their ports public, PokerFace's **8910** among them. There is nothing to
-run: the codespace is available about three minutes after you ask for
-it and the apps answer within a minute after that; open port 8910
-from the **Ports** panel, or PokerFace's card on the index page (port
-8800, which Codespaces opens in a browser tab for you). Its bare URL
-redirects to the app at `/app/`.
+[on-create.sh](../.devcontainer/on-create.sh) copies the group's release
+web builds from the [published image](../image/) into the workspace (a
+demo that changed since the image was made builds itself instead, a
+minute or two). Then, on that and every later start,
+[post-start.sh](../.devcontainer/post-start.sh) starts the index server
+with `./start-all.sh`. Open port 8800 (Codespaces opens it in a browser
+tab for you), set your aityx key in **Your aityx key**, and open
+PokerFace's card, `/pokerface/`.
 
-Watch PokerFace's services with `process-compose attach -U -u
-/tmp/aityx-demos-PokerFace.sock`. Stop the group with `./stop-all.sh`
-from the repository root and start it again with `./start-all.sh`: in
-the codespace both act on the aityx group only (`DEMOS_GROUP=aityx`).
-There is no devbox in a codespace: the demos run on the image's own
-Flutter and process-compose (`DEMOS_TOOLCHAIN=image`, see
-[demos-toolchain.sh](../demos-toolchain.sh)); `devbox services` is for a
-laptop.
+An `AITYX_API_KEY` Codespaces secret is optional: it becomes a dev key
+that every visitor of your codespace uses, through the index server's
+proxy, so nobody has to set one. Add it at
+[github.com/settings/codespaces](https://github.com/settings/codespaces)
+(**New secret**, name `AITYX_API_KEY`, access to
+`aityx-labs/aityx-demos`).
+
+Stop the group with `./stop-all.sh` from the repository root and start it
+again with `./start-all.sh`. There is no devbox in a codespace: the demos
+build on the image's own Flutter (`DEMOS_TOOLCHAIN=image`, see
+[demos-toolchain.sh](../demos-toolchain.sh)).
 
 **If the app doesn't start, send us `startup.log` from the root of the
 repository.** Every step of the codespace's start goes there,
-timestamped, including a line saying when each demo's web app and API
-first answered. It holds no secrets.
-
-**Check the port's visibility.** In the **Ports** panel, the
-*Visibility* column for 8910 should say **Public**. If it says
-**Private**, right-click the port, choose **Port Visibility → Public**
-and reload the app.
+timestamped. It holds no secrets.
 
 ## Run it in a dev container locally
 
@@ -227,9 +172,8 @@ and the six aityx demos' release web builds.
 
 1. Create a branch from an up-to-date `main`.
 2. Make one change per pull request, with its tests. Run `flutter analyze`
-   and `flutter test` in `pokerface_app/`, `dart analyze` and `dart test`
-   in `pokerface_api/`, and `bash scripts/model-test.sh` after changing a
-   model.
+   and `flutter test` in `pokerface_app/`, `bash scripts/build.sh`, and
+   `bash scripts/model-test.sh` after changing a model.
 3. Update the matching feature spec in [specs/](specs/) and add an entry to
    [specs/requests.md](specs/requests.md).
 4. Open a pull request against `main`.
@@ -239,3 +183,5 @@ and the six aityx demos' release web builds.
 - [specs/](specs/README.md): the specification of every feature.
 - [Strategies](specs/strategies.md): what a strategy sees and how its
   rules are written.
+- [Deciding on aityx](specs/aityx.md): whose key, the call, and its
+  errors.

@@ -1,8 +1,10 @@
 # Scoring
 
 At the end of each round the app sends each robot's `died` (0 if it
-survived) and `damage` to `POST /api/battle/score`, which runs
-[models/scoring.json](../roborules_api/models/scoring.json) on aityx:
+survived) and `damage` to aityx's `/v1/systemone` with
+[assets/models/scoring.json](../roborules_app/assets/models/scoring.json),
+the app's asset, as the decision
+([AityxBattleApi.score](../roborules_app/lib/battle/api.dart)):
 
 - **Survival**: 50 for each robot that died before it (`survival_points`).
 - **Last survivor**: 10 per enemy for the last robot standing

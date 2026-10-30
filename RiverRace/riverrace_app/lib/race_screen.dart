@@ -52,7 +52,8 @@ const decideAt1x = 6;
 class RaceScreen extends StatefulWidget {
   const RaceScreen({super.key, this.decider, this.seed});
 
-  /// Asks aityx what the pilots do: the app's API unless a test says.
+  /// Asks aityx what the pilots do: aityx itself, from the app, unless a
+  /// test says.
   final Decider? decider;
 
   /// The first river's seed; random unless a test says.
@@ -64,7 +65,7 @@ class RaceScreen extends StatefulWidget {
 
 class _RaceScreenState extends State<RaceScreen>
     with SingleTickerProviderStateMixin {
-  late final Decider _decider = widget.decider ?? ApiDecider();
+  late final Decider _decider = widget.decider ?? AityxDecider();
   late final Ticker _ticker = createTicker(_tick);
   final _repaint = ValueNotifier(0);
   final _focus = FocusNode(debugLabel: 'race');
@@ -250,7 +251,7 @@ class _RaceScreenState extends State<RaceScreen>
     } on DecideException catch (e) {
       if (!mounted || race != _race) return;
       _error = e.message;
-      // Don't hammer the API while it fails: try again in a second.
+      // Don't hammer aityx while it fails: try again in a second.
       _quietUntil = race.frame + 60;
       record = CallRecord(
         ++_callCount,

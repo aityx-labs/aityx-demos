@@ -7,10 +7,16 @@
 #   MODE          release (default), profile or debug
 #   IOS_CODESIGN  1 to sign the iOS build (needs a signing team in Xcode);
 #                 unsigned by default
-#   API_BASE_URL  the API the app will call for each decision
-#                 (default http://localhost:8911; empty: the app's origin)
-#   WEB_BASE_HREF the web build's base href, e.g. /app/ to serve it where the
-#                 dev server does; / by default
+#   WEB_BASE_HREF the web build's base href; /pokerface/ by default, where
+#                 the index server (Index/bin/server.dart) serves it
+#
+# The web build takes CanvasKit from our own origin (--no-web-resources-cdn),
+# so no third-party script runs on the origin that holds the user's aityx
+# key. The app calls aityx itself, on the key the user set on the index
+# page, or through the index server's dev proxy. The native builds have
+# neither: no dev proxy, and only an in-memory key store, empty at start,
+# so their decisions answer "aityx is not set up" (see
+# packages/aityx_web).
 #
 # The version is X.Y.Z: X and Y from version.X.txt and version.Y.txt, Z the
 # build time as YYYYMMDDHHMM (UTC); the build number is the same time in
@@ -28,8 +34,7 @@ cd "$(dirname "$0")/../pokerface_app"
 source ../scripts/version.sh
 # POKERFACE_VERSION: X.Y.Z, shown at the bottom of the welcome screen.
 BUILD_ARGS=(--build-name "$VERSION" --build-number "$BUILD_NUMBER"
-  --dart-define="POKERFACE_VERSION=$VERSION"
-  --dart-define="API_BASE_URL=${API_BASE_URL-http://localhost:8911}")
+  --dart-define="POKERFACE_VERSION=$VERSION")
 
 # can_build <target>: whether this host's OS can build the target.
 can_build() {
@@ -49,9 +54,8 @@ build() {
   echo "==> $target ($MODE, version $VERSION, build $BUILD_NUMBER)"
   case "$target" in
     web)
-      local base=()
-      [[ -n "${WEB_BASE_HREF:-}" ]] && base=(--base-href "$WEB_BASE_HREF")
-      flutter build web "--$MODE" ${base[@]+"${base[@]}"} "${BUILD_ARGS[@]}"
+      flutter build web "--$MODE" --base-href "${WEB_BASE_HREF:-/pokerface/}" \
+        --no-web-resources-cdn "${BUILD_ARGS[@]}"
       echo "==> web: pokerface_app/build/web/"
       ;;
     android)

@@ -40,7 +40,7 @@ Color _alarmColor(ColorScheme scheme) =>
 
 bool _failed(Object? check) => check is Map && check['result'] == 'fail';
 
-/// The parts of the body the API sends to aityx worth pointing out.
+/// The parts of the body the app sends to aityx worth pointing out.
 final requestNotes = [
   JsonNote(
     RegExp(r'^decision$'),
@@ -181,7 +181,7 @@ final responseNotes = [
   JsonNote(
     RegExp(r'^decision_error$'),
     'Error',
-    'Present only when the model failed to run; the API then reports the '
+    'Present only when the model failed to run; the app then reports the '
         'check as failed.',
   ),
 ];

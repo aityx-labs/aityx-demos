@@ -1,30 +1,28 @@
 # aityx status
 
-A small light in the top right corner, over every screen
-([lib/aityx_status.dart](../riverrace_app/lib/aityx_status.dart), mounted
-by `MaterialApp.builder` in [lib/main.dart](../riverrace_app/lib/main.dart)),
-that says whether aityx can decide: an 8 px dot, slightly transparent, with
-no label.
+A small light in the top right corner, over every screen: aityx_web's
+`AityxStatusLight`, mounted by `withAityxStatus` in `MaterialApp.builder`
+([lib/main.dart](../riverrace_app/lib/main.dart)), the same light as in
+every aityx demo and on the index page (see the
+[package's README](../../packages/aityx_web/README.md)). It says whether
+aityx can decide: an 8 px dot, slightly transparent, with no label.
 
 | Dot | When | Tooltip |
 |---|---|---|
-| Grey | the first check is running | `aityx: checking` |
-| Green | the API has its key and aityx accepts it | `aityx: ready — accepts the key (<aityx URL>)` |
-| Red | the API has no key | `aityx: no key — AITYX_API_KEY is not set` |
-| Red | aityx refuses the key, redirects or doesn't answer | `aityx: not working — <why>` |
-| Red | the API doesn't answer | `aityx: the API did not answer` |
+| Grey | a check is running | `aityx: checking` |
+| Green | aityx accepts the key | `aityx: ready (your key, <aityx URL>)`, or `aityx: ready (dev key from .env, <aityx URL>)` |
+| Red | no key, the user's or a dev key | `aityx: no key — set yours on the index page` |
+| Red | aityx refuses the key | `aityx: key rejected — <why>` |
+| Red | aityx doesn't answer | `aityx: not reachable — <why>` |
+| Red | aityx answers something else | `aityx: not working — <why>` |
 
-The tooltip is also the dot's screen-reader label. The app asks the
-[API](api.md)'s `GET /api/aityx` at start and every minute, at the same
-place as `POST /api/decide`: the app's own origin on the web, through the
-web server's or nginx's `/api/` proxy, and `http://localhost:8941` in a
-native app, unless `API_BASE_URL` says.
+The tooltip is also the dot's screen-reader label. A tap opens the index
+page's key section (`/#aityx-key`) in the same tab.
 
-`GET /api/aityx` ([lib/aityx_check.dart](../riverrace_api/lib/aityx_check.dart))
-posts an empty request to aityx's `/v1/systemone` with the key, which aityx
-checks first: a working key gets 400 `invalid_request` (the request has no
-state), without running any model, so the check costs nothing. It answers
-`{"key", "ok", "url", "detail"}`; the key is never in it. A redirect, as
-from an endpoint behind a login page, is reported as one, with where it
-leads. The result is kept for a minute, and requests that arrive while a
-check runs share it.
+The check uses the key the decisions use ([aityx calls](api.md)): it posts
+an empty request, `{}`, to aityx's `/v1/systemone`, which checks the key
+first, so a working key gets 400 `invalid_request` without running any
+model. It runs at start, at once when the key changes (the index page, in
+another tab, saves or forgets it), and when the window regains focus, at
+most once every 30 s. There is no polling timer: each check is a request
+on the user's quota.

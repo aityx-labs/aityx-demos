@@ -5,7 +5,7 @@ import '../life/generation.dart';
 import '../theme.dart';
 import 'call_json_view.dart';
 
-/// One generation's call to aityx, as the API answered it, with the
+/// One generation's call to aityx, as the app made it, with the
 /// clusters that were sent (in the order aityx named them).
 class CallRecord {
   const CallRecord(this.id, this.outcome, this.clusters, this.at);

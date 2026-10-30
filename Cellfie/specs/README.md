@@ -36,22 +36,21 @@ and response, in a side panel.
 - [Calls panel](calls-panel.md): the side panel with every call to aityx,
   newest first: what it decided, and the request and the response as
   readable JSON with the key parts labeled; the patterns noticed.
+- [aityx calls](aityx-calls.md): the app calls aityx itself, from the
+  browser, on the key the user set on the index page or the index
+  server's dev key; the checks, and what a failure says.
 - [aityx status light](aityx-status.md): a small dot, top right on every
-  screen, green when aityx accepts the API's key and red otherwise, with
-  why in its tooltip.
+  screen, green when aityx accepts the key and red otherwise, with why in
+  its tooltip; a tap opens the index page's key section.
 - [Theme](theme.md): the aityx dark palette.
 - [App icon](app-icon.md): a glider on the dark background; the favicon
   and every platform's icon, generated from SVG masters.
 
-**Backend**
-
-- [API](api.md): `cellfie_api`, a Dart server that holds the aityx key and
-  serves `POST /api/step`, `GET /api/aityx` and `GET /api/health`.
-
 **Project**
 
-- [Development environment](dev-environment.md): devbox, process-compose,
-  the health monitor, the builds, Docker Compose and the dev container.
+- [Development environment](dev-environment.md): devbox, the web build
+  the index server serves at `/cellfie/`, the model tests, the native
+  builds and the dev container.
 
 ## Workflow
 

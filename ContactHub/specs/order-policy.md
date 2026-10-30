@@ -11,8 +11,8 @@ aityx call.
 aityx's questions classify; they don't read numbers or dates. So the
 facts come from where a store keeps them:
 
-- **The order book** ([lib/orders.dart](../contacthub_api/lib/orders.dart)):
-  the API finds the first order number in the message (three digits, a
+- **The order book** ([lib/aityx/orders.dart](../contacthub_app/lib/aityx/orders.dart)):
+  the app finds the first order number in the message (three digits, a
   dash, four: `113-2045`) and sends that order as `state.order`: its
   `placed_on` and `delivered_on` dates (expected 5 days after it was placed
   until it's delivered), `amount` paid and `current_price`, `category`
@@ -21,7 +21,7 @@ facts come from where a store keeps them:
   message naming no order on file gets status `none`. The orders are made
   up, and their dates count back from today, so a sample routes the same
   way whenever the demo runs.
-- **Today** (`state.today`), from the API's clock (UTC).
+- **Today** (`state.today`), from the device's clock (UTC).
 - **What the customer wants** (`request_kind`), a choice question for
   aityx: `where_is_order`, `return_refund`, `damaged_defective`,
   `cancel_order`, `price_adjustment`, `duplicate_charge`, or `none` when
@@ -29,7 +29,7 @@ facts come from where a store keeps them:
 
 ## The rules
 
-In [models/routing.json](../contacthub_api/models/routing.json), each
+In [assets/models/routing.json](../contacthub_app/assets/models/routing.json), each
 limit a decision of its own so it shows in the JSON:
 
 | Limit | Value |
@@ -98,7 +98,8 @@ number (ask for it).
 ### Verified
 
 All 14, the 11 other department samples and the 2 check samples were sent
-through the live API: each got the expected department and resolution,
+through the live API (before the app called aityx itself; the request
+it sends is the same): each got the expected department and resolution,
 amount and date. (The headphones first went to General Inquiries, torn
 between Customer Service and Technical Support; the topics now say a
 broken item bought here is a warranty claim, Customer Service's, and
@@ -106,8 +107,10 @@ three runs routed it there.) Tests use real aityx answers for the tablet,
 the jacket and the late lamp.
 
 `bash scripts/model-test.sh` runs the rules themselves on aityx
-([test/model_scenarios_test.dart](../contacthub_api/test/model_scenarios_test.dart),
-tagged `aityx`, skipped by a plain `dart test`): 21 cases with fixed facts
+([test/model_scenarios_test.dart](../contacthub_app/test/model_scenarios_test.dart),
+tagged `aityx`, skipped by a plain `flutter test`; it runs
+`flutter test --run-skipped --tags aityx` in `contacthub_app/` with the
+key from the environment or the repository's `.env`): 21 cases with fixed facts
 just inside and just outside each limit (refund at 30 days, store credit
 at 31 and 60, not eligible at 61; no restocking fee at 14 days, 15% at
 15; $500.00 refunded, $500.01 to a person; damage at 7 and 8 days; the

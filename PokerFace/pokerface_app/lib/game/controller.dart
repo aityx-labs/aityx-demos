@@ -31,7 +31,7 @@ class AityxCall {
   bool get pending => result == null && error == null;
 }
 
-/// Runs the table: asks the API for every decision, plays it, and paces
+/// Runs the table: asks aityx for every decision, plays it, and paces
 /// the steps so they can be watched.
 class GameController extends ChangeNotifier {
   GameController({required this.api, PokerGame? game, Random? random})
@@ -40,7 +40,8 @@ class GameController extends ChangeNotifier {
   final PokerApi api;
   final PokerGame game;
 
-  /// The presets from the API, then the strategies written in the app.
+  /// The presets (the app's assets/models/), then the strategies written
+  /// in the app.
   List<Strategy> strategies = [];
   bool loaded = false;
   String? loadError;
@@ -224,7 +225,7 @@ class GameController extends ChangeNotifier {
     }
   }
 
-  /// One step at the table; a decision is asked of the API and played.
+  /// One step at the table; a decision is asked of aityx and played.
   Future<Step?> _step() async {
     if (_busy) return null;
     _busy = true;

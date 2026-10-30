@@ -9,6 +9,9 @@
 
 startup_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 startup_log="$startup_root/startup.log"
+# index_serves: which demos the index serves itself (the aityx demos).
+# shellcheck source=../demos-toolchain.sh
+source "$startup_root/demos-toolchain.sh"
 
 # slog <message...>: one timestamped line in the log only.
 slog() {
@@ -25,22 +28,39 @@ startup_capture() {
   done | tee -a "$startup_log") 2>&1
 }
 
-# startup_demos: the folders the dev container starts, one per line: each
-# with a devbox.json and a process-compose.yaml, in the container's group
-# (DEMOS_GROUP, set by its devcontainer.json: the folders whose
-# group.id.txt names it), its index page among them (Index/ for aityx,
-# datyx-index/ for datyx).
+# startup_demos: the folders whose services the dev container starts, one
+# per line: each with a devbox.json and a process-compose.yaml, in the
+# container's group (DEMOS_GROUP, set by its devcontainer.json: the folders
+# whose group.id.txt names it), its index page among them (Index/ for
+# aityx, datyx-index/ for datyx). Not the demos the index serves itself
+# (startup_served).
 startup_demos() {
   local config dir
   for config in "$startup_root"/*/devbox.json; do
     dir="$(dirname "$config")"
     [[ -f "$dir/process-compose.yaml" ]] || continue
-    if [[ -n "${DEMOS_GROUP:-}" && -f "$dir/group.id.txt" &&
-      "$(tr -d '[:space:]' <"$dir/group.id.txt")" != "$DEMOS_GROUP" ]]; then
-      continue
-    fi
+    index_serves "$dir" && continue
+    startup_in_group "$dir" || continue
     basename "$dir"
   done
+}
+
+# startup_served: the demos of the container's group that the index
+# serves (the six aityx demos: web builds, no services), one per line.
+startup_served() {
+  local dir
+  for dir in "$startup_root"/*/; do
+    dir="${dir%/}"
+    index_serves "$dir" && startup_in_group "$dir" && basename "$dir"
+  done
+  return 0
+}
+
+# startup_in_group <dir>: whether the folder is in the container's group
+# (every folder when DEMOS_GROUP isn't set).
+startup_in_group() {
+  [[ -z "${DEMOS_GROUP:-}" || ! -f "$1/group.id.txt" ||
+    "$(tr -d '[:space:]' <"$1/group.id.txt")" == "$DEMOS_GROUP" ]]
 }
 
 # startup_facts: what a failed start usually comes down to.
@@ -69,7 +89,8 @@ startup_facts() {
   else
     echo "devbox: $(command -v devbox || echo missing) $(devbox version 2>/dev/null)"
     echo "nix: $(nix --version 2>/dev/null || echo missing)"
-    for demo in $(startup_demos); do
+    for demo in $(startup_demos) $(startup_served); do
+      [[ -f "$startup_root/$demo/devbox.json" ]] || continue
       echo "$demo/.devbox: $([[ -d "$startup_root/$demo/.devbox" ]] && echo present || echo missing)"
     done
   fi

@@ -1,25 +1,40 @@
 /// Fill random's targets checked by the real regulatory check: requests
-/// built for each verdict, sent to the running API (and aityx). Tagged
-/// `aityx`: skipped by `flutter test`; run it with
-/// `flutter test --run-skipped --tags aityx` while `devbox services up`
-/// runs (API_URL overrides http://localhost:8881).
+/// built for each verdict, checked on aityx as the app checks them
+/// (AityxProposalChecker). Tagged `aityx`: skipped by `flutter test`; run
+/// it with `bash scripts/model-test.sh test/targeted_proposal_live_test.dart`,
+/// which passes AITYX_API_KEY and AITYX_URL from the repository's .env.
+/// 90 calls on that key.
 @Tags(['aityx'])
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:aityx_web/aityx_web.dart';
 import 'package:faker/faker.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mortgagehub_app/aityx/proposal_model.dart';
 import 'package:mortgagehub_app/proposal/proposal_check.dart';
 import 'package:mortgagehub_app/proposal/targeted_proposal.dart';
 
 const perTarget = 30;
 
 void main() {
-  final checker = ApiProposalChecker(
-    baseUrl: Platform.environment['API_URL'] ?? 'http://localhost:8881',
+  final key = Platform.environment['AITYX_API_KEY'] ?? '';
+  final aityx = AityxClient(
+    connection: AityxConnection.user(
+      key,
+      url: Platform.environment['AITYX_URL'],
+    ),
   );
-  tearDownAll(checker.close);
+  final checker = AityxProposalChecker(
+    aityx: aityx,
+    model: () async => jsonDecode(await File(modelAsset).readAsString()),
+  );
+  setUpAll(() {
+    if (key.isEmpty) fail('AITYX_API_KEY is not set');
+  });
+  tearDownAll(aityx.close);
 
   for (final target in CheckStatus.values) {
     test('${target.label} requests get ${target.label}', () async {

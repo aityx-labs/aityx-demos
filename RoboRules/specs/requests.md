@@ -120,3 +120,28 @@ The requests that shaped RoboRules, oldest first, each with what changed.
     and smoke, over 1.6 seconds, and leaves a scorch mark for the rest of
     the round; hits get a small burst in the same style. See [The
     window](window.md).
+
+12. **Run the aityx demos entirely in the browser: no per-demo API, the
+    Flutter app calls aityx itself, and the index and all six demos share
+    one origin, so a key the user sets once on the index page is reused by
+    every demo.** RoboRules' API (`roborules_api/`) is gone. The battle's
+    model is built in the app ([lib/aityx/battle.dart](../roborules_app/lib/aityx/battle.dart),
+    moved from the API with its tests), the world and scoring models are
+    the app's assets (`assets/models/`), and `AityxBattleApi` sends each
+    batch of turns and each round's score to aityx's `/v1/systemone` on
+    the shared [aityx_web](../../packages/aityx_web) package, keeping the
+    robot checks, the call in the viewer (its body, never the key) and the
+    errors, now "aityx is not set up: set your key on the index page",
+    "aityx rejected the key", "aityx did not answer" and "aityx answered
+    HTTP n: …". The key is the user's, saved on the index page, else the
+    index server's dev key from `.env` through its `/aityx/` proxy. The
+    light is aityx_web's: it checks aityx from the browser at start, when
+    the key changes and on focus (at most every 30 s), and a tap opens the
+    index page's key section. The index server serves the app at
+    `/roborules/` (ports 8920 and 8921 are gone); `scripts/build.sh` builds
+    only the web app, with `--base-href /roborules/ --no-web-resources-cdn`.
+    The API, its web server, Docker Compose, `docker/`, `process-compose.yaml`
+    and `scripts/api.sh`, `flutter-web.sh` and `health-check.sh` were
+    removed; `scripts/model-test.sh` runs the app's tests tagged `aityx`.
+    See [Development environment](dev-environment.md), [The
+    battle](battle.md#the-call) and [The window](window.md).

@@ -7,14 +7,16 @@ every commit and push:
 
 - **Correctness**: verify the change does what it claims — run the relevant
   code path (build, script, or service), not just a syntax check. For this
-  project that typically means `flutter analyze` and `flutter test` pass in
-  `contacthub_app/`, `dart analyze` and `dart test` in `contacthub_api/`,
-  and `devbox services up` still starts the web server, the API and the
-  health check cleanly. After changing `models/routing.json`, also run
+  project that means `flutter analyze` and `flutter test` pass in
+  `contacthub_app/`, and `bash scripts/build.sh` builds the web app (with
+  `<base href="/contacthub/">` in `contacthub_app/build/web/index.html`).
+  After changing `contacthub_app/assets/models/routing.json`, also run
   `bash scripts/model-test.sh`, which runs its rules on aityx.
-- **Secrets**, such as the aityx key (`AITYX_API_KEY`), which routing uses,
-  live only in `.env` and the API's environment. Never pass them to
-  Flutter, print them, or put them on a command line.
+- **Secrets**, such as the aityx key: users set theirs on the index page,
+  in their browser; the dev key (`AITYX_API_KEY`) lives only in the
+  repository's `.env`, which the index server reads. Never compile a key
+  into the app, show it on screen (the aityx call shown is the request
+  body, never its headers), print it, or put it on a command line.
 - **Security**: check for hardcoded secrets or tokens, unsafe shell patterns
   (unquoted variables, `curl | bash` of unpinned sources, world-writable
   files), injection risks, and unnecessarily broad permissions or exposed
@@ -26,9 +28,8 @@ Do not commit or push code that has not passed both checks.
 
 - Toolchain is managed by [devbox.json](devbox.json); enter it with
   `devbox shell` and keep [devbox.lock](devbox.lock) committed.
-- `devbox services up` starts the processes in
-  [process-compose.yaml](process-compose.yaml) plus the health monitor
-  ([scripts/health-check.sh](scripts/health-check.sh)); stop with
-  `devbox services stop`. In non-interactive contexts pass
-  `--pcflags "--tui=false"`.
+- There's no API or service of its own: the app calls aityx itself
+  (package `aityx_web`, `../packages/aityx_web`), and the repository's
+  index server (`Index/`) serves the web build at `/contacthub/`. Start it
+  with `./start-all.sh ContactHub` from the repository root.
 - The devcontainer build is documented in the [README](README.md).

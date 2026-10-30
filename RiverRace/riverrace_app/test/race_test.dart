@@ -202,7 +202,7 @@ void main() {
     expect(p.lives, startLives - 1);
   });
 
-  test('the senses are what the API checks for', () {
+  test('the senses are what the app checks before it calls aityx', () {
     final race = Race(seed: 5, planeIds: ['you', 'p1', 'p2']);
     final sense = race.sense(race.plane('p1'));
     expect(sense.keys, [for (final s in sensors) s.id]);

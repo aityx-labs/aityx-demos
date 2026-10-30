@@ -2,13 +2,15 @@
 
 A player's strategy is a decision model run on aityx: the `decisions` of
 the table model, run on the player's situation as the state. The models
-live in [pokerface_api/models/](../pokerface_api/models):
-[table.json](../pokerface_api/models/table.json) holds the shared part,
-the `types` and `inputs` (what a player sees), and each file in
-[strategies/](../pokerface_api/models/strategies) one strategy: its `id`
-(the file's name), `name`, `tagline` and `decisions`. For each call the
-API composes `decision = {name, types, inputs, decisions}` with the
-situation as `state` (see [API](api.md)).
+are the app's assets, in
+[pokerface_app/assets/models/](../pokerface_app/assets/models), read with
+`rootBundle`: [table.json](../pokerface_app/assets/models/table.json)
+holds the shared part, the `types` and `inputs` (what a player sees), and
+each file in [strategies/](../pokerface_app/assets/models/strategies) one
+strategy: its `id` (the file's name), `name`, `tagline` and `decisions`.
+For each call the app composes `decision = {name, types, inputs,
+decisions}` with the situation as `state` (see [Deciding on
+aityx](aityx.md)).
 
 ## The situation: what a strategy sees
 
@@ -36,7 +38,7 @@ The inputs of table.json, computed by the app at each turn:
 | `players_in_hand`, `players_after` | count | Still in the hand (the player included); still to act after the player this round |
 | `random` | 0..1 | Drawn for this decision, so a strategy can mix its play |
 
-The API checks every input (presence, type, range) before calling aityx.
+The app checks every input (presence, type, range) before calling aityx.
 
 ## The rules: what a strategy says
 
@@ -65,23 +67,24 @@ arithmetic, comparisons, `decimal`), documented at
 
 | Strategy | In short |
 |---|---|
-| [The Rock](../pokerface_api/models/strategies/rock.json) | Raises premium cards, opens strong ones and calls one raise with them, folds everything else (checks a free flop). After the flop bets two pair or better, calls with a pair likely best, never bluffs. Opens 3 BB, re-raises 3×, bets half the pot |
-| [The Maniac](../pokerface_api/models/strategies/maniac.json) | Raises almost anything before the flop (folds weak cards to two raises only when the coin says no bluff). After the flop bets any pair or draw, bluffs when `random < 0.5`, calls three times in ten with nothing. Opens 4 BB, re-raises 3.5×, bets the pot |
-| [The Calling Station](../pokerface_api/models/strategies/station.json) | Calls to see what happens: before the flop up to ten big blinds with weak cards, after it unless hopeless (under 10% equity against a bet over half the pot). Raises the minimum, and only with a straight or better |
-| [The Mathematician](../pokerface_api/models/strategies/mathematician.json) | Pot odds: calls when `equity > pot_odds`, bets or raises when the edge is 20 points or more (or 60% equity when a check is free), folds otherwise; never bluffs. Opens 3 BB, re-raises 3×, bets two thirds of the pot |
-| [The Shark](../pokerface_api/models/strategies/shark.json) | Tight and aggressive: raises premium and strong cards, opens medium ones and calls a raise with them in position, calls cheap with speculative ones, steals from late position three times in five. After the flop bets for value (two pair or better, or a pair with 60% equity), semi-bluffs flush draws and open-enders when nobody has bet, continuation-bets two times in three against few players, calls when the odds say so with at least 30% equity. Opens 2.5 BB, re-raises 3×, bets two thirds of the pot |
+| [The Rock](../pokerface_app/assets/models/strategies/rock.json) | Raises premium cards, opens strong ones and calls one raise with them, folds everything else (checks a free flop). After the flop bets two pair or better, calls with a pair likely best, never bluffs. Opens 3 BB, re-raises 3×, bets half the pot |
+| [The Maniac](../pokerface_app/assets/models/strategies/maniac.json) | Raises almost anything before the flop (folds weak cards to two raises only when the coin says no bluff). After the flop bets any pair or draw, bluffs when `random < 0.5`, calls three times in ten with nothing. Opens 4 BB, re-raises 3.5×, bets the pot |
+| [The Calling Station](../pokerface_app/assets/models/strategies/station.json) | Calls to see what happens: before the flop up to ten big blinds with weak cards, after it unless hopeless (under 10% equity against a bet over half the pot). Raises the minimum, and only with a straight or better |
+| [The Mathematician](../pokerface_app/assets/models/strategies/mathematician.json) | Pot odds: calls when `equity > pot_odds`, bets or raises when the edge is 20 points or more (or 60% equity when a check is free), folds otherwise; never bluffs. Opens 3 BB, re-raises 3×, bets two thirds of the pot |
+| [The Shark](../pokerface_app/assets/models/strategies/shark.json) | Tight and aggressive: raises premium and strong cards, opens medium ones and calls a raise with them in position, calls cheap with speculative ones, steals from late position three times in five. After the flop bets for value (two pair or better, or a pair with 60% equity), semi-bluffs flush draws and open-enders when nobody has bet, continuation-bets two times in three against few players, calls when the odds say so with at least 30% equity. Opens 2.5 BB, re-raises 3×, bets two thirds of the pot |
 
 ## Verified
 
 `bash scripts/model-test.sh` runs
-[model_scenarios_test.dart](../pokerface_api/test/model_scenarios_test.dart)
-on aityx: every strategy answers with a rule that fired, and each one
+[model_scenarios_test.dart](../pokerface_app/test/model_scenarios_test.dart)
+on aityx, with the key from the repository's root `.env`: every strategy answers with a rule that fired, and each one
 plays its character in fixed situations (the Rock's premium raise and
 strong call, the Maniac's coin, the Station's ten-big-blind limit and
 hopeless fold, the Mathematician's call at 30% equity against 25% pot
 odds and fold against 40%, the Shark's steal, semi-bluff and position).
-The API's tests also check that every action table's rows test only
-columns in its header and end with an else row.
+The app's tests ([table_test.dart](../pokerface_app/test/table_test.dart))
+also check that every action table's rows test only columns in its header
+and end with an else row.
 
 ## Known limitations
 

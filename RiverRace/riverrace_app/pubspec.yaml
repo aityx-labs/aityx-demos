@@ -13,6 +13,11 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
+  # aityx from the browser, shared by the aityx demos: the key the index
+  # page set (or the index server's dev key), the systemone call and the
+  # status light.
+  aityx_web:
+    path: ../../packages/aityx_web
   http: ^1.6.0
   web: ^1.1.2
 
@@ -24,6 +29,10 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # The decision model sent to aityx: the types the pilots' tables use
+  # (see lib/aityx/decision_request.dart).
+  assets:
+    - assets/models/river.json
   # The calls panel's monospace font (see assets/fonts/README.md).
   fonts:
     - family: RobotoMono

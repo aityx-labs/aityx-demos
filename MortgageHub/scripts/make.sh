@@ -7,10 +7,16 @@
 #   MODE          release (default), profile or debug
 #   IOS_CODESIGN  1 to sign the iOS build (needs a signing team in Xcode);
 #                 unsigned by default
-#   API_BASE_URL  the API the app calls for the regulatory check
-#                 (default http://localhost:8881; empty: the app's origin)
-#   WEB_BASE_HREF the web build's base href, e.g. /app/ to serve it where the
-#                 dev server does; / by default
+#   WEB_BASE_HREF the web build's base href, e.g. /mortgagehub/ to serve it
+#                 where the index does (scripts/build.sh); / by default
+#
+# The web build has no CDN (`--no-web-resources-cdn`): CanvasKit is served
+# from the build, so no third-party script runs on the origin that holds
+# the user's aityx key. The app calls aityx itself, with the key the user
+# set on the index page (or, served by the index, its dev key from .env).
+# Native builds (android, ios, linux) have neither: their key store is in
+# memory only and there's no dev proxy, so their regulatory check says
+# aityx is not set up.
 #
 # The version is X.Y.Z: X and Y from version.X.txt and version.Y.txt, Z the
 # build time as YYYYMMDDHHMM (UTC); the build number is the same time in
@@ -28,8 +34,7 @@ cd "$(dirname "$0")/../mortgagehub_app"
 source ../scripts/version.sh
 # MORTGAGEHUB_VERSION: X.Y.Z, shown at the bottom of the welcome screen.
 BUILD_ARGS=(--build-name "$VERSION" --build-number "$BUILD_NUMBER"
-  --dart-define="MORTGAGEHUB_VERSION=$VERSION"
-  --dart-define="API_BASE_URL=${API_BASE_URL-http://localhost:8881}")
+  --dart-define="MORTGAGEHUB_VERSION=$VERSION")
 
 # can_build <target>: whether this host's OS can build the target.
 can_build() {
@@ -69,7 +74,7 @@ build() {
     web)
       local base=()
       [[ -n "${WEB_BASE_HREF:-}" ]] && base=(--base-href "$WEB_BASE_HREF")
-      flutter build web "--$MODE" ${base[@]+"${base[@]}"} "${BUILD_ARGS[@]}"
+      flutter build web "--$MODE" --no-web-resources-cdn ${base[@]+"${base[@]}"} "${BUILD_ARGS[@]}"
       stamp_web build/web "$BUILD_NUMBER"
       echo "==> web: mortgagehub_app/build/web/"
       ;;

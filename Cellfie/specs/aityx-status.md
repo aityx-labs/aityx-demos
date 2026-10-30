@@ -1,29 +1,37 @@
 # aityx status light
 
-A small dot in the top right corner of every screen
-([aityx_status.dart](../cellfie_app/lib/aityx_status.dart)), over the app
-bar, says whether aityx is ready for the generations:
+A small dot in the top right corner of every screen says whether aityx is
+ready for the generations. It is aityx_web's `AityxStatusLight`
+([packages/aityx_web](../../packages/aityx_web/README.md)), shared by
+every aityx demo, mounted once through `MaterialApp.builder` with
+`withAityxStatus` ([main.dart](../cellfie_app/lib/main.dart)):
 
 | Dot | Meaning | Tooltip |
 |---|---|---|
-| grey | the first check is running | `aityx: checking…` |
-| green | the API has its key and aityx accepts it | `aityx: ready — accepts the key (<aityx URL>)` |
-| red | the API has no key | `aityx: no key — AITYX_API_KEY is not set` |
-| red | aityx refuses the key, redirects, or doesn't answer | `aityx: not working — <why>` |
-| red | the API itself doesn't answer | `aityx: the API did not answer` |
+| grey | a check is running | `aityx: checking` |
+| green | aityx accepts the user's key | `aityx: ready (your key, https://api.aityx.ai)` |
+| green | aityx accepts the index server's dev key | `aityx: ready (dev key from .env, https://api.aityx.ai)` |
+| red | no key anywhere | `aityx: no key — set yours on the index page` |
+| red | aityx refuses the key | `aityx: key rejected — <why>` |
+| red | no answer (network, CORS, a blocker, or the dev proxy can't reach aityx) | `aityx: not reachable — <why>` |
+| red | any other answer | `aityx: not working — <why>` |
 
 The dot is 8 px, at 80% opacity, with no text; the tooltip, on hover or
-long press, says why, and screen readers read the same. It is mounted
-once, through `MaterialApp.builder`, in an `Overlay` of its own so its
-tooltip works above the app's navigator, 6 px from the corner inside the
-safe area. The app bar keeps its last action 16 px clear of it.
+long press, says why, and screen readers read the same. It sits in an
+`Overlay` of its own so its tooltip works above the app's navigator, 6 px
+from the corner inside the safe area. The app bar keeps its last action
+16 px clear of it. A tap opens the index page's key section
+(`/#aityx-key`) in the same tab.
 
-The app asks the API's `GET /api/aityx` ([API](api.md)) at start and
-every minute, at `API_BASE_URL` like the generations (empty: the app's
-own origin, through the `/api/` proxy). The API checks aityx at most once
-a minute, so the polling doesn't call aityx each time.
+The check uses the key the generations use (see [aityx calls](aityx-calls.md)):
+it POSTs `{}` to `/v1/systemone`, which aityx answers with 400
+`invalid_request` once it has accepted the key, without running a model.
+It checks at start, at once when the key changes (the index page, in
+another tab, saves or forgets it), and when the window regains focus, at
+most once every 30 s. There's no polling: each check spends a request of
+the key's quota.
 
 ## Known limitations
 
-- Changes show within a minute, not at once: after fixing `.env`, the API
-  must restart to read it, and the dot turns green at its next check.
+- A key set as "only this session" lives in that tab's sessionStorage: a
+  demo opened in a new tab doesn't see it.

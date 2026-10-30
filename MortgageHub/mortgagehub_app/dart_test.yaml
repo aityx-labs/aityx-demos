@@ -1,6 +1,5 @@
 tags:
   aityx:
-    # Calls the running API, and through it aityx.ai: run it with
-    # `flutter test --run-skipped --tags aityx` while `devbox services up`
-    # runs.
-    skip: "Calls the API and aityx.ai: flutter test --run-skipped --tags aityx"
+    # Calls aityx.ai with the real key from the repository's .env: run it
+    # with scripts/model-test.sh.
+    skip: "Calls aityx.ai: run it with scripts/model-test.sh"

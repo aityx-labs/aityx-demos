@@ -17,67 +17,46 @@ with links that jump to exactly the JSON behind each item.
 
 | Part | Technology |
 |---|---|
-| App ([contacthub_app/](contacthub_app)) | [Flutter](https://flutter.dev) (Dart): web, Android, iOS and Linux from one codebase |
-| API ([contacthub_api/](contacthub_api)) | Dart (`dart:io`): holds the [aityx](https://aityx.ai) key; for now only `/api/health` |
-| Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) on a laptop, or a [Dev Container](https://containers.dev/) from the [published image](../image/), process-compose for the services either way; or [Docker Compose](compose.yaml) |
+| App ([contacthub_app/](contacthub_app)) | [Flutter](https://flutter.dev) (Dart): web, Android, iOS and Linux from one codebase. It calls [aityx](https://aityx.ai) itself, from the browser, through the aityx demos' shared package, [packages/aityx_web](../packages/aityx_web/README.md) |
+| Serving | The repository's index server ([Index/](../Index)) serves the release web build at `/contacthub/`, on one origin with the index page and the other aityx demos. There's no Contact Hub API |
+| Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) on a laptop, or a [Dev Container](https://containers.dev/) from the [published image](../image/) |
 
 The toolchain is pinned in [devbox.json](devbox.json) and locked in
 [devbox.lock](devbox.lock): Flutter, GNU Make and curl. It is the same
 lock as Mortgage Hub's, so the two share one Nix store.
 
-## Run it locally with devbox
+## Run it locally
 
-1. Install [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/).
-2. Put your [aityx](https://aityx.ai) key in `.env` (copy
-   [.env.example](.env.example)): the same `AITYX_API_KEY` as Mortgage
-   Hub's, for instance `grep '^AITYX_' ../MortgageHub/.env > .env`.
-   Without it the app runs, but **Send** can't route.
-3. From this folder:
+From the repository root:
 
-   ```bash
-   devbox services up           # add --pcflags "--tui=false" when not in a terminal
-   ```
-
-That starts, from [process-compose.yaml](process-compose.yaml):
-
-| URL | What |
-|---|---|
-| http://localhost:8890/app/ | The app's release build, served by a small native web server ([scripts/flutter-web.sh](scripts/flutter-web.sh)). The first start builds it (about 20 s on a laptop, a minute or two on a 4-core codespace); later starts reuse it until the app changes |
-| http://localhost:8891/api/health | The API, compiled to a native executable ([scripts/api.sh](scripts/api.sh)); the web app reaches it as `/api/` on its own origin, through the web server's proxy |
-
-That's what Docker Compose serves too, and it keeps the machine free:
-the two servers hold about 35 MB between them. For hot reload while
-working on the app, run the Flutter dev server instead, with
-`WEB_MODE=debug devbox services up`, or on its own with `devbox run web`
-(press `r` in its terminal). `devbox run build` builds the web build and
-the executables ahead of time ([scripts/build.sh](scripts/build.sh)),
-only what changed.
-
-The ports are 8890 and 8891, so Contact Hub runs alongside Mortgage Hub
-(8880 and 8881). Type a request, or press the microphone beside the field
-and say it: the browser asks for the microphone the first time, and
-Chrome or Edge install their on-device English pack, while other browsers
-download a small speech model (see [Request box](specs/request.md)). Or
-pick one from **Try a sample**: one for each department, and two for the
-checks. **Send** routes it (see [Routing](specs/routing.md)).
-
-Once both are ready, the `health-check` monitor prints where to open the
-app (in a codespace, its forwarded URL too), waits 5 s
-(`HEALTH_CHECK_DELAY`), then logs one line every 15 s
-(`HEALTH_CHECK_INTERVAL`); 🤖 [aityx](https://aityx.ai) is ⚪ when the API
-has no key:
-
-```
-Contact Hub is up. Open the app at:
-  http://localhost:8890/app/
-Health checks start in 5 s, then every 15 s.
-2026-10-21 11:42:10 🌐 Web ✅ · 🔌 API ✅ · 🤖 aityx ✅
+```bash
+./start-all.sh ContactHub       # or ./start-all.sh for every demo
 ```
 
-Stop everything with `devbox services stop`. To run only the app, use
-`devbox run web`, the dev server with hot reload (set `FLUTTER_WEB_PORT`
-to change the port, `WEB_MODE=release` for the release build); only the
-API, `devbox run api` (`API_PORT`).
+That builds the web app if it changed ([scripts/build.sh](scripts/build.sh):
+`flutter build web --release --base-href /contacthub/ --no-web-resources-cdn`,
+about 20 to 40 s on a laptop, nothing when it's up to date) and starts the
+index server. Open the index page, http://localhost:8800/, paste your
+[aityx](https://aityx.ai) key in **Your aityx key** (sign up at aityx.ai,
+then **API keys** in console.aityx.ai), and open Contact Hub's card, or
+http://localhost:8800/contacthub/. The key stays in your browser, and
+every demo on that page uses it. With no key of yours, the index server
+lends its dev key, `AITYX_API_KEY` in the repository's `.env` (see
+[../.env.example](../.env.example)), through its own proxy: the key never
+reaches the browser. Without either, the app runs, but **Send** says to
+set your key.
+
+Type a request, or press the microphone beside the field and say it: the
+browser asks for the microphone the first time, and Chrome or Edge install
+their on-device English pack, while other browsers download a small
+speech model (see [Request box](specs/request.md)). Or pick one from
+**Try a sample**: one for each department, and two for the checks.
+**Send** routes it, with one aityx call from the app (see
+[Routing](specs/routing.md)). The dot at the top right says whether aityx
+accepts the key (see [aityx status light](specs/aityx-status.md)).
+
+`bash scripts/build.sh` (or `devbox run build`) builds the web app on its
+own, only if it changed.
 
 ### Building the binaries
 
@@ -95,37 +74,13 @@ make clean
 
 Pass `MODE=profile` or `MODE=debug` for other build modes, and
 `IOS_CODESIGN=1` to sign the iOS build (this needs a signing team in Xcode).
+The native apps have no index page and no dev proxy: their key store is in
+memory only, so they start without a key and can't route yet.
 The version is `X.Y.Z`: X and Y from [version.X.txt](version.X.txt) and
 [version.Y.txt](version.Y.txt), Z the build time (see
 [scripts/version.sh](scripts/version.sh)).
 The artifact's group and artifact IDs, `aityx:contacthub`, are in
 [group.id.txt](group.id.txt) and [artifact.id.txt](artifact.id.txt).
-
-## Run it with Docker Compose
-
-With only [Docker](https://docs.docker.com/get-docker/) installed (no
-devbox, no Flutter), from this folder:
-
-```bash
-docker compose up --build
-```
-
-and open http://localhost:8890/app/. [compose.yaml](compose.yaml) builds
-and starts two services:
-
-| Service | What |
-|---|---|
-| `web` | The app's release web build ([docker/web.Dockerfile](docker/web.Dockerfile)), served by nginx under `/app/`, with `/api/` proxied to the API ([docker/nginx.conf](docker/nginx.conf)) |
-| `api` | The API compiled to a native executable ([contacthub_api/Dockerfile](contacthub_api/Dockerfile)); not published, reached only through `web` |
-
-For the key, copy [.env.example](.env.example) to `.env` and fill in
-`AITYX_API_KEY` (or export it); it goes to the API only. The first build
-takes a few minutes (it downloads Flutter); later ones
-reuse Docker's cache. Set `FLUTTER_WEB_PORT` to change the port; the app
-is bound to 127.0.0.1 unless you set `CONTACTHUB_BIND_HOST=0.0.0.0`. Stop
-it with `docker compose down`. Both services have health checks, so
-`docker compose up --wait` returns once they are healthy. There is no hot
-reload: rebuild after a change.
 
 ## Run it in a codespace
 
@@ -140,52 +95,28 @@ that links them. To choose for yourself instead, use *Code → Codespaces
 configuration — the repository holds two groups of demos, each with its
 own, so the configuration matters.
 
-The codespace uses your [aityx](https://aityx.ai) key, the same
-`AITYX_API_KEY` Codespaces secret as Mortgage Hub's. GitHub keeps
-Codespaces secrets per user and grants them per repository, so if your key
-already reaches this repository for Mortgage Hub, there is nothing to do.
-Otherwise add it at
-[github.com/settings/codespaces](https://github.com/settings/codespaces)
-(**New secret**, name `AITYX_API_KEY`, access to
-`aityx-labs/aityx-demos`), or enter it when GitHub asks on the creation
-page. Without it the app runs, but **Send** can't route.
+Once it's up, open the index page (port 8800, which Codespaces opens in
+a browser tab for you), paste your [aityx](https://aityx.ai) key in **Your
+aityx key**, and open Contact Hub's card: the app is at `/contacthub/` on
+the same port. The `AITYX_API_KEY` Codespaces secret is optional: when set
+(at [github.com/settings/codespaces](https://github.com/settings/codespaces),
+with access to `aityx-labs/aityx-demos`), it's a dev key every visitor of
+your codespace uses, with no key of their own.
 
 When the codespace is created,
-[on-create.sh](../.devcontainer/on-create.sh) copies the group's
-release web builds from the [published image](../image/) into the
-workspace (a demo that changed since the image was made builds itself
-instead, a minute or two),
-[update-content.sh](../.devcontainer/update-content.sh) compiles each
-API and web server (a few seconds each) and
-[post-create.sh](../.devcontainer/post-create.sh) says whether your key
-arrived. Then, on that and every later start,
-[post-start.sh](../.devcontainer/post-start.sh) starts the index page
-and the aityx group in the background with `./start-all.sh` and makes
-their ports public, Contact Hub's **8890** among them. There is nothing to
-run: the codespace is available about three minutes after you ask for
-it and the apps answer within a minute after that; open port 8890
-from the **Ports** panel, or Contact Hub's card on the index page (port
-8800, which Codespaces opens in a browser tab for you). Its bare URL
-redirects to the app at `/app/`.
-
-Watch Contact Hub's services with `process-compose attach -U -u
-/tmp/aityx-demos-ContactHub.sock`. Stop the group with `./stop-all.sh`
-from the repository root and start it again with `./start-all.sh`: in
-the codespace both act on the aityx group only (`DEMOS_GROUP=aityx`).
-There is no devbox in a codespace: the demos run on the image's own
-Flutter and process-compose (`DEMOS_TOOLCHAIN=image`, see
-[demos-toolchain.sh](../demos-toolchain.sh)); `devbox services` is for a
-laptop.
+[on-create.sh](../.devcontainer/on-create.sh) copies the group's release
+web builds from the [published image](../image/) into the workspace (a
+demo that changed since the image was made builds itself instead, a
+minute or so), and [post-start.sh](../.devcontainer/post-start.sh)
+starts the index server with `./start-all.sh` on that and every later
+start. Stop it with `./stop-all.sh` from the repository root and start
+it again with `./start-all.sh`. There is no devbox in a codespace: the
+demos build on the image's own Flutter (`DEMOS_TOOLCHAIN=image`, see
+[demos-toolchain.sh](../demos-toolchain.sh)).
 
 **If the app doesn't start, send us `startup.log` from the root of the
 repository.** Every step of the codespace's start goes there,
-timestamped, including a line saying when each demo's web app and API
-first answered. It holds no secrets.
-
-**Check the port's visibility.** In the **Ports** panel, the
-*Visibility* column for 8890 should say **Public**. If it says
-**Private**, right-click the port, choose **Port Visibility → Public**
-and reload the app.
+timestamped. It holds no secrets.
 
 ## Run it in a dev container locally
 
@@ -205,11 +136,11 @@ and the six aityx demos' release web builds.
 
 1. Create a branch from an up-to-date `main`.
 2. Make one change per pull request, with its tests. Run `flutter analyze`
-   and `flutter test` in `contacthub_app/`, and `dart analyze` and
-   `dart test` in `contacthub_api/`. After changing the model, `bash
-   scripts/model-test.sh` runs its rules on aityx, and `dart run
-   tool/route_samples.dart` in `contacthub_app/` routes every sample
-   through the running API.
+   and `flutter test` in `contacthub_app/`, and `bash scripts/build.sh`.
+   After changing the model (`contacthub_app/assets/models/routing.json`),
+   `bash scripts/model-test.sh` runs its rules on aityx, and `dart run
+   tool/route_samples.dart` in `contacthub_app/` routes every sample on
+   aityx; both use the key in the repository's `.env`.
 3. Update the matching feature spec in [specs/](specs/) and add an entry to
    [specs/requests.md](specs/requests.md).
 4. Open a pull request against `main`.

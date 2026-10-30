@@ -2,7 +2,8 @@
 # documents the settings, e.g. `make android MODE=debug`.
 #
 #   make           every platform this host can build
-#   make web       mortgagehub_app/build/web/
+#   make web       mortgagehub_app/build/web/ (no CDN; WEB_BASE_HREF=/mortgagehub/
+#                  for the index's path, as scripts/build.sh builds it)
 #   make android   release APK
 #   make ios       Runner.app (macOS only; unsigned unless IOS_CODESIGN=1)
 #   make linux     Linux bundle (Linux only)
@@ -14,7 +15,7 @@ ifndef BUILD_NUMBER
 BUILD_NUMBER := $(shell date -u +%s)
 endif
 
-export MODE IOS_CODESIGN WEB_BASE_HREF API_BASE_URL BUILD_NUMBER VERSION_Z
+export MODE IOS_CODESIGN WEB_BASE_HREF BUILD_NUMBER VERSION_Z
 
 .PHONY: all web android ios linux clean
 

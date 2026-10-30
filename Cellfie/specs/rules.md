@@ -1,7 +1,7 @@
 # Rules
 
 The rules of the game are rows of the fate table in the Life model
-([models/life.json](../cellfie_api/models/life.json), `functions.fate`),
+([models/life.json](../cellfie_app/assets/models/life.json), `functions.fate`),
 and each rule has a switch: a boolean in the request's `state.rules`,
 which is a column of the table, so a row fires only when its rule is on.
 
@@ -19,8 +19,9 @@ generation.
 
 The app lists the same rules ([rules.dart](../cellfie_app/lib/life/rules.dart))
 with a name and a one-line summary, and sends every switch with every
-generation, Conway's alone on until changed. The API fills in the
-defaults for a request that doesn't say (see [API](api.md)).
+generation, Conway's alone on until changed. `stateFrom`
+([lib/aityx/life.dart](../cellfie_app/lib/aityx/life.dart)) fills in the
+defaults for a body that doesn't say (see [aityx calls](aityx-calls.md)).
 
 ## In the app
 

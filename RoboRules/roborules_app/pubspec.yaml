@@ -13,6 +13,10 @@ dependencies:
   flutter:
     sdk: flutter
   http: ^1.6.0
+  # aityx from the browser: the key, systemone calls and the status light,
+  # shared by the aityx demos.
+  aityx_web:
+    path: ../../packages/aityx_web
 
 dev_dependencies:
   flutter_test:
@@ -21,6 +25,10 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # The battle's world model and the scoring model, sent to aityx with
+  # every call (tool/build_world.py writes world.json).
+  assets:
+    - assets/models/
   # The aityx call viewer's monospace font (see assets/fonts/README.md).
   fonts:
     - family: RobotoMono

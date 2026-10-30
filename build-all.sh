@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Builds what every demo serves, so that ./start-all.sh only has to start
-# servers: in each folder with a devbox.json and a scripts/build.sh (Mortgage
-# Hub, Contact Hub, ...), `bash scripts/build.sh` under devbox (or the dev
-# container image's Flutter: see demos-toolchain.sh), which builds
-# the app's release web build and compiles the API and the web server to
-# native executables, and only what is missing or older than its sources.
+# servers: in each demo folder with a scripts/build.sh (Mortgage Hub,
+# Contact Hub, ..., the datyx dashboard, HealthHub), `bash scripts/build.sh`
+# under devbox (or the dev container image's Flutter: see
+# demos-toolchain.sh), only what is missing or older than its sources. For
+# the six aityx demos that is the app's release web build, which the index
+# (Index/) serves at /<slug>/; for the datyx group's, the release web build
+# and the API and web server compiled to native executables.
 # One demo after another: a Flutter web build uses every core, and five at
 # once thrash a small machine. A demo whose builds are up to date takes a
 # second or two. A folder without a scripts/build.sh is skipped.
@@ -26,6 +28,7 @@ root="$(cd "$(dirname "$0")" && pwd)"
 source "$root/demos-toolchain.sh"
 
 # demos [names...]: the folders to build: the ones named, else every folder
+# the index serves (index_serves in demos-toolchain.sh) and every folder
 # with a devbox.json and a process-compose.yaml (with DEMOS_GROUP set, in
 # that group).
 demos() {
@@ -33,9 +36,10 @@ demos() {
     printf '%s\n' "$@"
     return
   fi
-  for config in "$root"/*/devbox.json; do
-    dir="$(dirname "$config")"
-    [[ -f "$dir/process-compose.yaml" ]] || continue
+  for dir in "$root"/*/; do
+    dir="${dir%/}"
+    index_serves "$dir" ||
+      [[ -f "$dir/devbox.json" && -f "$dir/process-compose.yaml" ]] || continue
     if [[ -n "${DEMOS_GROUP:-}" &&
       "$(tr -d '[:space:]' <"$dir/group.id.txt" 2>/dev/null)" != "$DEMOS_GROUP" ]]; then
       continue
@@ -48,7 +52,7 @@ failed=0
 built=()
 for demo in $(demos "$@"); do
   dir="$root/$demo"
-  if [[ ! -f "$dir/devbox.json" ]]; then
+  if ! index_serves "$dir" && [[ ! -f "$dir/devbox.json" ]]; then
     echo "✗ $demo: no devbox.json in $dir" >&2
     failed=1
     continue

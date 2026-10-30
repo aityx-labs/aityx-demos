@@ -1,5 +1,5 @@
 /// Writes the pattern catalogue into the Life model
-/// (../cellfie_api/models/life.json): the `identify` function's table,
+/// (assets/models/life.json): the `identify` function's table,
 /// one row per phase of each pattern, from the seeds below. Each seed is
 /// run by Conway's rules for its period and every phase's canonical shape
 /// (lib/life/board.dart, the same code the app uses to describe a
@@ -73,7 +73,7 @@ List<List<String>> catalogueTable() => [
 ];
 
 Future<void> main(List<String> args) async {
-  final file = File('../cellfie_api/models/life.json');
+  final file = File('assets/models/life.json');
   final model = jsonDecode(await file.readAsString()) as Map<String, Object?>;
   final functions = (model['decision'] as Map)['functions'] as Map;
   final identify = functions['identify'] as Map;

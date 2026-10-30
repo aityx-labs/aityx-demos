@@ -39,7 +39,7 @@ class Card implements Comparable<Card> {
   /// `A`, `K`, `Q`, `J`, `T` or the digit.
   String get rankLabel => _ranks[rank - 2];
 
-  /// `Ah`, `Td`: the label the strategies and the API use.
+  /// `Ah`, `Td`: the label the strategies and aityx's state use.
   String get label => '$rankLabel${suit.letter}';
 
   /// `A♥`, `T♦`: the label the table shows.

@@ -20,7 +20,7 @@ page lists, seeded in [seeds.dart](../cellfie_app/lib/life/seeds.dart):
 `dart run tool/catalogue.dart` (in `cellfie_app/`) runs each seed by
 Conway's rules for its period and writes one row per distinct phase into
 the model's `identify` table
-([models/life.json](../cellfie_api/models/life.json)): 37 rows for the
+([models/life.json](../cellfie_app/assets/models/life.json)): 37 rows for the
 17 patterns. Each row matches the cell count, the width, the height and
 the shape (a comma list when several phases share a size), outputs the
 pattern, and says which pattern and phase it is in its `# why`; the else

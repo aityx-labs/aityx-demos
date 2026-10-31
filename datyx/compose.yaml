@@ -1,5 +1,5 @@
 # datyx with Docker alone: `docker compose up` from this folder, then open
-# the API at http://localhost:9900/api/hello and OpenMetadata at
+# the API at http://localhost:9900/api/health and OpenMetadata at
 # http://localhost:9902/. No devbox or JDK needed on the host. The
 # dashboard is the datyx-dashboard/ folder's own compose file; it reaches
 # the API on the host's port 9900.
@@ -134,6 +134,11 @@ services:
       dockerfile: ${DATYX_API_DOCKERFILE:-docker/api.jvm.Dockerfile}
       args:
         REVISION: ${REVISION:-0.1.0-SNAPSHOT}
+        # The configuration profile, built into the image and run: dev by
+        # default, as this file is for development (the db/devdata records,
+        # the dev settings); prod for anything shared. /api/health's datyx
+        # check says which one runs. A change needs a rebuild (--build).
+        PROFILE: ${DATYX_API_PROFILE:-dev}
     environment:
       DATYX_API_PORT: "9900"
       DATYX_BIND_HOST: 0.0.0.0

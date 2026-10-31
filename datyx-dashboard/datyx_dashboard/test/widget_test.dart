@@ -76,21 +76,21 @@ class FakeDatyxApi implements DatyxApi {
 
   @override
   Future<SystemStatus> status() async {
-    final call = log.start('GET', '/api/status');
-    log.finish(call, status: 200, body: '{"name":"datyx"}');
+    final call = log.start('GET', '/api/health');
+    log.finish(call, status: 503, body: '{"status":"DOWN"}');
     return SystemStatus(
       name: 'datyx',
       version: '0.1.202601011200',
+      profile: 'dev',
+      launchMode: 'development',
+      image: 'jvm',
       startedAt: DateTime(2026),
-      uptime: const Duration(minutes: 3),
-      database: const Dependency(ok: true, version: 'PostgreSQL 17.0'),
+      database: const Dependency(ok: true),
       openMetadata: const Dependency(
         ok: false,
         error: 'Connection refused',
         url: 'http://localhost:9902',
       ),
-      dataSources: _sources.length,
-      profiles: 1,
     );
   }
 }
@@ -106,15 +106,13 @@ void main() {
 
     // The data sources come first; the health is a tab away.
     expect(find.text('None yet. Add a database, an S3 bucket or a folder.'), findsOneWidget);
-    expect(find.text('PostgreSQL 17.0'), findsNothing);
+    expect(find.text('dev profile, development, jvm'), findsNothing);
     await tester.tap(find.byKey(const Key('tab-health')));
     await tester.pumpAndSettle();
     expect(find.text('datyx 0.1.202601011200'), findsOneWidget);
-    expect(find.text('PostgreSQL 17.0'), findsOneWidget);
+    expect(find.text('dev profile, development, jvm'), findsOneWidget);
     expect(find.text('Connection refused'), findsOneWidget);
     expect(find.text('off: no OIDC_CLIENT_ID on the API'), findsOneWidget);
-    expect(find.text('0 data sources'), findsOneWidget);
-    expect(find.text('1 profiles'), findsOneWidget);
     // A test build has no version compiled in.
     expect(find.text('no version: not built by the scripts'), findsOneWidget);
   });
@@ -133,7 +131,7 @@ void main() {
     await tester.tap(find.byKey(const Key('tab-audit')));
     await tester.pumpAndSettle();
     expect(find.text('/api/auth/config'), findsOneWidget);
-    expect(find.text('/api/status'), findsOneWidget);
+    expect(find.text('/api/health'), findsOneWidget);
     expect(find.text('/api/datasources'), findsOneWidget);
     expect(find.text('/api/profile'), findsOneWidget);
     expect(find.text('4 of the latest 100 kept'), findsOneWidget);
@@ -184,9 +182,6 @@ void main() {
     expect(find.text('exports'), findsOneWidget);
     expect(find.text('/data/exports'), findsOneWidget);
     expect(find.text('by tests@example.com'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('tab-health')));
-    await tester.pumpAndSettle();
-    expect(find.text('1 data sources'), findsOneWidget);
     // The audit saw the POST.
     await tester.tap(find.byKey(const Key('tab-audit')));
     await tester.pumpAndSettle();
@@ -201,9 +196,6 @@ void main() {
     await tester.tap(find.byKey(const Key('ds-remove-confirm')));
     await tester.pumpAndSettle();
     expect(find.text('/data/exports'), findsNothing);
-    await tester.tap(find.byKey(const Key('tab-health')));
-    await tester.pumpAndSettle();
-    expect(find.text('0 data sources'), findsOneWidget);
   });
 
   testWidgets('has the tabs in order, and the catalog lists the sources', (tester) async {
@@ -263,17 +255,56 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('PostgreSQL 17.0'), findsOneWidget);
+    expect(find.text('dev profile, development, jvm'), findsOneWidget);
+  });
+
+  test('reads the health checks by name', () {
+    final status = SystemStatus.fromHealth({
+      'status': 'DOWN',
+      'checks': [
+        {
+          'name': 'datyx',
+          'status': 'UP',
+          'data': {
+            'version': '0.1.202610301200',
+            'profile': 'dev',
+            'launchMode': 'normal',
+            'image': 'jvm',
+            'startedAt': '2026-10-30T12:00:00Z',
+          },
+        },
+        {
+          'name': 'Database connections health check',
+          'status': 'UP',
+          'data': {'<default>': 'UP'},
+        },
+        {
+          'name': 'OpenMetadata',
+          'status': 'DOWN',
+          'data': {'url': 'http://localhost:9902', 'error': 'Connection refused'},
+        },
+      ],
+    });
+    expect(status.name, 'datyx');
+    expect(status.version, '0.1.202610301200');
+    expect(status.profile, 'dev');
+    expect(status.launchMode, 'normal');
+    expect(status.startedAt, DateTime.utc(2026, 10, 30, 12));
+    expect(status.database.ok, isTrue);
+    expect(status.database.error, isNull);
+    expect(status.openMetadata.ok, isFalse);
+    expect(status.openMetadata.error, 'Connection refused');
+    expect(status.openMetadata.url, 'http://localhost:9902');
   });
 
   test('the audit outlives a reload', () {
     final store = SessionStore.memory();
     final log = CallLog(store: store);
-    log.finish(log.start('GET', '/api/status'), status: 200, body: '{}');
+    log.finish(log.start('GET', '/api/health'), status: 200, body: '{}');
     log.start('POST', '/api/datasources', requestBody: '{"name":"x"}');
 
     final again = CallLog(store: store);
-    expect(again.calls.map((c) => c.path), ['/api/datasources', '/api/status']);
+    expect(again.calls.map((c) => c.path), ['/api/datasources', '/api/health']);
     expect(again.calls.last.status, 200);
     // The one still waiting at the reload never got its answer.
     expect(again.calls.first.pending, isFalse);

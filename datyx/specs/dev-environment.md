@@ -27,7 +27,7 @@ containers and the tests. Flutter is not here: the dashboard is the
   API's port, since dev mode keeps a child JVM there.
 - `0-health-check`: `scripts/health-check.sh`, after OpenMetadata and the
   API are ready. Prints where to open things, then one line per
-  interval: 🔌 API (`/api/hello`), 🐘 Postgres (the datasource check in
+  interval: 🔌 API (`/api/health/live`), 🐘 Postgres (the datasource check in
   `/api/health`), 🗂 OpenMetadata (admin `/healthcheck`), 🔎 Search
   (cluster health green or yellow).
 
@@ -44,7 +44,9 @@ heap), `openmetadata-migrate` and `openmetadata` (OpenMetadata server
 2.0.7 on PostgreSQL and Elasticsearch, basic auth, no ingestion pipeline
 client, 1 GB heap) and `api` (built from `docker/api.jvm.Dockerfile`, or
 `docker/api.native.Dockerfile` with `DATYX_API_DOCKERFILE`, the root as
-context, see `.dockerignore`), published on `API_PORT` (9900) so the
+context, see `.dockerignore`; built and run with the Quarkus profile
+`DATYX_API_PROFILE`, `dev` by default, the Dockerfiles' `PROFILE`
+argument, `prod` when built without compose), published on `API_PORT` (9900) so the
 dashboard's own compose file reaches it; on Linux the dashboard and
 HealthHub join this stack's network through their `compose.datyx.yaml`
 instead, since a port bound to 127.0.0.1 isn't reachable from the bridge. Data lives in the `postgres-data` and
@@ -61,7 +63,7 @@ HealthHub 98xx; datyx stays in 99xx.
 Settings come from the environment, else `.env` (`scripts/env.sh`), else
 their defaults, as `.env.example` lists them: the ports, the bind host,
 `DATYX_DB_ADMIN_PASSWORD`, `DATYX_DB_PASSWORD`, `OPENMETADATA_DB_PASSWORD`,
-`API_MODE`, the authentication settings `OIDC_CLIENT_ID`,
+`API_MODE`, `DATYX_API_PROFILE` (Docker's profile), the authentication settings `OIDC_CLIENT_ID`,
 `OIDC_ISSUER`, `OIDC_EXTRA_AUDIENCES` ([auth.md](auth.md)) and the
 master key `DATYX_MASTER_KEY` ([profiles.md](profiles.md); required by
 the packaged API and Docker, a development key in dev mode), which
@@ -70,11 +72,18 @@ reach processes through their environment only.
 
 ## Development data
 
-Dev mode (`API_MODE=dev`, `quarkus:dev`) runs Flyway with a second
-location, `db/devdata`, Java migrations seeding development records:
-HealthHub's database as a data source in every profile
-([api.md](api.md)). The jar, the native executable and Docker run the
-schema migrations only.
+The dev profile starts from an empty database, Flyway's `clean-at-start`:
+every start (and every live reload's restart) drops the schema and
+migrates from zero, so data sources and profiles made in development don't
+outlive it. It runs Flyway with a second location, `db/devdata`, Java
+migrations seeding development records: HealthHub's database as a data
+source in every profile ([api.md](api.md)). Development runs the dev
+profile everywhere: `API_MODE=dev` (`quarkus:dev`, the default for
+`devbox services up`) and Docker Compose (`DATYX_API_PROFILE=dev`, the
+default). The jar and the native executable (`API_MODE=jar` or `native`)
+and an image built with `DATYX_API_PROFILE=prod` run the schema
+migrations only. `/api/health`'s `datyx` check says which profile and
+launch mode run.
 
 ## Version and build
 

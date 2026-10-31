@@ -11,14 +11,17 @@ a folder of its own) only calls it.
 - Quarkus REST with Jackson: JSON endpoints under `/api/`.
 - Hibernate ORM with Panache on PostgreSQL (the `datyx` database, user
   `datyx`), and Flyway for the schema: the migrations in `db/migration`
-  (`V1__greetings_and_data_sources.sql`, `V2__profiles_and_encrypted_access.sql`,
+  (`V1__data_sources.sql`, `V2__profiles_and_encrypted_access.sql`,
   `V3__drop_hibernate_unique_name.sql`)
   run at every start in every profile (a fresh database, under Docker
-  alone or a jar or native build, gets its tables), tests clean the
-  schema first, a database Hibernate made before Flyway is baselined as
+  alone or a jar or native build, gets its tables), tests and the dev
+  profile clean the schema first (`clean-at-start`: every start drops
+  everything and migrates from zero), a database Hibernate made before Flyway is baselined as
   version 1, and Hibernate only validates that the entities match. The
   locations differ by Quarkus profile: `db/migration` alone in prod and
-  test (`quarkus.flyway.locations`); dev mode adds `db/devdata`, the
+  test (`quarkus.flyway.locations`, fixed at build time, so a packaged
+  build has the locations of the profile it was built with); the dev
+  profile adds `db/devdata`, the
   development data: Java migrations in package `db.devdata`, which
   prod never runs. So far `R__HealthHub_data_source`, a repeatable
   migration that adds HealthHub's PostgreSQL (localhost, 9803, database
@@ -33,41 +36,37 @@ a folder of its own) only calls it.
 - A REST client for OpenMetadata (`OpenMetadataClient`, config key
   `openmetadata`, URL from `DATYX_OPENMETADATA_URL`), its public
   `/api/v1/system/version` so far.
-- SmallRye Health: `/api/health`, `/api/health/live`, `/api/health/ready`, with
-  two readiness checks: the datasource's and OpenMetadata's
-  (`OpenMetadataHealthCheck`, named `OpenMetadata`, UP with the server's
-  version and URL, DOWN with the error). The API is ready only with both,
-  as process-compose and `compose.yaml` already start it after
-  OpenMetadata. The OpenMetadata check is off in tests, which run without
-  it. The services' readiness probe and the health monitor use it.
+- SmallRye Health: `/api/health`, `/api/health/live`, `/api/health/ready`
+  (503 when a check is DOWN, the checks still in the body), the system as
+  the API sees it and what the dashboard's Health tab shows:
+  - `datyx` (`ModeHealthCheck`), a liveness check, always UP, saying how
+    the API runs: `version`, `profile` (the Quarkus configuration
+    profile, injected as `quarkus.profile`: `dev`, `test`, `prod`, or
+    several, comma-separated), `launchMode` (the injected `LaunchMode`:
+    `development` for `quarkus:dev`, `test`, `normal` for a packaged jar
+    or native executable), `image` (`jvm` or `native`) and `startedAt`.
+  - `Database connections health check`, the datasource's readiness check.
+  - `OpenMetadata` (`OpenMetadataHealthCheck`), a readiness check, UP
+    with the server's version and URL, DOWN with the error.
+
+  The API is ready only with the database and OpenMetadata, as
+  process-compose and `compose.yaml` already start it after OpenMetadata.
+  The OpenMetadata check is off in tests, which run without it. The
+  services' readiness probe uses `/api/health/ready`, the health monitor
+  `/api/health/live` and `/api/health`.
 - SmallRye OpenAPI: `/q/openapi`, and Swagger UI at `/q/swagger-ui` in dev.
 - Quarkus OIDC: bearer tokens verified against the issuer, see
   [auth.md](auth.md).
 
 ## Endpoints
 
-- `GET /api/hello` answers `{"message":"Hello, World!"}`; `?name=<name>`
-  answers `{"message":"Hello, <name>!"}` (blank names count as missing).
-- `GET /api/status` answers the system as the API sees it, what the
-  dashboard's cards show: `name`, `version`, `startedAt`, `uptimeSeconds`,
-  `database` (`ok`, `version` from `select version()`, or `error`),
-  `openmetadata` (`ok`, `version` from the server, `url`, or `error`),
-  `greetings`, `dataSources` and `profiles` (how many are on record;
-  null while the database is out). A dependency that fails is reported, not an error for
-  the call.
-- `GET /api/greetings?limit=50` lists the greetings on record, newest
-  first (`limit` between 1 and 500).
-- `POST /api/greetings` with `{"message":"..."}` stores one (the message
-  stripped; blank or over 200 characters is a 400) and answers 201 with it
-  and a `Location`.
+- `/api/health`: see SmallRye Health above.
 - `/api/datasources`: see [data-sources.md](data-sources.md).
 - `/api/auth/config` and `/api/me`: see [auth.md](auth.md).
 - `/api/profile`: see [profiles.md](profiles.md).
 
 ## Entities
 
-- `Greeting` (table `greeting`): `id`, `message` (up to 200 characters,
-  required), `createdAt` (`created_at`, required).
 - `DataSource` (table `data_source`): see [data-sources.md](data-sources.md).
 - `Profile` (table `profile`) and `ProfileIdentity` (`profile_identity`):
   see [profiles.md](profiles.md).
@@ -88,11 +87,10 @@ Services and Keycloak Dev Services are off.
 
 ## Tests
 
-`./mvnw verify` in `datyx-api/` (Docker must be up): `HelloResourceTest`
-(hello, hello by name, `/api/health` UP), `GreetingResourceTest` (store and
-list, a blank message is a 400), `StatusResourceTest` (the database part
-ok, the OpenMetadata part reporting the failure, since the tests point at
-a closed port), `DataSourceResourceTest` ([data-sources.md](data-sources.md)),
+`./mvnw verify` in `datyx-api/` (Docker must be up): `HealthTest`
+(`/api/health` UP with the database; the `datyx` liveness check says the
+`test` profile and launch mode, `jvm`, a version and a start time),
+`DataSourceResourceTest` ([data-sources.md](data-sources.md)),
 `AuthOffTest` and `AuthOnTest` ([auth.md](auth.md)), `ProfileTest` and
 `CryptoTest` ([profiles.md](profiles.md)), and `DevDataTest`, which adds
 `db/devdata` to the test's locations and reads the HealthHub data source

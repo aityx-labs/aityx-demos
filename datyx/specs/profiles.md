@@ -55,7 +55,6 @@ excepted, through the API only.
 - `GET /api/profile`, secured like the data sources:
   `{"id":1,"name":"Alice","createdAt":"...","dataSources":2,"identities":[{"issuer":"https://accounts.google.com","subject":"...","email":"alice@example.com","name":"Alice","picture":"...","addedAt":"...","lastSeenAt":"..."}]}`.
 - `GET /api/me` carries `profileId` ([auth.md](auth.md)).
-- `GET /api/status` counts them as `profiles`.
 
 ## Tests
 

@@ -79,8 +79,6 @@ class AuthOnTest {
             .claim("email", "x@example.com").jws().keyId("1").sign("privateKey.jwk");
         given().auth().oauth2(other).when().get("/api/me").then().statusCode(401);
         // The open paths stay open.
-        given().when().get("/api/hello").then().statusCode(200);
-        given().when().get("/api/status").then().statusCode(200);
         given().when().get("/api/health").then().statusCode(200);
     }
 

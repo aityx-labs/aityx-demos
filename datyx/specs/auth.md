@@ -31,7 +31,7 @@ issuer is always set.
 `/api/datasources`, `/api/datasources/*`, `/api/me`, `/api/profile` and
 `/api/profile/*` want a signed-in user once authentication is on: a 401 without a valid token (unsigned,
 expired, from another issuer, or for a client not in the audiences).
-Everything else stays open: hello, status, greetings, health, OpenAPI.
+Everything else stays open: the sign-in config, health, OpenAPI.
 
 ## Endpoints
 

@@ -4,6 +4,17 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-10-30: the Health tab from /api/health
+
+Asked (of the API): remove its hello, greetings and status endpoints, and
+add a health check with the profile and mode it runs in.
+
+Changed: the Health tab reads `GET /api/health` (`SystemStatus.fromHealth`,
+a 503 being a check down, not a failed call); the API card shows the
+profile, launch mode and `jvm` or `native`; PostgreSQL shows ok or the
+error, no longer its version; the Records card is gone with the status's
+counts. The health monitor checks the API on `/api/health/live`.
+
 ## 2026-10-29: the audit header fits a narrow window
 
 Asked: fix the review's finding that the Audit tab's count of kept calls

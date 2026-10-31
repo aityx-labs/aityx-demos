@@ -1,17 +1,8 @@
--- The first schema: what Hibernate generated for the Greeting and
--- DataSource entities (sequences of 50, as Panache ids are allocated),
+-- The first schema: what Hibernate generated for the DataSource entity
+-- (a sequence of 50, as Panache ids are allocated),
 -- plus a unique index on the lower-cased name of a data source, so two
 -- names that differ only in case can't both be stored: the loser of a
 -- race gets a 409 from the API (DataSourceResource).
-
-create sequence greeting_seq start with 1 increment by 50;
-
-create table greeting (
-    id         bigint                      not null,
-    message    varchar(200)                not null,
-    created_at timestamp(6) with time zone not null,
-    constraint greeting_pkey primary key (id)
-);
 
 create sequence data_source_seq start with 1 increment by 50;
 

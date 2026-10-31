@@ -44,7 +44,7 @@ things once everything answers, then one status line per interval.
 
 | What | Where |
 |---|---|
-| The API | http://localhost:9900/api/hello, status at [/api/status](http://localhost:9900/api/status), health at [/api/health](http://localhost:9900/api/health), OpenAPI at [/q/openapi](http://localhost:9900/q/openapi), Swagger UI at [/q/swagger-ui](http://localhost:9900/q/swagger-ui) |
+| The API | health at [/api/health](http://localhost:9900/api/health) (with the profile and mode it runs in), OpenAPI at [/q/openapi](http://localhost:9900/q/openapi), Swagger UI at [/q/swagger-ui](http://localhost:9900/q/swagger-ui) |
 | The dashboard | http://localhost:9906/app/, from [../datyx-dashboard/](../datyx-dashboard/) when the group is up |
 | PostgreSQL | `localhost:9901`, databases `datyx` (user `datyx`) and `openmetadata_db` (user `openmetadata_user`) |
 | OpenMetadata | http://localhost:9902/, sign in as `admin@open-metadata.org` / `admin`; admin port 9903 (`/healthcheck`) |
@@ -82,14 +82,12 @@ A Quarkus 3 REST API, package `datyx`, built by Maven ([datyx-api/pom.xml](datyx
 with Panache on PostgreSQL, Hibernate Validator, SmallRye Health and
 OpenAPI, and a REST client for OpenMetadata.
 
-- `GET /api/hello` (`?name=` greets by name).
-- `GET /api/status`: the system as the API sees it: name, version, uptime,
-  PostgreSQL (ok, version), OpenMetadata (ok, version, URL), the number of
-  greetings on record.
-- `GET /api/greetings` lists the greetings on record, newest first;
-  `POST /api/greetings {"message":"..."}` stores one (the `Greeting`
-  Panache entity). Hibernate keeps the schema in dev (`update`);
-  production leaves it alone.
+- `GET /api/health` (SmallRye Health, also `/live` and `/ready`): the
+  API's own check, `datyx`, with its version, Quarkus profile, launch
+  mode, JVM or native and start time; PostgreSQL's; OpenMetadata's
+  (version, URL). Development runs the `dev` profile, both with
+  `devbox services up` (`quarkus:dev`) and Docker Compose
+  (`DATYX_API_PROFILE`, `dev` unless set).
 - `/api/datasources`: the data sources on record, the first entity:
   databases, S3 buckets and folders with their access details (secrets
   never answered back), listed, added (`POST`) and removed (`DELETE`),

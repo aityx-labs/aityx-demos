@@ -26,7 +26,7 @@ needed only for `compose.yaml`.
   on its port.
 - `0-health-check`: `scripts/health-check.sh`, after the dashboard is
   ready. Prints where to open it, then one line per interval: 🖥 Dash
-  (`/app/`), 🔌 API (`/api/hello` at `DATYX_API_URL`), 🔀 Proxy
+  (`/app/`), 🔌 API (`/api/health/live` at `DATYX_API_URL`), 🔀 Proxy
   (`/api/health` through the dashboard's origin, the path the
   repository's `start-all.sh` checks).
 

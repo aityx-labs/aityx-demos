@@ -6,7 +6,7 @@
 # then each check as its emoji, a short label and ✅ (ok) / ❌ (failed),
 # separated by " · ":
 #   🖥 Dash · 🔌 API · 🔀 Proxy
-# Dash is the dashboard's /app/; API is the datyx API itself, /api/hello at
+# Dash is the dashboard's /app/; API is the datyx API itself, /api/health/live at
 # DATYX_API_URL (the datyx/ folder's services, started separately); Proxy
 # is the API's /api/health through the dashboard's origin, the path the
 # repository's start-all.sh checks.
@@ -44,7 +44,7 @@ get() {
 
 check_dash() { ok_if "🖥 Dash" get 5 "http://localhost:${FLUTTER_WEB_PORT}/app/"; }
 
-check_api() { ok_if "🔌 API" get 5 "${DATYX_API_URL}/api/hello"; }
+check_api() { ok_if "🔌 API" get 5 "${DATYX_API_URL}/api/health/live"; }
 
 check_proxy() { ok_if "🔀 Proxy" get 5 "http://localhost:${FLUTTER_WEB_PORT}/api/health"; }
 
@@ -64,7 +64,7 @@ run_checks() {
 print_address() {
     echo "The datyx dashboard is up. Open it at:"
     echo "  http://localhost:${FLUTTER_WEB_PORT}/app/"
-    echo "  (the API it shows: ${DATYX_API_URL}/api/hello, from the datyx/ folder's services)"
+    echo "  (the API it shows: ${DATYX_API_URL}/api/health, from the datyx/ folder's services)"
     # A codespace forwards the port to its own URL; the Ports panel has it too.
     if [[ -n "${CODESPACE_NAME:-}" && -n "${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}" ]]; then
         echo "  https://$CODESPACE_NAME-$FLUTTER_WEB_PORT.$GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN/app/"

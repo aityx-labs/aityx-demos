@@ -21,6 +21,11 @@ export OIDC_ISSUER OIDC_CLIENT_ID OIDC_EXTRA_AUDIENCES DATYX_MASTER_KEY
 export DATYX_DB_USER="${DATYX_DB_USER:-datyx}"
 export DATYX_DB_URL="${DATYX_DB_URL:-jdbc:postgresql://localhost:${DATYX_DB_PORT}/datyx}"
 export DATYX_OPENMETADATA_URL="${DATYX_OPENMETADATA_URL:-http://localhost:${DATYX_OPENMETADATA_PORT}}"
+# The catalogue's sign-in to OpenMetadata: a bot token when set, else the
+# stack's built-in admin (compose.yaml), in every mode.
+export DATYX_OPENMETADATA_TOKEN="${DATYX_OPENMETADATA_TOKEN:-}"
+export DATYX_OPENMETADATA_EMAIL="${DATYX_OPENMETADATA_EMAIL:-admin@open-metadata.org}"
+export DATYX_OPENMETADATA_PASSWORD="${DATYX_OPENMETADATA_PASSWORD:-admin}"
 
 case "$API_MODE" in
   dev)

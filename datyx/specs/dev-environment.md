@@ -64,7 +64,10 @@ their defaults, as `.env.example` lists them: the ports, the bind host,
 `API_MODE`, the authentication settings `OIDC_CLIENT_ID`,
 `OIDC_ISSUER`, `OIDC_EXTRA_AUDIENCES` ([auth.md](auth.md)) and the
 master key `DATYX_MASTER_KEY` ([profiles.md](profiles.md); required by
-the packaged API and Docker, a development key in dev mode), which
+the packaged API and Docker, a development key in dev mode), and the
+catalogue's sign-in to OpenMetadata, `DATYX_OPENMETADATA_TOKEN` or
+`DATYX_OPENMETADATA_EMAIL` and `DATYX_OPENMETADATA_PASSWORD` (the stack's
+admin by default; [catalog.md](catalog.md)), which
 `scripts/api.sh` and the `api` compose service pass to the API. Secrets
 reach processes through their environment only.
 

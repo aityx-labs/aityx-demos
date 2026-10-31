@@ -2,8 +2,8 @@
 
 The first entity of datyx: where data lives and how to reach it, owned
 by the profile of whoever adds it ([profiles.md](profiles.md)). Users add
-and remove them; nothing reads them yet (connecting to them, and
-registering them in OpenMetadata, comes next). Code in
+and remove them; a database source is read into OpenMetadata, the
+catalogue, on demand ([catalog.md](catalog.md)). Code in
 `datyx-api/src/main/java/datyx/datasource/`.
 
 ## The entity
@@ -52,7 +52,8 @@ list.
   name the profile already uses is a 409: the row is flushed in the
   call, and the index's refusal (SQLSTATE 23505) is answered, so a race
   has one winner.
-- `DELETE /api/datasources/{id}` removes one (204; 404 when there is none).
+- `DELETE /api/datasources/{id}` removes one (204; 404 when there is none),
+  and its entry in the catalogue when it has one ([catalog.md](catalog.md)).
 
 An answer: the entity's fields, the type as its JSON name, and the
 details of its type, without secrets:
@@ -81,4 +82,5 @@ on the name that Hibernate generated on databases from before Flyway.
 ## Known limitations
 
 - No update: remove and add again.
-- Nothing connects to a source yet, and OpenMetadata knows nothing of them.
+- Only database sources, PostgreSQL ones, reach the catalogue; S3 buckets
+  and folders are kept but nothing reads them.

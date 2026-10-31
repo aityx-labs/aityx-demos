@@ -141,6 +141,11 @@ services:
       DATYX_DB_USER: datyx
       DATYX_DB_PASSWORD: ${DATYX_DB_PASSWORD:-datyx}
       DATYX_OPENMETADATA_URL: http://openmetadata:8585
+      # The catalogue's sign-in to OpenMetadata (see .env.example): a bot
+      # token when set, else the built-in admin above.
+      DATYX_OPENMETADATA_TOKEN: ${DATYX_OPENMETADATA_TOKEN:-}
+      DATYX_OPENMETADATA_EMAIL: ${DATYX_OPENMETADATA_EMAIL:-admin@open-metadata.org}
+      DATYX_OPENMETADATA_PASSWORD: ${DATYX_OPENMETADATA_PASSWORD:-admin}
       # Authentication (see .env.example): without a client id it is off.
       OIDC_ISSUER: ${OIDC_ISSUER:-https://accounts.google.com}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}

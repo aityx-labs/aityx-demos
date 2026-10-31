@@ -31,8 +31,13 @@ a folder of its own) only calls it.
   [profiles.md](profiles.md).
 - Hibernate Validator: request bodies are validated, a 400 on failure.
 - A REST client for OpenMetadata (`OpenMetadataClient`, config key
-  `openmetadata`, URL from `DATYX_OPENMETADATA_URL`), its public
-  `/api/v1/system/version` so far.
+  `openmetadata`, URL from `DATYX_OPENMETADATA_URL`): its public
+  `/api/v1/system/version`, and the database services, databases,
+  schemas, tables, classifications, tags and custom properties the
+  catalogue writes and reads, signed in by `OpenMetadataSession`
+  ([catalog.md](catalog.md)).
+- JDBC's `DatabaseMetaData`, on the PostgreSQL driver, to read a database
+  source's tables (`SchemaReader`, [catalog.md](catalog.md)).
 - SmallRye Health: `/api/health`, `/api/health/live`, `/api/health/ready`, with
   two readiness checks: the datasource's and OpenMetadata's
   (`OpenMetadataHealthCheck`, named `OpenMetadata`, UP with the server's
@@ -61,6 +66,8 @@ a folder of its own) only calls it.
   stripped; blank or over 200 characters is a 400) and answers 201 with it
   and a `Location`.
 - `/api/datasources`: see [data-sources.md](data-sources.md).
+- `/api/datasources/{id}/catalog` and `/api/datasources/{id}/timeseries`:
+  see [catalog.md](catalog.md).
 - `/api/auth/config` and `/api/me`: see [auth.md](auth.md).
 - `/api/profile`: see [profiles.md](profiles.md).
 
@@ -79,8 +86,11 @@ Every setting reads an environment variable (`application.properties`):
 interface otherwise), `DATYX_DB_URL` (`jdbc:postgresql://localhost:9901/datyx`),
 `DATYX_DB_USER`, `DATYX_DB_PASSWORD`, `DATYX_OPENMETADATA_URL`
 (`http://localhost:9902`), `OIDC_CLIENT_ID`, `OIDC_ISSUER`,
-`OIDC_EXTRA_AUDIENCES` ([auth.md](auth.md)), and `DATYX_MASTER_KEY`
-([profiles.md](profiles.md); tests use a fixed one). Tests set no database URL
+`OIDC_EXTRA_AUDIENCES` ([auth.md](auth.md)), `DATYX_MASTER_KEY`
+([profiles.md](profiles.md); tests use a fixed one), and
+`DATYX_OPENMETADATA_TOKEN`, `DATYX_OPENMETADATA_EMAIL`,
+`DATYX_OPENMETADATA_PASSWORD` ([catalog.md](catalog.md); dev mode signs in
+as the stack's admin when unset). Tests set no database URL
 and get a Postgres test container from Dev Services, and point the
 OpenMetadata client at a closed port (`localhost:1`) so its check fails
 predictably whether or not the stack runs; Quarkus's own compose Dev
@@ -93,7 +103,8 @@ Services and Keycloak Dev Services are off.
 list, a blank message is a 400), `StatusResourceTest` (the database part
 ok, the OpenMetadata part reporting the failure, since the tests point at
 a closed port), `DataSourceResourceTest` ([data-sources.md](data-sources.md)),
-`AuthOffTest` and `AuthOnTest` ([auth.md](auth.md)), `ProfileTest` and
+`AuthOffTest` and `AuthOnTest` ([auth.md](auth.md)), `CatalogResourceTest`
+and `TimeSeriesTest` ([catalog.md](catalog.md)), `ProfileTest` and
 `CryptoTest` ([profiles.md](profiles.md)), and `DevDataTest`, which adds
 `db/devdata` to the test's locations and reads the HealthHub data source
 back through the API.

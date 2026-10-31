@@ -90,8 +90,21 @@ class _HealthHubAppState extends State<HealthHubApp> {
     home: ListenableBuilder(
       listenable: _auth,
       builder: (context, _) => _home
-          ? HomeScreen(auth: _auth, location: _location, showTiles: widget.showTiles)
-          : IndexScreen(auth: _auth, location: _location, showTiles: widget.showTiles),
+          ? HomeScreen(
+              auth: _auth,
+              location: _location,
+              careCenters: _api.careCenters,
+              people: _api.people,
+              events: _api.events,
+              showTiles: widget.showTiles,
+            )
+          : IndexScreen(
+              auth: _auth,
+              location: _location,
+              careCenters: _api.careCenters,
+              people: _api.people,
+              showTiles: widget.showTiles,
+            ),
     ),
   );
 }

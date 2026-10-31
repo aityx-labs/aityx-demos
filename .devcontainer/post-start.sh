@@ -14,7 +14,8 @@
 # /mortgagehub/, /contacthub/, ... on its port; each app calls aityx from
 # the browser. The datyx group: the datyx API (9900, with PostgreSQL,
 # Elasticsearch and OpenMetadata in containers), the datyx dashboard
-# (9906), HealthHub (9801, with its PostgreSQL container on 9803) and
+# (9906), HealthHub (9801, with its PostgreSQL container on 9803 and
+# Kafka on 9804, its REST proxy on 9805) and
 # its index, datyx-index/ (9800). The builds are made by update-content.sh
 # when the codespace was created (or come from the image), so the demos
 # are up in seconds; a demo whose build is missing or older than its

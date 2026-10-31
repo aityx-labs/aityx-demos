@@ -6,7 +6,8 @@
 # then each check as its emoji, a short label and ✅ (ok) / ❌ (failed),
 # separated by " · ":
 #   🌐 Web · 🔌 API · 🐘 Postgres (the API's connection) · 🤖 aityx (the
-#   API's key: ✅ set, ⚪ not set)
+#   API's key: ✅ set, ⚪ not set) · 📨 Kafka (its REST proxy lists the
+#   topics)
 # Runs via `devbox services up` (see process-compose.yaml) or standalone.
 set -uo pipefail
 
@@ -53,12 +54,17 @@ check_api() {
     if [[ "$body" == *'"aityx":true'* ]]; then report "🤖 aityx" ✅; else report "🤖 aityx" ⚪; fi
 }
 
+# Kafka through its REST proxy, the way the API reaches it: GET /topics
+# answers only when the broker does too.
+check_kafka() { ok_if "📨 Kafka" get 5 "http://localhost:${HEALTHHUB_KAFKA_REST_PORT:-9805}/topics"; }
+
 # run_checks: one pass over every check, printed as one line.
 run_checks() {
     RESULTS=()
     # Add more services here, one check_* function each.
     check_web
     check_api
+    check_kafka
     local line
     printf -v line ' · %s' "${RESULTS[@]}"
     printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "${line# · }"

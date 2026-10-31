@@ -1,0 +1,20 @@
+[
+  {
+    "code": "type_2_diabetes",
+    "name": "Type 2 diabetes",
+    "type": "chronic",
+    "prevalence": 9.5,
+    "min_age": 30,
+    "max_age": 90,
+    "summary": "A long-term condition of high blood sugar from insulin resistance.",
+    "treatment": "Diet, exercise and metformin, with HbA1c checks every 3 to 6 months.",
+    "treatment_duration_days": null,
+    "duration": "lifelong, with periodic review",
+    "visits": {"count": 3, "interval_days": 30, "stay_hours": 2},
+    "templates": {
+      "first": ["I'm {name}, {age}, always thirsty lately.", "{first_name}, {age}, my sugar was high at the pharmacy.", "Hi, {name}, I keep needing to pee at night."],
+      "repeat": ["{name}, back for my sugar check, visit {visit_number}.", "{first_name} again, the metformin upsets my stomach.", "I'm {name}, {days_since_first_visit} days on the tablets."],
+      "last": ["{name}, here for my results.", "{first_name}, my last check this round.", "I'm {name}, {age}, the numbers look better."]
+    }
+  }
+]

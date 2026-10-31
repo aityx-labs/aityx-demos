@@ -1,9 +1,10 @@
 version: "0.5"
 
-# `devbox services up`: PostgreSQL as the container of compose.yaml (one
-# `docker compose up postgres`, through scripts/infra.sh), the API and the
-# web app on the host's toolchain, and the health monitor. Ports and the
-# database settings come from the environment or .env (see .env.example).
+# `devbox services up`: PostgreSQL, Kafka and Kafka's REST proxy as the
+# containers of compose.yaml (one `docker compose up <service>` each,
+# through scripts/infra.sh), the API and the web app on the host's
+# toolchain, and the health monitor. Ports and the database settings come
+# from the environment or .env (see .env.example).
 
 processes:
   0-health-check:
@@ -12,12 +13,15 @@ processes:
       - HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL:-15}
       - FLUTTER_WEB_PORT=${FLUTTER_WEB_PORT:-9801}
       - API_PORT=${API_PORT:-9802}
+      - HEALTHHUB_KAFKA_REST_PORT=${HEALTHHUB_KAFKA_REST_PORT:-9805}
     # Start logging once every service passes its readiness probe, so the
     # first status line reflects a fully started stack.
     depends_on:
       2-flutter-web:
         condition: process_healthy
       3-api:
+        condition: process_healthy
+      5-kafka-rest:
         condition: process_healthy
     availability:
       restart: on_failure
@@ -83,6 +87,13 @@ processes:
       - OIDC_ISSUER=${OIDC_ISSUER:-}
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
       - DATYX_API_URL=${DATYX_API_URL:-}
+      - HEALTHHUB_MODE=${HEALTHHUB_MODE:-}
+      - HEALTHHUB_KAFKA_REST_URL=${HEALTHHUB_KAFKA_REST_URL:-}
+      - HEALTHHUB_SIM_PEOPLE=${HEALTHHUB_SIM_PEOPLE:-}
+      - HEALTHHUB_SIM_TURN_MS=${HEALTHHUB_SIM_TURN_MS:-}
+      - HEALTHHUB_SIM_MINUTES_PER_TURN=${HEALTHHUB_SIM_MINUTES_PER_TURN:-}
+    # Only the database: the API reaches Kafka through its REST proxy and
+    # retries until it answers, so it starts without waiting for it.
     depends_on:
       1-postgres:
         condition: process_healthy
@@ -94,6 +105,49 @@ processes:
       initial_delay_seconds: 1
       period_seconds: 2
       timeout_seconds: 5
+      failure_threshold: 60
+    availability:
+      restart: on_failure
+      backoff_seconds: 5
+
+  4-kafka:
+    # Kafka, the kafka service of compose.yaml (one node, KRaft), published
+    # on 127.0.0.1:${HEALTHHUB_KAFKA_PORT:-9804}; its data in a Docker
+    # volume. Healthy once the broker answers and the moves topic exists.
+    command: bash scripts/infra.sh up kafka
+    shutdown:
+      command: bash scripts/infra.sh stop kafka
+      timeout_seconds: 30
+    readiness_probe:
+      exec:
+        command: bash scripts/infra.sh healthy kafka
+      initial_delay_seconds: 2
+      period_seconds: 3
+      timeout_seconds: 10
+      # Up to 3 minutes: a first start pulls the image.
+      failure_threshold: 60
+    availability:
+      restart: on_failure
+      backoff_seconds: 5
+
+  5-kafka-rest:
+    # Kafka over HTTP, the kafka-rest service of compose.yaml (Karapace's
+    # REST proxy), published on 127.0.0.1:${HEALTHHUB_KAFKA_REST_PORT:-9805}:
+    # the API produces and consumes through it.
+    command: bash scripts/infra.sh up kafka-rest
+    shutdown:
+      command: bash scripts/infra.sh stop kafka-rest
+      timeout_seconds: 30
+    depends_on:
+      4-kafka:
+        condition: process_healthy
+    readiness_probe:
+      exec:
+        command: bash scripts/infra.sh healthy kafka-rest
+      initial_delay_seconds: 2
+      period_seconds: 3
+      timeout_seconds: 10
+      # Up to 3 minutes: a first start pulls the image.
       failure_threshold: 60
     availability:
       restart: on_failure

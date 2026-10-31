@@ -1,0 +1,20 @@
+[
+  {
+    "code": "influenza",
+    "name": "Influenza",
+    "type": "acute",
+    "prevalence": 8.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "A viral infection of the airways with fever, aches and cough.",
+    "treatment": "Rest, fluids and paracetamol; oseltamivir within 48 hours for those at risk.",
+    "treatment_duration_days": 7,
+    "duration": "5 to 7 days",
+    "visits": {"count": 2, "interval_days": 3, "stay_hours": 3},
+    "templates": {
+      "first": ["Hi, I'm {name}, {age}, with a fever since yesterday.", "I'm {first_name}, {age}, and I ache all over.", "{name} here, a {age}-year-old {sex} from {city}, with a high fever."],
+      "repeat": ["It's {first_name} again, visit {visit_number}, still coughing.", "{name}, back after {days_since_first_visit} days.", "I'm {first_name}, the fever is back."],
+      "last": ["{name}, I feel fine now, can I go back to work as a {occupation}?", "{first_name} for the final check at {hospital}.", "I'm {name}, {age}, all better."]
+    }
+  }
+]

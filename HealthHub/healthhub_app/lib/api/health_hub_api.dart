@@ -99,6 +99,367 @@ class Me {
   String get label => name ?? email ?? subject ?? 'anonymous';
 }
 
+/// A hospital, clinic or health station: one row of
+/// `GET /api/care-centers`.
+class CareCenter {
+  const CareCenter({
+    required this.id,
+    required this.name,
+    required this.kind,
+    required this.lat,
+    required this.lon,
+    this.subtype,
+    this.address,
+    this.city,
+    this.phone,
+    this.website,
+  });
+
+  factory CareCenter.fromJson(Map<String, Object?> json) => CareCenter(
+    id: (json['id'] as num).toInt(),
+    name: json['name'] as String,
+    kind: CareCenterKind.named(json['kind'] as String?),
+    lat: (json['lat'] as num).toDouble(),
+    lon: (json['lon'] as num).toDouble(),
+    subtype: json['subtype'] as String?,
+    address: json['address'] as String?,
+    city: json['city'] as String?,
+    phone: json['phone'] as String?,
+    website: json['website'] as String?,
+  );
+
+  final int id;
+  final String name;
+  final CareCenterKind kind;
+  final double lat;
+  final double lon;
+
+  /// The source's own type: "CAP", "UBS", "Hospital Geral"...
+  final String? subtype;
+  final String? address;
+  final String? city;
+  final String? phone;
+  final String? website;
+}
+
+/// What a care center is.
+enum CareCenterKind {
+  hospital('Hospital'),
+  clinic('Clinic'),
+  healthStation('Health station');
+
+  const CareCenterKind(this.label);
+
+  final String label;
+
+  /// The API's name for it (`hospital`, `clinic`, `health_station`);
+  /// anything else counts as a clinic.
+  static CareCenterKind named(String? name) => switch (name) {
+    'hospital' => hospital,
+    'health_station' => healthStation,
+    _ => clinic,
+  };
+}
+
+/// The care centers of an area, and whether there were more than the API
+/// gives at once (hospitals come first, then health stations, then clinics).
+class CareCenters {
+  const CareCenters(this.centers, {this.truncated = false});
+
+  factory CareCenters.fromJson(Map<String, Object?> json) => CareCenters(
+    [
+      for (final center in (json['centers'] as List? ?? const []))
+        CareCenter.fromJson((center as Map).cast()),
+    ],
+    truncated: json['truncated'] == true,
+  );
+
+  final List<CareCenter> centers;
+  final bool truncated;
+}
+
+/// Where a simulated person is in their day.
+enum PersonState {
+  home('At home'),
+  toHospital('Going to the hospital'),
+  atHospital('At the hospital'),
+  toHome('Going home');
+
+  const PersonState(this.label);
+
+  final String label;
+
+  /// The API's name for it (`home`, `to_hospital`, `at_hospital`,
+  /// `to_home`); anything else counts as home.
+  static PersonState named(String? name) => switch (name) {
+    'to_hospital' => toHospital,
+    'at_hospital' => atHospital,
+    'to_home' => toHome,
+    _ => home,
+  };
+}
+
+/// A simulated person, as the last record the API read from the Kafka
+/// stream left them: one row of `GET /api/people`.
+class Person {
+  const Person({
+    required this.id,
+    required this.city,
+    required this.lat,
+    required this.lon,
+    required this.homeLat,
+    required this.homeLon,
+    required this.state,
+    this.hospitalName,
+    this.name,
+    this.age,
+    this.conditionName,
+    this.conditionType,
+  });
+
+  factory Person.fromJson(Map<String, Object?> json) => Person(
+    id: json['id'] as String,
+    city: (json['city'] as String?) ?? '',
+    lat: (json['lat'] as num).toDouble(),
+    lon: (json['lon'] as num).toDouble(),
+    homeLat: (json['homeLat'] as num).toDouble(),
+    homeLon: (json['homeLon'] as num).toDouble(),
+    state: PersonState.named(json['state'] as String?),
+    hospitalName: json['hospitalName'] as String?,
+    name: _string(json['name']),
+    age: _int(json['age']),
+    conditionName: _string(json['conditionName']),
+    conditionType: ConditionType.named(json['conditionType']),
+  );
+
+  /// The city's slug and a number: "reus-3".
+  final String id;
+  final String city;
+  final double lat;
+  final double lon;
+  final double homeLat;
+  final double homeLon;
+  final PersonState state;
+
+  /// The hospital they go to when a visit is due, the one closest to
+  /// their home.
+  final String? hospitalName;
+
+  /// Who they are and what brings them to the hospital, from their
+  /// profile; null when the record doesn't carry them (an older API).
+  final String? name;
+  final int? age;
+  final String? conditionName;
+  final ConditionType? conditionType;
+}
+
+/// Whether a condition passes (acute) or stays (chronic).
+enum ConditionType {
+  acute('acute'),
+  chronic('chronic');
+
+  const ConditionType(this.label);
+
+  final String label;
+
+  /// The API's name for it; null for anything else.
+  static ConditionType? named(Object? name) => switch (name) {
+    'acute' => acute,
+    'chronic' => chronic,
+    _ => null,
+  };
+}
+
+/// Which visit of a course an admission is: the first with the complaint,
+/// a follow-up, or the last.
+enum VisitKind {
+  first('First visit'),
+  repeat('Return visit'),
+  last('Last visit');
+
+  const VisitKind(this.label);
+
+  final String label;
+
+  static VisitKind? named(Object? name) => switch (name) {
+    'first' => first,
+    'repeat' => repeat,
+    'last' => last,
+    _ => null,
+  };
+}
+
+/// Lenient readers for the optional fields of a record: a field of the
+/// wrong type reads as absent rather than failing the whole record.
+String? _string(Object? value) => value is String && value.isNotEmpty ? value : null;
+int? _int(Object? value) => value is num ? value.toInt() : null;
+
+/// What `GET /api/people` answers: whether the simulation runs (dev mode
+/// only), its clock, and where everyone is.
+class People {
+  const People({required this.enabled, this.simTime, this.day, this.people = const []});
+
+  factory People.fromJson(Map<String, Object?> json) => People(
+    enabled: json['enabled'] == true,
+    simTime: json['simTime'] as String?,
+    day: (json['day'] as num?)?.toInt(),
+    people: [
+      for (final person in (json['people'] as List? ?? const []))
+        ?_person(person),
+    ],
+  );
+
+  /// One person of the answer, or null when it can't be read: one bad
+  /// entry is left off the map rather than failing the whole answer.
+  static Person? _person(Object? json) {
+    if (json is! Map) return null;
+    try {
+      return Person.fromJson(json.cast());
+    } on TypeError {
+      return null;
+    }
+  }
+
+  /// Off in prod, where nothing of the simulation shows.
+  final bool enabled;
+
+  /// The simulated clock, "HH:MM", and which day it is; null before the
+  /// first record arrives.
+  final String? simTime;
+  final int? day;
+  final List<Person> people;
+}
+
+/// One record read from the Kafka stream, where it sits in its topic: a
+/// person's move, or their admission at a hospital with what they said on
+/// arrival. One row of `GET /api/events`.
+class StreamEvent {
+  const StreamEvent({
+    required this.id,
+    required this.state,
+    this.type = StreamEventType.move,
+    this.city,
+    this.hospitalName,
+    this.simTime,
+    this.day,
+    this.partition,
+    this.offset,
+    this.name,
+    this.age,
+    this.sex,
+    this.occupation,
+    this.conditionCode,
+    this.conditionName,
+    this.conditionType,
+    this.visit,
+    this.visitNumber,
+    this.complaint,
+    this.hospitalId,
+    this.eventId,
+  });
+
+  /// A move carries the person in `id`; an admission in `personId`. An
+  /// admission's person is at the hospital, so its state says so.
+  factory StreamEvent.fromJson(Map<String, Object?> json) {
+    final type = StreamEventType.named(json['type']);
+    final admission = type == StreamEventType.admission;
+    return StreamEvent(
+      id: (admission ? json['personId'] ?? json['id'] : json['id'] ?? json['personId']) as String,
+      type: type,
+      state: admission ? PersonState.atHospital : PersonState.named(json['state'] as String?),
+      city: _string(json['city']),
+      hospitalName: _string(json['hospitalName']),
+      simTime: _string(json['simTime']),
+      day: _int(json['day']),
+      partition: _int(json['partition']),
+      offset: _int(json['offset']),
+      name: _string(json['name']),
+      age: _int(json['age']),
+      sex: _string(json['sex']),
+      occupation: _string(json['occupation']),
+      conditionCode: _string(json['conditionCode']),
+      conditionName: _string(json['conditionName']),
+      conditionType: ConditionType.named(json['conditionType']),
+      visit: VisitKind.named(json['visit']),
+      visitNumber: _int(json['visitNumber']),
+      complaint: _string(json['complaint']),
+      hospitalId: _int(json['hospitalId']),
+      eventId: _string(json['eventId']),
+    );
+  }
+
+  /// The person's id: the city's slug and a number, "reus-3".
+  final String id;
+  final StreamEventType type;
+  final PersonState state;
+  final String? city;
+  final String? hospitalName;
+  final String? simTime;
+  final int? day;
+  final int? partition;
+  final int? offset;
+
+  /// Who the person is; moves carry the name and age too.
+  final String? name;
+  final int? age;
+  final String? sex;
+  final String? occupation;
+
+  /// The condition behind the visit; moves carry its name and type too.
+  final String? conditionCode;
+  final String? conditionName;
+  final ConditionType? conditionType;
+
+  /// An admission's own fields: which visit of the course, what the
+  /// person said on arrival, the hospital's id and the event's id.
+  final VisitKind? visit;
+  final int? visitNumber;
+  final String? complaint;
+  final int? hospitalId;
+  final String? eventId;
+
+  bool get isAdmission => type == StreamEventType.admission;
+}
+
+/// What a record on the stream is: a move (`healthhub.people.moves`) or an
+/// admission (`healthhub.admissions`).
+enum StreamEventType {
+  move('move'),
+  admission('admission');
+
+  const StreamEventType(this.apiName);
+
+  /// The API's name for it, as in `?type=`.
+  final String apiName;
+
+  /// Anything but "admission" counts as a move: the records before
+  /// admissions existed carried no type.
+  static StreamEventType named(Object? name) => name == 'admission' ? admission : move;
+}
+
+/// The latest records on the stream, newest first, and the topics they
+/// came from; off in prod.
+class StreamEvents {
+  const StreamEvents({required this.enabled, this.topics = const [], this.events = const []});
+
+  factory StreamEvents.fromJson(Map<String, Object?> json) => StreamEvents(
+    enabled: json['enabled'] == true,
+    topics: [
+      for (final topic in (json['topics'] as List? ?? [?json['topic']]))
+        if (topic is String && topic.isNotEmpty) topic,
+    ],
+    events: [
+      for (final event in (json['events'] as List? ?? const []))
+        if (event is Map && (event['id'] is String || event['personId'] is String))
+          StreamEvent.fromJson(event.cast()),
+    ],
+  );
+
+  final bool enabled;
+  final List<String> topics;
+  final List<StreamEvent> events;
+}
+
 /// The API, as the app sees it.
 abstract class HealthHubApi {
   Future<Health> health();
@@ -111,6 +472,27 @@ abstract class HealthHubApi {
 
   /// How many data sources datyx keeps, through `GET /api/datyx/datasources`.
   Future<int> datyxDataSources();
+
+  /// The care centers between the given degrees:
+  /// `GET /api/care-centers?bbox=west,south,east,north`.
+  Future<CareCenters> careCenters({
+    required double west,
+    required double south,
+    required double east,
+    required double north,
+  });
+
+  /// The simulated people and their homes: `GET /api/people`.
+  Future<People> people({
+    required double west,
+    required double south,
+    required double east,
+    required double north,
+  });
+
+  /// The latest records on the stream: `GET /api/events?limit=&type=`,
+  /// only moves or only admissions with [type].
+  Future<StreamEvents> events({int limit = 20, StreamEventType? type});
 }
 
 /// Thrown when the API answers an error, with its message.
@@ -164,6 +546,33 @@ class HttpHealthHubApi implements HealthHubApi {
     final json = await _get('/api/datyx/datasources');
     return json is List ? json.length : 0;
   }
+
+  @override
+  Future<CareCenters> careCenters({
+    required double west,
+    required double south,
+    required double east,
+    required double north,
+  }) async {
+    return CareCenters.fromJson(await _getMap('/api/care-centers?bbox=${_bbox(west, south, east, north)}'));
+  }
+
+  @override
+  Future<StreamEvents> events({int limit = 20, StreamEventType? type}) async => StreamEvents.fromJson(
+    await _getMap('/api/events?limit=$limit${type == null ? '' : '&type=${type.apiName}'}'),
+  );
+
+  /// An area as the API's `bbox` takes it: west,south,east,north.
+  static String _bbox(double west, double south, double east, double north) =>
+      [west, south, east, north].map((d) => d.toStringAsFixed(5)).join(',');
+
+  @override
+  Future<People> people({
+    required double west,
+    required double south,
+    required double east,
+    required double north,
+  }) async => People.fromJson(await _getMap('/api/people?bbox=${_bbox(west, south, east, north)}'));
 
   Future<Map<String, Object?>> _getMap(String path) async {
     final json = await _get(path);

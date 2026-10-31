@@ -1,0 +1,664 @@
+[
+  {
+    "code": "common_cold",
+    "name": "Common cold (upper respiratory tract infection)",
+    "type": "acute",
+    "prevalence": 30.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "A self-limiting viral infection of the nose and throat, most often caused by rhinoviruses, with sore throat, congestion, sneezing and cough.",
+    "treatment": "Supportive care only: rest, fluids, paracetamol or ibuprofen for pain and fever, saline nasal sprays or decongestants for a few days; antibiotics are not indicated. Advise return if symptoms last beyond 3 weeks or breathing becomes difficult.",
+    "treatment_duration_days": 7,
+    "duration": "7 to 10 days",
+    "visits": {
+      "count": 1,
+      "interval_days": 1,
+      "stay_hours": 1
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. For the last three days I've had a sore throat, a blocked runny nose and I keep sneezing, and paracetamol only helps a little.",
+        "Hello, my name is {first_name}, I'm {age} and I'm a {occupation}. I've had a stuffy nose, a scratchy throat and a mild cough since the weekend, and I wanted to make sure it's nothing more than a cold.",
+        "I'm {name}, a {age}-year-old {sex} from {city}. I woke up two days ago with a runny nose, a headache and a slight temperature, and I feel too rough to get on with my day."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I was here {days_since_first_visit} days ago with a cold. The runny nose is better but the cough is keeping me up at night, and I'm still using the paracetamol.",
+        "Hello, I'm {first_name}, {age}, back for the same cold. My nose is now thick and blocked and my ears feel full, so I came back to check it isn't turning into something else.",
+        "I'm {name}, this is my visit number {visit_number} for this cold. The fever went away but I still have a sore throat and I'm tired all the time."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. I'm almost completely over the cold now, just a little cough left, and I wanted a final check before getting back to my usual routine.",
+        "Hello, it's {first_name} again. It has been {days_since_first_visit} days since I first came in, the congestion has cleared and I've stopped taking anything for it.",
+        "I'm {name}, back one last time about the cold. I feel well again apart from a tickle in my throat, so I'd just like to be signed off."
+      ]
+    }
+  },
+  {
+    "code": "influenza",
+    "name": "Influenza",
+    "type": "acute",
+    "prevalence": 8.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "An acute viral respiratory infection caused by influenza A or B, with sudden fever, muscle aches, headache, dry cough and marked fatigue.",
+    "treatment": "Rest, fluids and paracetamol or ibuprofen for fever and aches; a neuraminidase inhibitor antiviral is offered within 48 hours of onset to people at high risk of complications (aged 65+, pregnant, chronic illness) or with severe disease. Admit if hypoxic or showing signs of pneumonia, and advise return if breathing worsens.",
+    "treatment_duration_days": 7,
+    "duration": "5 to 7 days, with tiredness that can last 2 weeks",
+    "visits": {
+      "count": 2,
+      "interval_days": 7,
+      "stay_hours": 3
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. Yesterday I suddenly got a high fever, chills and aches all over my body, and I have a dry cough and a pounding headache.",
+        "Hello, my name is {first_name}, {age}. Since last night I've had a temperature of over 39, my muscles ache so much I can barely get out of bed, and several people around me have had the flu this week.",
+        "I'm {name}, a {age}-year-old {sex}. I've been shivering and burning up for two days, I have a cough and a sore throat, and I'm so exhausted I can hardly stand."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I came in with the flu {days_since_first_visit} days ago. The fever keeps coming back and now I feel a bit short of breath when I walk.",
+        "Hello, I'm {first_name}, {age}, back about the flu. I finished the antiviral tablets but I'm still coughing a lot and feel weak.",
+        "I'm {name}, this is visit {visit_number} for my influenza. The aches are gone but the cough is worse at night and I wanted my chest checked."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. The fever has been gone for several days and I'm only a bit tired now, so I'm here for the final check you asked for.",
+        "Hello, it's {first_name}. It's been {days_since_first_visit} days since the flu started and I'm breathing normally again, I just want to know if I can go back to my normal activities.",
+        "I'm {name}, back for my last visit about the flu. I feel much better, I've stopped all the medicines, and only a light cough is left."
+      ]
+    }
+  },
+  {
+    "code": "covid_19",
+    "name": "COVID-19",
+    "type": "acute",
+    "prevalence": 6.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "An acute infection with SARS-CoV-2 that ranges from a mild cold-like illness to pneumonia, with fever, cough, sore throat, fatigue and sometimes loss of taste or smell.",
+    "treatment": "Most cases need only rest, fluids, antipyretics and staying away from others while unwell; people at high risk of severe disease are offered an oral or IV antiviral within the first 5 days. Patients with low oxygen saturation are admitted for oxygen and corticosteroids, with thromboprophylaxis and monitoring.",
+    "treatment_duration_days": 10,
+    "duration": "7 to 14 days, with fatigue sometimes lasting weeks",
+    "visits": {
+      "count": 2,
+      "interval_days": 5,
+      "stay_hours": 3
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. I tested positive for COVID at home this morning, I've had a fever and a dry cough for two days and I can't taste my food.",
+        "Hello, my name is {first_name}, {age}. I've had a sore throat, chills and a cough since Monday, my home test is positive and I'm getting a bit breathless climbing stairs.",
+        "I'm {name}, a {age}-year-old {sex} from {city}. I have COVID according to a rapid test, my temperature is high, my whole body aches, and I'm worried because I have other health problems."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I was here with COVID {days_since_first_visit} days ago. I'm still coughing and feel short of breath, and my oxygen reader at home showed 94.",
+        "Hello, I'm {first_name}, {age}, back for the COVID follow-up. The fever has gone but I'm exhausted and get dizzy when I stand up.",
+        "I'm {name}, this is visit {visit_number} about my COVID. I took the antiviral course you gave me, but the cough has not improved much."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. My COVID test is negative now and the cough is nearly gone, so I'm here for the last check.",
+        "Hello, it's {first_name}. It's been {days_since_first_visit} days since I got COVID, I'm breathing normally and my oxygen readings are fine, I'd like to know I can go back to my normal routine.",
+        "I'm {name}, back for my final COVID visit. I feel well apart from tiring a little faster than usual, and I've stopped all the medicines."
+      ]
+    }
+  },
+  {
+    "code": "acute_bronchitis",
+    "name": "Acute bronchitis",
+    "type": "acute",
+    "prevalence": 5.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "A self-limiting inflammation of the large airways, usually viral, causing a cough with or without sputum that lasts up to three weeks.",
+    "treatment": "Reassurance and symptomatic care: fluids, paracetamol or ibuprofen, honey or simple cough remedies; antibiotics are not routinely given. Check for pneumonia (examination, oxygen saturation, CRP or chest X-ray if suspected) and review if the cough lasts beyond 3 weeks or breathing worsens.",
+    "treatment_duration_days": 21,
+    "duration": "1 to 3 weeks",
+    "visits": {
+      "count": 2,
+      "interval_days": 14,
+      "stay_hours": 2
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. I've had a chesty cough for about a week after a cold, I'm bringing up yellowish phlegm and my chest feels sore from coughing.",
+        "Hello, my name is {first_name}, {age}. I can't stop coughing, especially at night, it started ten days ago and cough syrup hasn't helped.",
+        "I'm {name}, a {age}-year-old {occupation}. My chest feels tight and wheezy and I've been coughing up phlegm for several days, with a low temperature."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I came in {days_since_first_visit} days ago with bronchitis. The cough is drier now but still wakes me up.",
+        "Hello, I'm {first_name}, {age}, back about my cough. It's been going on for nearly three weeks and I still get a little wheezy.",
+        "I'm {name}, this is visit {visit_number} for the bronchitis. The phlegm has cleared a lot but the cough comes in long fits."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. The cough has almost gone and I'm sleeping through the night again, so I came for the final check.",
+        "Hello, it's {first_name}. It has been {days_since_first_visit} days since I first came in, my chest feels clear and I've stopped the cough medicine.",
+        "I'm {name}, back for my last visit about the bronchitis. I only cough now and then, no more phlegm or wheezing."
+      ]
+    }
+  },
+  {
+    "code": "community_acquired_pneumonia",
+    "name": "Community-acquired pneumonia",
+    "type": "acute",
+    "prevalence": 1.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "An acute infection of the lung tissue acquired outside hospital, most often caused by Streptococcus pneumoniae, with fever, productive cough, breathlessness and pleuritic chest pain.",
+    "treatment": "Assess severity (CURB-65, oxygen saturation, chest X-ray, bloods); low-severity cases take an oral antibiotic such as amoxicillin, or doxycycline or a macrolide if allergic, for 5 days, while moderate or severe cases are admitted for IV antibiotics, oxygen and fluids. Review at 48 to 72 hours and arrange a repeat chest X-ray at about 6 weeks for smokers, older patients or persisting symptoms.",
+    "treatment_duration_days": 42,
+    "duration": "Antibiotics for 5 days, recovery over 3 to 6 weeks",
+    "visits": {
+      "count": 3,
+      "interval_days": 21,
+      "stay_hours": 24
+    },
+    "urgent": true,
+    "follow_up_stay_hours": 2,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. I've had a high fever and a cough with rusty-coloured phlegm for three days, and now I get a sharp pain on the right side of my chest when I breathe in.",
+        "Hello, my name is {first_name}, {age}. I'm very short of breath, shaking with chills and coughing up green phlegm, and I feel confused and weak.",
+        "I'm {name}, a {age}-year-old {sex} from {city}. What started as a cold a week ago got much worse, my temperature is 39.5 and I'm breathless just talking."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I was treated here for pneumonia {days_since_first_visit} days ago. The fever has gone but I still get breathless walking and I have a cough.",
+        "Hello, I'm {first_name}, {age}, back for my pneumonia review. I finished the antibiotics, the chest pain is better, but I'm still very tired.",
+        "I'm {name}, this is visit {visit_number} for my pneumonia. I'm coughing less phlegm now, but I'd like my chest listened to again."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. I'm here for the follow-up chest X-ray after my pneumonia, I feel almost back to normal.",
+        "Hello, it's {first_name}. It's been {days_since_first_visit} days since I was admitted with pneumonia, my breathing is normal and I'd like the final check before going back to my normal activities.",
+        "I'm {name}, back for the last pneumonia appointment. No fever, hardly any cough, and I can climb stairs without stopping."
+      ]
+    }
+  },
+  {
+    "code": "streptococcal_pharyngitis",
+    "name": "Streptococcal pharyngitis (strep throat)",
+    "type": "acute",
+    "prevalence": 2.0,
+    "min_age": 18,
+    "max_age": 65,
+    "summary": "An acute bacterial infection of the throat and tonsils by group A Streptococcus, with severe sore throat, fever, tonsillar exudate and tender neck glands, usually without cough.",
+    "treatment": "Score with Centor or FeverPAIN and confirm with a rapid antigen test where available; give a penicillin (phenoxymethylpenicillin) course, or a macrolide if penicillin-allergic, plus analgesia and fluids. Return urgently if unable to swallow, drooling or with one-sided swelling suggesting a quinsy.",
+    "treatment_duration_days": 10,
+    "duration": "5 to 10 days of antibiotics, symptoms ease in 3 to 5 days",
+    "visits": {
+      "count": 1,
+      "interval_days": 1,
+      "stay_hours": 1
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. My throat is so sore I can barely swallow, I have a fever of 38.8 and there are white spots on my tonsils, but no cough.",
+        "Hello, my name is {first_name}, {age}. Since yesterday my throat has been burning, the glands in my neck are swollen and painful, and ibuprofen barely helps.",
+        "I'm {name}, a {age}-year-old {sex}. I've had a high temperature and a very painful throat for two days, it hurts even to drink water."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I was here with strep throat {days_since_first_visit} days ago. I'm on the antibiotics but my throat is still very sore and I can't eat.",
+        "Hello, I'm {first_name}, {age}, back about my throat. The fever came down but now one side of my throat feels more swollen than the other.",
+        "I'm {name}, this is visit {visit_number} for the throat infection. I think I got a rash after starting the antibiotics and wanted it checked."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. I've finished the antibiotics, my throat is fine now and the neck glands have gone down.",
+        "Hello, it's {first_name}. It has been {days_since_first_visit} days since my strep throat started, I'm eating normally again and just want a final look.",
+        "I'm {name}, back one last time about the throat infection. No more fever or pain, I'd like to know I'm no longer infectious."
+      ]
+    }
+  },
+  {
+    "code": "acute_sinusitis",
+    "name": "Acute sinusitis",
+    "type": "acute",
+    "prevalence": 6.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "An inflammation of the paranasal sinuses, usually following a viral cold, with blocked nose, discoloured discharge and facial pain or pressure.",
+    "treatment": "Most cases are viral and settle with analgesia and saline nasal irrigation; a nasal corticosteroid spray can help if symptoms last more than 10 days. An antibiotic such as a penicillin is reserved for severe symptoms, high fever or worsening after initial improvement, with urgent review for eye swelling or severe headache.",
+    "treatment_duration_days": 14,
+    "duration": "2 to 4 weeks",
+    "visits": {
+      "count": 2,
+      "interval_days": 7,
+      "stay_hours": 1
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. For ten days my nose has been blocked with thick green discharge, and there's a heavy pain over my cheeks that gets worse when I bend over.",
+        "Hello, my name is {first_name}, {age}. After a cold I've developed pressure behind my eyes and forehead, my top teeth ache and I can't smell anything.",
+        "I'm {name}, a {age}-year-old {sex}. I was getting over a cold, then a week ago my face started throbbing and I got a fever again, painkillers aren't helping."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I was here about sinusitis {days_since_first_visit} days ago. I've been using the nasal spray and rinses, but my cheeks still hurt.",
+        "Hello, I'm {first_name}, {age}, back about my sinuses. The discharge is clearer now but my nose is still blocked at night.",
+        "I'm {name}, this is visit {visit_number} for the sinus infection. The facial pain is better, but I still have a headache in the mornings."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. My sinuses have cleared, the pain is gone and I can breathe through my nose again, so this is my final check.",
+        "Hello, it's {first_name}. It has been {days_since_first_visit} days since the sinusitis began, my sense of smell is back and I've stopped the spray.",
+        "I'm {name}, back one last time about my sinuses. Just a bit of stuffiness left, no pain or fever."
+      ]
+    }
+  },
+  {
+    "code": "acute_otitis_externa",
+    "name": "Acute otitis externa",
+    "type": "acute",
+    "prevalence": 1.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "An acute inflammation of the external ear canal, usually bacterial (Pseudomonas or Staphylococcus) and often after swimming, with ear pain, itch, discharge and pain on moving the ear.",
+    "treatment": "Clean the ear canal (aural toilet), prescribe topical antibiotic ear drops with or without a corticosteroid, insert a wick if the canal is very swollen, give analgesia and keep the ear dry. Review if not settling within a week; spreading redness or diabetes with severe pain needs urgent review for necrotising otitis externa.",
+    "treatment_duration_days": 7,
+    "duration": "7 to 14 days",
+    "visits": {
+      "count": 2,
+      "interval_days": 7,
+      "stay_hours": 1
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. My right ear has been very painful for three days, it's itchy, there's a smelly discharge and it hurts when I touch it.",
+        "Hello, my name is {first_name}, {age}. I went swimming last week and since then my left ear feels blocked and sore, and pulling the earlobe is agony.",
+        "I'm {name}, a {age}-year-old {sex}. My ear canal is swollen, my hearing on that side is muffled, and painkillers only take the edge off the pain."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I was here with an ear infection {days_since_first_visit} days ago. I've used the drops but my ear is still sore and blocked.",
+        "Hello, I'm {first_name}, {age}, back about my ear. The discharge has stopped but it still itches and my hearing isn't back.",
+        "I'm {name}, this is visit {visit_number} for my ear. The wick fell out and I wanted it checked before I carry on with the drops."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. My ear feels normal again, no pain or discharge, so I've come for the final check.",
+        "Hello, it's {first_name}. It's been {days_since_first_visit} days since the ear infection started and I've finished the drops, my hearing is back.",
+        "I'm {name}, back one last time about my ear. It's healed up, I just want to know when I can swim again."
+      ]
+    }
+  },
+  {
+    "code": "acute_gastroenteritis",
+    "name": "Acute gastroenteritis",
+    "type": "acute",
+    "prevalence": 15.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "An acute infection of the gut, most often viral (norovirus) or food-borne bacterial, with diarrhoea, vomiting, abdominal cramps and sometimes fever.",
+    "treatment": "Rehydrate with oral rehydration solution, or IV fluids if dehydrated or unable to keep fluids down, with an antiemetic where needed; antibiotics are not routine. Send a stool culture if there is blood, high fever, recent travel or prolonged symptoms, and advise hand hygiene and staying off work until 48 hours after the last episode.",
+    "treatment_duration_days": 3,
+    "duration": "2 to 5 days",
+    "visits": {
+      "count": 2,
+      "interval_days": 3,
+      "stay_hours": 4
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. Since last night I've been vomiting and had watery diarrhoea more than ten times, I can't keep water down and I feel dizzy.",
+        "Hello, my name is {first_name}, {age}. I have bad stomach cramps, diarrhoea and a low fever since yesterday, after a meal out in {city}.",
+        "I'm {name}, a {age}-year-old {sex}. Half the people I've been around have a stomach bug and now I've got it too; I've been throwing up since yesterday and my mouth is dry."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I came in with gastroenteritis {days_since_first_visit} days ago. The vomiting stopped but the diarrhoea hasn't and I feel weak.",
+        "Hello, I'm {first_name}, {age}, back about my stomach bug. I've been drinking the rehydration salts but I'm barely passing urine.",
+        "I'm {name}, this is visit {visit_number} for the stomach infection. I noticed some blood in the diarrhoea this morning."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. The diarrhoea stopped yesterday and I'm eating normally again, so I've come for the final check.",
+        "Hello, it's {first_name}. It's been {days_since_first_visit} days since the stomach bug, the stool test came back and I'd like the results.",
+        "I'm {name}, back for my last visit about the gastroenteritis. I feel fine now and want to know when I can safely be around other people again."
+      ]
+    }
+  },
+  {
+    "code": "urinary_tract_infection",
+    "name": "Urinary tract infection",
+    "type": "acute",
+    "prevalence": 5.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "A bacterial infection of the bladder (cystitis), most often by E. coli, with painful frequent urination and urgency, which can ascend to the kidneys (pyelonephritis).",
+    "treatment": "Confirm with urine dipstick and send a culture where indicated; treat uncomplicated cystitis with a short course of nitrofurantoin, trimethoprim or fosfomycin according to local resistance (longer courses in men). Fever, loin pain or vomiting suggest pyelonephritis, treated with a 7 to 14 day course and admission for IV antibiotics if unwell.",
+    "treatment_duration_days": 5,
+    "duration": "3 to 7 days",
+    "visits": {
+      "count": 2,
+      "interval_days": 3,
+      "stay_hours": 2
+    },
+    "female_share": 0.8,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. Since yesterday it burns when I pass urine, I need to go every half hour and my lower tummy aches.",
+        "Hello, my name is {first_name}, {age}. My urine is cloudy and smells strong, I have to rush to the toilet all the time and it stings badly.",
+        "I'm {name}, a {age}-year-old {sex}. I've had pain passing urine for three days and now I have a fever and an ache in my lower back on the left."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I was here with a urine infection {days_since_first_visit} days ago. I'm on the antibiotics but it still burns and I'm still going very often.",
+        "Hello, I'm {first_name}, {age}, back about the urine infection. You said the culture would be ready, and I still have some discomfort.",
+        "I'm {name}, this is visit {visit_number} for the bladder infection. The burning is better but I feel a bit sick from the tablets."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. I've finished the antibiotics and the burning and urgency are gone, so I'm here for the final check.",
+        "Hello, it's {first_name}. It has been {days_since_first_visit} days since the urine infection started, I feel normal again and wanted the culture results.",
+        "I'm {name}, back for my last visit about the infection. No more symptoms, I just want to know how to stop it coming back."
+      ]
+    }
+  },
+  {
+    "code": "cellulitis",
+    "name": "Cellulitis",
+    "type": "acute",
+    "prevalence": 2.5,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "A bacterial infection of the deep skin and subcutaneous tissue, usually streptococcal or staphylococcal, causing spreading redness, warmth, swelling and pain, most often on the lower leg.",
+    "treatment": "Mark the edge of the redness, give an oral antibiotic such as flucloxacillin (or clarithromycin or doxycycline if penicillin-allergic) for 5 to 7 days, elevate the limb and treat entry points such as athlete's foot. Admit for IV antibiotics if systemically unwell, rapidly spreading or on the face, and review at 48 hours.",
+    "treatment_duration_days": 7,
+    "duration": "5 to 14 days",
+    "visits": {
+      "count": 3,
+      "interval_days": 3,
+      "stay_hours": 3
+    },
+    "follow_up_stay_hours": 1,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. My lower leg has gone red, hot and swollen over the last two days, it's very painful to walk on and I feel feverish.",
+        "Hello, my name is {first_name}, {age}. I'm a {occupation}, I scratched my shin last week and now there's a red patch the size of my hand that keeps spreading.",
+        "I'm {name}, a {age}-year-old {sex}. My foot and ankle are swollen and red, the skin feels tight and hot, and I've had shivers since last night."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I was here with cellulitis {days_since_first_visit} days ago. The redness is still inside the pen line you drew, but my leg is still sore.",
+        "Hello, I'm {first_name}, {age}, back for the check on my leg. The fever has gone and the swelling is a bit smaller.",
+        "I'm {name}, this is visit {visit_number} for the skin infection. I think the red area has grown past the mark, and I'm worried."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. I'm on the last of the antibiotics, the redness has almost faded and the swelling is gone, so I'm here for the final check.",
+        "Hello, it's {first_name}. It has been {days_since_first_visit} days since the cellulitis started, and I can walk normally again.",
+        "I'm {name}, back for my last visit about my leg. The skin is just a bit peeling now, no pain, I want to know how to avoid it happening again."
+      ]
+    }
+  },
+  {
+    "code": "acute_appendicitis",
+    "name": "Acute appendicitis",
+    "type": "acute",
+    "prevalence": 0.1,
+    "min_age": 18,
+    "max_age": 80,
+    "summary": "An acute inflammation of the appendix, with pain starting around the navel and moving to the right lower abdomen, loss of appetite, nausea and fever, which can perforate if untreated.",
+    "treatment": "Keep nil by mouth, give IV fluids, analgesia and IV antibiotics, confirm with bloods and ultrasound or CT, then perform a laparoscopic appendicectomy; selected uncomplicated cases may be treated with antibiotics alone. Discharge after 1 to 3 days, with a wound review at 1 to 2 weeks and return to full activity over 2 to 4 weeks.",
+    "treatment_duration_days": 21,
+    "duration": "Surgery with a 1 to 3 day stay, recovery over 2 to 4 weeks",
+    "visits": {
+      "count": 2,
+      "interval_days": 14,
+      "stay_hours": 48
+    },
+    "urgent": true,
+    "follow_up_stay_hours": 1,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. It started as a pain around my belly button and now it has moved to the lower right side; it's sharp and much worse when I move or cough.",
+        "Hello, my name is {first_name}, {age}. I've had severe pain in the bottom right of my stomach for about twelve hours, I've vomited twice, I have a fever and I can't eat anything.",
+        "I'm {name}, a {age}-year-old {sex}. The pain in my right lower abdomen has been getting worse for about 18 hours, the car ride here over every bump was agony."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I had my appendix out here {days_since_first_visit} days ago. The wounds are a bit red and I still get pain when I sit up.",
+        "Hello, I'm {first_name}, {age}, back after my appendicitis. I was treated with antibiotics instead of surgery and I want to check the pain hasn't come back.",
+        "I'm {name}, this is visit {visit_number} after my appendix operation. I have a little discharge from one of the small cuts and wanted it looked at."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. I'm here for the wound check after my appendix operation, the cuts have healed and I'm eating normally.",
+        "Hello, it's {first_name}. It's been {days_since_first_visit} days since my appendix surgery, I feel fine and want to know when I can lift heavy things again; I'm a {occupation}.",
+        "I'm {name}, back for my final appointment after the appendicitis. No pain, no fever, I'd like to be discharged from the clinic."
+      ]
+    }
+  },
+  {
+    "code": "renal_colic",
+    "name": "Kidney stones (renal colic)",
+    "type": "acute",
+    "prevalence": 0.3,
+    "min_age": 20,
+    "max_age": 80,
+    "summary": "Severe colicky flank pain caused by a stone obstructing the ureter, radiating to the groin, often with nausea and blood in the urine.",
+    "treatment": "Give an NSAID as first-line analgesia (opioid if contraindicated) and an antiemetic, confirm with non-contrast CT, and offer an alpha-blocker to help pass distal stones of 5 to 10 mm. Urgent decompression is needed if obstructed and infected; stones that do not pass are removed by ureteroscopy or shockwave lithotripsy, with follow-up imaging and prevention advice (fluids, diet).",
+    "treatment_duration_days": 21,
+    "duration": "Most small stones pass within 1 to 4 weeks",
+    "visits": {
+      "count": 2,
+      "interval_days": 14,
+      "stay_hours": 8
+    },
+    "female_share": 0.35,
+    "urgent": true,
+    "follow_up_stay_hours": 1,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. An hour ago I got an unbearable pain in my right side that goes down to my groin, I can't keep still and I've been sick.",
+        "Hello, my name is {first_name}, {age}. I've had pain coming in waves in my left flank for the last few hours, my urine looks pink and painkillers did nothing.",
+        "I'm {name}, a {age}-year-old {sex}. I had a kidney stone years ago and this feels the same: a terrible stabbing pain in my back on one side and I keep needing to pee."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I was here with a kidney stone {days_since_first_visit} days ago. I'm taking the tablets to help it pass, but I still get bouts of pain.",
+        "Hello, I'm {first_name}, {age}, back about my kidney stone. I've been straining my urine and haven't seen it come out yet.",
+        "I'm {name}, this is visit {visit_number} for the stone. The pain came back last night with a temperature and shivers."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. I passed the stone last week and caught it in the strainer, I've brought it with me for the final check.",
+        "Hello, it's {first_name}. It's been {days_since_first_visit} days since the kidney stone, the follow-up scan is done and I'd like the results.",
+        "I'm {name}, back for my last appointment about the stone. The pain has gone completely and I want advice on stopping more stones from forming."
+      ]
+    }
+  },
+  {
+    "code": "migraine_attack",
+    "name": "Migraine attack",
+    "type": "acute",
+    "prevalence": 4.0,
+    "min_age": 18,
+    "max_age": 65,
+    "summary": "An episode of moderate to severe, usually one-sided throbbing headache lasting 4 to 72 hours, with nausea and sensitivity to light and sound, sometimes preceded by an aura.",
+    "treatment": "Treat with a triptan combined with an NSAID or paracetamol plus an antiemetic; in hospital give IV fluids, an antiemetic such as metoclopramide or prochlorperazine and an NSAID, avoiding opioids. Exclude red flags (thunderclap onset, neurological deficit, fever), and refer for preventive treatment if attacks are frequent.",
+    "treatment_duration_days": 1,
+    "duration": "4 to 72 hours",
+    "visits": {
+      "count": 1,
+      "interval_days": 1,
+      "stay_hours": 4
+    },
+    "female_share": 0.75,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. I've had a throbbing headache on the left side for over a day, I've vomited several times and light hurts my eyes, my usual tablets didn't work.",
+        "Hello, my name is {first_name}, {age}. I get migraines but this one has lasted since yesterday morning, I can't keep anything down and I need a dark room.",
+        "I'm {name}, a {age}-year-old {sex}. A few hours ago I saw zigzag lines in my vision, then a severe pounding headache started behind my right eye and I feel very sick."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I was here with a migraine {days_since_first_visit} days ago. It came back this morning just as bad, with vomiting.",
+        "Hello, I'm {first_name}, {age}, back with another migraine. The medication you gave me helped for a day but the headache has returned.",
+        "I'm {name}, this is visit {visit_number} for migraines. I've had three attacks this month and as a {occupation} I lose whole days when they happen."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. The migraine has gone, I've slept and I'm keeping food down, so I'm here for the final check before going home.",
+        "Hello, it's {first_name}. It's been {days_since_first_visit} days since the bad migraine, I'm headache-free and want to talk about preventing the next one.",
+        "I'm {name}, back one last time about my migraine. The headache has fully settled and I'd like to know which tablets to take next time."
+      ]
+    }
+  },
+  {
+    "code": "ankle_sprain",
+    "name": "Ankle sprain",
+    "type": "acute",
+    "prevalence": 0.6,
+    "min_age": 18,
+    "max_age": 80,
+    "summary": "A stretch or tear of the ankle ligaments, usually the lateral ligaments after an inversion injury, with pain, swelling and bruising.",
+    "treatment": "Apply the Ottawa ankle rules to decide on an X-ray, then rest, ice, compression and elevation with NSAIDs or paracetamol, early weight-bearing in a supportive brace and progressive physiotherapy exercises. Severe sprains may need a short period in a walking boot and review if instability persists.",
+    "treatment_duration_days": 21,
+    "duration": "2 to 6 weeks",
+    "visits": {
+      "count": 2,
+      "interval_days": 14,
+      "stay_hours": 3
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. I twisted my ankle stepping off a kerb this morning, it swelled up straight away and it hurts to put any weight on it.",
+        "Hello, my name is {first_name}, {age}. I rolled my right ankle on uneven ground last night, the outside is bruised and swollen and I can only hobble.",
+        "I'm {name}, a {age}-year-old {sex}. I slipped on the stairs and turned my ankle, I heard a pop and now there's a big swelling below the ankle bone."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I sprained my ankle {days_since_first_visit} days ago. The swelling has gone down but it still gives way when I walk.",
+        "Hello, I'm {first_name}, {age}, back about my ankle. I've been icing and wearing the brace but it's still bruised and stiff.",
+        "I'm {name}, this is visit {visit_number} for my sprained ankle. I'm walking better but it aches by the end of the day; I'm a {occupation} and on my feet a lot."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. My ankle feels almost normal now, I've done the physio exercises and I'm here for the final check.",
+        "Hello, it's {first_name}. It's been {days_since_first_visit} days since the sprain, the swelling is gone and I'd like to know if I can start running again.",
+        "I'm {name}, back for my last visit about the ankle. I no longer need the brace and can walk without pain."
+      ]
+    }
+  },
+  {
+    "code": "distal_radius_fracture",
+    "name": "Distal radius (wrist) fracture",
+    "type": "acute",
+    "prevalence": 0.2,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "A break of the radius just above the wrist, typically from a fall on an outstretched hand, common in older adults with osteoporosis.",
+    "treatment": "Confirm with X-ray, reduce displaced fractures under local or regional anaesthesia and immobilise in a cast or splint for about 6 weeks, with surgical fixation (usually a volar plate) for unstable fractures. Review in fracture clinic with repeat X-rays at 1 to 2 weeks, then physiotherapy after cast removal, and assess bone health in older patients.",
+    "treatment_duration_days": 42,
+    "duration": "6 weeks in a cast, full recovery over 3 to 6 months",
+    "visits": {
+      "count": 4,
+      "interval_days": 14,
+      "stay_hours": 4
+    },
+    "female_share": 0.7,
+    "urgent": true,
+    "follow_up_stay_hours": 2,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. I slipped on a wet floor and landed on my outstretched hand, my wrist is swollen, bent at an odd angle and extremely painful.",
+        "Hello, my name is {first_name}, {age}. I fell off my bike an hour ago and put my hand out, now I can't move my wrist and my fingers feel tingly.",
+        "I'm {name}, a {age}-year-old {sex}. I tripped on the pavement in {city} and fell onto my left hand, the wrist is very swollen and hurts even when I keep it still."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I broke my wrist {days_since_first_visit} days ago. I'm here for the fracture clinic and the repeat X-ray.",
+        "Hello, I'm {first_name}, {age}, back for my wrist check. The cast feels loose now that the swelling has gone down.",
+        "I'm {name}, this is visit {visit_number} for my broken wrist. My fingers swell in the evenings and the cast rubs near the thumb."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. It's been six weeks with the cast and I'm here to have it removed and get the final X-ray.",
+        "Hello, it's {first_name}. It has been {days_since_first_visit} days since I broke my wrist, the cast is off and I'd like to start physiotherapy.",
+        "I'm {name}, back for my last fracture clinic visit. My wrist is stiff but not painful, and I want to know when I can use it fully again; I'm a {occupation}."
+      ]
+    }
+  },
+  {
+    "code": "acute_low_back_pain",
+    "name": "Acute low back pain",
+    "type": "acute",
+    "prevalence": 8.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "Non-specific pain in the lower back lasting less than six weeks, usually mechanical and musculoskeletal, sometimes with pain referred into the buttock or leg.",
+    "treatment": "Screen for red flags (cauda equina symptoms, trauma, cancer, infection, fever); otherwise reassure, advise staying active and use an NSAID for the shortest time, avoiding routine imaging and long-term opioids. Refer to physiotherapy or a group exercise programme if not improving within a few weeks.",
+    "treatment_duration_days": 28,
+    "duration": "2 to 6 weeks",
+    "visits": {
+      "count": 2,
+      "interval_days": 14,
+      "stay_hours": 2
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. I bent down to lift a box yesterday and felt something go in my lower back, now I can hardly stand up straight.",
+        "Hello, my name is {first_name}, {age}. My lower back has been in spasm for three days, the pain shoots into my right buttock and ibuprofen only helps a bit.",
+        "I'm {name}, a {age}-year-old {occupation}. I woke up with severe low back pain, it hurts to sit, walk or turn over in bed, but I have no numbness."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I was here with back pain {days_since_first_visit} days ago. It's improving but I still can't sit for long.",
+        "Hello, I'm {first_name}, {age}, back about my back. I've been staying active like you said, but the pain still runs down the back of my thigh.",
+        "I'm {name}, this is visit {visit_number} for my low back pain. The spasms are less frequent but mornings are still very stiff."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. My back is much better, I've done the physio exercises and I'm here for the final check.",
+        "Hello, it's {first_name}. It's been {days_since_first_visit} days since my back went, I've stopped the anti-inflammatories and I'm moving freely.",
+        "I'm {name}, back for my last visit about the back pain. Only a slight ache after long days, and I want advice on preventing it again."
+      ]
+    }
+  },
+  {
+    "code": "conjunctivitis",
+    "name": "Conjunctivitis",
+    "type": "acute",
+    "prevalence": 2.0,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "An inflammation of the conjunctiva, viral, bacterial or allergic, causing a red, gritty, watery or sticky eye with normal vision.",
+    "treatment": "Viral cases settle with cool compresses, lubricating drops and strict hand hygiene; bacterial cases resolve mostly on their own, with topical antibiotic drops if severe or persisting, and allergic cases respond to antihistamine drops. Pain, light sensitivity, reduced vision or contact lens wear need same-day eye assessment.",
+    "treatment_duration_days": 7,
+    "duration": "1 to 2 weeks",
+    "visits": {
+      "count": 1,
+      "interval_days": 1,
+      "stay_hours": 1
+    },
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. My left eye has been red and gritty since yesterday and this morning the lashes were stuck together with yellow discharge.",
+        "Hello, my name is {first_name}, {age}. Both my eyes are pink, watery and itchy for two days, my vision is fine but it feels like there's sand in them.",
+        "I'm {name}, a {age}-year-old {sex}. My right eye went red after a cold, it's streaming tears and now the other eye is starting too."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I was here with conjunctivitis {days_since_first_visit} days ago. The eye is still red and sticky despite the drops.",
+        "Hello, I'm {first_name}, {age}, back about my eye. It's now sore and bright light bothers me, which it didn't before.",
+        "I'm {name}, this is visit {visit_number} for the eye infection. The discharge has stopped but my eyelids are still swollen."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. My eye has cleared up, no redness or discharge, and I'm here for a final check.",
+        "Hello, it's {first_name}. It has been {days_since_first_visit} days since the conjunctivitis, I've stopped the drops and I'd like to know if I can wear contact lenses again.",
+        "I'm {name}, back one last time about my eye. It's back to normal and I want to make sure I'm not contagious anymore."
+      ]
+    }
+  },
+  {
+    "code": "skin_laceration",
+    "name": "Skin laceration",
+    "type": "acute",
+    "prevalence": 1.5,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "A traumatic cut through the skin, commonly on the hand, scalp or face, that may need closure and assessment for damage to tendons, nerves or vessels.",
+    "treatment": "Control bleeding, irrigate and explore the wound for foreign bodies and tendon or nerve injury, then close with sutures, adhesive strips or tissue glue and update tetanus protection as needed. Remove sutures after 5 to 14 days depending on the site and advise return for signs of infection.",
+    "treatment_duration_days": 10,
+    "duration": "7 to 14 days to heal",
+    "visits": {
+      "count": 2,
+      "interval_days": 7,
+      "stay_hours": 2
+    },
+    "female_share": 0.35,
+    "urgent": true,
+    "follow_up_stay_hours": 1,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. I cut my hand on a kitchen knife about an hour ago, it's a deep cut on my palm and it keeps bleeding through the towel.",
+        "Hello, my name is {first_name}, {age}. I hit my head on a cupboard door and split my scalp, it bled a lot but I didn't pass out.",
+        "I'm {name}, a {age}-year-old {occupation}. I caught my forearm on a sharp metal edge, the cut is about four centimetres long and gaping open."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I had stitches here {days_since_first_visit} days ago. The skin around them has gone red and warm, and it's throbbing.",
+        "Hello, I'm {first_name}, {age}, back about my cut. One of the stitches came loose and the wound has opened slightly.",
+        "I'm {name}, this is visit {visit_number} for my laceration. I wanted the dressing changed and the wound checked."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. I'm here to have my stitches taken out, the cut looks well healed.",
+        "Hello, it's {first_name}. It's been {days_since_first_visit} days since I cut myself, the wound has closed and I'd like the stitches removed.",
+        "I'm {name}, back for my last visit about the cut. No pain or redness now, I just want to know how to look after the scar."
+      ]
+    }
+  }
+]

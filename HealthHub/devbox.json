@@ -10,6 +10,7 @@
       "web": "WEB_MODE=${WEB_MODE:-debug} bash scripts/flutter-web.sh",
       "api": "bash scripts/api.sh",
       "db": "bash scripts/infra.sh up postgres",
+      "kafka": "bash scripts/infra.sh up kafka-rest",
       "build": "bash scripts/build.sh"
     }
   }

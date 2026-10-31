@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# The infrastructure containers of compose.yaml (postgres, kafka and
-# kafka-rest) from `devbox services up` (process-compose.yaml), `devbox run
-# db`, `devbox run kafka` (kafka-rest, which starts kafka first), or by
-# hand:
+# The infrastructure containers of compose.yaml (postgres, kafka,
+# kafka-rest and the flink-* services) from `devbox services up`
+# (process-compose.yaml), `devbox run db`, `devbox run kafka` (kafka-rest,
+# which starts kafka first), or by hand:
 #   scripts/infra.sh up postgres         docker compose up, attached
 #   scripts/infra.sh stop postgres       docker compose stop
 #   scripts/infra.sh healthy postgres    exits 0 when its container is healthy

@@ -1,7 +1,7 @@
 # Development environment
 
 HealthHub's environment is PokerFace's, with its own names and ports and
-three more services, PostgreSQL, Kafka and Kafka's REST proxy;
+more services: PostgreSQL, Kafka, Kafka's REST proxy and Flink;
 [Mortgage Hub's spec](../../MortgageHub/specs/dev-environment.md)
 explains the reasons behind each piece, and
 [datyx](../../datyx/specs/) is where running a database from
@@ -11,8 +11,8 @@ process-compose through Docker Compose comes from.
   GNU Make and curl. [devbox.lock](../devbox.lock) is committed, and is
   the same as Mortgage Hub's and Contact Hub's, so they share one Flutter
   (Dart 3.13.0) and one Nix store. Both packages require Dart SDK
-  `^3.13.0`. PostgreSQL and Kafka are not devbox packages: they are
-  Docker containers, so Docker must be running.
+  `^3.13.0`. PostgreSQL, Kafka and Flink are not devbox packages: they
+  are Docker containers, so Docker must be running.
 - `devbox services up` ([process-compose.yaml](../process-compose.yaml)),
   run in this folder, starts:
   - PostgreSQL (`1-postgres`, via
@@ -34,9 +34,11 @@ process-compose through Docker Compose comes from.
     data is in the `kafka-data` volume, a day of retention, a 512 MB heap
     at most. Its Docker health check runs `kafka-topics.sh --create
     --if-not-exists` (with a 64 MB heap of its own) for
-    `healthhub.people.moves`, `healthhub.admissions` and
-    `healthhub.test`, the API's live test's topic: healthy once the broker
-    answers and every topic exists. A `kafka` container made before
+    `healthhub.people.moves`, `healthhub.admissions`,
+    `healthhub.test`, the API's live test's topic, and
+    `healthhub.admissions.hourly`, the Flink job's, compacted
+    (`cleanup.policy=compact,delete`): healthy once the broker answers
+    and every topic exists. A `kafka` container made before
     `healthhub.admissions` was added keeps its old check until it is
     recreated (`docker compose up -d kafka`), and until then the API's
     admissions fail to publish (logged, retried); `kafka-topics.sh
@@ -61,6 +63,19 @@ process-compose through Docker Compose comes from.
     consumer is made with `POST /consumers/<group>`, subscribed, polled
     with `GET .../records` and deleted. The `base_uri` it answers is
     relative (`consumers/<group>/instances/<name>`);
+  - Flink (`6-flink-jobmanager`, `7-flink-taskmanager` and
+    `8-flink-sql`, `infra.sh up <service>` each): the `flink-jobmanager`,
+    `flink-taskmanager` and `flink-sql` services, which run and keep
+    running the job of [Admissions per hour](admissions-hourly.md), one
+    image built from [flink/Dockerfile](../flink/Dockerfile) on the first
+    start. The JobManager's web UI and REST API are on 127.0.0.1:9806
+    (`HEALTHHUB_FLINK_PORT`; always 127.0.0.1, like Kafka: it runs any
+    job it is sent), its readiness probe the container's health
+    (`GET /overview`, up to 5 minutes for a first build); the TaskManager
+    starts once it is ready; `flink-sql` once the TaskManager has started
+    and the API and Kafka are ready, as the job writes the table the API
+    makes, and is ready while the job is on the cluster. Their memory is
+    768 MB and 1 GB;
   - the web app (`2-flutter-web`, via
     [scripts/flutter-web.sh](../scripts/flutter-web.sh)) on
     http://localhost:9801/app/ (`FLUTTER_WEB_PORT`), bound to 127.0.0.1
@@ -89,14 +104,16 @@ process-compose through Docker Compose comes from.
     origins (`ALLOWED_ORIGINS`);
   - the health monitor (`0-health-check`,
     [scripts/health-check.sh](../scripts/health-check.sh)), once the web
-    app, the API and the REST proxy are ready. It first prints where to open the app,
+    app, the API, the REST proxy and the Flink job are ready. It first prints where to open the app,
     `http://localhost:9801/app/` and, in a codespace, the forwarded URL,
     and waits 5 s (`HEALTH_CHECK_DELAY`). Then every 15 s
     (`HEALTH_CHECK_INTERVAL`) one line with the time, 🌐 Web, 🔌 API
     (`/api/health`), 🐘 Postgres (the API's `"db"`), 🤖 aityx (✅ the
-    API has its key, ⚪ it doesn't) and 📨 Kafka (the REST proxy's
-    `GET /topics` on `HEALTHHUB_KAFKA_REST_PORT` answers 200).
-- The ports, 9801 to 9805, are HealthHub's, in the 98xx range after the
+    API has its key, ⚪ it doesn't), 📨 Kafka (the REST proxy's
+    `GET /topics` on `HEALTHHUB_KAFKA_REST_PORT` answers 200) and 🌊
+    Flink (the JobManager on `HEALTHHUB_FLINK_PORT` lists
+    `healthhub-admissions-hourly` as `RUNNING`).
+- The ports, 9801 to 9806, are HealthHub's, in the 98xx range after the
   datyx index's 9800: the other demos have 88xx and 89xx (Mortgage Hub
   8880/8881, Contact Hub 8890/8891, PokerFace 8910/8911, RoboRules
   8920/8921, Cellfie 8930/8931) and datyx 99xx (9900 to 9906), so all can
@@ -107,7 +124,8 @@ process-compose through Docker Compose comes from.
   `HEALTHHUB_BIND_HOST`, `FLUTTER_WEB_PORT`, `API_PORT`,
   `HEALTHHUB_DB_PORT`, `HEALTHHUB_DB_ADMIN_PASSWORD`,
   `HEALTHHUB_DB_PASSWORD`, `WEB_MODE`, `HEALTHHUB_KAFKA_PORT` (9804),
-  `HEALTHHUB_KAFKA_REST_PORT` (9805), `HEALTHHUB_KAFKA_REST_URL`
+  `HEALTHHUB_KAFKA_REST_PORT` (9805), `HEALTHHUB_FLINK_PORT` (9806),
+  `HEALTHHUB_KAFKA_REST_URL`
   (http://127.0.0.1:9805), `HEALTHHUB_MODE` (`dev`, which runs the
   people simulation; `prod` doesn't), `HEALTHHUB_SIM_PEOPLE` (10 per
   city), `HEALTHHUB_SIM_TURN_MS` (1000) and
@@ -126,7 +144,9 @@ process-compose through Docker Compose comes from.
   unless `WEB_MODE=release`; `devbox run api` only the API (it needs the
   database); `devbox run db` only the database; `devbox run kafka` only
   Kafka and its REST proxy (`infra.sh up kafka-rest`, which starts
-  `kafka` first).
+  `kafka` first); `devbox run flink` the Flink job (`infra.sh up
+  flink-sql`, which starts the JobManager, the TaskManager, Kafka and
+  PostgreSQL first; the API must have made `admissions_hourly`).
 - The web app calls the API at `API_BASE_URL` (a dart-define). The
   services leave it empty, in both modes: the app calls `/api/` on its own
   origin, which the web server (or the dev server) proxies to the API.
@@ -148,7 +168,8 @@ process-compose through Docker Compose comes from.
   runs the whole demo with Docker alone on http://localhost:9801/app/,
   published on 127.0.0.1 unless `HEALTHHUB_BIND_HOST` says otherwise.
   `postgres` is the database, with its init script and volume; `kafka`
-  and `kafka-rest` are Kafka and its REST proxy, as above; `api`
+  and `kafka-rest` are Kafka and its REST proxy, and `flink-jobmanager`,
+  `flink-taskmanager` and `flink-sql` Flink and its job, as above; `api`
   ([healthhub_api/Dockerfile](../healthhub_api/Dockerfile)) is the server
   compiled with `dart compile exe`, run from `scratch` as user 65534 and
   not published, started once `postgres` is healthy, with the database's
@@ -160,8 +181,9 @@ process-compose through Docker Compose comes from.
   `/app/`, redirecting `/` and proxying `/api/` to `api`
   ([docker/nginx.conf](../docker/nginx.conf)). Compose passes `api`
   `AITYX_API_KEY`, `AITYX_URL` and `HEALTHHUB_DB_PASSWORD` from the
-  environment, else `.env`; `web` gets none. All five have health checks
-  (`api` runs `/app/bin/server healthcheck`).
+  environment, else `.env`, and `flink-sql` `HEALTHHUB_DB_PASSWORD`;
+  `web` gets none. All but `flink-taskmanager` have health checks (`api`
+  runs `/app/bin/server healthcheck`).
 - **Dev container**: the datyx group's
   ([.devcontainer/datyx/](../../.devcontainer/datyx)), named **datyx
   demos**, which HealthHub shares with the datyx API (`datyx/`) and the
@@ -212,6 +234,10 @@ process-compose through Docker Compose comes from.
   compose up kafka kafka-rest`; the whole Compose stack hasn't run with
   them. The host listener (9804) has only been checked to accept
   connections, not with a Kafka client.
+- The Flink services have run with `docker compose up --no-deps` beside
+  a running stack (the job running, the table and the topic filling, the
+  submitter's restart and the JobManager's tested), not yet from
+  process-compose or a whole `docker compose up`.
 - A codespace builds HealthHub's web build itself, a minute or two,
   when the datyx image wasn't made from the current `HealthHub/`, or
   hasn't been pushed since `bash image/build-image.sh datyx` was added.

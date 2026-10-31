@@ -2,15 +2,30 @@
 # open http://localhost:9801/app/. No devbox or Flutter needed on the host.
 #
 # The same file serves `devbox services up` (process-compose.yaml), which
-# runs only postgres, kafka and kafka-rest from here (`docker compose up
-# <service>`, through scripts/infra.sh) and the API and the web app on the
-# host's toolchain.
+# runs only postgres, kafka, kafka-rest and the flink-* services from here
+# (`docker compose up <service>`, through scripts/infra.sh) and the API
+# and the web app on the host's toolchain.
 #
 # The aityx settings come from the environment, else this folder's .env
 # (see .env.example), and reach the API only, never the web app. So do
 # the database's password and port.
 
 name: healthhub
+
+# Flink's settings, for the JobManager, the TaskManager and the SQL client
+# alike (the image's entrypoint writes them into its config.yaml). The
+# memory is the process's whole footprint; the job keeps its state on the
+# heap, so the TaskManager's managed memory (for RocksDB and batch) is
+# small.
+x-flink-properties: &flink-properties |
+  jobmanager.rpc.address: flink-jobmanager
+  rest.address: flink-jobmanager
+  rest.port: 8081
+  jobmanager.memory.process.size: 768m
+  taskmanager.memory.process.size: 1024m
+  taskmanager.memory.managed.fraction: 0.05
+  taskmanager.numberOfTaskSlots: 1
+  parallelism.default: 1
 
 services:
   postgres:
@@ -89,9 +104,11 @@ services:
       # the API's live test, so a test never writes into the moves. The check makes them when
       # missing, since kafka-rest answers 404 to a record for an unknown
       # topic instead of letting the broker create it; --if-not-exists
-      # makes it a no-op afterwards. The tool is a JVM of its own: a small
-      # heap, not the broker's.
-      test: ["CMD-SHELL", "for t in healthhub.people.moves healthhub.admissions healthhub.test; do KAFKA_HEAP_OPTS=-Xmx64m /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic $$t > /dev/null 2>&1 || exit 1; done"]
+      # makes it a no-op afterwards. healthhub.admissions.hourly, the Flink
+      # job's upserts, is compacted as well as kept a day: a reader from
+      # the start gets each hour's latest count. The tool is a JVM of its
+      # own: a small heap, not the broker's.
+      test: ["CMD-SHELL", "for t in healthhub.people.moves healthhub.admissions healthhub.test; do KAFKA_HEAP_OPTS=-Xmx64m /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic $$t > /dev/null 2>&1 || exit 1; done && KAFKA_HEAP_OPTS=-Xmx64m /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic healthhub.admissions.hourly --config cleanup.policy=compact,delete > /dev/null 2>&1"]
       interval: 10s
       timeout: 10s
       start_period: 60s
@@ -136,6 +153,79 @@ services:
       interval: 10s
       timeout: 5s
       start_period: 30s
+      start_interval: 2s
+      retries: 6
+    restart: unless-stopped
+
+  flink-jobmanager:
+    # Stream processing: Apache Flink 2.2, a session cluster of one
+    # JobManager and one TaskManager, running the job that counts the
+    # admissions per hospital and simulated hour (flink/admissions-hourly.sql,
+    # submitted by flink-sql below) into healthhub.admissions.hourly and
+    # the admissions_hourly table. The image (flink/Dockerfile) is
+    # Flink's with the Kafka and JDBC connectors and the PostgreSQL driver.
+    # No state survives a restart: the job is resubmitted and recounts
+    # what the topic keeps. Small memory, as OpenMetadata and its search
+    # often run beside it.
+    build: flink
+    image: healthhub-flink:local
+    command: jobmanager
+    environment:
+      FLINK_PROPERTIES: *flink-properties
+    # The web UI and REST API, always on this host only, whatever
+    # HEALTHHUB_BIND_HOST says: it has no authentication and runs any job
+    # it is sent.
+    ports:
+      - "127.0.0.1:${HEALTHHUB_FLINK_PORT:-9806}:8081"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "-o", "/dev/null", "http://127.0.0.1:8081/overview"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      start_interval: 2s
+      retries: 6
+    restart: unless-stopped
+
+  flink-taskmanager:
+    # Where the job runs: one slot, enough for a stream of a few
+    # admissions a second.
+    build: flink
+    image: healthhub-flink:local
+    command: taskmanager
+    environment:
+      FLINK_PROPERTIES: *flink-properties
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+    restart: unless-stopped
+
+  flink-sql:
+    # Keeps the job on the cluster (flink/submit.sh): every 30 s it asks
+    # the JobManager for it and, when it isn't there, submits
+    # flink/admissions-hourly.sql through Flink's SQL client, with the
+    # database password from the environment. Healthy while the job is
+    # on the cluster. The job writes into admissions_hourly, which the API
+    # makes at start; until then its writes fail and Flink restarts it.
+    build: flink
+    image: healthhub-flink:local
+    command: /opt/flink/healthhub/submit.sh
+    environment:
+      FLINK_PROPERTIES: *flink-properties
+      HEALTHHUB_DB_PASSWORD: ${HEALTHHUB_DB_PASSWORD:-healthhub}
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+      flink-taskmanager:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/opt/flink/healthhub/submit.sh", "check"]
+      interval: 10s
+      timeout: 10s
+      start_period: 60s
       start_interval: 2s
       retries: 6
     restart: unless-stopped

@@ -225,3 +225,26 @@ The feature files hold the current specification; see the
   still waiting for the people of the old one is now asked for as soon
   as that answer comes, and the old answer is dropped. See
   [Care centers](care-centers.md) and [The map](map.md).
+
+## 2026-10-31
+
+1. **Aggregate the admissions coming through Kafka with an Apache Flink
+   application, into another stream and the database, so that datyx can
+   find the series in OpenMetadata and train a DeepAR model on it (the
+   timestamp, the target, the number of admissions in the next hours,
+   and the other fields DeepAR can take), treating HealthHub as a
+   customer it knows nothing about.** A Flink 2.2 SQL job counts the
+   admissions of `healthhub.admissions` per run, hospital and simulated
+   hour (day 1 being 2026-01-01), each event id once, with acute and
+   chronic apart, and upserts the counts into the compacted topic
+   `healthhub.admissions.hourly` and the `admissions_hourly` table, which
+   the API makes. No event-time windows, as the simulated clock runs an
+   hour a second and restarts with every run; the job reads the topic
+   from its start at every submission, so it is a function of what the
+   topic keeps. Three services run it, `flink-jobmanager`,
+   `flink-taskmanager` and `flink-sql`, which keeps the job submitted;
+   Flink's UI is on 9806; the health monitor gains 🌊 Flink; `devbox run
+   flink` starts it alone. Nothing in HealthHub knows about datyx or
+   DeepAR: datyx reads the table through OpenMetadata. See [Admissions
+   per hour](admissions-hourly.md), [Database](database.md) and
+   [Development environment](dev-environment.md).

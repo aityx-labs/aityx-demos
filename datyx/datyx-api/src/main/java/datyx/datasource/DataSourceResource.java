@@ -9,6 +9,7 @@ import java.util.Optional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import datyx.auth.CurrentUser;
+import datyx.catalog.Catalog;
 import datyx.crypto.Crypto;
 import datyx.datasource.DataSource.Access;
 import datyx.datasource.DataSource.Type;
@@ -31,17 +32,21 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import org.jboss.logging.Logger;
 
 /**
  * The data sources of the caller's profile (datyx.profile.Profiles):
  * GET /api/datasources?limit=100 lists them, newest first;
  * GET /api/datasources/{id} answers one;
  * POST /api/datasources adds one and answers 201 with it and a Location;
- * DELETE /api/datasources/{id} removes one (204).
+ * DELETE /api/datasources/{id} removes one (204), and its entry in the
+ * catalogue, OpenMetadata, when it has one (datyx.catalog.Catalog).
  * Another profile's sources are not there: a 404 by id, absent from the list.
  * A body names the source, its type (database, s3, filesystem) and the
  * access details of that type, under a key of the same name:
@@ -62,6 +67,8 @@ import jakarta.ws.rs.core.Response;
 @Produces(MediaType.APPLICATION_JSON)
 public class DataSourceResource {
 
+    private static final Logger LOG = Logger.getLogger(DataSourceResource.class);
+
     @Inject
     CurrentUser user;
 
@@ -73,6 +80,9 @@ public class DataSourceResource {
 
     @Inject
     ObjectMapper json;
+
+    @Inject
+    Catalog catalog;
 
     @GET
     @Transactional
@@ -132,6 +142,13 @@ public class DataSourceResource {
             return notFound(id);
         }
         source.get().delete();
+        // Best effort: a catalogue that can't be reached keeps the entry,
+        // which a later sync of no source can't reach either; it is logged.
+        try {
+            catalog.forget(id);
+        } catch (WebApplicationException | ProcessingException | IllegalStateException e) {
+            LOG.warnf("catalogue: data source %d removed, but not from OpenMetadata: %s", id, e.getMessage());
+        }
         return Response.noContent().build();
     }
 

@@ -93,6 +93,14 @@ OpenAPI, and a REST client for OpenMetadata.
   never answered back), listed, added (`POST`) and removed (`DELETE`),
   within the caller's profile. See
   [specs/data-sources.md](specs/data-sources.md).
+- `/api/datasources/{id}/catalog`: a database source read into
+  OpenMetadata (`POST`: tables, columns, keys; no credentials go there)
+  and answered back as OpenMetadata has it (`GET`).
+  `/api/datasources/{id}/timeseries`: the tables whose columns are tagged
+  with the `TimeSeries` roles (`Timestamp`, `Target`, `SeriesKey`, the
+  static and dynamic features DeepAR takes), with what keeps one from
+  being trainable (`GET`), and the roles set on a table (`PUT`). Tag in
+  OpenMetadata's UI, or with the PUT. See [specs/catalog.md](specs/catalog.md).
 - `/api/profile`: the caller's profile, made the first time an identity
   signs in, which owns their data sources and holds a key of its own:
   the access details of its sources are encrypted with it at rest, the

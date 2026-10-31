@@ -28,6 +28,10 @@ HealthHub passes on unchanged.
   buckets and folders with their access details, added and removed.
 - [Authentication](auth.md): OpenID Connect with Google, who is calling,
   what is secured, and HealthHub's tokens accepted too.
+- [Catalogue and time series](catalog.md): a database source read into
+  OpenMetadata without the source changing, the TimeSeries tags and
+  table properties that say what its columns are to a forecast (DeepAR
+  first), and the time series datyx finds in them.
 - [Profiles](profiles.md): the person behind a sign-in, made on the first
   call, with identities and an encryption key of its own that protects
   the profile's data source access details at rest.

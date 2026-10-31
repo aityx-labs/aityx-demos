@@ -2,6 +2,32 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-10-31: HealthHub's data in OpenMetadata, as time series
+
+Asked: make sure OpenMetadata can find HealthHub's data, as a step
+towards training a DeepAR model (GraalPy, in the API) on the number of
+admissions per hour; keep it decoupled, so datyx understands HealthHub's
+model as it would a customer's, without HealthHub changing, by indexing
+it and by tags on the timestamp, the target and the other fields DeepAR
+takes, picked by hand for now and suggested by a tool later.
+(HealthHub's hourly aggregation, a Flink job, is HealthHub's change, in
+its folder.)
+
+Changed: the catalogue (`datyx.catalog`): `POST /api/datasources/{id}/catalog`
+reads a PostgreSQL source's tables through JDBC metadata and writes them
+to OpenMetadata as the service `datyx-ds-{id}` (no credentials), keeping
+what people added there; `GET` answers them back; deleting a source
+removes its service. The `TimeSeries` classification (Timestamp, Target,
+SeriesKey, StaticCategorical, StaticReal, KnownCovariate, PastCovariate,
+each with its DeepAR field) and the table properties `timeSeriesFrequency`
+and `timeSeriesMissing`, made in OpenMetadata by datyx;
+`GET /api/datasources/{id}/timeseries` reads the tagged tables as series
+with their problems, `PUT` sets a table's roles. `OpenMetadataSession`
+signs in (a bot token, or the stack's admin by default:
+`DATYX_OPENMETADATA_*`), the client gained the calls and a lenient JSON
+reader; tests; `catalog.md`, the API, data sources and dev environment
+specs, README, `.env.example`, `compose.yaml`, `scripts/`.
+
 ## 2026-10-30: the health with the profile; hello, greetings and status gone
 
 Asked: a health check as the Quarkus SmallRye Health guide describes, with

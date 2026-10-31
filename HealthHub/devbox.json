@@ -11,6 +11,7 @@
       "api": "bash scripts/api.sh",
       "db": "bash scripts/infra.sh up postgres",
       "kafka": "bash scripts/infra.sh up kafka-rest",
+      "flink": "bash scripts/infra.sh up flink-sql",
       "build": "bash scripts/build.sh"
     }
   }

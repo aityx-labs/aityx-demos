@@ -257,4 +257,7 @@ next turn.
   admissions, told apart by the run id in the event id. They also share
   the `healthhub-api-admissions` group, so each reads and records only
   the admissions of the partitions Kafka gives it.
-- The topics keep records for 24 hours; nothing reads the history.
+- The topics keep records for 24 hours. Only the Flink job reads the
+  admissions' history ([Admissions per hour](admissions-hourly.md)),
+  from the earliest record each time it is submitted; nothing reads
+  the moves'.

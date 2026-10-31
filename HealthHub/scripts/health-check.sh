@@ -7,7 +7,7 @@
 # separated by " · ":
 #   🌐 Web · 🔌 API · 🐘 Postgres (the API's connection) · 🤖 aityx (the
 #   API's key: ✅ set, ⚪ not set) · 📨 Kafka (its REST proxy lists the
-#   topics)
+#   topics) · 🌊 Flink (the admissions-hourly job runs)
 # Runs via `devbox services up` (see process-compose.yaml) or standalone.
 set -uo pipefail
 
@@ -58,6 +58,17 @@ check_api() {
 # answers only when the broker does too.
 check_kafka() { ok_if "📨 Kafka" get 5 "http://localhost:${HEALTHHUB_KAFKA_REST_PORT:-9805}/topics"; }
 
+# Flink's JobManager lists the admissions-hourly job as RUNNING.
+check_flink() {
+    local overview
+    overview="$(curl -fs --max-time 5 "http://localhost:${HEALTHHUB_FLINK_PORT:-9806}/jobs/overview")"
+    if sed 's/{"jid"/\n{"jid"/g' <<<"$overview" | grep -F '"name":"healthhub-admissions-hourly"' | grep -qF '"state":"RUNNING"'; then
+        report "🌊 Flink" ✅
+    else
+        report "🌊 Flink" ❌
+    fi
+}
+
 # run_checks: one pass over every check, printed as one line.
 run_checks() {
     RESULTS=()
@@ -65,6 +76,7 @@ run_checks() {
     check_web
     check_api
     check_kafka
+    check_flink
     local line
     printf -v line ' · %s' "${RESULTS[@]}"
     printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "${line# · }"

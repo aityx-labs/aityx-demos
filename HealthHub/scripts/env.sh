@@ -36,10 +36,11 @@ export WEB_MODE="${WEB_MODE:-release}"
 # Authentication and the datyx API (see .env.example): an empty client id is off.
 export OIDC_ISSUER="${OIDC_ISSUER:-}" OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-}"
 export DATYX_API_URL="${DATYX_API_URL:-http://127.0.0.1:9900}"
-# Kafka and its REST proxy, published by compose.yaml, and the people
+# Kafka, its REST proxy and Flink's web UI, published by compose.yaml, and the people
 # simulation, which runs in dev mode only (see .env.example).
 export HEALTHHUB_KAFKA_PORT="${HEALTHHUB_KAFKA_PORT:-9804}"
 export HEALTHHUB_KAFKA_REST_PORT="${HEALTHHUB_KAFKA_REST_PORT:-9805}"
+export HEALTHHUB_FLINK_PORT="${HEALTHHUB_FLINK_PORT:-9806}"
 export HEALTHHUB_KAFKA_REST_URL="${HEALTHHUB_KAFKA_REST_URL:-http://127.0.0.1:${HEALTHHUB_KAFKA_REST_PORT}}"
 export HEALTHHUB_MODE="${HEALTHHUB_MODE:-dev}"
 export HEALTHHUB_SIM_PEOPLE="${HEALTHHUB_SIM_PEOPLE:-10}"

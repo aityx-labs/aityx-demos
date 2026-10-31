@@ -39,19 +39,23 @@ be specified.
   due and say what is wrong there, each its own async loop, every move
   and admission streamed through Kafka and read back for the map, the
   events and the database.
+- [Admissions per hour](admissions-hourly.md): an Apache Flink job that
+  counts the admissions per run, hospital and simulated hour from the
+  stream into the `healthhub.admissions.hourly` topic and the
+  `admissions_hourly` table, a time series per hospital.
 - [Medical conditions](conditions.md): the common acute and chronic
   conditions, their treatment and duration, the visits they bring, and
   what a patient says on arrival.
 - [Database](database.md): PostgreSQL as a container, the `healthhub`
-  database and user, the tables the API makes, among them the conditions
-  and the admissions.
+  database and user, the tables the API makes, among them the conditions,
+  the admissions and the admissions per hour.
 - [Care centers](care-centers.md): the hospitals, clinics and health
   stations of seven cities, from official registries, seeded at start.
 
 **Project**
 
 - [Development environment](dev-environment.md): devbox, process-compose,
-  Docker for the database and Kafka, the health monitor, the builds, Docker Compose
+  Docker for the database, Kafka and Flink, the health monitor, the builds, Docker Compose
   and the dev container.
 
 ## Workflow

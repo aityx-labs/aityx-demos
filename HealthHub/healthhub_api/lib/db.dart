@@ -266,6 +266,21 @@ class Db {
         recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     ''');
+    // The admissions per run, hospital and simulated hour. The API only
+    // makes it: the Flink job (flink/admissions-hourly.sql) writes it,
+    // upserting by the key; an hour without admissions has no row.
+    await c.execute('''
+      CREATE TABLE IF NOT EXISTS admissions_hourly (
+        run_id TEXT NOT NULL,
+        hospital_id INT NOT NULL,
+        hospital_name TEXT NOT NULL,
+        hour_start TIMESTAMP NOT NULL,
+        admissions INT NOT NULL,
+        acute_admissions INT NOT NULL,
+        chronic_admissions INT NOT NULL,
+        PRIMARY KEY (run_id, hospital_id, hour_start)
+      )
+    ''');
   }
 
   /// Makes medical_conditions and complaint_templates hold exactly

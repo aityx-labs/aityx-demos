@@ -242,6 +242,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             ],
           ),
           CatalogTab(
+            api: widget.api,
             sources: _sources,
             locked: _locked,
             statusError: _statusError,

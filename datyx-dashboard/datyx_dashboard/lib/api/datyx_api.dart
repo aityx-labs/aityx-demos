@@ -273,6 +273,187 @@ class DataSource {
   }
 }
 
+/// A table of a data source as the catalogue (OpenMetadata) has it:
+/// `GET /api/datasources/{id}/catalog`.
+class CatalogTable {
+  const CatalogTable({
+    required this.fqn,
+    required this.name,
+    this.schema,
+    this.type,
+    this.description,
+    this.columns = const [],
+    this.primaryKey = const [],
+    this.properties = const {},
+  });
+
+  factory CatalogTable.fromJson(Map<String, Object?> json) => CatalogTable(
+    fqn: json['fqn'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    schema: json['schema'] as String?,
+    type: json['type'] as String?,
+    description: json['description'] as String?,
+    columns: [
+      for (final c in (json['columns'] as List?) ?? const [])
+        CatalogColumn.fromJson((c as Map).cast<String, Object?>()),
+    ],
+    primaryKey: [
+      for (final c in ((json['constraints'] as Map?)?['PRIMARY_KEY'] as List?) ?? const [])
+        '$c',
+    ],
+    properties: (json['properties'] as Map?)?.cast<String, Object?>() ?? const {},
+  );
+
+  final String fqn;
+  final String name;
+  final String? schema;
+  final String? type;
+  final String? description;
+  final List<CatalogColumn> columns;
+  final List<String> primaryKey;
+  final Map<String, Object?> properties;
+
+  String get qualifiedName => schema == null ? name : '$schema.$name';
+}
+
+class CatalogColumn {
+  const CatalogColumn({
+    required this.name,
+    this.dataType,
+    this.constraint,
+    this.tags = const [],
+  });
+
+  factory CatalogColumn.fromJson(Map<String, Object?> json) => CatalogColumn(
+    name: json['name'] as String? ?? '',
+    dataType: json['dataType'] as String?,
+    constraint: json['constraint'] as String?,
+    tags: [for (final t in (json['tags'] as List?) ?? const []) '$t'],
+  );
+
+  final String name;
+  final String? dataType;
+  final String? constraint;
+  final List<String> tags;
+}
+
+/// The roles a column can have in a forecast, as the API names them: the
+/// tags of OpenMetadata's TimeSeries classification, the field each is in
+/// `PUT /api/datasources/{id}/timeseries`, and the DeepAR input it becomes.
+enum TimeSeriesRole {
+  timestamp('Timestamp', 'timestamp', 'start', 'The time index: a date or timestamp, one per table'),
+  target('Target', 'target', 'target', 'The value to forecast: a number, one per table'),
+  seriesKey('SeriesKey', 'seriesKey', 'item_id', 'Which series a row belongs to; none: one series'),
+  staticCategorical('StaticCategorical', 'staticCategorical', 'feat_static_cat', 'A category that holds for a whole series'),
+  staticReal('StaticReal', 'staticReal', 'feat_static_real', 'A number that holds for a whole series'),
+  knownCovariate('KnownCovariate', 'knownCovariates', 'feat_dynamic_real', 'A number over time, known ahead for the hours to forecast'),
+  pastCovariate('PastCovariate', 'pastCovariates', 'past_feat_dynamic_real', 'A number over time, known only once observed');
+
+  const TimeSeriesRole(this.tag, this.field, this.deepAr, this.help);
+  final String tag;
+  final String field;
+  final String deepAr;
+  final String help;
+
+  String get fqn => 'TimeSeries.$tag';
+
+  /// One column at most: the others take several.
+  bool get single => this == timestamp || this == target;
+
+  static TimeSeriesRole? ofTag(String fqn) {
+    for (final role in values) {
+      if (role.fqn == fqn) return role;
+    }
+    return null;
+  }
+}
+
+/// A table read as a time series by the API: `GET .../timeseries`, and the
+/// answer of `PUT .../timeseries`. [ready] when there are no [problems].
+class TimeSeriesSpec {
+  const TimeSeriesSpec({
+    required this.table,
+    required this.name,
+    this.schema,
+    this.columns = const {},
+    this.frequency,
+    this.missing,
+    this.ready = false,
+    this.problems = const [],
+  });
+
+  factory TimeSeriesSpec.fromJson(Map<String, Object?> json) {
+    List<String> list(Object? value) => [
+      if (value is String) value,
+      if (value is List) for (final v in value) '$v',
+    ];
+    return TimeSeriesSpec(
+      table: json['table'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      schema: json['schema'] as String?,
+      columns: {
+        for (final role in TimeSeriesRole.values) role: list(json[role.field]),
+      },
+      frequency: json['frequency'] as String?,
+      missing: json['missing'] as String?,
+      ready: json['ready'] as bool? ?? false,
+      problems: list(json['problems']),
+    );
+  }
+
+  final String table;
+  final String name;
+  final String? schema;
+  final Map<TimeSeriesRole, List<String>> columns;
+  final String? frequency;
+  final String? missing;
+  final bool ready;
+  final List<String> problems;
+
+  List<String> of(TimeSeriesRole role) => columns[role] ?? const [];
+}
+
+/// What `PUT /api/datasources/{id}/timeseries` takes: a table's roles, its
+/// frequency and what a missing row means.
+class TimeSeriesRoles {
+  const TimeSeriesRoles({
+    required this.table,
+    this.columns = const {},
+    this.frequency,
+    this.missing,
+  });
+
+  final String table;
+  final Map<TimeSeriesRole, List<String>> columns;
+  final String? frequency;
+  final String? missing;
+
+  Map<String, Object?> toJson() => {
+    'table': table,
+    for (final role in TimeSeriesRole.values)
+      role.field: role.single
+          ? (columns[role]?.isNotEmpty ?? false ? columns[role]!.first : null)
+          : columns[role] ?? const <String>[],
+    'frequency': frequency,
+    'missing': missing,
+  };
+}
+
+/// What `POST /api/datasources/{id}/catalog` answers: what it wrote.
+class CatalogSync {
+  const CatalogSync({this.tables = 0, this.columns = 0, this.removed = const []});
+
+  factory CatalogSync.fromJson(Map<String, Object?> json) => CatalogSync(
+    tables: (json['tables'] as num?)?.toInt() ?? 0,
+    columns: (json['columns'] as num?)?.toInt() ?? 0,
+    removed: [for (final r in (json['removed'] as List?) ?? const []) '$r'],
+  );
+
+  final int tables;
+  final int columns;
+  final List<String> removed;
+}
+
 /// What `POST /api/datasources` takes: the name, the type, a description and
 /// the access details of that type, which the body carries under the type's
 /// own key.
@@ -447,6 +628,10 @@ abstract class DatyxApi {
   Future<List<DataSource>> dataSources({int limit = 100});
   Future<DataSource> addDataSource(NewDataSource source);
   Future<void> removeDataSource(int id);
+  Future<CatalogSync> syncCatalog(int sourceId);
+  Future<List<CatalogTable>> catalog(int sourceId);
+  Future<List<TimeSeriesSpec>> timeSeries(int sourceId);
+  Future<TimeSeriesSpec> setTimeSeries(int sourceId, TimeSeriesRoles roles);
 }
 
 /// Gives the bearer token for a call, or null for none.
@@ -553,13 +738,53 @@ class HttpDatyxApi implements DatyxApi {
       if ((response.statusCode < 200 || response.statusCode >= 300) &&
           !alsoOk.contains(response.statusCode)) {
         throw ApiException(
-          '$method $path answered ${response.statusCode}',
+          '$method $path answered ${response.statusCode}${_said(response.body)}',
           status: response.statusCode,
         );
       }
       return response.body.isEmpty ? null : jsonDecode(response.body);
     }
   }
+
+  /// The API's own words for an error, `{"error":"..."}`, when it gives some.
+  static String _said(String body) {
+    try {
+      final json = jsonDecode(body);
+      if (json is Map && json['error'] is String) return ': ${json['error']}';
+    } on FormatException {
+      // Not JSON: the status says enough.
+    }
+    return '';
+  }
+
+  @override
+  Future<CatalogSync> syncCatalog(int sourceId) async => CatalogSync.fromJson(
+    (await _send('POST', '/api/datasources/$sourceId/catalog') as Map).cast(),
+  );
+
+  @override
+  Future<List<CatalogTable>> catalog(int sourceId) async {
+    final json = await _send('GET', '/api/datasources/$sourceId/catalog') as Map;
+    return [
+      for (final t in (json['tables'] as List?) ?? const [])
+        CatalogTable.fromJson((t as Map).cast<String, Object?>()),
+    ];
+  }
+
+  @override
+  Future<List<TimeSeriesSpec>> timeSeries(int sourceId) async {
+    final json = await _send('GET', '/api/datasources/$sourceId/timeseries') as Map;
+    return [
+      for (final s in (json['series'] as List?) ?? const [])
+        TimeSeriesSpec.fromJson((s as Map).cast<String, Object?>()),
+    ];
+  }
+
+  @override
+  Future<TimeSeriesSpec> setTimeSeries(int sourceId, TimeSeriesRoles roles) async =>
+      TimeSeriesSpec.fromJson(
+        (await _send('PUT', '/api/datasources/$sourceId/timeseries', body: roles.toJson()) as Map).cast(),
+      );
 
   @override
   Future<AuthConfig> authConfig() async => AuthConfig.fromJson(

@@ -4,6 +4,21 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-10-31: the catalogue and DeepAR tags on the Catalog tab
+
+Asked: see HealthHub's schema in the dashboard (in dev) and tag it for
+machine learning, DeepAR.
+
+Changed: the Catalog tab reads each database source's catalogue and time
+series from the API (`/api/datasources/{id}/catalog` and `/timeseries`),
+with **Read schema** to read it into OpenMetadata, each table's columns,
+types, keys and tags, a readiness badge and DeepAR box, and
+`TimeSeriesDialog` to tag a table's columns with the TimeSeries roles,
+its frequency and missing rows (`PUT .../timeseries`); the API client's
+models and calls for them (`CatalogTable`, `TimeSeriesRole`,
+`TimeSeriesSpec`, `TimeSeriesRoles`, `CatalogSync`), and its errors carry
+the API's own message; the fake and a widget test.
+
 ## 2026-10-30: the Health tab from /api/health
 
 Asked (of the API): remove its hello, greetings and status endpoints, and

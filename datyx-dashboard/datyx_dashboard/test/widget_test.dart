@@ -74,6 +74,51 @@ class FakeDatyxApi implements DatyxApi {
     _sources.removeWhere((s) => s.id == id);
   }
 
+  /// The catalogue: empty until a sync, then HealthHub's hourly table.
+  List<CatalogTable> catalogued = [];
+  TimeSeriesRoles? lastRoles;
+
+  static const hourly = CatalogTable(
+    fqn: 'datyx-ds-1.healthhub.public.admissions_hourly',
+    schema: 'public',
+    name: 'admissions_hourly',
+    type: 'Regular',
+    primaryKey: ['run_id', 'hospital_id', 'hour_start'],
+    columns: [
+      CatalogColumn(name: 'run_id', dataType: 'TEXT'),
+      CatalogColumn(name: 'hospital_id', dataType: 'INT'),
+      CatalogColumn(name: 'hour_start', dataType: 'TIMESTAMP'),
+      CatalogColumn(name: 'admissions', dataType: 'INT'),
+    ],
+  );
+
+  @override
+  Future<CatalogSync> syncCatalog(int sourceId) async {
+    catalogued = [hourly];
+    return const CatalogSync(tables: 1, columns: 4);
+  }
+
+  @override
+  Future<List<CatalogTable>> catalog(int sourceId) async => catalogued;
+
+  @override
+  Future<List<TimeSeriesSpec>> timeSeries(int sourceId) async => const [];
+
+  @override
+  Future<TimeSeriesSpec> setTimeSeries(int sourceId, TimeSeriesRoles roles) async {
+    lastRoles = roles;
+    final ready = roles.columns[TimeSeriesRole.target]?.isNotEmpty ?? false;
+    return TimeSeriesSpec(
+      table: roles.table,
+      name: 'admissions_hourly',
+      columns: roles.columns,
+      frequency: roles.frequency,
+      missing: roles.missing,
+      ready: ready,
+      problems: ready ? const [] : const ['no column is tagged TimeSeries.Target, the value to forecast'],
+    );
+  }
+
   @override
   Future<SystemStatus> status() async {
     final call = log.start('GET', '/api/health');
@@ -232,7 +277,59 @@ void main() {
     await tester.tap(find.byTooltip('Refresh'));
     await tester.pumpAndSettle();
     expect(find.text('exports'), findsOneWidget);
-    expect(find.text('not catalogued yet'), findsOneWidget);
+    expect(find.text('not read yet: only databases so far'), findsOneWidget);
+  });
+
+  testWidgets('reads a database\'s schema and tags a table for DeepAR', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeDatyxApi();
+    await api.addDataSource(
+      const NewDataSource(
+        name: 'HealthHub',
+        type: DataSourceType.database,
+        details: {'engine': 'postgresql', 'host': 'localhost', 'port': 9803, 'database': 'healthhub'},
+      ),
+    );
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tab-catalog')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Not catalogued yet'), findsOneWidget);
+
+    await tester.tap(find.text('Read schema'));
+    await tester.pumpAndSettle();
+    expect(find.text('Read 1 tables, 4 columns.'), findsOneWidget);
+    await tester.tap(find.text('public.admissions_hourly'));
+    await tester.pumpAndSettle();
+    expect(find.text('hour_start'), findsOneWidget);
+
+    await tester.tap(find.text('Tag for DeepAR'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('Timestamp-hour_start')));
+    await tester.tap(find.byKey(const ValueKey('SeriesKey-run_id')));
+    await tester.tap(find.byKey(const ValueKey('SeriesKey-hospital_id')));
+    await tester.tap(find.byKey(const ValueKey('frequency-1h')));
+    await tester.tap(find.text('counts as 0'));
+    await tester.pump();
+    // No target yet: the API's problem is shown and the dialog stays.
+    await tester.tap(find.text('Save tags'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('no column is tagged TimeSeries.Target'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('Target-admissions')));
+    await tester.pump();
+    await tester.tap(find.text('Save tags'));
+    await tester.pumpAndSettle();
+    expect(find.text('Save tags'), findsNothing);
+    final sent = api.lastRoles!.toJson();
+    expect(sent['table'], 'datyx-ds-1.healthhub.public.admissions_hourly');
+    expect(sent['timestamp'], 'hour_start');
+    expect(sent['target'], 'admissions');
+    expect(sent['seriesKey'], ['run_id', 'hospital_id']);
+    expect(sent['frequency'], '1h');
+    expect(sent['missing'], 'zero');
   });
 
   testWidgets('opens the tab the address names', (tester) async {

@@ -38,12 +38,33 @@ reload).
   and the list isn't asked. A line in red above the card when the API
   itself didn't answer.
 
-- **Catalog** (`CatalogTab`): what datyx makes of the data in each data
-  source: the datasets it holds (tables, files, objects), their fields
-  and types, as OpenMetadata records them. The API doesn't read the
-  sources yet, so for now the tab says so and lists each source on
-  record, from the same `GET /api/datasources`, as not catalogued yet.
-  With authentication on and nobody signed in, it says to sign in.
+- **Catalog** (`CatalogTab`): what datyx makes of the data in each
+  source, as the catalogue (OpenMetadata) has it
+  ([../../datyx/specs/catalog.md](../../datyx/specs/catalog.md)). Each
+  database source is a card (`SourceCatalog`) that loads
+  `GET /api/datasources/{id}/catalog` and `.../timeseries`: "Not
+  catalogued yet" before a first read; **Read schema** (then **Read
+  again**) calls `POST .../catalog` and says how many tables and columns
+  it read. Each table is a tile that opens on its columns: name (a key
+  icon for the primary key), OpenMetadata's type, and its tags, a
+  TimeSeries tag shown as its role and DeepAR field (`Target ·
+  target`). A table with TimeSeries tags has a badge, *time series:
+  ready* or *needs work*, and a DeepAR box with the inputs the tags give
+  (`item_id = run_id + hospital_id`, `freq = 1h`, a missing row as 0 or
+  unknown) and the API's problems. **Tag for DeepAR** (or **Edit DeepAR
+  tags**) opens `TimeSeriesDialog`: one row per role (Timestamp, Target,
+  SeriesKey, StaticCategorical, StaticReal, KnownCovariate,
+  PastCovariate, with the DeepAR field and what it means as a tooltip),
+  each a chip per column, one column for Timestamp and Target and any
+  number for the others, starting from the tags the table has; the
+  frequency (typed, or 15min, 1h, 1D, 1W, 1MS); and whether a missing row
+  counts as 0 or is unknown. **Save tags** sends `PUT .../timeseries`:
+  a ready table closes the dialog and the card reloads; otherwise the
+  dialog stays with the API's problems. The tab only shows what the API
+  answers: which columns fit a role, and whether the table is ready,
+  are the API's to say. S3 and folder sources are listed as not read
+  yet; with authentication on and nobody signed in, the tab says to sign
+  in. An error answer shows the API's own words (`{"error":...}`).
 
 - **Audit** (`CallsPanel`): every call made, newest first, up to 100
   (the tab's label counts them): method, path with its query, status (or
@@ -170,7 +191,10 @@ identities; a filesystem data source added through the dialog appears
 with its path and author, is counted on the Health tab, its `POST` is in
 the Audit tab, and it is gone after the remove button and its
 confirmation; the tabs stand in their order and the Catalog lists a
-source as not catalogued yet; the tab the address names opens; and,
+folder source as not read yet; a database source's schema is read and
+its hourly table tagged for DeepAR, the dialog showing the API's problem
+until a target is picked, then sending the roles, frequency and missing
+rows; the tab the address names opens; and,
 with a session store in memory, the audit is read back after a reload
 (a waiting call as never answered), a fresh token signs in without
 Google, an expired, foreign or malformed one is dropped, a refused one

@@ -2,6 +2,65 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-01: Data quality across HealthHub's data, set in OpenMetadata at every start
+
+Asked: cover data quality on our data; on initialization, update or set
+OpenMetadata.
+
+Changed: `Quality` runs more of OpenMetadata 2.0.7's test definitions,
+each with SQL aggregates on the read-only connection:
+`columnValuesToBeNotInSet`, `columnValuesToNotMatchRegex`,
+`columnValuesMissingCount`, `columnValueLengthsToBeBetween`, a number
+column's min, max, mean, median, standard deviation and sum,
+`tableRowCountToEqual`, `tableColumnCountToEqual` and `...ToBeBetween`,
+`tableColumnNameToExist`, `tableColumnToMatchSet`, and custom SQL
+(`tableCustomSQLQuery`, `ROWS` or `COUNT`, an operator and a threshold)
+from a curation document too: one read-only `SELECT`, checked when the
+document is read (no semicolon, comment, write, lock or session word,
+nor a function reaching beyond the query) and run in a read-only
+transaction with the statement timeout. A check's parameters are
+checked against its definition; a check has a `key` telling apart
+those of one test. A test case is written only when new or changed,
+and a curation removes the ones datyx made that it no longer checks
+(those with its mark). HealthHub's document now has 137 checks over its nine
+tables and views (keys, not-nulls, ranges, sets, formats, lengths, the
+shape the time series read, and consistency across columns and tables:
+hourly counts against the admissions, triage against admissions and
+templates, references to care centers and conditions, views against
+their sources); the composite key's check is now
+`tableCustomSQLQuery_primary_key`. `DevCatalog`, at every start then
+every 10 minutes, sets every check in OpenMetadata, runs it and logs
+one line (checks set, passed, failed). The curation puts in the domain
+and the data product only the assets not in them yet: adding all again
+went over the call's 5 s once the database service held its test cases
+(22 s), so a pass never finished. A sync answers `testsCreated` and
+`testsUpdated`. Run against the live stack: 217 checks, 215 passing;
+the two failures are the data's (`admissions_hourly` counting 104 hours
+of admissions the `admissions` table hasn't; two care centers' websites
+that aren't web addresses). Tests (`QualityTest`, `QualityChecksTest`,
+`HealthHubChecksTest`); `catalog.md`, `curation.md`.
+
+After review: datyx marks the test cases it sets with a tag,
+`Datyx.Managed` (a `Datyx` classification), and removes only marked
+ones, so someone's test case named like datyx's (OpenMetadata's console
+names them `{column}_{test}_{random}`) is never deleted; the ones set
+before get the mark at the next pass. A check that can't run (an error,
+past the timeout) fails with the error and the others still run, on a
+connection opened again when the error broke it; a profile that can't
+be read is skipped; queries time out at 50 s, under the connection's
+60 s socket timeout. A min, max or mean of no values is `Aborted`, not
+a failure, and the first pass at a start waits up to 5 minutes for the
+tables that should have rows to have them. Custom SQL can't call a
+guarded function by a quoted name (`"pg_sleep"(1)`) nor use Unicode
+escapes, while a quoted name may now hold `$`, `;` or `--`, so the
+composite-key check works for any column names. `admissions_hourly`'s
+count check fails only on hours Flink counted beyond the admissions
+table (the feed lost them), since HealthHub's spec allows Flink to count
+fewer (a restart recounting the topic, the retention's edge, a database
+down); the hours counted short are information
+(`tableCustomSQLQuery_hours_counted_short`). A triage call's `millis`
+may reach 180 s, its client's three timeouts.
+
 ## 2026-11-01: the inference account hour by hour, by model, with latency
 
 Asked (of the dashboard): the Inference view should be a dashboard, not

@@ -4,6 +4,23 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: the algorithm that trains each group, XGBoost or DeepAR
+
+Asked: score each patient's care in the next 30 days with XGBoost, the
+horizon a parameter, by tagging a group with the XGBoost algorithm in
+OpenMetadata (explicit for now) for a trainer to come; see in the
+catalog clearly that XGBoost will train on the given table.
+
+Changed: the API answers each group's `algorithm` and `horizon`, and a
+table's own tags (datyx's change, in its folder). The Catalog tab shows,
+under a table's name, what trains each group (`care: XGBoost, 30D
+ahead`), the table's tags (`care: trained by XGBoost`), each role in
+the terms of its group's algorithm, and boxes named by algorithm
+(`XGBoost · care`) saying what XGBoost scores and the horizon.
+**Tag for DeepAR** is **Tag for training**; the dialog picks the
+algorithm (DeepAR or XGBoost, sent explicitly) and the table's horizon
+(required for XGBoost). Tests; `dashboard.md`.
+
 ## 2026-11-01: a color per group of tags
 
 Asked: give the groups of tags (each a time series here, but they could

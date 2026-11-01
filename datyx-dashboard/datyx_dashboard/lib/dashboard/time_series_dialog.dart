@@ -6,9 +6,13 @@ import '../theme.dart';
 /// The pandas offsets offered for a table's frequency; any other can be typed.
 const frequencies = ['15min', '1h', '1D', '1W', '1MS'];
 
+/// The pandas offsets offered for a table's horizon; any other can be typed.
+const horizons = ['24h', '7D', '30D', '90D'];
+
 /// Tags one group of a table's columns with their roles in a forecast (the
-/// TimeSeries tags DeepAR reads), and the table's frequency and what a
-/// missing row means, which its groups share. Editing a group starts from
+/// TimeSeries tags), the algorithm that trains the group (DeepAR or
+/// XGBoost, a tag on the table), and the table's frequency, horizon and
+/// what a missing row means, which its groups share. Editing a group starts from
 /// the API's reading of it ([spec]); a new one is named here and starts
 /// from [startFrom]'s roles but its Target, or from none. Save sends them
 /// (`PUT .../timeseries`) and shows what the API makes of them; it closes,
@@ -45,8 +49,10 @@ class TimeSeriesDialog extends StatefulWidget {
 class _TimeSeriesDialogState extends State<TimeSeriesDialog> {
   late final Map<TimeSeriesRole, List<String>> _roles;
   late final TextEditingController _frequency;
+  late final TextEditingController _horizon;
   late final TextEditingController _group;
   late String _missing;
+  late String _algorithm;
   TimeSeriesSpec? _answer;
   String? _error;
   bool _saving = false;
@@ -70,12 +76,17 @@ class _TimeSeriesDialogState extends State<TimeSeriesDialog> {
     _frequency = TextEditingController(
       text: '${widget.table.properties['timeSeriesFrequency'] ?? ''}',
     );
+    _horizon = TextEditingController(
+      text: '${widget.table.properties['timeSeriesHorizon'] ?? ''}',
+    );
     _missing = '${widget.table.properties['timeSeriesMissing'] ?? 'unknown'}';
+    _algorithm = from?.algorithm ?? deepArAlgorithm;
   }
 
   @override
   void dispose() {
     _frequency.dispose();
+    _horizon.dispose();
     _group.dispose();
     super.dispose();
   }
@@ -96,8 +107,10 @@ class _TimeSeriesDialogState extends State<TimeSeriesDialog> {
         TimeSeriesRoles(
           table: widget.table.fqn,
           group: group,
+          algorithm: _algorithm,
           columns: remove ? const {} : _roles,
           frequency: _frequency.text.trim().isEmpty ? null : _frequency.text.trim(),
+          horizon: _horizon.text.trim().isEmpty ? null : _horizon.text.trim(),
           missing: _missing,
         ),
       );
@@ -129,8 +142,8 @@ class _TimeSeriesDialogState extends State<TimeSeriesDialog> {
     return AlertDialog(
       title: Text(
         _isNew
-            ? 'Tag ${widget.table.qualifiedName} for DeepAR'
-            : 'Tag ${widget.table.qualifiedName} for DeepAR: ${widget.spec!.group}',
+            ? 'Tag ${widget.table.qualifiedName} for $_algorithm'
+            : 'Tag ${widget.table.qualifiedName} for $_algorithm: ${widget.spec!.group}',
       ),
       content: SizedBox(
         width: 720,
@@ -144,8 +157,9 @@ class _TimeSeriesDialogState extends State<TimeSeriesDialog> {
                 'TimeSeries classification in OpenMetadata, on the columns '
                 'themselves, so they can be edited there too. A table can '
                 'hold several series, each a group with its own roles '
-                '(TimeSeries.acute.Target); the frequency and missing rows '
-                'are the table\'s, for all of them.',
+                '(TimeSeries.acute.Target) and the algorithm that trains it, '
+                'a tag on the table (TimeSeries.acute.XGBoost); the frequency, '
+                'horizon and missing rows are the table\'s, for all of them.',
                 style: TextStyle(color: Aityx.muted),
               ),
               const SizedBox(height: 12),
@@ -172,6 +186,34 @@ class _TimeSeriesDialogState extends State<TimeSeriesDialog> {
                 ),
                 const SizedBox(height: 12),
               ],
+              Row(
+                children: [
+                  const SizedBox(width: 170, child: Text('Trained by', style: TextStyle(fontWeight: FontWeight.bold))),
+                  SegmentedButton<String>(
+                    key: const ValueKey('algorithm'),
+                    segments: const [
+                      ButtonSegment(value: deepArAlgorithm, label: Text('DeepAR'), icon: Icon(Icons.show_chart)),
+                      ButtonSegment(
+                        value: xgBoostAlgorithm,
+                        label: Text('XGBoost'),
+                        icon: Icon(Icons.account_tree_outlined),
+                      ),
+                    ],
+                    selected: {_algorithm},
+                    onSelectionChanged: (v) => setState(() => _algorithm = v.first),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _algorithm == xgBoostAlgorithm
+                          ? 'a score per series: the Target summed over the horizon'
+                          : 'a forecast of each series, step by step',
+                      style: const TextStyle(color: Aityx.muted, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               for (final role in TimeSeriesRole.values) _roleRow(role),
               const SizedBox(height: 8),
               Row(
@@ -196,6 +238,41 @@ class _TimeSeriesDialogState extends State<TimeSeriesDialog> {
                             key: ValueKey('frequency-$f'),
                             label: Text(f),
                             onPressed: () => setState(() => _frequency.text = f),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 170,
+                    child: Text(
+                      _algorithm == xgBoostAlgorithm ? 'Horizon (required)' : 'Horizon',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 110,
+                    child: TextField(
+                      key: const ValueKey('horizon'),
+                      controller: _horizon,
+                      decoration: const InputDecoration(isDense: true, hintText: '30D'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 6,
+                      children: [
+                        for (final h in horizons)
+                          ActionChip(
+                            key: ValueKey('horizon-$h'),
+                            label: Text(h),
+                            onPressed: () => setState(() => _horizon.text = h),
                           ),
                       ],
                     ),
@@ -269,7 +346,7 @@ class _TimeSeriesDialogState extends State<TimeSeriesDialog> {
               children: [
                 Text(role.tag, style: const TextStyle(fontWeight: FontWeight.bold)),
                 Text(
-                  role.deepAr + (role.single ? ', one' : ''),
+                  role.to(_algorithm) + (role.single ? ', one' : ''),
                   style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 11),
                 ),
               ],

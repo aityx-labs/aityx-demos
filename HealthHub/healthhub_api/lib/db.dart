@@ -279,6 +279,8 @@ class Db {
     await c.execute('ALTER TABLE admissions ADD COLUMN IF NOT EXISTS template INT');
     // One person's admissions, for GET /api/people/{id}.
     await c.execute('CREATE INDEX IF NOT EXISTS admissions_person_idx ON admissions (person_id)');
+    // One care center's admissions, the latest first, for GET /api/care-centers/{id}.
+    await c.execute('CREATE INDEX IF NOT EXISTS admissions_hospital_idx ON admissions (hospital_id, id)');
     // Each admission's triage by aityx (lib/triage.dart): the level, the
     // wait, the area, the rules behind them, what Jev read, aityx's
     // receipt and the template's reference level; or why it failed.
@@ -549,8 +551,8 @@ class Db {
     t.event_id, a.person_name, a.age, a.sex, a.city, a.complaint, a.condition_name, a.condition_type,
     a.visit, a.visit_number, a.hospital_name, a.sim_day, a.sim_time, t.level, t.wait_minutes, t.area,
     t.nurse_check, t.level_rule, t.level_why, t.area_rule, t.area_why, t.signs, t.choices,
-    t.reference, t.error, t.input_tokens, t.millis, t.triaged_at, a.person_id''';
-  static const _triageColumnCount = 29;
+    t.reference, t.error, t.input_tokens, t.millis, t.triaged_at, a.person_id, a.hospital_id''';
+  static const _triageColumnCount = 30;
 
   static Map<String, Object?> _triageRow(ResultRow row) => {
     'eventId': row[0],
@@ -582,6 +584,7 @@ class Db {
     'millis': row[26],
     'triagedAt': (row[27] as DateTime).toUtc().toIso8601String(),
     'personId': row[28],
+    'hospitalId': row[29],
   };
 
   static const _admissionFields = [
@@ -678,6 +681,106 @@ class Db {
             'chronicCondition': row[5],
           },
       ],
+    };
+  });
+
+  /// How many of a care center's latest admissions [careCenterHistory]
+  /// answers.
+  static const careCenterLimit = 30;
+
+  /// One care center as the database has it: its row (null when there is
+  /// none), and its admissions: how many in [run] (the current run; none
+  /// without one) and in all runs, acute and chronic, and the latest
+  /// [careCenterLimit], newest first, each with its triage when it has
+  /// one: of [run] when it has any there, else of any run.
+  Future<Map<String, Object?>> careCenterHistory(int id, {String? run}) => _run((c) async {
+    final centers = await c.execute(
+      Sql.named('''
+        SELECT id, key, name, kind, subtype, address, postal_code, city, region, country,
+               latitude, longitude, phone, website, ownership, source
+        FROM care_centers WHERE id = @id
+      '''),
+      parameters: {'id': id},
+    );
+    if (centers.isEmpty) return {'center': null};
+    final row = centers.first;
+    final counts = await c.execute(
+      Sql.named('''
+        SELECT count(*),
+               count(*) FILTER (WHERE condition_type = 'acute'),
+               count(*) FILTER (WHERE condition_type = 'chronic'),
+               count(*) FILTER (WHERE split_part(event_id, '-', 1) = @run),
+               count(*) FILTER (WHERE split_part(event_id, '-', 1) = @run AND condition_type = 'acute'),
+               count(*) FILTER (WHERE split_part(event_id, '-', 1) = @run AND condition_type = 'chronic')
+        FROM admissions WHERE hospital_id = @id
+      '''),
+      parameters: {'id': id, 'run': run ?? ''},
+    );
+    final [total, acute, chronic, thisRun, runAcute, runChronic] = [
+      for (final value in counts.first) (value as int?) ?? 0,
+    ];
+    final onlyRun = thisRun > 0;
+    final latest = await c.execute(
+      Sql.named('''
+        SELECT a.event_id, a.person_id, a.person_name, a.age, a.sex, a.city, a.condition_name,
+               a.condition_type, a.visit, a.visit_number, a.complaint, a.sim_day, a.sim_time,
+               t.level, t.wait_minutes, t.area, t.nurse_check, t.error, t.event_id IS NOT NULL
+        FROM admissions a LEFT JOIN admission_triage t USING (event_id)
+        WHERE a.hospital_id = @id AND (@onlyRun = false OR split_part(a.event_id, '-', 1) = @run)
+        ORDER BY a.id DESC LIMIT @limit
+      '''),
+      parameters: {'id': id, 'run': run ?? '', 'onlyRun': onlyRun, 'limit': careCenterLimit},
+    );
+    return {
+      'center': {
+        'id': row[0],
+        'key': row[1],
+        'name': row[2],
+        'kind': row[3],
+        'subtype': row[4],
+        'address': row[5],
+        'postalCode': row[6],
+        'city': row[7],
+        'region': row[8],
+        'country': (row[9] as String).trim(),
+        'lat': row[10],
+        'lon': row[11],
+        'phone': row[12],
+        'website': row[13],
+        'ownership': row[14],
+        'source': row[15],
+      },
+      'admissions': {
+        'run': run,
+        'thisRun': thisRun,
+        'thisRunAcute': runAcute,
+        'thisRunChronic': runChronic,
+        'total': total,
+        'acute': acute,
+        'chronic': chronic,
+        'latestOf': onlyRun ? 'run' : 'all',
+        'latest': [
+          for (final a in latest)
+            {
+              'eventId': a[0],
+              'personId': a[1],
+              'name': a[2],
+              'age': a[3],
+              'sex': a[4],
+              'city': a[5],
+              'conditionName': a[6],
+              'conditionType': a[7],
+              'visit': a[8],
+              'visitNumber': a[9],
+              'complaint': a[10],
+              'day': a[11],
+              'simTime': a[12],
+              'triage': a[18] == true
+                  ? {'level': a[13], 'waitMinutes': a[14], 'area': a[15], 'nurseCheck': a[16], 'error': a[17]}
+                  : null,
+            },
+        ],
+      },
     };
   });
 

@@ -102,10 +102,12 @@ theirs; narrower, each goes under its row.
     The second: what happened and the record's partition and offset.
     - **A move**: the person's state colour (the map's) for the bar and
       a dot; what they are doing, and the hospital, on the way there or
-      in it. The link opens the person of the run going on now.
+      in it, a link to its [view](care-center.md). The link opens the
+      person of the run going on now.
     - **An admission**: orange, with a hospital icon
       (`Icons.local_hospital`); the visit ("First visit", "Return visit,
-      the 2nd", "Last visit, the 3rd") and the hospital, then, in italics
+      the 2nd", "Last visit, the 3rd") and the hospital (a link to its
+      view), then, in italics
       and quotes, as much of what the person said on arrival as fits
       ([Conditions](conditions.md)), all of it on hover. The link opens
       the person of that admission's run.

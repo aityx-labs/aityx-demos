@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/health_hub_api.dart';
+import '../care_centers/care_center_screen.dart' show CareCenterLink;
 import '../events/stream_events.dart' show visitOf;
 import '../people/person_screen.dart';
+import '../screens/link_text.dart';
 import '../theme.dart';
 
 /// Gives how aityx triages the admissions: the API's `GET /api/triage`.
@@ -117,7 +119,9 @@ class _TriageCardState extends State<TriageCard> {
                   row,
                   onTap: () => showDialog<void>(
                     context: context,
-                    builder: (_) => TriageDetailDialog(detail: widget.detail(row.eventId), summary: row),
+                    // Above home, so its person and hospital need the openers given again.
+                    builder: (_) =>
+                        withOpeners(context, TriageDetailDialog(detail: widget.detail(row.eventId), summary: row)),
                   ),
                 ),
           ],
@@ -265,7 +269,14 @@ class TriageRow extends StatelessWidget {
                     )
                   else
                     TextSpan(text: who, style: const TextStyle(fontWeight: FontWeight.w700)),
-                  if (row.hospitalName != null) TextSpan(text: '  ${row.hospitalName}', style: muted),
+                  if (row.hospitalName != null) ...[
+                    const TextSpan(text: '  '),
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.baseline,
+                      baseline: TextBaseline.alphabetic,
+                      child: CareCenterLink(row.hospitalId, row.hospitalName!, style: muted),
+                    ),
+                  ],
                 ],
               ),
               style: const TextStyle(fontSize: 13),
@@ -457,9 +468,20 @@ class _DetailHeader extends StatelessWidget {
                         else
                           '',
                         if (row.area != null) triageAreas[row.area] ?? row.area!,
-                        ?row.hospitalName,
                       ].join(' · '),
                     ),
+                    if (row.hospitalName != null) ...[
+                      const TextSpan(text: ' · '),
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.baseline,
+                        baseline: TextBaseline.alphabetic,
+                        child: CareCenterLink(
+                          row.hospitalId,
+                          row.hospitalName!,
+                          style: const TextStyle(color: Aityx.muted, fontSize: 12),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 style: const TextStyle(color: Aityx.muted, fontSize: 12),

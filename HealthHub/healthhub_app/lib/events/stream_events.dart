@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/health_hub_api.dart';
+import '../care_centers/care_center_screen.dart' show CareCenterLink;
 import '../location/user_location_map.dart' show PersonLook;
 import '../people/person_screen.dart';
 import '../theme.dart';
@@ -312,6 +313,32 @@ int _minutes(StreamEvent event) {
 /// When a record happened, "09:40, day 2".
 String _when(StreamEvent event) => [?event.simTime, if (event.day != null) 'day ${event.day}'].join(', ');
 
+/// What happened, and the hospital it happened at or is headed to, a link
+/// to its view, on one line: "Going to the hospital · Hospital del Mar".
+class _What extends StatelessWidget {
+  const _What(this.what, this.hospitalId, this.hospital, {required this.admission});
+
+  final String what;
+  final int? hospitalId;
+  final String? hospital;
+  final bool admission;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(color: admission ? Aityx.orangeLight : Aityx.muted, fontSize: 12);
+    if (hospital == null) return Text(what, style: style);
+    return Row(
+      children: [
+        Flexible(child: Text('$what · ', style: style)),
+        Flexible(
+          flex: 2,
+          child: CareCenterLink(hospitalId, hospital!, style: style, overflow: TextOverflow.ellipsis),
+        ),
+      ],
+    );
+  }
+}
+
 /// Where a record sits in its topic, "p0 · #67070".
 String _where(StreamEvent event) => event.offset == null ? '' : 'p${event.partition ?? 0} · #${event.offset}';
 
@@ -338,12 +365,11 @@ class EventRow extends StatelessWidget {
       ?event.conditionName,
       if (event.conditionType != null) '(${event.conditionType!.label})',
     ].join(' ');
-    final what = admission
-        ? [visitLabel(event), ?event.hospitalName].join(' · ')
-        : [
-            event.state.label,
-            if (event.state == PersonState.toHospital || event.state == PersonState.atHospital) ?event.hospitalName,
-          ].join(' · ');
+    final what = admission ? visitLabel(event) : event.state.label;
+    // The hospital, a link to its view, where the record is about one.
+    final hospital = admission || event.state == PersonState.toHospital || event.state == PersonState.atHospital
+        ? event.hospitalName
+        : null;
     return Container(
       key: Key(admission ? 'admission-${event.eventId ?? event.id}' : 'move-${event.id}-${event.offset}'),
       margin: const EdgeInsets.symmetric(vertical: 3),
@@ -401,7 +427,7 @@ class EventRow extends StatelessWidget {
                   Row(
                     children: [
                       if (admission && event.complaint != null) ...[
-                        Flexible(flex: 2, child: Text(what, style: muted.copyWith(color: Aityx.orangeLight))),
+                        Flexible(flex: 2, child: _What(what, event.hospitalId, hospital, admission: true)),
                         const SizedBox(width: 8),
                         Expanded(
                           flex: 3,
@@ -414,9 +440,7 @@ class EventRow extends StatelessWidget {
                           ),
                         ),
                       ] else
-                        Expanded(
-                          child: Text(what, style: muted.copyWith(color: admission ? Aityx.orangeLight : null)),
-                        ),
+                        Expanded(child: _What(what, event.hospitalId, hospital, admission: admission)),
                       const SizedBox(width: 8),
                       Text(_where(event), style: muted.copyWith(fontFamily: 'monospace')),
                     ],

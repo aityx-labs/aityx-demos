@@ -5,6 +5,7 @@ library;
 import 'dart:math';
 
 import 'auth.dart';
+import 'care_centers.dart' show simulatedCapacity;
 import 'simulation.dart' show admissionsTopic, movesTopic;
 
 /// An answer: a status, and a JSON body or a redirect.
@@ -71,6 +72,9 @@ class Forwarded {
 /// [prediction]: for GET /api/people/{id}/prediction, datyx's answer to
 /// the inference the server asked for with the user's token (null: datyx
 /// didn't answer, 502).
+/// [careCenter]: for GET /api/care-centers/{id}, what the server read of
+/// that care center in the database (null: it didn't answer, 503), with
+/// [people] for who is there now.
 Answer route(
   String method,
   String path, {
@@ -95,6 +99,7 @@ Answer route(
   TriageLookup? triageDetail,
   PersonLookup? person,
   Forwarded? prediction,
+  CareCenterLookup? careCenter,
 }) {
   if (method == 'OPTIONS') return const Answer(204);
   if (method == 'POST') {
@@ -124,6 +129,16 @@ Answer route(
         }
         return predictionAnswer(prediction);
       case null:
+    }
+    // Open to everyone, like the map it is opened from.
+    if (careCenterIdOf(path) != null) {
+      if (careCenter == null) {
+        return const Answer(503, body: {'error': 'the database is not answering'});
+      }
+      final answer = careCenterAnswer(dev, careCenter, people);
+      return answer == null
+          ? const Answer(404, body: {'error': 'no care center with that id'})
+          : Answer(200, body: answer);
     }
     switch (path) {
       // The site root, which the web server proxies here
@@ -251,7 +266,7 @@ Map<String, Object?> peopleAnswer(bool dev, List<Map<String, Object?>> moves, {B
   }
   const fields = [
     'id', 'name', 'age', 'city', 'lat', 'lon', 'homeLat', 'homeLon', 'state', 'mode',
-    'hospitalName', 'conditionName', 'conditionType',
+    'hospitalId', 'hospitalName', 'conditionName', 'conditionType',
   ];
   return {
     'enabled': true,
@@ -323,8 +338,8 @@ Map<String, Object?>? personAnswer(
   if (move == null && admissions.isEmpty) return null;
   final latest = admissions.isEmpty ? null : admissions.first;
   const nowFields = [
-    'state', 'mode', 'lat', 'lon', 'homeLat', 'homeLon', 'hospitalName', 'conditionName', 'conditionType',
-    'simTime', 'day',
+    'state', 'mode', 'lat', 'lon', 'homeLat', 'homeLon', 'hospitalId', 'hospitalName', 'conditionName',
+    'conditionType', 'simTime', 'day',
   ];
   return {
     'id': id,
@@ -346,6 +361,73 @@ Map<String, Object?>? personAnswer(
     },
     'admissions': admissions,
     'days': days,
+  };
+}
+
+/// What the server read of a care center for GET /api/care-centers/{id}:
+/// [history], the database's (Db.careCenterHistory: the center, its
+/// admissions counted and the latest), and [currentRun], the simulation's
+/// run (null when it doesn't run).
+class CareCenterLookup {
+  const CareCenterLookup(this.history, {this.currentRun});
+
+  final Map<String, Object?> history;
+  final String? currentRun;
+}
+
+/// The id in /api/care-centers/{id}, a positive number; null for any other
+/// path.
+int? careCenterIdOf(String path) {
+  const prefix = '/api/care-centers/';
+  if (!path.startsWith(prefix)) return null;
+  final rest = path.substring(prefix.length);
+  if (!RegExp(r'^[0-9]{1,9}$').hasMatch(rest)) return null;
+  final id = int.parse(rest);
+  return id > 0 ? id : null;
+}
+
+/// What GET /api/care-centers/{id} answers: the care center, its capacity
+/// in the simulation (lib/care_centers.dart's simulatedCapacity), who is
+/// there now and who is on the way (their latest [moves], in dev mode),
+/// how many have it as their hospital, and its admissions: counted in the
+/// current run and in all, and the latest; null when there is no such
+/// care center (404).
+Map<String, Object?>? careCenterAnswer(bool dev, CareCenterLookup lookup, List<Map<String, Object?>> moves) {
+  final center = lookup.history['center'] as Map<String, Object?>?;
+  if (center == null) return null;
+  final id = center['id'];
+  final capacity = simulatedCapacity(center['key'] as String? ?? '$id', center['kind'] as String? ?? '');
+  const personFields = [
+    'id', 'name', 'age', 'city', 'state', 'mode', 'lat', 'lon', 'conditionName', 'conditionType', 'simTime', 'day',
+  ];
+  Map<String, Object?> who(Map<String, Object?> move) => {for (final field in personFields) field: move[field]};
+  final mine = dev ? moves.where((m) => m['hospitalId'] == id).toList() : const <Map<String, Object?>>[];
+  final here = [for (final m in mine) if (m['state'] == 'at_hospital') who(m)];
+  final coming = [for (final m in mine) if (m['state'] == 'to_hospital') who(m)];
+  Map<String, Object?>? newest;
+  if (dev) {
+    for (final move in moves) {
+      final turn = move['turn'];
+      if (turn is num && (newest == null || turn > (newest['turn'] as num))) newest = move;
+    }
+  }
+  return {
+    for (final MapEntry(:key, :value) in center.entries)
+      if (key != 'key') key: value,
+    'capacity': {'places': capacity.places, 'unit': capacity.unit, 'simulated': true},
+    'now': {
+      'enabled': dev,
+      'run': dev ? lookup.currentRun : null,
+      'simTime': newest?['simTime'],
+      'day': newest?['day'],
+      'inUse': here.length,
+      'usage': here.length / capacity.places,
+      'assigned': mine.length,
+      'here': here,
+      'onTheWay': coming,
+    },
+    'admissions': lookup.history['admissions'] ??
+        const {'run': null, 'thisRun': 0, 'total': 0, 'latestOf': 'all', 'latest': []},
   };
 }
 
@@ -425,7 +507,7 @@ String _typeOf(Map<String, Object?> event) => event['type'] == 'admission' ? 'ad
 
 const _moveEventFields = [
   'type', 'id', 'name', 'age', 'city', 'state', 'mode', 'conditionName', 'conditionType',
-  'hospitalName', 'simTime', 'day', 'turn', 'lat', 'lon', 'partition', 'offset',
+  'hospitalId', 'hospitalName', 'simTime', 'day', 'turn', 'lat', 'lon', 'partition', 'offset',
 ];
 
 const _admissionEventFields = [

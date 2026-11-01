@@ -86,6 +86,18 @@ São Paulo. A person's id is the city as a slug and a number from 1
   prevalence, weighed by sex, among the chronic conditions for their age,
   kept for life; and acute episodes, drawn the same way among the acute
   ones, from time to time ([Visits](#visits)).
+- **Pregnant**: 7% of women aged 18 to 44 (`pregnantShare`), for the
+  whole run, as ages don't advance.
+- **Monitored at home**: the high-risk only, so most people aren't
+  (`Person.monitoredFor`, which says why): everyone 80 or over
+  (`"aged 84"`), the pregnant (`"pregnant"`), and those whose chronic
+  condition is mental illness (major depressive disorder, Alzheimer's
+  disease) or a failing heart or kidneys (heart failure, end-stage kidney
+  disease), by the condition's name. With the seed's conditions, about
+  one person in ten: half of them for their age, a third for depression.
+  A monitored person at home is an event once a day, their check-in
+  ([The stream](#the-stream)); their other moves at home and everyone
+  else's only count, and everyone is on the map either way.
 - **Travel mode**: by the straight-line distance from home to the care
   center of the trip, chosen again at every departure, at a door-to-door
   speed that includes waiting and getting to
@@ -220,7 +232,7 @@ keyed by the person's id, valued:
 {"id": "reus-3", "name": "Núria Puig Soler", "age": 54, "city": "Reus",
  "lat": 41.1554, "lon": 1.1076, "homeLat": 41.1621, "homeLon": 1.1081,
  "hospitalId": 13, "hospitalName": "CAP Llibertat", "careCenterKind": "health_station",
- "state": "at_hospital", "mode": "walk", "conditionName": "Influenza",
+ "state": "at_hospital", "mode": "walk", "monitored": false, "monitoredFor": null, "conditionName": "Influenza",
  "conditionType": "acute", "simTime": "09:00", "day": 4, "turn": 75}
 ```
 
@@ -275,6 +287,17 @@ recorder.
   each with its type, partition and offset: `GET /api/events` merges
   them newest first by arrival (or one type with `?type=`), the events
   under home's map, where admissions are highlighted ([Home](home.md)).
+  A move at home is kept only when the person is monitored (`"monitored":
+  true`; a record without it is not), and then once a simulated day, their
+  check-in: the first move at home of the day from their check-in hour on
+  (`PeopleFeed.checkInHour`, from their id, so the check-ins spread over
+  the day instead of all coming at midnight). Everyone else at home, and a
+  monitored person's other moves at home, are on the map but not among
+  the events. The feed counts every valid move and
+  admission it reads, those left out too (a replayed admission once), and
+  how many a second over the last minute, a moving average of one count
+  per second (over the time since the first, before a minute has gone
+  by): `GET /api/events` says them as `total` and `perSecond`.
 
 A failing consumer is closed and a new one made after 3 s. When the API
 is stopped (SIGINT or SIGTERM: Ctrl-C, process-compose, a rebuild,

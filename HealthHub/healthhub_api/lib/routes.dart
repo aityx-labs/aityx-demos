@@ -59,6 +59,8 @@ class Forwarded {
 /// [people]: the latest move of each simulated person, as read back from
 /// Kafka by the server (lib/simulation.dart's PeopleFeed).
 /// [events]: the latest moves and admissions the feed read, newest first.
+/// [eventsTotal], [eventsPerSecond]: every event the feed read, those
+/// [events] leaves out too, and how many a second over the last minute.
 /// [admissions]: what GET /api/admissions answers, the latest admissions
 /// read from the database by the server, as many as [admissionsLimitOf]
 /// the query says (null: the database didn't answer, 503).
@@ -96,6 +98,8 @@ Answer route(
   Forwarded? datyx,
   Map<String, String> query = const {},
   List<Map<String, Object?>> events = const [],
+  int eventsTotal = 0,
+  double eventsPerSecond = 0,
   List<Map<String, Object?>>? careCenters,
   NearestCenter? nearest,
   bool dev = false,
@@ -245,7 +249,15 @@ Answer route(
         if (type != null && !eventTypes.contains(type)) {
           return const Answer(400, body: {'error': 'type is admission or move'});
         }
-        return Answer(200, body: eventsAnswer(dev, events, limit: limit, type: type, paused: paused));
+        return Answer(200, body: eventsAnswer(
+            dev,
+            events,
+            limit: limit,
+            type: type,
+            paused: paused,
+            total: eventsTotal,
+            perSecond: eventsPerSecond,
+          ));
       // Open to everyone, like the events: the people are simulated. Read
       // from the database, so in prod too, whatever an earlier dev run
       // recorded.
@@ -306,8 +318,8 @@ Map<String, Object?> peopleAnswer(bool dev, List<Map<String, Object?>> moves, {B
     if (turn is num && (newest == null || turn > (newest['turn'] as num))) newest = move;
   }
   const fields = [
-    'id', 'name', 'age', 'city', 'lat', 'lon', 'homeLat', 'homeLon', 'state', 'mode',
-    'hospitalId', 'hospitalName', 'careCenterKind', 'conditionName', 'conditionType',
+    'id', 'name', 'age', 'city', 'lat', 'lon', 'homeLat', 'homeLon', 'state', 'mode', 'monitored',
+    'monitoredFor', 'hospitalId', 'hospitalName', 'careCenterKind', 'conditionName', 'conditionType',
   ];
   return {
     'enabled': true,
@@ -614,12 +626,20 @@ Map<String, Object?> eventsAnswer(
   int limit = eventsLimit,
   String? type,
   bool paused = false,
+  int total = 0,
+  double perSecond = 0,
 }) {
   const topics = [movesTopic, admissionsTopic];
-  if (!dev) return const {'enabled': false, 'paused': false, 'topic': movesTopic, 'topics': topics, 'events': []};
+  if (!dev) {
+    return const {
+      'enabled': false, 'paused': false, 'topic': movesTopic, 'topics': topics, 'total': 0, 'perSecond': 0, 'events': [],
+    };
+  }
   return {
     'enabled': true,
     'paused': paused,
+    'total': total,
+    'perSecond': (perSecond * 10).round() / 10,
     'topic': movesTopic,
     'topics': topics,
     'events': [
@@ -639,7 +659,7 @@ const eventTypes = {'admission', 'move'};
 String _typeOf(Map<String, Object?> event) => event['type'] == 'admission' ? 'admission' : 'move';
 
 const _moveEventFields = [
-  'type', 'id', 'name', 'age', 'city', 'state', 'mode', 'conditionName', 'conditionType',
+  'type', 'id', 'name', 'age', 'city', 'state', 'mode', 'monitored', 'monitoredFor', 'conditionName', 'conditionType',
   'hospitalId', 'hospitalName', 'careCenterKind', 'simTime', 'day', 'turn', 'lat', 'lon', 'partition', 'offset',
 ];
 

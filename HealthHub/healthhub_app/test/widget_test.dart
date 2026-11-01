@@ -191,11 +191,15 @@ class FakeApi implements HealthHubApi {
         partition: 0,
         offset: 42,
       ),
-      const StreamEvent(id: 'lisboa-2', name: 'Ana Sousa', state: PersonState.home, simTime: '09:40', day: 2, partition: 0, offset: 41),
+      // At home, so monitored: the API leaves out everyone else at home.
+      const StreamEvent(id: 'lisboa-2', name: 'Ana Sousa', state: PersonState.home, monitored: true, monitoredFor: 'aged 84', simTime: '09:40', day: 2, partition: 0, offset: 41),
     ];
     return StreamEvents(
       enabled: true,
       paused: paused,
+      // The feed's counts; the answer read later counts more.
+      total: type == StreamEventType.admission ? 48213 : 48190,
+      perSecond: type == StreamEventType.admission ? 70.4 : 70.1,
       topics: [type == StreamEventType.admission ? 'healthhub.admissions' : 'healthhub.people.moves'],
       events: [
         for (final event in all)
@@ -801,6 +805,13 @@ void main() {
     // admissions out.
     expect(api.eventTypes, containsAll([StreamEventType.move, StreamEventType.admission]));
     expect(find.text('1 admission · 2 moves'), findsOneWidget);
+    // Beside the title, every event the API read, hidden ones too, and a second over the last minute.
+    expect(tester.widget<Text>(find.byKey(const Key('stream-events-total'))).data, '48,213 events · 70.4/s');
+    // Ana is at home and monitored, so her move shows, marked, why on hover.
+    final events = find.byKey(const Key('stream-events'));
+    final monitor = find.descendant(of: events, matching: find.byKey(const Key('monitored')));
+    expect(monitor, findsOneWidget);
+    expect(tester.widget<Tooltip>(find.ancestor(of: monitor, matching: find.byType(Tooltip)).first).message, 'Monitored at home: aged 84');
 
     final row = find.byKey(const Key('admission-a1b2c3d4-lisboa-3-d2-t32'));
     expect(row, findsOneWidget);
@@ -814,6 +825,13 @@ void main() {
     expect(inRow(find.byKey(const Key('care-center-link-1'))), findsOneWidget);
     expect(inRow(find.text('08:00, day 2')), findsOneWidget);
     expect(inRow(find.text('p0 · #9')), findsOneWidget);
+    // datyx's 30-day prediction for her, asked once for the admission's run.
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
+    expect(
+      tester.widget<Text>(inRow(find.byKey(const Key('admission-care-a1b2c3d4-lisboa-3-d2-t32')))).data,
+      '9.0 h expected in 30 days',
+    );
+    expect(inRow(find.byIcon(Icons.bed_outlined)), findsOneWidget);
     final complaint = tester.widget<Text>(inRow(find.textContaining('back for my sugar check')));
     expect(complaint.data, "“Hi, I'm Inês Carvalho, 67, back for my sugar check. The new tablets upset my stomach a little.”");
     expect(complaint.style?.fontStyle, FontStyle.italic);
@@ -834,6 +852,24 @@ void main() {
       tester.getTopLeft(row).dy,
       greaterThan(tester.getTopLeft(find.descendant(of: find.byKey(const Key('stream-events')), matching: find.text('Rui Matos'))).dy),
     );
+  });
+
+  testWidgets('without a model, an admission shows no 30-day hours', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeApi(auth: false, simulation: true)..model = false;
+    await tester.pumpWidget(app(api: api));
+    await tester.pumpAndSettle();
+
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
+    expect(find.byKey(const Key('admission-a1b2c3d4-lisboa-3-d2-t32')), findsOneWidget);
+    expect(find.byKey(const Key('admission-care-a1b2c3d4-lisboa-3-d2-t32')), findsNothing);
+    expect(find.byIcon(Icons.bed_outlined), findsNothing);
+    // Asked once, however many times the events are read again.
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pumpAndSettle();
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
   });
 
   testWidgets('the conditions under the pause keep only their events, through the reads', (tester) async {
@@ -918,7 +954,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(PersonScreen), findsOneWidget);
     expect(api.personAsked, [('lisboa-1', null)]);
-    expect(api.predictionAsked, [('lisboa-1', null)]);
+    // After the events card's own, for its admission.
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4'), ('lisboa-1', null)]);
     expect(find.text('Inês Carvalho'), findsNWidgets(2)); // the title and the header
     expect(find.text('67 · woman · retired teacher · Lisboa'), findsOneWidget);
     expect(find.text('At the hospital · Hospital de Santa Maria'), findsOneWidget);
@@ -972,10 +1009,12 @@ void main() {
     await tester.pumpWidget(app(api: api));
     await tester.pumpAndSettle();
 
+    // The events card asked once for the admission's 30 days.
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
     await tester.tap(find.byKey(const Key('person-link-lisboa-3')));
     await tester.pumpAndSettle();
     expect(api.personAsked, [('lisboa-3', 'a1b2c3d4')]);
-    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4'), ('lisboa-3', 'a1b2c3d4')]);
     expect(find.text('lisboa-3 · run a1b2c3d4 · a past run'), findsOneWidget);
   });
 
@@ -1194,7 +1233,7 @@ void main() {
           'partition': 0,
           'offset': 77,
         },
-        {'type': 'move', 'id': 'reus-4', 'state': 'to_home', 'simTime': '10:00', 'day': 4, 'name': 'Anna Vidal', 'age': 33},
+        {'type': 'move', 'id': 'reus-4', 'state': 'to_home', 'simTime': '10:00', 'day': 4, 'name': 'Anna Vidal', 'age': 33, 'monitored': true, 'monitoredFor': 'pregnant'},
         // The records before admissions existed carried no type and a single topic.
         {'id': 'reus-5', 'state': 'home'},
         {'type': 'admission'}, // no person: left out
@@ -1212,7 +1251,13 @@ void main() {
     expect(admission.hospitalId, 12);
     expect(events.events[1].isAdmission, isFalse);
     expect(events.events[1].name, 'Anna Vidal');
+    expect((events.events[1].monitored, events.events[1].monitoredFor), (true, 'pregnant'));
     expect(events.events[2].type, StreamEventType.move);
+    expect(events.events[2].monitored, isFalse);
+    // An API from before the counts: none.
+    expect((events.total, events.perSecond), (null, null));
+    final counted = StreamEvents.fromJson({'enabled': true, 'total': 48213, 'perSecond': 70, 'events': []});
+    expect((counted.total, counted.perSecond), (48213, 70.0));
     expect(StreamEvents.fromJson({'enabled': true, 'topic': 'healthhub.people.moves'}).topics, ['healthhub.people.moves']);
   });
 

@@ -409,6 +409,8 @@ Future<void> _handle(
         dev: live.dev,
         paused: live.simulation?.paused ?? false,
         events: live.feed?.recent ?? const [],
+        eventsTotal: live.feed?.counter.total ?? 0,
+        eventsPerSecond: live.feed?.counter.perSecond ?? 0,
       ),
       ('POST', simulationPausePath || simulationResumePath) => route(
         method,

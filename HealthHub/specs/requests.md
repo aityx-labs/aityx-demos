@@ -445,3 +445,38 @@ The feature files hold the current specification; see the
    `_inference`). See [A care center's admissions per
    hour](admissions-timeline.md), [The care center view](care-center.md)
    and [API](api.md).
+
+1. **In the events where a person reaches a hospital, show their
+   expected 30-day bed usage on the event line.** Each admission in the
+   latest events shows datyx's XGBoost prediction of the person's hours
+   of hospital care over the next 30 days, the person view's, with a bed
+   icon ("9 h expected in 30 days"; the model and the last 30 days on
+   hover). The card asks for it once per admission, for the person of
+   the admission's run, and shows nothing when datyx can't say. See
+   [Home](home.md) and [The person view](person.md).
+
+1. **Have a new "monitored" property on people: only monitored people
+   show "at home" events, hidden for the others. Keep the total events
+   count on top, and a moving average too. Most patients aren't
+   monitored, only the high-risk: the elderly, pregnant women, some
+   mentally ill; the others' at-home events only count.** People are
+   monitored at home for being 80 or over, pregnant (a new fact of the
+   simulation: 7% of women aged 18 to 44), or having depression,
+   Alzheimer's disease, heart failure or end-stage kidney disease as
+   their chronic condition, about one in ten; every move says whether
+   and why (`monitored`, `monitoredFor`). The API's feed keeps a move at
+   home among the events only for a monitored person (the map still
+   shows everyone), counts every move and admission it reads, hidden
+   ones too, and averages how many a second over the last minute; `GET
+   /api/events` answers them as `total` and `perSecond`. The events card
+   shows them beside its title, "48,213 events · 70.4/s", and a
+   monitored person's rows carry a heart monitor, why on hover. See
+   [Simulation](simulation.md), [API](api.md) and [Home](home.md).
+1. **(Previewing the monitored people) Fewer at-home events: monitored
+   people check in, spread over the day.** A monitored person at home is
+   now an event once a simulated day, their first move at home from
+   their check-in hour on, an hour drawn from their id, so the check-ins
+   spread over the day; their other moves at home only count, as
+   everyone else's.
+   See [Simulation](simulation.md#the-stream), [Home](home.md) and
+   [API](api.md).

@@ -38,7 +38,7 @@ void main() {
     'id': id, 'city': 'Reus', 'lat': 41.15, 'lon': 1.1, 'homeLat': 41.16, 'homeLon': 1.11,
     'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan', 'careCenterKind': 'hospital', 'state': 'to_hospital',
     'simTime': time, 'day': 1, 'turn': turn, 'name': 'Núria Puig Soler', 'age': 54,
-    'mode': 'transit', 'conditionName': 'Influenza', 'conditionType': 'acute',
+    'mode': 'transit', 'monitored': false, 'monitoredFor': null, 'conditionName': 'Influenza', 'conditionType': 'acute',
   };
 
   test('people answer the latest moves and the newest time in dev mode', () {
@@ -53,7 +53,8 @@ void main() {
     expect((body['people'] as List).first, {
       'id': 'reus-1', 'name': 'Núria Puig Soler', 'age': 54, 'city': 'Reus', 'lat': 41.15,
       'lon': 1.1, 'homeLat': 41.16, 'homeLon': 1.11, 'state': 'to_hospital', 'mode': 'transit',
-      'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan', 'careCenterKind': 'hospital', 'conditionName': 'Influenza', 'conditionType': 'acute',
+      'monitored': false, 'monitoredFor': null, 'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan',
+      'careCenterKind': 'hospital', 'conditionName': 'Influenza', 'conditionType': 'acute',
     });
   });
 
@@ -86,16 +87,23 @@ void main() {
     expect(list, hasLength(eventsLimit));
     expect(list.first, {
       'type': 'move', 'id': 'reus-1', 'name': 'Núria Puig Soler', 'age': 54, 'city': 'Reus',
-      'state': 'to_hospital', 'mode': 'transit', 'conditionName': 'Influenza', 'conditionType': 'acute',
-      'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan', 'careCenterKind': 'hospital', 'simTime': '09:00',
-      'day': 1, 'turn': 30,
-      'lat': 41.15,
+      'state': 'to_hospital', 'mode': 'transit', 'monitored': false, 'monitoredFor': null, 'conditionName': 'Influenza',
+      'conditionType': 'acute', 'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan', 'careCenterKind': 'hospital',
+      'simTime': '09:00', 'day': 1, 'turn': 30, 'lat': 41.15,
       'lon': 1.1, 'partition': 0, 'offset': 130,
     });
     expect(body['topics'], ['healthhub.people.moves', 'healthhub.admissions']);
     expect((route('GET', '/api/events', dev: true, events: events, query: {'limit': '5'}).body as Map)['events'], hasLength(5));
     expect(route('GET', '/api/events', dev: true, query: {'limit': 'x'}).status, 400);
     expect((route('GET', '/api/events', events: events).body as Map)['events'], isEmpty);
+  });
+
+  test('events say how many the feed read, and how many a second', () {
+    final body = route('GET', '/api/events', dev: true, eventsTotal: 48213, eventsPerSecond: 70.4321).body as Map;
+    expect(body['total'], 48213);
+    expect(body['perSecond'], 70.4);
+    final prod = route('GET', '/api/events', eventsTotal: 5, eventsPerSecond: 1).body as Map;
+    expect((prod['total'], prod['perSecond']), (0, 0));
   });
 
   Map<String, Object?> admissionOf(int turn) => {

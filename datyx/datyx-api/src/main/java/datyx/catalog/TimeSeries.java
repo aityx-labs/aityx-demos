@@ -63,6 +63,18 @@ public final class TimeSeries {
     /** The table's custom property for how far ahead to predict, as a pandas offset such as 24h or 30D. */
     public static final String HORIZON = "timeSeriesHorizon";
 
+    /**
+     * The table's custom property for how often datyx trains its groups
+     * again: a span such as 6h, 1D or 1W, or never (trained once).
+     */
+    public static final String RETRAIN = "timeSeriesRetrain";
+
+    /** How often a group is trained again when its table doesn't say. */
+    public static final String DEFAULT_RETRAIN = "1D";
+
+    /** The value of {@link #RETRAIN} that trains a group once only. */
+    public static final String NEVER = "never";
+
     private static final Pattern FREQUENCY_PATTERN = Pattern.compile("\\d*(s|min|h|D|B|W|W-[A-Z]{3}|MS|ME|M|QS|QE|Q|YS|YE|Y)");
 
     public enum Role {
@@ -262,7 +274,8 @@ public final class TimeSeries {
     @RegisterForReflection
     public record Spec(String table, String schema, String name, String group, String algorithm, String timestamp, String target,
             List<String> seriesKey, List<String> staticCategorical, List<String> staticReal, List<String> knownCovariates,
-            List<String> pastCovariates, String frequency, String horizon, String missing, boolean ready, List<String> problems) {
+            List<String> pastCovariates, String frequency, String horizon, String missing, String retrain, boolean ready,
+            List<String> problems) {
     }
 
     /**
@@ -367,6 +380,10 @@ public final class TimeSeries {
         } else if (!FREQUENCY_PATTERN.matcher(horizon).matches()) {
             problems.add(HORIZON + " '" + horizon + "' isn't a span such as 24h, 30D or 4W");
         }
+        String retrain = text(extension.get(RETRAIN));
+        if (retrain != null && !NEVER.equals(retrain) && Span.parse(retrain) == null) {
+            problems.add(RETRAIN + " '" + retrain + "' is neither a span such as 6h, 1D or 1W nor never");
+        }
         String missing = text(extension.get(MISSING));
         if (missing == null) {
             missing = "unknown";
@@ -376,7 +393,7 @@ public final class TimeSeries {
         return new Spec(table.path("fullyQualifiedName").asText(), table.path("databaseSchema").path("name").asText(null),
             table.path("name").asText(), group, algorithm.tag, timestamp, target, columns.get(Role.SERIES_KEY),
             columns.get(Role.STATIC_CATEGORICAL), columns.get(Role.STATIC_REAL), columns.get(Role.KNOWN_COVARIATE),
-            columns.get(Role.PAST_COVARIATE), frequency, horizon, missing, problems.isEmpty(), problems);
+            columns.get(Role.PAST_COVARIATE), frequency, horizon, missing, retrain, problems.isEmpty(), problems);
     }
 
     private static String single(List<String> columns, String tag, String what, List<String> problems) {

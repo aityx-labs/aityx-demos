@@ -116,6 +116,28 @@ class TimeSeriesTest {
     }
 
     @Test
+    void readsHowOftenToTrainAgain() throws Exception {
+        TimeSeries.Spec every6h = TimeSeries.spec(patientDays("[{\"tagFQN\":\"TimeSeries.care.XGBoost\"}]",
+            "{\"timeSeriesFrequency\":\"1D\",\"timeSeriesHorizon\":\"30D\",\"timeSeriesRetrain\":\"6h\"}"), "care");
+        assertTrue(every6h.ready(), every6h.problems().toString());
+        assertEquals("6h", every6h.retrain());
+        assertNull(TimeSeries.spec(patientDays("[]", "{\"timeSeriesFrequency\":\"1D\"}"), "care").retrain());
+        assertEquals("never", TimeSeries.spec(patientDays("[]",
+            "{\"timeSeriesFrequency\":\"1D\",\"timeSeriesRetrain\":\"never\"}"), "care").retrain());
+        assertEquals(List.of("timeSeriesRetrain 'monthly' is neither a span such as 6h, 1D or 1W nor never"),
+            TimeSeries.spec(patientDays("[]", "{\"timeSeriesFrequency\":\"1D\",\"timeSeriesRetrain\":\"monthly\"}"),
+                "care").problems());
+        Catalog catalog = new Catalog();
+        catalog.json = json;
+        assertThrows(IllegalArgumentException.class, () -> catalog.setRetrain(patientDays("[]", "{}"), "1MS"),
+            "a month isn't a span of a fixed length");
+        assertEquals("30D", Span.parse("30D").toString());
+        assertEquals(java.time.Duration.ofMinutes(90), Span.parse("90min").duration());
+        assertNull(Span.parse("0h"));
+        assertEquals("1W", Span.of(java.time.Duration.ofDays(7)));
+    }
+
+    @Test
     void namesAlgorithms() {
         assertEquals(TimeSeries.Algorithm.XGBOOST, TimeSeries.Algorithm.named(" xgboost "));
         assertEquals(TimeSeries.Algorithm.DEEPAR, TimeSeries.Algorithm.named("DeepAR"));

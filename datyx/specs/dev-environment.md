@@ -6,7 +6,11 @@
 runs on, with `native-image`), Maven, make, curl, jq. The shell's init
 hook sets `JAVA_HOME` to the GraalVM. Docker must run on the host for the
 containers and the tests. Flutter is not here: the dashboard is the
-`datyx-dashboard/` folder's, with its own toolchain.
+`datyx-dashboard/` folder's, with its own toolchain. The trainer's
+XGBoost4J needs an OpenMP runtime outside devbox: on macOS Homebrew's
+`libomp` (`brew install libomp`); on Linux GCC's `libgomp` (the dev
+container's, and the JVM image installs it). Without it the API runs,
+and its training runs fail saying so ([training.md](training.md)).
 
 ## Services
 

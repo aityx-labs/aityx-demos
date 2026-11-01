@@ -18,7 +18,7 @@ digits). Admissions from builds before run ids are left out, as in
 
 | Column | What |
 |---|---|
-| `run_id` | The run, the event id's first part. Each start of the API is a new run with new people from day 1, so a person is the run and the id together |
+| `run_id` | The run, the event id's first part. Each start of the API is a new run from day 1, its people drawn the same but living it afresh, so a person is the run and the id together |
 | `person_id` | The person's id within the run (`reus-3`) |
 | `day` | The simulated day as a date, day 1 being 2026-01-01, as in `admissions_hourly` |
 | `age`, `sex`, `city`, `hospital_id` | The person's, the same on every row of a run: ages don't advance and a person always goes to the same hospital |

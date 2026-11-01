@@ -17,6 +17,113 @@ start) is tried again after 15 minutes rather than an hour.
 HealthHub's simulation runs a simulated hour every 10 s, so 15 minutes
 is 90 simulated hours of new data. `curation.md`.
 
+## 2026-11-01: an aityx gateway, its account, and where calls will be personalized
+
+Asked: in the datyx dashboard, an aityx tab showing the requests routed
+to aityx, and in the future personalize them (the dashboard's tab and
+HealthHub's routing are theirs).
+
+Changed: new package `datyx.aityx`. `POST /api/aityx/v1/systemone` is a
+gateway to aityx's `/v1/systemone`: the body (1 MB at most) goes through
+the personalization hook (`AityxPersonalizer`, today `NoPersonalization`,
+which changes nothing) to aityx with datyx's key (`AITYX_API_KEY`, never
+logged, stored or answered), and aityx's status, body and
+`X-aityx-Mode` come back as they were; no key is a 503. A signed-in
+user calls it as on the rest of `/api`; a service presents
+`X-Datyx-Service-Token` (`DATYX_SERVICE_TOKEN`, compared in constant
+time) instead, through a security policy of its own for
+`/api/aityx/v1/*` (`AityxGatewayPolicy`). Every call is recorded
+(`aityx_call`, `V9__aityx_calls.sql`): caller, purpose
+(`X-Datyx-Purpose`), model, decision, questions, status, mode, latency,
+input tokens and their cost ($0.042 per million), the request and the
+answer (64 KB each), the latest 2,000 per profile; a service's calls
+are the services' bucket, every profile's to see in dev mode only
+(`DATYX_AITYX_SHARE_SERVICE_CALLS`; empty, the profile decides, so
+Docker Compose's prod image shares nothing; `AityxShareConfigTest`). `GET /api/aityx` answers the account
+(totals, the last 24 hours, by purpose, model and decision, the latest
+50 calls, whether personalization is active), `GET /api/aityx/calls/{id}`
+one call with its request and answer, `GET /api/aityx/v1/status` whether
+datyx has a key (for HealthHub, which counts on aityx only when one of
+them has). Settings in `scripts/env.sh`
+(also from the root `.env`), `scripts/api.sh`, `compose.yaml` and
+`.env.example`. Tests (`AityxGatewayTest`, `AityxAuthTest`,
+`AityxNoKeyTest`, aityx a local stub); new `aityx.md`, `api.md`,
+`auth.md`, `dev-environment.md`, README.
+
+## 2026-11-01: Data quality across HealthHub's data, set in OpenMetadata at every start
+
+Asked: cover data quality on our data; on initialization, update or set
+OpenMetadata.
+
+Changed: `Quality` runs more of OpenMetadata 2.0.7's test definitions,
+each with SQL aggregates on the read-only connection:
+`columnValuesToBeNotInSet`, `columnValuesToNotMatchRegex`,
+`columnValuesMissingCount`, `columnValueLengthsToBeBetween`, a number
+column's min, max, mean, median, standard deviation and sum,
+`tableRowCountToEqual`, `tableColumnCountToEqual` and `...ToBeBetween`,
+`tableColumnNameToExist`, `tableColumnToMatchSet`, and custom SQL
+(`tableCustomSQLQuery`, `ROWS` or `COUNT`, an operator and a threshold)
+from a curation document too: one read-only `SELECT`, checked when the
+document is read (no semicolon, comment, write, lock or session word,
+nor a function reaching beyond the query) and run in a read-only
+transaction with the statement timeout. A check's parameters are
+checked against its definition; a check has a `key` telling apart
+those of one test. A test case is written only when new or changed,
+and a curation removes the ones datyx made that it no longer checks
+(those with its mark). HealthHub's document now has 137 checks over its nine
+tables and views (keys, not-nulls, ranges, sets, formats, lengths, the
+shape the time series read, and consistency across columns and tables:
+hourly counts against the admissions, triage against admissions and
+templates, references to care centers and conditions, views against
+their sources); the composite key's check is now
+`tableCustomSQLQuery_primary_key`. `DevCatalog`, at every start then
+every 10 minutes, sets every check in OpenMetadata, runs it and logs
+one line (checks set, passed, failed). The curation puts in the domain
+and the data product only the assets not in them yet: adding all again
+went over the call's 5 s once the database service held its test cases
+(22 s), so a pass never finished. A sync answers `testsCreated` and
+`testsUpdated`. Run against the live stack: 217 checks, 215 passing;
+the two failures are the data's (`admissions_hourly` counting 104 hours
+of admissions the `admissions` table hasn't; two care centers' websites
+that aren't web addresses). Tests (`QualityTest`, `QualityChecksTest`,
+`HealthHubChecksTest`); `catalog.md`, `curation.md`.
+
+After review: datyx marks the test cases it sets with a tag,
+`Datyx.Managed` (a `Datyx` classification), and removes only marked
+ones, so someone's test case named like datyx's (OpenMetadata's console
+names them `{column}_{test}_{random}`) is never deleted; the ones set
+before get the mark at the next pass. A check that can't run (an error,
+past the timeout) fails with the error and the others still run, on a
+connection opened again when the error broke it; a profile that can't
+be read is skipped; queries time out at 50 s, under the connection's
+60 s socket timeout. A min, max or mean of no values is `Aborted`, not
+a failure, and the first pass at a start waits up to 5 minutes for the
+tables that should have rows to have them. Custom SQL can't call a
+guarded function by a quoted name (`"pg_sleep"(1)`) nor use Unicode
+escapes, while a quoted name may now hold `$`, `;` or `--`, so the
+composite-key check works for any column names. `admissions_hourly`'s
+count check fails only on hours Flink counted beyond the admissions
+table (the feed lost them), since HealthHub's spec allows Flink to count
+fewer (a restart recounting the topic, the retention's edge, a database
+down); the hours counted short are information
+(`tableCustomSQLQuery_hours_counted_short`). A triage call's `millis`
+may reach 180 s, its client's three timeouts.
+
+## 2026-11-01: the inference account hour by hour, by model, with latency
+
+Asked (of the dashboard): the Inference view should be a dashboard, not
+so repeated, more like the time series of inferences and statistics; its
+charts need what the API didn't answer.
+
+Changed: `GET /api/inference` takes `?hours=` (24 by default, up to the
+window's 168), and answers `hours`; each hour of `perHour` now also has
+its series `scored`, `p50Millis` and `p95Millis` (null without a call),
+and `byModel`, each model's (a group's algorithm) calls, failures and
+series in it; `models` has a model per group's algorithm (its latest
+run, its calls those that algorithm answered), as `byModel`, and
+`models` and `calls` name their `algorithm`. The hours are bucketed
+once over the window's calls. Tests; `inference.md`, README.
+
 ## 2026-11-01: DeepAR trains its groups, on being switched on or retrained
 
 Asked: as for XGBoost, when a DeepAR group of tags is enabled or

@@ -30,7 +30,8 @@ issuer is always set.
 
 `/api/datasources`, `/api/datasources/*`, `/api/me`, `/api/profile`,
 `/api/profile/*`, `/api/training`, `/api/training/*`, `/api/inference`,
-`/api/inference/*` and `/api/catalog/events` want a signed-in user once
+`/api/inference/*`, `/api/catalog/events`, `/api/aityx` and
+`/api/aityx/*` want a signed-in user once
 authentication is on: a 401 without a valid token (unsigned, expired,
 from another issuer, or for a client not in the audiences). Everything
 else stays open: the sign-in config, health, OpenAPI, and
@@ -38,6 +39,15 @@ else stays open: the sign-in config, health, OpenAPI, and
 explicitly (its own policy) because OpenMetadata can't sign in: it is
 authenticated by its signature instead, a 401 without it
 ([catalog.md](catalog.md)).
+
+`/api/aityx/v1/*`, the aityx gateway, has a policy of its own,
+`aityx-gateway` (`AityxGatewayPolicy`, the more specific path winning
+over `/api/aityx/*`): a service presenting `X-Datyx-Service-Token` equal
+to `DATYX_SERVICE_TOKEN` (compared in constant time) needs no sign-in;
+a wrong token, or any while none is configured, is refused (401, or 403
+with a user's token); without the header it wants a signed-in user, as
+the secured paths ([aityx.md](aityx.md)). The service token opens
+nothing else.
 
 ## Endpoints
 
@@ -69,7 +79,8 @@ as the issuer): the config publishes the client id; the secured paths
 answer 401 without a token, with a bad one and with one for another
 client (`/api/catalog/events` too), while the open paths answer;
 OpenMetadata's webhook answers without a token, 401 unsigned and 200
-signed; a token for the extra audience is
+signed; `AityxAuthTest`, the gateway's service token in place of a
+sign-in there alone ([aityx.md](aityx.md)); a token for the extra audience is
 accepted; `/api/me` tells who is signed in; a data source added carries
 its author.
 

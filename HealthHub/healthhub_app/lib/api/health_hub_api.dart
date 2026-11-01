@@ -54,7 +54,7 @@ class Health {
   /// Whether the API's database answers.
   final bool db;
 
-  /// Whether the API has its aityx key.
+  /// Whether the API reaches aityx: its key, or datyx's gateway.
   final bool aityx;
 
   /// Whether the API wants a signed-in user.
@@ -1010,6 +1010,7 @@ class Triaged {
     this.error,
     this.inputTokens,
     this.millis,
+    this.via,
     this.receipt,
     this.rules = const {},
   });
@@ -1054,6 +1055,7 @@ class Triaged {
       error: _string(json['error']),
       inputTokens: _int(json['inputTokens']),
       millis: _int(json['millis']),
+      via: _string(json['via']),
       receipt: (json['receipt'] as Map?)?.cast<String, Object?>(),
       rules: {
         if (rules is Map)
@@ -1100,6 +1102,10 @@ class Triaged {
   final String? error;
   final int? inputTokens;
   final int? millis;
+
+  /// Which way the call went: `datyx` (through datyx's aityx gateway,
+  /// which accounts for it) or `aityx` (directly); null when unknown.
+  final String? via;
 
   /// aityx's receipt, in the detail only.
   final Map<String, Object?>? receipt;

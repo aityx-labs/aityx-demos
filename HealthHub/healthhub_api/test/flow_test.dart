@@ -6,6 +6,7 @@ import 'package:healthhub_api/people_profiles.dart';
 import 'package:healthhub_api/simulation.dart';
 import 'package:test/test.dart';
 
+import 'history_test.dart' show firstHarmonic;
 import 'simulation_test.dart' show cold, condition, diabetes, throwingKafka;
 
 void main() {
@@ -55,9 +56,11 @@ void main() {
     return (counts, hours);
   }
 
-  /// The share of [hours] from [visitFirstHour] to [visitLastHour].
+  /// The share of [hours] at the hours the daily profile of arrivals is
+  /// at its mean or above ([arrivalWeight] at least 1: 07:00 to 19:00).
   double daytime(List<int> hours) =>
-      hours.sublist(visitFirstHour, visitLastHour + 1).reduce((a, b) => a + b) / hours.reduce((a, b) => a + b);
+      [for (var h = 0; h < 24; h++) if (arrivalWeight(h) >= 1) hours[h]].reduce((a, b) => a + b) /
+      hours.reduce((a, b) => a + b);
 
   test('a flow factor doubles, halves or resets, from 1/8 to 8', () {
     var factor = 1.0;
@@ -74,20 +77,24 @@ void main() {
     expect(flowLabel(0.125), '×1/8');
   });
 
-  test('a planned visit moved by the flow keeps to the daytime, on the hour', () {
+  test('a planned visit moved by the flow keeps to the daily profile, on the hour, never in the past', () {
     final random = Random(3);
-    // Within the daytime: the next hour, that day.
-    expect(visitSlotFrom(dayStart(4) + 9 * 60 + 20, random), dayStart(4) + 10 * 60);
-    expect(visitSlotFrom(dayStart(4) + 9 * 60, random), dayStart(4) + 9 * 60);
-    for (var i = 0; i < 100; i++) {
-      // At night: a daytime hour, that day before 08:00, the next after 17:00.
-      final early = visitSlotFrom(dayStart(4) + 3 * 60, random);
-      expect(simDay(early), 4);
-      expect((early % minutesPerDay) ~/ 60, inInclusiveRange(visitFirstHour, visitLastHour));
-      final late = visitSlotFrom(dayStart(4) + 17 * 60 + 1, random);
-      expect(simDay(late), 5);
-      expect(late % 60, 0);
+    final now = dayStart(4) + 9 * 60 + 20;
+    final byHour = List.filled(24, 0);
+    for (var i = 0; i < 20000; i++) {
+      // Moved to a later day: that day, at an hour of the profile.
+      final later = visitSlotFrom(dayStart(6) + 3 * 60, now, random);
+      expect(simDay(later), 6);
+      expect(later % 60, 0);
+      byHour[(later % minutesPerDay) ~/ 60]++;
+      // Moved to within the hour: an hour of the profile later today, else
+      // tomorrow.
+      final soon = visitSlotFrom(now + 30, now, random);
+      expect(soon, greaterThan(now));
+      expect(simDay(soon), inInclusiveRange(4, 5));
+      expect(soon % 60, 0);
     }
+    expect(firstHarmonic(byHour).peak, closeTo(arrivalPeakHour, 0.2));
   });
 
   test('at the normal flow nothing changes, not even the random draws', () {
@@ -120,7 +127,7 @@ void main() {
     double ratio(Map<int, int> counts, int id) => counts[id]! / normal[id]!;
     expect(normal[7], greaterThan(100));
     expect(normal[2], greaterThan(500));
-    // About the factor: measured 1.75, 0.48, 6.6, 1.94 and 0.62 with this seed.
+    // About the factor: measured 2.06, 0.52, 6.4, 1.82 and 0.53 with this seed.
     expect(ratio(doubled, 7), inInclusiveRange(1.5, 2.3));
     expect(ratio(halved, 7), inInclusiveRange(0.35, 0.65));
     expect(ratio(eight, 7), inInclusiveRange(5.5, 9));
@@ -129,8 +136,9 @@ void main() {
     // The other care center keeps about its own.
     expect(ratio(halved, 2), inInclusiveRange(0.85, 1.15));
     expect(ratio(stationDoubled, 7), inInclusiveRange(0.7, 1.3));
-    // Planned visits in the daytime, emergencies at any hour, as before.
+    // The arrivals keep to the daily profile, around midday, as before.
     expect(daytime(doubledHours), closeTo(daytime(normalHours), 0.08));
+    expect(firstHarmonic(doubledHours).peak, closeTo(arrivalPeakHour, 1.5));
   });
 
   group('a change of flow', () {
@@ -141,9 +149,10 @@ void main() {
       expect(p.nextDestination(p.chronic!), hospital);
       expect(retime(p, now, const {}, const {7: 2}, Random(2)), isTrue);
       final sooner = p.chronic!.dueAt!;
-      // Half the time left, give or take the move to a daytime hour.
+      // Half the time left, give or take the move to an hour of the profile.
       expect(sooner - now, closeTo((due - now) / 2, minutesPerDay));
-      expect((sooner % minutesPerDay) ~/ 60, inInclusiveRange(visitFirstHour, visitLastHour));
+      expect(sooner, greaterThan(now));
+      expect(sooner % 60, 0);
       // Halved from there: four times as long as at the double.
       expect(retime(p, now, const {7: 2}, const {7: 0.5}, Random(2)), isTrue);
       expect(p.chronic!.dueAt! - now, closeTo((sooner - now) * 4, minutesPerDay));

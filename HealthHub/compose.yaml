@@ -237,6 +237,11 @@ services:
       AITYX_API_KEY: ${AITYX_API_KEY:-}
       AITYX_URL: ${AITYX_URL:-}
       HEALTHHUB_TRIAGE: ${HEALTHHUB_TRIAGE:-on}
+      # The triage's calls through datyx's aityx gateway (DATYX_API_URL,
+      # below), with datyx's service token, a secret (see .env.example):
+      # empty, on in dev mode; without the token, aityx directly.
+      HEALTHHUB_AITYX_VIA_DATYX: ${HEALTHHUB_AITYX_VIA_DATYX:-}
+      DATYX_SERVICE_TOKEN: ${DATYX_SERVICE_TOKEN:-}
       API_PORT: "9802"
       HEALTHHUB_BIND_HOST: 0.0.0.0
       HEALTHHUB_DB_HOST: postgres
@@ -260,6 +265,7 @@ services:
       HEALTHHUB_SIM_PEOPLE: ${HEALTHHUB_SIM_PEOPLE:-80}
       HEALTHHUB_SIM_TURN_MS: ${HEALTHHUB_SIM_TURN_MS:-2500}
       HEALTHHUB_SIM_MINUTES_PER_TURN: ${HEALTHHUB_SIM_MINUTES_PER_TURN:-15}
+      HEALTHHUB_HISTORY_DAYS: ${HEALTHHUB_HISTORY_DAYS:-90}
       HEALTHHUB_ALARM_EVERY_MS: ${HEALTHHUB_ALARM_EVERY_MS:-5000}
       HEALTHHUB_ALARM_THRESHOLD: ${HEALTHHUB_ALARM_THRESHOLD:-0.9}
     extra_hosts:

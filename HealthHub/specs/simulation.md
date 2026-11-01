@@ -35,6 +35,14 @@ so a newcomer is never someone who left (`reus-81` after `reus-80`
 left, not `reus-80` again). The change lasts until the API restarts,
 which starts again from `HEALTHHUB_SIM_PEOPLE`.
 
+The people of the start are drawn with a fixed seed (`populationSeed` in
+`lib/simulation.dart`): the same homes, profiles, care centers and
+conditions at every start, so the admissions history covers exactly the
+care centers a run starts with ([The history](admissions-hourly.md#the-history));
+what they do from there, when episodes start and visits fall, is drawn
+afresh every run. Newcomers who join while it runs may use a care center
+the history doesn't cover.
+
 - **Home**: a random point within 1.5 km of a random care center of the
   city, uniform over the disc, so homes fall in the city and, since care
   centers are on land, mostly on land. It is the starting position.
@@ -244,10 +252,11 @@ visit (`Simulation.changeFlow`, `retime`, `Person.acuteRate`):
 - **Chronic visits** come at intervals: the wait before a visit whose
   care center has factor f (the interval after the last visit, or a
   course's gap), counted from when the person is home again, is divided
-  by f, and the visit is put at a daytime slot (`visitSlotFrom`): the
-  next hour from 08:00 to 17:00 that day when it falls between them,
-  else a random one of those hours, that day before 08:00, the next day
-  after 17:00. Twice as often at ×2, half as often at ×1/2.
+  by f, and the visit is put at a visit's slot on the day that gives
+  (`visitSlotFrom`): an hour drawn from the daily profile
+  ([Visits](#visits)), that day, or the next day's at the same hour when
+  it has passed, never in the past. Twice as often at ×2, half as often
+  at ×1/2.
 - **Acute episodes** start as a Poisson process (a gap with a mean of 90
   days), the condition, and with it the care center of the first visit,
   drawn at the onset. Under the factors a person's onsets come at F times
@@ -259,17 +268,20 @@ visit (`Simulation.changeFlow`, `retime`, `Person.acuteRate`):
   center come at its factor times their normal rate, exactly, and those
   of the others as before. An episode's visits after the first are as
   usual.
-- **The hours** don't change: an emergency is made at once, at any hour,
-  and a planned visit in the daytime, so the daily profile of the
-  admissions there stays the same, only taller or flatter.
+- **The hours** don't change: an onset, at a person's rate F, still
+  falls on an hour of the daily profile (`acuteOnsetAfter`; on the day
+  the gap gives, or the next day's at that hour when the gap, under a day
+  at F above 1, leaves an hour already gone), and a planned visit moved
+  by the flow keeps to the profile too, so the profile of the admissions
+  there stays the same, peaking at 13:00, only taller or flatter.
 
 A press shows at once, not only after the visits already planned: the
 people whose next chronic visit goes to that care center have it brought
 forward or put off, the time left until it times the old factor over the
-new (at a daytime slot; an emergency's time as it comes), and those whose
-F changed have their next acute onset drawn again from now at the new
-rate (the gaps are exponential, so drawing again from now is the same
-process). A visit under way is left as it is. Newcomers
+new (at a visit's slot; an urgent one at the hour of the profile drawn
+for that day, or now when it has passed), and those whose F changed have
+their next acute onset drawn again from now at the new rate (the gaps
+are exponential, so drawing again from now is the same process). A visit under way is left as it is. Newcomers
 ([People](#people)) join under the factors as they are. At the normal
 flow nothing changes, not even the random draws, so a run nobody touched
 is the run it was. The API logs every change, with the care center, the
@@ -282,27 +294,47 @@ run's: a new run (an API restart) starts at the normal flow everywhere.
 How close to the factor, in a seeded run of 400 people of Reus over 120
 days (`test/flow_test.dart`), whose primary care and mental health visits
 go to a health station and the rest to a hospital, the factor set from
-the start: at the hospital, ×2 made 1.75 times its admissions, ×1/2 0.48
-and ×8 6.6; at the health station, ×2 1.94 and ×1/2 0.62. Short of the
-factor because an acute episode that started elsewhere still has its
-follow-ups there as before (a pneumonia admitted at the hospital and
-checked at the health station), and a planned visit keeps to the
-daytime, so one due every day or two (dialysis) comes at most about once
+the start: at the hospital, ×2 made 2.06 times its admissions, ×1/2 0.52
+and ×8 6.4; at the health station, ×2 1.82 and ×1/2 0.53 (with the
+daily profile of arrivals; before it, with planned visits from 08:00 to
+17:00, 1.75, 0.48, 6.6, 1.94 and 0.62). Off the factor because an acute
+episode that started elsewhere still has its follow-ups there as before
+(a pneumonia admitted at the hospital and checked at the health
+station), and a planned visit keeps to its slot, on the hour of the
+profile, so one due every day or two (dialysis) comes at most about once
 a day whatever the factor. The other care center kept about its own,
-but the follow-ups move with the episodes (the health station had 12%
-more with the hospital at ×2, 50% more at ×8), and a person has one
+but the follow-ups move with the episodes (the health station had 7%
+more with the hospital at ×2, 42% more at ×8), and a person has one
 acute episode at a time, so more of them at one care center leaves a
-little less time for the others' (the hospital had a fifth fewer with
-the health station at ×2).
+little less time for the others'. The share of the hospital's
+admissions from 07:00 to 19:00 stayed the same at ×2 (85% against 87%),
+the peak at about 13:00.
 
 ## Visits
 
 A condition's visits come in courses of `count` visits, `interval_days`
-apart ([Medical conditions](conditions.md#visits)). A planned visit
-starts on the hour, at a random hour from 08:00 to 17:00; the first visit
-of an `urgent` condition (appendicitis, renal colic, a fracture, a
-laceration, pneumonia) is made as soon as it starts, at any hour of day
-or night. A person has two processes of visits, apart:
+apart ([Medical conditions](conditions.md#visits)). The time of day of
+an arrival follows one **daily profile**, a single harmonic: an hour's
+weight is 1 + cos(2π (hour − 13) / 24), highest at 13:00 (2), lowest at
+01:00 (0), half at 07:00 and 19:00 (`arrivalPeakHour` 13 and
+`arrivalAmplitude` 1 in `lib/simulation.dart`, `arrivalHour` drawing an
+hour from it). A planned visit starts on the hour, like an appointment,
+at an hour drawn once from the profile, on its day or, when that hour
+of it has passed, the next day's at the same hour, never in the past
+(drawing again for the next day would favour the hours after the one
+asked from, and put the peak of same-day visits, as a non-urgent acute
+episode's, past 13:00); the person leaves at that turn and arrives
+within the hour, so the arrivals' hours follow the profile. The first
+visit of an `urgent` condition (appendicitis, renal colic, a fracture,
+a laceration, pneumonia) is made as soon as it starts; an acute episode
+starts on the day its gap gives, on the hour, at an hour drawn from the
+profile, so emergencies come mostly around midday too, and now and then
+at night, and, with hour-long turns, leave at the onset's turn and
+arrive within its hour; an urgent chronic condition's first visit, on
+its day, likewise. So a run's acute and chronic admissions both follow
+the profile, a first harmonic peaking at 13:00 with the profile's
+amplitude, as the history's do. A person has two processes of visits,
+apart:
 
 - **Chronic**: 60% of people have one chronic condition, for life. Its
   first visit falls within the first 10 simulated days, then one every
@@ -316,15 +348,16 @@ or night. A person has two processes of visits, apart:
 - **Acute**: episodes start at random, a gap after the start or after
   the last episode ended that is exponential with a mean of 90 days (at
   least a day), so they come about every three months, as a Poisson
-  process. Each draws an acute condition by prevalence, weighed by sex,
+  process; the gap gives the day, a later one, and the daily profile the
+  hour. Each draws an acute condition by prevalence, weighed by sex,
   for the person's age; its visits are one course, `first`, `repeat`
   and `last`, and when it ends the next gap begins. Someone without a
   chronic condition is healthy (no condition) between episodes.
 
 The two interleave, one visit at a time: a visit that falls due while
 the person is out on another (an episode that starts during a chronic
-check-up) waits until they are home, then goes at the next daytime slot,
-or at once for an emergency. When both are due at once, the earlier due
+check-up) waits until they are home, then goes at the next planned slot
+(an hour from the profile, later than now), or at once for an emergency. When both are due at once, the earlier due
 goes first.
 
 ## Admissions
@@ -456,7 +489,8 @@ whether the proxy answered its last ping (every 5 s).
 ## Known limitations
 
 - The simulation lives in the API's process: restarting the API starts a
-  new one, with new people, from 06:00 on day 1, under a new run id. The
+  new one, with the same people ([People](#people)) but new events, from
+  06:00 on day 1, under a new run id. The
   admissions of earlier runs stay in the database. The last run's
   admissions the feed had not read yet are read at start, recorded under
   their own event ids and shown among the events, as the people's ids

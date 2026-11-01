@@ -49,10 +49,13 @@ writes them to OpenMetadata, one create-or-update PUT each:
 
 It answers `{"service":"datyx-ds-1","database":"datyx-ds-1.healthhub",
 "schemas":["public"],"tables":8,"columns":101,"personal":50,"special":32,
-"tests":67,"failed":0,"failing":[],"removed":[]}`: `personal` counts the
-columns holding personal data, `special` those of a special category
+"tests":80,"failed":0,"failing":[],"removed":[],"testsCreated":0,
+"testsUpdated":0}`: `personal` counts the columns holding personal
+data, `special` those of a special category
 ([Personal data](#personal-data-gdpr)), `tests` the checks run and
-`failed` those that failed, `failing` the tables with a failed check.
+`failed` those that failed, `failing` the tables with a failed check,
+`testsCreated` and `testsUpdated` the test cases made or changed in
+OpenMetadata.
 Running it again updates the same entities: what people added in
 OpenMetadata (tags, descriptions where the source has no comment,
 owners, domains) stays, and so do the data products and the
@@ -174,28 +177,79 @@ counts none.
 
 `Quality`: how good a table's data is, in OpenMetadata's own terms, read
 by datyx with SQL aggregates (counts, bounds, lengths: never a row's
-values) on a read-only connection, 60 s a query, and written to
-OpenMetadata, which has no connection to run them itself:
+values) on a read-only connection, 50 s a query (below the
+connection's 60 s socket timeout, so PostgreSQL cancels a slow query and
+the connection stays usable), and written to OpenMetadata, which has no
+connection to run them itself:
 
 - the table's **profile** (`PUT /api/v1/tables/{id}/tableProfile`), one
-  query a table: its rows and columns, and per column its values, nulls
+  query a table (one that can't be read, a view past the timeout, is
+  logged and skipped, and its checks run all the same): its rows and columns, and per column its values, nulls
   and their share, distinct values (not for `json`, `bytea`, `xml`,
   arrays), a number's min, max, mean, sum and standard deviation, and a
   text's shortest and longest length;
 - **checks**, each one of OpenMetadata's test definitions, as a test
-  case of the table or column (by name, `{column}_{test}`, with a
-  description in words; `PUT /api/v1/dataQuality/testCases`, which puts
-  it in the table's own test suite) and its result at every sync
-  (`Success` or `Failed`, in words, the values found and the rows passed
-  and failed). The schema gives each table `columnValuesToBeNotNull` for
-  every `NOT NULL` or key column, and `columnValuesToBeUnique` for a
-  one-column primary key, or a `tableCustomSQLQuery` counting duplicates
-  of a composite one. Others come from people, through a curation
-  ([curation.md](curation.md)): `columnValuesToBeBetween` (`minValue`,
-  `maxValue`, either), `columnValuesToBeInSet` (`allowedValues`, compared
-  as text), `columnValuesToMatchRegex` (`regex`, PostgreSQL's) and
-  `tableRowCountToBeBetween`. Another test definition is refused; a
-  custom SQL check is datyx's own only.
+  case of the table or column (by name, `{column}_{test}` or `{test}`,
+  with `_{key}` when the check has a key, its rule's name; with a
+  description in words; tagged `Datyx.Managed`, **datyx's mark**;
+  `PUT /api/v1/dataQuality/testCases`, which puts it in the table's own
+  test suite, sent only when OpenMetadata hasn't it with the same
+  description and parameters, and the mark) and its result at every
+  sync (`Success` or `Failed`, in words, the values found, OpenMetadata's
+  names for them, and the rows passed and failed where they count;
+  `Aborted` when a min, max, mean, median or standard deviation has no
+  values to take, an empty table: nothing to judge, not a failure). A
+  check that can't run (its SQL failing, past the timeout, a view that
+  can't be read) fails, the error its result, and the table's other
+  checks run all the same, on a connection opened again when the error
+  broke it (`Quality.run`, `Quality.Link`). datyx removes a test case
+  only when it has the mark, so others' stay whatever their names; the
+  mark is a tag of the `Datyx` classification, made with the TimeSeries
+  vocabulary (`ensureVocabulary`), and a test case datyx set before it
+  marked them gets it at the next pass. A
+  check's parameters are checked against its definition (OpenMetadata
+  2.0.7's names, the required ones there, a bound a number), so a test
+  case is always one OpenMetadata takes. A check of a column the table
+  no longer has fails, logged, and writes nothing.
+
+  The schema gives each table `columnValuesToBeNotNull` for every `NOT
+  NULL` or key column, and `columnValuesToBeUnique` for a one-column
+  primary key, or `tableCustomSQLQuery_primary_key` counting duplicates
+  of a composite one. Others come from a curation document
+  ([curation.md](curation.md)), any of these definitions:
+
+  | Definition | Parameters | Computed |
+  |---|---|---|
+  | `columnValuesToBeNotNull`, `columnValuesToBeUnique` | | nulls; values against distinct values |
+  | `columnValuesToBeBetween` | `minValue`, `maxValue` (either) | values outside |
+  | `columnValuesToBeInSet`, `columnValuesToBeNotInSet` | `allowedValues`, `forbiddenValues` | values, as text, outside or inside the set |
+  | `columnValuesToMatchRegex`, `columnValuesToNotMatchRegex` | `regex`, `forbiddenRegex` (PostgreSQL's) | values not matching, or matching |
+  | `columnValuesMissingCount` | `missingCountValue`, `missingValueMatch` (more strings that mean missing) | nulls, blank text and those strings, against the count |
+  | `columnValueLengthsToBeBetween` | `minLength`, `maxLength` | values whose length is outside |
+  | `columnValueMinToBeBetween`, `...Max...`, `...Mean...`, `...Median...`, `...StdDev...`, `columnValuesSumToBeBetween` | `minValueFor...`, `maxValueFor...` (OpenMetadata's names) | the aggregate, a number column's only |
+  | `tableRowCountToBeBetween`, `tableRowCountToEqual` | `minValue`, `maxValue`; `value` | rows |
+  | `tableColumnCountToEqual`, `tableColumnCountToBeBetween` | `columnCount`; `minColValue`, `maxColValue` | the source's columns, no query |
+  | `tableColumnNameToExist` (keyed by the column), `tableColumnToMatchSet` | `columnName`; `columnNames` (comma separated), `ordered` | the source's columns, no query |
+  | `tableCustomSQLQuery` | `sqlExpression`, `strategy` (`ROWS`, the default, or `COUNT`), `operator` (`==`, `!=`, `>`, `>=`, `<`, `<=`; `<=` by default), `threshold` (0) | the rows the SQL answers, or the one number it answers, compared with the threshold |
+
+  Another test definition is refused. **Custom SQL** is a curation
+  document's, datyx's own resource, and still guarded: one `SELECT` (or
+  `WITH ... SELECT`), at most 4000 characters; outside its quoted names
+  and strings, no semicolon, comment, dollar quote, backslash or Unicode
+  escape (`U&`, `UESCAPE`), and none of the words that write, lock or
+  control the session (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `INTO`,
+  `FOR UPDATE`/`SHARE`, `SET`, `COPY`, `CALL`, `DO`, DDL...) nor
+  functions that reach beyond the query (`pg_*`, `lo_*`, `dblink`,
+  `set_config`, `nextval`...); no backslash in a string; and none of
+  those functions called by a quoted name (`"pg_sleep"(1)`, which
+  PostgreSQL reads as `pg_sleep(1)`). A quoted name may otherwise hold
+  anything (`"amount$usd"`, `"update"`), so the schema's check of a
+  composite key works whatever its columns are called. A check that
+  isn't is refused when the document is read. It runs in a
+  read-only transaction with a 50 s statement timeout, rolled back
+  after, on the source's read-only connection, and nothing of a request
+  goes into it. Its tables are named as the source's user sees them (its
+  `search_path`).
 
 OpenMetadata then shows each table's Data Quality (its tests passing),
 its profile in Data Observability, and the tests' history.
@@ -592,10 +646,14 @@ kept and datyx's replaced (other classifications' kept), and the patch
 `Catalog.classify` sends, with nested paths, empty once written.
 `QualityTest`, no server: the checks a schema implies (a composite key
 by SQL), the profile's query by type, quoting, test cases, results and
-profiles as OpenMetadata takes them, checks read from JSON and an
-unknown test refused. `CatalogResourceTest` also profiles a table on the
-Dev Services Postgres and runs each kind of check on it, passing and
-failing.
+profiles as OpenMetadata takes them, checks read from JSON, an unknown
+test, an unknown or missing parameter refused, names with a key, the
+custom SQL accepted and refused (writes, several statements, locks,
+comments, functions), datyx's names told from others, a test case
+differing. `QualityChecksTest`, on the Dev Services Postgres: each
+definition's SQL, passing and failing, with the values OpenMetadata is
+told, and a custom SQL check's transaction refusing a write.
+`CatalogResourceTest` also profiles a table there.
 
 ## Known limitations
 
@@ -637,10 +695,21 @@ failing.
   values are): the column is classified as a whole.
 - A check's results are only as fresh as the latest sync: datyx runs no
   schedule of its own outside development ([curation.md](curation.md)).
-  A test case of a column the source no longer has stays in
-  OpenMetadata with its last result.
+  A curation removes the test cases datyx made on its tables that it no
+  longer checks; on a table no document curates, a test case of a column
+  the source no longer has stays in OpenMetadata with its last result.
+- datyx's test cases are told from others by name (one ending in, or
+  holding, a test definition's name as datyx writes it, such as
+  `age_columnValuesToBeBetween` or `tableCustomSQLQuery_...`): a test
+  case made by hand in OpenMetadata with such a name is taken for
+  datyx's.
 - The profile has no histograms, quartiles or medians, and a date's
   range isn't profiled.
+- A column's min, max, mean, median, standard deviation and sum checks
+  are a number column's: a date's or a timestamp's bounds take a custom
+  SQL check. OpenMetadata's `tableDiff`, `tableRowInsertedCountToBeBetween`,
+  `columnValuesToBeAtExpectedLocation` and dimension (per value) results
+  aren't run.
 - Criminal data (Art. 10) is tagged `PersonalData.SpecialCategory`,
   OpenMetadata having no tag of its own for it; the reason says Art. 10.
 - Tables and topics themselves get no PII tag, only their columns and

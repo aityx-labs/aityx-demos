@@ -12,6 +12,7 @@ import 'care_centers.dart';
 import 'care_centers_seed.dart';
 import 'conditions.dart';
 import 'conditions_seed.dart';
+import 'history.dart';
 import 'occupancy_alarms.dart' show AlarmCareCenter, ObservedOccupancy, forecastSteps;
 import 'routes.dart' show Bbox, hourlyMax;
 import 'schema_comments.dart';
@@ -322,9 +323,16 @@ class Db {
         CHECK ((level IS NULL) <> (error IS NULL))
       )
     ''');
-    // The admissions per run, hospital and simulated hour. The API only
-    // makes it: the Flink job (flink/admissions-hourly.sql) writes it,
-    // upserting by the key; an hour without admissions has no row.
+    // Added after the table was first made: which way the call went,
+    // through datyx's aityx gateway or to aityx directly; null for the
+    // triages recorded before, or a call that never got that far.
+    await c.execute(
+      "ALTER TABLE admission_triage ADD COLUMN IF NOT EXISTS via TEXT CHECK (via IN ('datyx', 'aityx'))",
+    );
+    // The admissions per run, hospital and simulated hour. The Flink job
+    // (flink/admissions-hourly.sql) writes the live runs', upserting by
+    // the key; the API the history run's ([writeHistory]). An hour
+    // without admissions has no row.
     await c.execute('''
       CREATE TABLE IF NOT EXISTS admissions_hourly (
         run_id TEXT NOT NULL,
@@ -569,10 +577,10 @@ class Db {
       Sql.named('''
         INSERT INTO admission_triage (event_id, level, wait_minutes, area, nurse_check, level_rule,
           level_why, area_rule, area_why, signs, choices, receipt, reference, error, input_tokens,
-          millis, mode)
+          millis, mode, via)
         VALUES (@eventId, @level, @waitMinutes, @area, @nurseCheck, @levelRule, @levelWhy,
           @areaRule, @areaWhy, @signs, @choices, @receipt, @reference, @error, @inputTokens,
-          @millis, @mode)
+          @millis, @mode, @via)
         ON CONFLICT (event_id) DO NOTHING
       '''),
       parameters: {
@@ -593,6 +601,7 @@ class Db {
         'inputTokens': TypedValue(Type.integer, triage['inputTokens']),
         'millis': TypedValue(Type.integer, triage['millis']),
         'mode': TypedValue(Type.text, triage['mode']),
+        'via': TypedValue(Type.text, triage['via']),
       },
     );
   });
@@ -671,8 +680,8 @@ class Db {
     t.event_id, a.person_name, a.age, a.sex, a.city, a.complaint, a.condition_name, a.condition_type,
     a.visit, a.visit_number, a.hospital_name, a.sim_day, a.sim_time, t.level, t.wait_minutes, t.area,
     t.nurse_check, t.level_rule, t.level_why, t.area_rule, t.area_why, t.signs, t.choices,
-    t.reference, t.error, t.input_tokens, t.millis, t.triaged_at, a.person_id, a.hospital_id''';
-  static const _triageColumnCount = 30;
+    t.reference, t.error, t.input_tokens, t.millis, t.triaged_at, a.person_id, a.hospital_id, t.via''';
+  static const _triageColumnCount = 31;
 
   static Map<String, Object?> _triageRow(ResultRow row) => {
     'eventId': row[0],
@@ -705,6 +714,7 @@ class Db {
     'triagedAt': (row[27] as DateTime).toUtc().toIso8601String(),
     'personId': row[28],
     'hospitalId': row[29],
+    'via': row[30],
   };
 
   static const _admissionFields = [
@@ -1401,6 +1411,11 @@ class Db {
     WHERE run_id = @run AND hospital_id = @id AND hour_start > @from AND hour_start <= @to
     ORDER BY hour_start
   ''';
+
+  /// Makes admissions_hourly hold [days] days of the admissions history
+  /// for [centers] (lib/history.dart's [writeAdmissionsHistory]).
+  Future<HistoryWritten> writeHistory(List<Place> centers, int days) =>
+      _run((c) => writeAdmissionsHistory(c, centers, days));
 
   Future<void> close() async {
     await _connection?.close();

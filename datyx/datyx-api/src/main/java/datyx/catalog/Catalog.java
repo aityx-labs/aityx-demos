@@ -1,7 +1,6 @@
 package datyx.catalog;
 
 import java.io.IOException;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -84,7 +83,8 @@ public class Catalog {
 
     @RegisterForReflection
     public record Synced(String service, String database, List<String> schemas, int tables, int columns,
-            int personal, int special, int tests, int failed, List<String> failing, List<String> removed) {
+            int personal, int special, int tests, int failed, List<String> failing, List<String> removed,
+            int testsCreated, int testsUpdated) {
     }
 
     /**
@@ -135,9 +135,11 @@ public class Catalog {
         int special = 0;
         int tests = 0;
         int failed = 0;
+        int created = 0;
+        int updated = 0;
         List<String> failing = new ArrayList<>();
         Set<String> present = new HashSet<>();
-        try (Connection c = SchemaReader.connect(access)) {
+        try (Quality.Link c = new Quality.Link(() -> SchemaReader.connect(access))) {
             for (SchemaReader.Table table : tables) {
                 String schemaFqn = fqn(service, access.database(), table.schema());
                 JsonNode before = known.get(fqn(service, access.database(), table.schema(), table.name()));
@@ -156,6 +158,8 @@ public class Catalog {
                 Measured measured = measure(c, put, table, Quality.fromSchema(table));
                 tests += measured.tests();
                 failed += measured.failed();
+                created += measured.created();
+                updated += measured.updated();
                 if (measured.failed() > 0) {
                     failing.add(put.path("fullyQualifiedName").asText());
                 }
@@ -172,46 +176,109 @@ public class Catalog {
         LOG.infof("catalogue: %s synced, %d tables, %d columns (%d personal, %d special category), %d checks (%d failed), %d removed",
             service, tables.size(), columns, personal, special, tests, failed, removed.size());
         return new Synced(service, database, List.copyOf(schemas), tables.size(), columns, personal, special, tests,
-            failed, failing, removed);
+            failed, failing, removed, created, updated);
     }
 
     /** The fields of an entity a PUT would lose, read before it to be sent back. */
     static final String KEPT = "certification,dataProducts,domains";
 
-    /** How many checks ran on a table, and how many of them failed. */
-    public record Measured(int tests, int failed) {
+    /** How many checks ran on a table, how many of them failed, and the test cases made and changed for them. */
+    public record Measured(int tests, int failed, int created, int updated) {
     }
 
     /**
      * Profiles a table ({@code table}, as OpenMetadata answered its PUT)
      * and runs {@code checks} on it, writing the profile, each check as a
-     * test case and its result to OpenMetadata.
+     * test case and its result to OpenMetadata. A profile that can't be
+     * read (a view past the timeout) is logged and skipped; the checks run
+     * all the same.
      */
-    public Measured measure(Connection c, JsonNode table, SchemaReader.Table source, List<Quality.Check> checks)
-            throws SQLException {
-        Quality.Profile profile = Quality.profile(c, source);
-        session.call(auth -> client.putTableProfile(auth, table.path("id").asText(),
-            Quality.profileBody(profile, System.currentTimeMillis())));
+    public Measured measure(Quality.Link c, JsonNode table, SchemaReader.Table source, List<Quality.Check> checks) {
+        String tableFqn = table.path("fullyQualifiedName").asText();
+        Quality.Profile profile = null;
+        try {
+            profile = Quality.profile(c.get(), source);
+        } catch (SQLException | RuntimeException e) {
+            c.recover();
+            LOG.infof("catalogue: %s's profile can't be read: %s", tableFqn, e.getMessage());
+        }
+        if (profile != null) {
+            Quality.Profile read = profile;
+            session.call(auth -> client.putTableProfile(auth, table.path("id").asText(),
+                Quality.profileBody(read, System.currentTimeMillis())));
+        }
         return check(c, table, source, checks);
     }
 
-    /** Runs {@code checks} on a table, writing each as a test case and its result to OpenMetadata. */
-    public Measured check(Connection c, JsonNode table, SchemaReader.Table source, List<Quality.Check> checks)
-            throws SQLException {
+    /**
+     * Runs {@code checks} on a table, writing each as a test case, made or
+     * changed only when OpenMetadata hasn't it as datyx would put it (its
+     * description and parameters, datyx's mark), and its result. A check
+     * of a column the source no longer has fails, logged, and writes
+     * nothing; a check that can't run fails with the error as its result
+     * (Quality.run), and the others run all the same. An aborted check (no
+     * values to judge) isn't a failure.
+     */
+    public Measured check(Quality.Link c, JsonNode table, SchemaReader.Table source, List<Quality.Check> checks) {
         long now = System.currentTimeMillis();
         String tableFqn = table.path("fullyQualifiedName").asText();
+        Map<String, JsonNode> existing = checks.isEmpty() ? Map.of() : testCasesOf(tableFqn);
         int failed = 0;
+        int created = 0;
+        int updated = 0;
         for (Quality.Check check : checks) {
-            Quality.Result result = Quality.evaluate(c, source, check);
-            session.call(auth -> client.putTestCase(auth, Quality.testCase(tableFqn, check)));
+            if (!Quality.applies(source, check)) {
+                failed++;
+                LOG.infof("catalogue: %s failed %s: the table has no column %s", tableFqn, check.name(), check.column());
+                continue;
+            }
+            Quality.Result result = Quality.run(c, source, check);
+            ObjectNode testCase = Quality.testCase(tableFqn, check);
+            JsonNode known = existing.get(check.name());
+            if (known == null || Quality.differs(known, testCase)) {
+                session.call(auth -> client.putTestCase(auth, testCase));
+                if (known == null) {
+                    created++;
+                } else {
+                    updated++;
+                }
+            }
             session.call(auth -> client.addTestCaseResult(auth, Quality.testCaseFqn(tableFqn, check),
                 Quality.testResult(result, now)));
-            if (!result.passed()) {
+            if (result.failed()) {
                 failed++;
                 LOG.infof("catalogue: %s failed %s: %s", tableFqn, check.name(), result.result());
+            } else if (result.aborted()) {
+                LOG.infof("catalogue: %s aborted %s: %s", tableFqn, check.name(), result.result());
             }
         }
-        return new Measured(checks.size(), failed);
+        return new Measured(checks.size(), failed, created, updated);
+    }
+
+    /** A table's test cases in OpenMetadata, its columns' too, by name, with their tags (datyx's mark). */
+    Map<String, JsonNode> testCasesOf(String tableFqn) {
+        Map<String, JsonNode> cases = new LinkedHashMap<>();
+        session.call(auth -> client.testCases(auth, Quality.entityLink(tableFqn, null), true, "tags", 1000)).path("data")
+            .forEach(t -> cases.put(t.path("name").asText(), t));
+        return cases;
+    }
+
+    /**
+     * Deletes the table's test cases datyx set (those with its mark,
+     * {@link Quality#MARK}) that aren't {@code keep}: the checks a document
+     * or the schema no longer has ({@link Quality#stale}). A test case
+     * without the mark stays, whatever its name. Answers how many it
+     * deleted.
+     */
+    public int prune(JsonNode table, Set<String> keep) {
+        String tableFqn = table.path("fullyQualifiedName").asText();
+        int removed = 0;
+        for (JsonNode testCase : Quality.stale(testCasesOf(tableFqn).values(), keep)) {
+            session.run(auth -> client.deleteTestCase(auth, testCase.path("id").asText(), true, true));
+            LOG.infof("catalogue: %s's test case %s removed, no longer checked", tableFqn, testCase.path("name").asText());
+            removed++;
+        }
+        return removed;
     }
 
     /** An entity OpenMetadata has, or null when it has none of the name (404). */
@@ -982,8 +1049,22 @@ public class Catalog {
             .put("description", TimeSeries.DISABLED_DESCRIPTION)));
     }
 
-    /** The TimeSeries classification, its role, algorithm and Disabled tags and the table's custom properties, made when missing. */
+    /**
+     * The TimeSeries classification, its role, algorithm and Disabled tags
+     * and the table's custom properties, and the tag datyx marks its test
+     * cases with ({@link Quality#MARK}), made when missing.
+     */
     void ensureVocabulary() {
+        session.call(auth -> client.putClassification(auth, json.createObjectNode()
+            .put("name", Quality.MARK_CLASSIFICATION)
+            .put("description", "What datyx keeps in OpenMetadata itself.")
+            .put("mutuallyExclusive", false)));
+        session.call(auth -> client.putTag(auth, json.createObjectNode()
+            .put("name", Quality.MARK_TAG)
+            .put("classification", Quality.MARK_CLASSIFICATION)
+            .put("description", "A data quality test case datyx sets and runs, from its table's schema or a curation "
+                + "document: datyx updates it, writes its results, and removes it when neither has its check any "
+                + "longer. datyx never removes a test case without this tag.")));
         session.call(auth -> client.putClassification(auth, json.createObjectNode()
             .put("name", TimeSeries.CLASSIFICATION)
             .put("description", TimeSeries.CLASSIFICATION_DESCRIPTION)

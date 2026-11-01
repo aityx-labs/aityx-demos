@@ -13,7 +13,11 @@ class CardTitle extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.baseline,
     textBaseline: TextBaseline.alphabetic,
     children: [
-      Text(title, style: Theme.of(context).textTheme.titleMedium),
+      // On a narrow screen the title, too, gives way rather than overflow.
+      Flexible(
+        flex: 2,
+        child: Text(title, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium),
+      ),
       const SizedBox(width: 10),
       Flexible(
         child: Text(
@@ -25,3 +29,9 @@ class CardTitle extends StatelessWidget {
     ],
   );
 }
+
+/// [cards] with a 16 px gap between each and the next, as the tabs'
+/// padding: the theme's cards have no margin of their own.
+List<Widget> spaced(List<Widget> cards) => [
+  for (final (i, card) in cards.indexed) ...[if (i > 0) const SizedBox(height: 16), card],
+];

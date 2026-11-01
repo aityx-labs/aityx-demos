@@ -31,6 +31,9 @@ export DATYX_OPENMETADATA_PASSWORD="${DATYX_OPENMETADATA_PASSWORD:-admin}"
 # when empty).
 export DATYX_OPENMETADATA_CALLBACK_URL="${DATYX_OPENMETADATA_CALLBACK_URL:-http://host.docker.internal:${DATYX_API_PORT}/api/catalog/openmetadata-events}"
 export DATYX_OPENMETADATA_WEBHOOK_SECRET="${DATYX_OPENMETADATA_WEBHOOK_SECRET:-}"
+# aityx (specs/aityx.md): datyx's key and the services' token, both
+# secrets, and aityx's URL when set (scripts/env.sh exports them).
+export AITYX_API_KEY DATYX_SERVICE_TOKEN
 
 case "$API_MODE" in
   dev)

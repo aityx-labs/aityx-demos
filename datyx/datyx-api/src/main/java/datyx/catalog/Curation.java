@@ -1,6 +1,5 @@
 package datyx.catalog;
 
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -133,9 +132,14 @@ public class Curation {
     public record Edge(String from, String to, String pipeline, String description) {
     }
 
-    /** What a curation found: the certified tables and topics, and those that aren't, with why. */
+    /**
+     * What a curation found: the certified tables and topics, and those
+     * that aren't, with why; the document's checks run and failed, and its
+     * test cases made, changed and removed in OpenMetadata.
+     */
     @RegisterForReflection
-    public record Applied(List<String> certified, Map<String, String> uncertified, int checks, int failed) {
+    public record Applied(List<String> certified, Map<String, String> uncertified, int checks, int failed,
+            int testsCreated, int testsUpdated, int testsRemoved) {
     }
 
     /**
@@ -200,9 +204,12 @@ public class Curation {
         // Tables: tier, terms, owners; the document's checks; roles; certification.
         int checks = 0;
         int failedChecks = 0;
+        int created = 0;
+        int updated = 0;
+        int removed = 0;
         Set<String> failing = new HashSet<>(synced.failing());
         List<SchemaReader.Table> sourceTables = SchemaReader.read(access);
-        try (Connection c = SchemaReader.connect(access)) {
+        try (Quality.Link c = new Quality.Link(() -> SchemaReader.connect(access))) {
             for (JsonNode table : catalog.tablesOf(synced)) {
                 String key = table.path("databaseSchema").path("name").asText() + "." + table.path("name").asText();
                 String tableFqn = table.path("fullyQualifiedName").asText();
@@ -224,18 +231,24 @@ public class Curation {
                         tagPatch(patch, "/columns/" + i + "/tags", columns.get(i).path("tags"), null, terms, doc.glossary().name());
                     }
                 }
+                // The document's checks, then the test cases datyx made that
+                // neither it nor the schema has any longer.
                 List<Quality.Check> tableChecks = curation.checks() == null ? List.of() : curation.checks();
-                if (!tableChecks.isEmpty()) {
-                    SchemaReader.Table source = sourceTables.stream()
-                        .filter(t -> (t.schema() + "." + t.name()).equals(key)).findFirst().orElse(null);
-                    if (source != null) {
-                        Catalog.Measured measured = catalog.check(c, table, source, tableChecks);
-                        checks += measured.tests();
-                        failedChecks += measured.failed();
-                        if (measured.failed() > 0) {
-                            failing.add(tableFqn);
-                        }
+                SchemaReader.Table source = sourceTables.stream()
+                    .filter(t -> (t.schema() + "." + t.name()).equals(key)).findFirst().orElse(null);
+                if (source != null) {
+                    Catalog.Measured measured = catalog.check(c, table, source, tableChecks);
+                    checks += measured.tests();
+                    failedChecks += measured.failed();
+                    created += measured.created();
+                    updated += measured.updated();
+                    if (measured.failed() > 0) {
+                        failing.add(tableFqn);
                     }
+                    Set<String> keep = new HashSet<>();
+                    Quality.fromSchema(source).forEach(check -> keep.add(check.name()));
+                    tableChecks.forEach(check -> keep.add(check.name()));
+                    removed += catalog.prune(table, keep);
                 }
                 String why = missing(table.path("description"), columns, "column")
                     + (failing.contains(tableFqn) ? "; a check fails" : "")
@@ -357,18 +370,50 @@ public class Curation {
             }
         }
 
+        // Only the assets not in them yet: adding one again makes OpenMetadata
+        // go through all it holds (a service, every table and test case),
+        // which takes longer than a call may.
+        Set<String> inDomain = assetIds((auth, offset) -> client.domainAssets(auth, doc.domain().name(), PAGE, offset));
         ObjectNode add = json.createObjectNode();
         ArrayNode list = add.putArray("assets");
-        assets.forEach(list::add);
-        session.call(auth -> client.addDomainAssets(auth, doc.domain().name(), add));
+        assets.stream().filter(a -> !inDomain.contains(a.path("id").asText())).forEach(list::add);
+        if (!list.isEmpty()) {
+            session.call(auth -> client.addDomainAssets(auth, doc.domain().name(), add));
+        }
+        Set<String> inProduct = assetIds((auth, offset) -> client.dataProductAssets(auth, doc.dataProduct().name(), PAGE, offset));
         ObjectNode addToProduct = json.createObjectNode();
         ArrayNode productAssets = addToProduct.putArray("assets");
-        assets.stream().filter(a -> !a.path("type").asText().endsWith("Service")).forEach(productAssets::add);
-        session.call(auth -> client.addDataProductAssets(auth, doc.dataProduct().name(), addToProduct));
-        LOG.infof("curation: %s and %s curated, %d certified, %d not (%s), %d checks (%d failed), %d contracts kept",
+        assets.stream().filter(a -> !a.path("type").asText().endsWith("Service"))
+            .filter(a -> !inProduct.contains(a.path("id").asText())).forEach(productAssets::add);
+        if (!productAssets.isEmpty()) {
+            session.call(auth -> client.addDataProductAssets(auth, doc.dataProduct().name(), addToProduct));
+        }
+        LOG.infof("curation: %s and %s curated, %d certified, %d not (%s), %d checks (%d failed; test cases %d new, %d changed, %d removed), %d contracts kept",
             synced.service(), streamService, certified.size(), uncertified.size(), uncertified, checks, failedChecks,
-            contractsKept);
-        return new Applied(certified, uncertified, checks, failedChecks);
+            created, updated, removed, contractsKept);
+        return new Applied(certified, uncertified, checks, failedChecks, created, updated, removed);
+    }
+
+    /** OpenMetadata's longest page of a domain's or data product's assets. */
+    private static final int PAGE = 1000;
+
+    /** A page of assets from an offset, with the authorization. */
+    @FunctionalInterface
+    interface AssetPage {
+        JsonNode get(String authorization, int offset);
+    }
+
+    /** The ids of a domain's or a data product's assets, page by page. */
+    private Set<String> assetIds(AssetPage page) {
+        Set<String> ids = new HashSet<>();
+        for (int offset = 0; ; offset += PAGE) {
+            int from = offset;
+            JsonNode list = session.call(auth -> page.get(auth, from));
+            list.path("data").forEach(entity -> ids.add(entity.path("id").asText()));
+            if (list.path("data").size() < PAGE || offset + PAGE >= list.path("paging").path("total").asInt()) {
+                return ids;
+            }
+        }
     }
 
     /** The column fields a contract's schema keeps. */

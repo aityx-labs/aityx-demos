@@ -123,7 +123,7 @@ class _TrainingTabState extends State<TrainingTab> {
     return ListView(
       controller: _scroll,
       padding: const EdgeInsets.all(16),
-      children: [
+      children: spaced([
         if (widget.statusError != null) ApiDownLine(widget.statusError!),
         Card(
           child: Padding(
@@ -199,10 +199,11 @@ class _TrainingTabState extends State<TrainingTab> {
             keyOf: (id) => _eventKeys.putIfAbsent(id, GlobalKey.new),
           ),
         ],
-      ],
+      ]),
     );
   }
 }
+
 
 /// One group tagged as a time series: its schedule, Train now, and its latest success.
 class ModelCard extends StatefulWidget {
@@ -516,7 +517,15 @@ class _Results extends StatelessWidget {
 
 /// A headline number: its value large, what it is above, and a note below.
 class StatTile extends StatelessWidget {
-  const StatTile({super.key, required this.label, required this.value, required this.note, this.status, this.icon});
+  const StatTile({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.note,
+    this.status,
+    this.icon,
+    this.width = 190,
+  });
 
   final String label;
   final String value;
@@ -526,9 +535,12 @@ class StatTile extends StatelessWidget {
   final Color? status;
   final IconData? icon;
 
+  /// Its width: the same for a row of them.
+  final double width;
+
   @override
   Widget build(BuildContext context) => Container(
-    width: 190,
+    width: width,
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
       color: Aityx.bg0,
@@ -543,7 +555,14 @@ class StatTile extends StatelessWidget {
         Row(
           children: [
             if (icon != null) ...[Icon(icon, size: 20, color: status), const SizedBox(width: 6)],
-            Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Aityx.fg0)),
+            // A long value (a cost, a time) is scaled down to fit the tile.
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Aityx.fg0)),
+              ),
+            ),
           ],
         ),
         Text(note, style: const TextStyle(color: Aityx.muted, fontSize: 11)),

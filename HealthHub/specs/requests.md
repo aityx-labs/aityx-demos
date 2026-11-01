@@ -513,6 +513,44 @@ The feature files hold the current specification; see the
    hour](occupancy-hourly.md), [A care center's occupancy per
    hour](occupancy-timeline.md), [The care center view](care-center.md),
    [API](api.md) and [Database](database.md).
+1. **In the time series plot, keep the predictions plotted so they can
+   be compared with what actually happened.** The care center view's
+   occupancy chart now keeps DeepAR's forecast of each hour after the
+   hour is counted: the dashed line, hollow points and 80% band stay over
+   the solid line of what was in care, and go on into the next 24 hours.
+   Each hour keeps the last forecast made of it before it was counted,
+   as each read forecasts only from the series' end. Hovering an hour
+   says what was forecast for it; the status line says how many of the
+   hours forecast and gone fell in the band and how far off the mean was
+   on average. The card keeps them while the view is open, from when it
+   opens, and starts again for a new run. See [A care center's occupancy
+   per hour](occupancy-timeline.md).
+1. **Make sure there is enough data for DeepAR to train: generate
+   enough in the data initialization, harmonic, peaking in the middle
+   of the day, so there's a pattern for DeepAR to pick up.** The
+   simulation's arrivals now follow one daily profile, a single
+   harmonic, an hour's weight 1 + cos(2π (hour − 13) / 24): planned
+   visits start on the hour at an hour drawn once from it (not any hour
+   from 08:00 to 17:00; kept to the next day when it has passed, so
+   same-day visits don't lean late), and acute episodes, so emergencies,
+   start on the hour drawn from it on the day their gap gives, so a
+   run's acute and chronic admissions both peak at 13:00. The people are
+   drawn with a fixed seed, the same at every start (their events are
+   not). And at start, in dev mode, the API writes a generated history
+   to `admissions_hourly`, run `00000000`: `HEALTHHUB_HISTORY_DAYS` days
+   (90; 0 for none) from 2026-01-01, every hour, for exactly the care
+   centers those people use (271 with the defaults), each hour's acute
+   and chronic admissions drawn from Poisson rates of the same profile,
+   one shape for both as in a live run (weekends 0.85), a hospital 3 to
+   8 admissions at its busiest hour, less for health stations and
+   clinics. Seeded by the care center's id, so the same rows every time,
+   and written only when they differ: 359,962 rows, every series 2,160
+   hours, each one's fitted daily harmonic peaking between 12.6 and
+   13.5 h. `dart run
+   bin/history.dart` writes it without the API (`--days`, `--dry-run`).
+   See [Admissions per hour](admissions-hourly.md#the-history),
+   [Simulation](simulation.md#visits), [Database](database.md),
+   [API](api.md) and [Development environment](dev-environment.md).
 1. **Double the people again, and make it configurable at the top of the
    events panel; drop the filters by condition (and by event type) for
    now; use real dates, the calendar starting on 2026-01-01, in the data
@@ -536,6 +574,12 @@ The feature files hold the current specification; see the
    [Home](home.md), [The map](map.md), [API](api.md) and
    [Database](database.md).
 
+1. **Make all views full width: narrow views are weird.** The care
+   center view and the person view no longer stop at 960 px: they take
+   the window's full width, less a 16 px margin, as home does. The
+   welcome card on the index and the triage dialog keep their widths.
+   See [The care center view](care-center.md) and
+   [The person view](person.md).
 1. **The occupancy per hour card shows "run …, now": show the simulation's
    current time instead.** The card's header says where the series end as
    a simulated date and time, "Now · Jan 19, 2026 12:00" (or "Ended …"
@@ -740,3 +784,54 @@ The feature files hold the current specification; see the
    on, of the run going on (nothing before, or with the alarms off). See
    [A care center's occupancy per hour](occupancy-timeline.md),
    [Occupancy alarms](occupancy-alarms.md) and [Database](database.md).
+
+1. **In the datyx dashboard add an aityx tab showing the requests routed
+   to aityx, and in the future personalize them.** (HealthHub's part.)
+   The triage's calls to aityx go through datyx's new aityx gateway
+   (datyx's [specs/aityx.md](../../datyx/specs/aityx.md)), which calls
+   aityx with datyx's key, records each call for the dashboard's aityx
+   tab, and is where calls will be personalized per profile: `POST
+   <DATYX_API_URL>/api/aityx/v1/systemone` with datyx's service token
+   (`X-Datyx-Service-Token`), `X-Datyx-Caller: HealthHub` and
+   `X-Datyx-Purpose: triage`, and no aityx key of HealthHub's. On when
+   `HEALTHHUB_AITYX_VIA_DATYX` is `on` (the default in dev mode) and
+   `DATYX_SERVICE_TOKEN` is set, a secret both read from the repository
+   root's `.env`. When datyx can't be reached or refuses with an error
+   of its own (no aityx key, no gateway, the token refused), HealthHub
+   calls aityx directly with its key, noted in the log once a minute, so
+   the triage keeps working. Each triage records which way it went
+   (`admission_triage.via`, `datyx` or `aityx`), and its detail says
+   "via datyx" or "straight to aityx". `/api/health`'s `"aityx"` is true
+   with a key either way: the service token alone isn't one, so without
+   a key of its own HealthHub asks datyx whether it has one (`GET
+   /api/aityx/v1/status`, at most once a minute) and, until it says yes,
+   reports aityx and the triage off and skips the admissions rather than
+   recording a failure for each. See [Triage at the
+   desk](triage.md#which-way-through-datyx-or-directly), [API](api.md),
+   [Database](database.md), [Home](home.md) and [Development
+   environment](dev-environment.md).
+
+1. **Merge the operations views with main: the forecast kept over the
+   hours, the admissions history, the aityx gateway.** Both sides drew
+   what DeepAR predicted of the past hours over the observed line: main
+   kept, in the card, the last forecast it was given of each hour while
+   the view is open; this branch keeps it in the API (`occupancy_forecast`,
+   from the alarms' datyx source), which survives a reload and is
+   everyone's. One chart now: the API's prediction of an hour comes first,
+   the card's own fills only the hours the API has none of (the alarms
+   off, or before a check settled on a source), both drawn alike (dashed
+   blue, hollow points, the 10th to 90th percentile band, the one band of
+   the chart), the tooltip saying what was predicted of the hour and how
+   many hours before, on the calendar's dates; the status line says how
+   many hours were predicted before they came, how far off on average,
+   and how many fell in the 80% band (main's `ForecastCheck`); the now
+   line, the threshold, the marks and the first crossing as before. The
+   simulation keeps main's daily profile of arrivals (peaking at 13:00)
+   under the flow factors: a visit moved by the flow keeps its day and
+   takes an hour of the profile (`visitSlotFrom`), and an acute onset at a
+   person's flow rate falls on an hour of it too (`acuteOnsetAfter`), so
+   the midday peak holds at any flow. The settings are both sides':
+   `HEALTHHUB_HISTORY_DAYS`, the alarms' and the gateway's, at this
+   branch's pace (2500 ms a turn of 15 minutes). See [A care center's
+   occupancy per hour](occupancy-timeline.md) and [The
+   simulation](simulation.md#the-flow-at-a-care-center).

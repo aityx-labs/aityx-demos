@@ -36,7 +36,10 @@ String percentText(double share) => '${(share * 100).round()}%';
 /// with a solid point per hour), and datyx's DeepAR prediction of every
 /// hour, a dashed line with hollow points in its band of the 10th to 90th
 /// percentiles: over the past hours what it predicted of each before it
-/// was observed, over the next its forecast now. A vertical line marks
+/// was observed (as the API keeps it, else as this view kept it: each hour
+/// keeps the last forecast the view was given of it before it was
+/// counted, for the hours the API keeps none of, such as with the alarms
+/// off), over the next its forecast now. A vertical line marks
 /// now, labelled with the simulated time; its [capacity], when known, a
 /// faint line, and the alarm threshold (90% of it) a red one, every point
 /// at or above it marked. Both are asked for together, now and every
@@ -77,6 +80,14 @@ class OccupancyTimelineCard extends StatefulWidget {
 class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
   HourlyOccupancy? _history;
   HourlyForecast? _forecast;
+
+  /// Every forecast hour this view was given in [_keptRun], by hour: the
+  /// latest forecast of each, with its lead from the forecast's series'
+  /// end. A forecast only reaches past its series' end, so an hour counted
+  /// since keeps the last forecast made before it was; shown only where
+  /// the API has no prediction of the hour ([_withKept]).
+  final _kept = <DateTime, PredictedHour>{};
+  String? _keptRun;
   String? _historyError;
   String? _forecastError;
   Timer? _timer;
@@ -95,6 +106,8 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
     if (old.hospitalId != widget.hospitalId || old.run != widget.run || old.hours != widget.hours) {
       _history = null;
       _forecast = null;
+      _kept.clear();
+      _keptRun = null;
       _load();
     }
   }
@@ -120,6 +133,10 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
           case final HourlyOccupancy history:
             _history = history;
             _historyError = null;
+            if (history.run != _keptRun) {
+              _kept.clear();
+              _keptRun = history.run;
+            }
           case final error:
             _historyError = _reason(error);
         }
@@ -127,9 +144,14 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
           case final HourlyForecast forecast:
             _forecast = forecast;
             _forecastError = null;
+            // Kept once the run is known, and only for it.
+            if (_keptRun != null) _keep(forecast.steps);
           case final error:
             _forecastError = _reason(error);
         }
+        // Only the hours shown, and those ahead, are kept.
+        final first = _history?.hours.firstOrNull?.hour;
+        if (first != null) _kept.removeWhere((hour, _) => hour.isBefore(first));
       });
     } finally {
       _loading = false;
@@ -137,6 +159,25 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
   }
 
   static String _reason(Object error) => error is ApiException ? error.message : '$error';
+
+  /// Keeps [steps], a forecast from its series' end (an hour before its
+  /// first step), as each hour's prediction, its lead in hours from there.
+  void _keep(List<ForecastStep> steps) {
+    if (steps.isEmpty) return;
+    final end = steps.first.at.subtract(const Duration(hours: 1));
+    for (final step in steps) {
+      _kept[step.at] = PredictedHour(mean: step.mean, p10: step.p10, p90: step.p90, leadHours: step.at.difference(end).inHours);
+    }
+  }
+
+  /// [hours], each with what datyx predicted of it: the API's, else the
+  /// one this view kept ([_kept]), else none.
+  List<HourOccupancy> _withKept(List<HourOccupancy> hours) => [
+    for (final h in hours)
+      h.predicted != null || _kept[h.hour] == null
+          ? h
+          : HourOccupancy(hour: h.hour, occupancy: h.occupancy, predicted: _kept[h.hour]),
+  ];
 
   double get _threshold => _history?.threshold ?? defaultAlarmThreshold;
 
@@ -146,7 +187,8 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
     final forecast = _forecast;
     final theme = Theme.of(context);
     final steps = forecast?.steps ?? const <ForecastStep>[];
-    final predictedBefore = history?.hours.any((h) => h.predicted != null) ?? false;
+    final hours = history == null ? const <HourOccupancy>[] : _withKept(history.hours);
+    final predictedBefore = hours.any((h) => h.predicted != null);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -171,7 +213,7 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
               ],
             ),
             const SizedBox(height: 4),
-            Text(_status(history, forecast), key: const Key('occupancy-status'), style: const TextStyle(color: Aityx.muted, fontSize: 12)),
+            Text(_status(history, hours, forecast), key: const Key('occupancy-status'), style: const TextStyle(color: Aityx.muted, fontSize: 12)),
             const SizedBox(height: 12),
             if (history == null)
               SizedBox(
@@ -189,7 +231,7 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
               )
             else ...[
               OccupancyTimelineChart(
-                hours: history.hours,
+                hours: hours,
                 forecast: steps,
                 capacity: widget.capacity,
                 unit: widget.unit,
@@ -220,21 +262,19 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
     return moment == null || moment.isBefore(end) ? end : moment;
   }
 
-  /// The hours shown, how well datyx predicted them, and what the forecast
-  /// is, or why there is none; the first hour ahead the threshold is
-  /// reached.
-  String _status(HourlyOccupancy? history, HourlyForecast? forecast) {
-    if (history == null || history.hours.isEmpty) return 'The hours of the simulation, from HealthHub\'s admissions.';
-    final last = history.hours.last;
-    final peak = history.hours.map((h) => h.occupancy).reduce(math.max);
+  /// The hours shown, how well datyx predicted them ([ForecastCheck]), and
+  /// what the forecast is, or why there is none; the first hour ahead the
+  /// threshold is reached. [hours] are the history's, with what was
+  /// predicted of each ([_withKept]).
+  String _status(HourlyOccupancy? history, List<HourOccupancy> hours, HourlyForecast? forecast) {
+    if (history == null || hours.isEmpty) return 'The hours of the simulation, from HealthHub\'s admissions.';
+    final last = hours.last;
+    final peak = hours.map((h) => h.occupancy).reduce(math.max);
     final of = widget.capacity > 0 ? ' of ${widget.capacity} ${widget.unit}' : '';
     final past = '${last.occupancy} in care at ${simDateTime(last.hour)}; at most $peak$of in the last '
-        '${history.hours.length} hours.';
-    final predicted = [for (final h in history.hours) if (h.predicted != null) (h.occupancy - h.predicted!.mean).abs()];
-    final accuracy = predicted.isEmpty
-        ? ''
-        : ' datyx predicted ${predicted.length} of them before they came, off by '
-            '${expectedText(predicted.reduce((a, b) => a + b) / predicted.length)} on average.';
+        '${hours.length} hours.';
+    final check = ForecastCheck.of(hours);
+    final accuracy = check == null ? '' : ' ${check.text}';
     if (_forecastError != null && (forecast == null || forecast.steps.isEmpty)) {
       return '$past$accuracy No forecast: $_forecastError';
     }
@@ -252,6 +292,38 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
         'hours, ${expectedText(high)} at most'
         '${p.trainingRunId == null ? '' : ' (model of training run ${p.trainingRunId})'}.$alarm';
   }
+}
+
+/// How datyx's predictions did over the hours observed it predicted
+/// before they came: how many of them, how many fell in the 80% band (the
+/// 10th to 90th percentiles), and how far the mean was from what
+/// happened, on average.
+class ForecastCheck {
+  const ForecastCheck({required this.hours, required this.inBand, required this.meanError});
+
+  /// Of [hours]' predictions ([HourOccupancy.predicted]); null when none
+  /// has one.
+  static ForecastCheck? of(List<HourOccupancy> hours) {
+    var n = 0;
+    var inBand = 0;
+    var error = 0.0;
+    for (final h in hours) {
+      final p = h.predicted;
+      if (p == null) continue;
+      n++;
+      if (p.p10 != null && p.p90 != null && h.occupancy >= p.p10! && h.occupancy <= p.p90!) inBand++;
+      error += (h.occupancy - p.mean).abs();
+    }
+    return n == 0 ? null : ForecastCheck(hours: n, inBand: inBand, meanError: error / n);
+  }
+
+  final int hours;
+  final int inBand;
+  final double meanError;
+
+  String get text =>
+      'datyx predicted $hours of them before they came, off by ${expectedText(meanError)} on average; '
+      '$inBand fell in its 80% band.';
 }
 
 /// Where the label of the first crossing ahead goes, its top: [gap] above

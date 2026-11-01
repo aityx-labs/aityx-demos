@@ -103,7 +103,8 @@ process-compose through Docker Compose comes from.
     healthy, with a readiness probe on `/api/health`. The script loads
     the settings through [scripts/env.sh](../scripts/env.sh) (the
     environment, else `.env`, else defaults) and exports `AITYX_API_KEY`,
-    `AITYX_URL` and the database's host, port, name, user and password
+    `AITYX_URL`, `DATYX_SERVICE_TOKEN`, `HEALTHHUB_AITYX_VIA_DATYX` and
+    the database's host, port, name, user and password
     to the server only, with `HEALTHHUB_MODE`, `HEALTHHUB_KAFKA_REST_URL`
     and the simulation's settings. It doesn't wait for Kafka: in dev mode
     it retries the REST proxy until it answers. CORS allows the web app's
@@ -115,7 +116,7 @@ process-compose through Docker Compose comes from.
     and waits 5 s (`HEALTH_CHECK_DELAY`). Then every 15 s
     (`HEALTH_CHECK_INTERVAL`) one line with the time, 🌐 Web, 🔌 API
     (`/api/health`), 🐘 Postgres (the API's `"db"`), 🤖 aityx (✅ the
-    API has its key, ⚪ it doesn't), 📨 Kafka (the REST proxy's
+    API has a key to reach aityx with, its own or datyx's through datyx, ⚪ it doesn't), 📨 Kafka (the REST proxy's
     `GET /topics` on `HEALTHHUB_KAFKA_REST_PORT` answers 200) and 🌊
     Flink (the JobManager on `HEALTHHUB_FLINK_PORT` lists
     `healthhub-admissions-hourly` as `RUNNING`).
@@ -127,6 +128,10 @@ process-compose through Docker Compose comes from.
 - **Settings** ([.env.example](../.env.example), read by
   [scripts/env.sh](../scripts/env.sh)): `AITYX_API_KEY`, `AITYX_URL`,
   `HEALTHHUB_TRIAGE` (`on`, or `off` for no triage),
+  `HEALTHHUB_AITYX_VIA_DATYX` (`on` in dev mode, `off` in prod) and
+  `DATYX_SERVICE_TOKEN` (a secret, datyx's too: the triage's calls go
+  through datyx's aityx gateway; [Triage at the
+  desk](triage.md#which-way-through-datyx-or-directly)),
   `OIDC_CLIENT_ID`, `OIDC_ISSUER`, `DATYX_API_URL` ([API](api.md)),
   `HEALTHHUB_BIND_HOST`, `FLUTTER_WEB_PORT`, `API_PORT`,
   `HEALTHHUB_DB_PORT`, `HEALTHHUB_DB_ADMIN_PASSWORD`,
@@ -137,15 +142,17 @@ process-compose through Docker Compose comes from.
   people simulation; `prod` doesn't), `HEALTHHUB_SIM_PEOPLE` (40 per
   city), `HEALTHHUB_SIM_TURN_MS` (2500) and
   `HEALTHHUB_SIM_MINUTES_PER_TURN` (15, so a simulated hour takes 10 real
-  seconds), `HEALTHHUB_ALARM_EVERY_MS` (5000, the least real milliseconds
-  between two [occupancy alarm](occupancy-alarms.md) checks; 0 turns them
-  off), `HEALTHHUB_ALARM_THRESHOLD` (0.9, the share of a care center's
-  capacity whose reaching, observed or forecast, is an alarm; `85%` works
-  too, above 0 and at most 2), every one but the key with a
-  default. `.env` is git-ignored; one copied from an older
-  `.env.example` keeps `HEALTHHUB_SIM_TURN_MS=1000` and
-  `HEALTHHUB_SIM_MINUTES_PER_TURN=60`, the old pace, until they are
-  removed.
+  seconds), `HEALTHHUB_HISTORY_DAYS` (90, the days of admissions history
+  the API writes at start in dev mode; 0 for none: [The
+  history](admissions-hourly.md#the-history)), `HEALTHHUB_ALARM_EVERY_MS`
+  (5000, the least real milliseconds between two [occupancy
+  alarm](occupancy-alarms.md) checks; 0 turns them off),
+  `HEALTHHUB_ALARM_THRESHOLD` (0.9, the share of a care center's capacity
+  whose reaching, observed or forecast, is an alarm; `85%` works too,
+  above 0 and at most 2), every one but the key with a default. `.env` is
+  git-ignored; one copied from an older `.env.example` keeps
+  `HEALTHHUB_SIM_TURN_MS=1000` and `HEALTHHUB_SIM_MINUTES_PER_TURN=60`,
+  the old pace, until they are removed.
 - **The pace and datyx** ([The simulation](simulation.md#pace)): a
   simulated hour every 10 s, so datyx's DeepAR inference (about 7 s a
   call for 33 care centers) comes within a simulated hour and its 24
@@ -182,6 +189,9 @@ process-compose through Docker Compose comes from.
   `kafka` first); `devbox run flink` the Flink job (`infra.sh up
   flink-sql`, which starts the JobManager, the TaskManager, Kafka and
   PostgreSQL first; the API must have made `admissions_hourly`).
+- `dart run bin/history.dart [--days N] [--dry-run]` in `healthhub_api/`
+  writes the admissions history to the database `HEALTHHUB_DB_*` names
+  without starting the API ([The history](admissions-hourly.md#the-history)).
 - The web app calls the API at `API_BASE_URL` (a dart-define). The
   services leave it empty, in both modes: the app calls `/api/` on its own
   origin, which the web server (or the dev server) proxies to the API.

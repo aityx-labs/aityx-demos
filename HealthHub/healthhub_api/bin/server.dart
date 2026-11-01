@@ -5,7 +5,10 @@
 ///                       opens the app (the web server proxies the root
 ///                       here)
 ///   GET  /api/health    {"ok": true, "db": true when the database
-///                       answers, "aityx": true when the key is set,
+///                       answers, "aityx": true when HealthHub has
+///                       the key, or calls go through datyx and datyx
+///                       last said it has one (GET /api/aityx/v1/status,
+///                       asked at most once a minute, in the background),
 ///                       "auth": true when authentication is on, "kafka":
 ///                       true when Kafka's REST proxy answers,
 ///                       "simulation": true when the simulation runs,
@@ -125,6 +128,12 @@
 ///   AITYX_URL             aityx's base URL (default https://api.aityx.ai)
 ///   HEALTHHUB_TRIAGE      on (the default, with a key) or off: whether
 ///                         each admission is triaged with aityx
+///   DATYX_SERVICE_TOKEN   datyx's service token (secret): with it, the
+///                         triage's calls go through datyx's aityx
+///                         gateway, with datyx's key, and to aityx
+///                         directly only when datyx can't pass them on
+///   HEALTHHUB_AITYX_VIA_DATYX  on or off: whether they do (default on in
+///                         dev mode, off in prod)
 ///   API_PORT              the port (default 9802)
 ///   HEALTHHUB_BIND_HOST   the address to bind (default 127.0.0.1)
 ///   ALLOWED_ORIGINS       comma-separated origins allowed by CORS
@@ -137,6 +146,9 @@
 ///   HEALTHHUB_KAFKA_REST_URL  Kafka's REST proxy (default
 ///                         http://127.0.0.1:9805)
 ///   HEALTHHUB_SIM_*       the simulation (see lib/simulation.dart)
+///   HEALTHHUB_HISTORY_DAYS  in dev mode, the days of admissions history
+///                         written at start (default 90; 0 for none; see
+///                         lib/history.dart)
 ///   HEALTHHUB_ALARM_EVERY_MS  real milliseconds between two occupancy
 ///                         alarm checks at least (default 5000; 0: off)
 ///   HEALTHHUB_ALARM_THRESHOLD  the share of a care center's capacity
@@ -157,6 +169,7 @@ import 'package:healthhub_api/admissions.dart';
 import 'package:healthhub_api/auth.dart';
 import 'package:healthhub_api/conditions_seed.dart';
 import 'package:healthhub_api/db.dart';
+import 'package:healthhub_api/history.dart';
 import 'package:healthhub_api/kafka_rest.dart';
 import 'package:healthhub_api/occupancy_alarms.dart';
 import 'package:healthhub_api/routes.dart';
@@ -183,13 +196,11 @@ Future<void> main(List<String> args) async {
       .map((origin) => origin.trim())
       .where((origin) => origin.isNotEmpty)
       .toSet();
-  if (key.isEmpty) stderr.writeln('warning: AITYX_API_KEY is not set');
   final triageSetting = (env['HEALTHHUB_TRIAGE'] ?? '').isEmpty ? 'on' : env['HEALTHHUB_TRIAGE']!;
   if (triageSetting != 'on' && triageSetting != 'off') {
     stderr.writeln('error: HEALTHHUB_TRIAGE must be on or off');
     exit(1);
   }
-  final aityx = Aityx(url, key);
 
   final db = Db(DbSettings.fromEnvironment());
   final auth = AuthSettings.fromEnvironment();
@@ -200,6 +211,34 @@ Future<void> main(List<String> args) async {
   final mode = (env['HEALTHHUB_MODE'] ?? '').isEmpty ? 'dev' : env['HEALTHHUB_MODE']!;
   if (mode != 'dev' && mode != 'prod') {
     stderr.writeln('error: HEALTHHUB_MODE must be dev or prod');
+    exit(1);
+  }
+  // The triage's calls through datyx's aityx gateway: on in dev mode
+  // unless off, and only with datyx's service token.
+  final viaDatyx = (env['HEALTHHUB_AITYX_VIA_DATYX'] ?? '').isEmpty
+      ? (mode == 'dev' ? 'on' : 'off')
+      : env['HEALTHHUB_AITYX_VIA_DATYX']!;
+  if (viaDatyx != 'on' && viaDatyx != 'off') {
+    stderr.writeln('error: HEALTHHUB_AITYX_VIA_DATYX must be on or off');
+    exit(1);
+  }
+  final serviceToken = env['DATYX_SERVICE_TOKEN'] ?? '';
+  if (viaDatyx == 'on' && serviceToken.isEmpty) {
+    stderr.writeln('note: DATYX_SERVICE_TOKEN is not set, so aityx is called directly, not through datyx');
+  }
+  final aityx = Aityx(url, key, datyx: viaDatyx == 'on' ? datyx : null, serviceToken: serviceToken);
+  if (key.isEmpty) {
+    stderr.writeln(
+      aityx.routesViaDatyx
+          ? 'note: AITYX_API_KEY is not set, so aityx is reached through datyx only'
+          : 'warning: AITYX_API_KEY is not set',
+    );
+  }
+  final int historyDays;
+  try {
+    historyDays = historyDaysFromEnvironment(env);
+  } on FormatException catch (error) {
+    stderr.writeln('error: ${error.message}');
     exit(1);
   }
   final kafka = KafkaRest(Uri.parse(
@@ -224,9 +263,17 @@ Future<void> main(List<String> args) async {
     threshold: alarmThreshold,
   );
   if (live.dev && alarmEvery > Duration.zero) live.alarms = _alarms(db, datyx, live, alarmEvery);
+  // Without a key of HealthHub's, whether datyx has one: until it says
+  // so, aityx isn't reported and no admission is triaged.
+  if (key.isEmpty && aityx.routesViaDatyx) {
+    unawaited(aityx.check().then((available) {
+      if (!available) stderr.writeln('note: datyx has no aityx key (or no answer) and HealthHub none, so triage waits for one');
+    }));
+  }
   final server = await HttpServer.bind(host, port);
   stdout.writeln(
-    'healthhub_api on http://$host:$port (mode: $mode; aityx: ${url.host}; '
+    'healthhub_api on http://$host:$port (mode: $mode; '
+    'aityx: ${aityx.routesViaDatyx ? 'through datyx${key.isEmpty ? '' : ', else ${url.host}'}' : url.host}; '
     'database: ${db.settings}; '
     'auth: ${auth.enabled ? 'on, ${auth.issuer}' : 'off'}; datyx: $datyx; '
     'kafka: ${kafka.base}; triage: ${live.triage ? 'on' : 'off'}; '
@@ -235,7 +282,7 @@ Future<void> main(List<String> args) async {
   // The tables, once the database answers: retried in the background, so
   // the server is up (and /api/health says db: false) meanwhile. The
   // simulation needs the care centers, so it starts after.
-  unawaited(_migrate(db).then((_) => live.dev ? _simulate(db, live) : null));
+  unawaited(_migrate(db).then((_) => live.dev ? _simulate(db, live, historyDays) : null));
   live.watchKafka();
   // Stopped by process-compose, a rebuild, Docker or Ctrl-C: delete the
   // feed's consumers on the proxy, or each restart leaves them behind.
@@ -244,7 +291,7 @@ Future<void> main(List<String> args) async {
   }
 
   await for (final request in server) {
-    unawaited(_handle(request, origins, db, verifier, datyx, live, aityx: key.isNotEmpty));
+    unawaited(_handle(request, origins, db, verifier, datyx, live));
   }
 }
 
@@ -301,6 +348,17 @@ class _Live {
   /// aityx, which triages each admission recorded when [triage] is on.
   final Aityx aityx;
   final bool triage;
+
+  /// Whether there is a key to reach aityx with ([Aityx.available]), as
+  /// last known: a stale answer from datyx is asked again in the
+  /// background, so the health check never waits on datyx.
+  bool get aityxAvailable {
+    unawaited(aityx.check());
+    return aityx.available;
+  }
+
+  /// Whether admissions are triaged now: [triage] on, with a key.
+  bool get triaging => triage && aityxAvailable;
   Simulation? simulation;
   PeopleFeed? feed;
   AdmissionRecorder? recorder;
@@ -382,9 +440,11 @@ Future<void> _migrate(Db db) async {
 }
 
 /// Dev mode: reads the care centers (retried like the migration), starts
-/// the feed and the simulation. Neither waits for Kafka: the people keep
-/// moving and retry publishing, the feed retries connecting.
-Future<void> _simulate(Db db, _Live live) async {
+/// the feed and the simulation, and writes [historyDays] days of
+/// admissions history in the background ([_history]). Neither waits for
+/// Kafka: the people keep moving and retry publishing, the feed retries
+/// connecting.
+Future<void> _simulate(Db db, _Live live, int historyDays) async {
   final settings = SimulationSettings.fromEnvironment();
   List<Place> places;
   for (var attempt = 1; ; attempt++) {
@@ -398,18 +458,21 @@ Future<void> _simulate(Db db, _Live live) async {
       await Future<void>.delayed(const Duration(seconds: 3));
     }
   }
-  final random = Random();
+  // The same people at every start ([populationSeed]), so the history
+  // covers the care centers they use; what they do is drawn afresh.
   final people = populate(
     places,
     settings.peoplePerCity,
     settings.minutesPerTurn,
-    random,
+    Random(populationSeed),
     conditions: conditionSeed,
   );
   if (people.isEmpty) {
     stderr.writeln('simulation: no hospitals with a location, so nobody to move');
     return;
   }
+  if (historyDays > 0) unawaited(_history(db, historyCenters(people, conditionSeed), historyDays));
+  final random = Random();
   if (conditionSeed.isEmpty) {
     stderr.writeln('simulation: no medical conditions, so nobody goes to the hospital');
   }
@@ -417,11 +480,14 @@ Future<void> _simulate(Db db, _Live live) async {
   // background; a triage the database can't record is logged and lost.
   // The events carry its level once it is recorded.
   final triager = live.triage
-      ? live.triager = Triager((admission) async {
-          final triage = await triageAdmission(live.aityx, admission);
-          await db.recordTriage(triage);
-          live.feed?.triaged(triage['eventId'], triage['level']);
-        })
+      ? live.triager = Triager(
+          (admission) async {
+            final triage = await triageAdmission(live.aityx, admission);
+            await db.recordTriage(triage);
+            live.feed?.triaged(triage['eventId'], triage['level']);
+          },
+          ready: live.aityx.check,
+        )
       : null;
   // Bad data the database refuses is dropped, not retried forever.
   final recorder = live.recorder = AdmissionRecorder(
@@ -501,6 +567,25 @@ OccupancyAlarms _alarms(Db db, Uri datyx, _Live live, Duration every) {
   );
 }
 
+/// Writes [days] days of admissions history (lib/history.dart) for
+/// [centers], those the simulation's people use: retried a few times,
+/// then logged and left.
+Future<void> _history(Db db, List<Place> centers, int days) async {
+  for (var attempt = 1; attempt <= 5; attempt++) {
+    try {
+      final written = await db.writeHistory(centers, days);
+      stdout.writeln(
+        'history: run $historyRun, $days days, ${written.centers} care centers '
+        '(${written.written} written, the others up to date), ${written.rows} rows',
+      );
+      return;
+    } catch (error) {
+      stderr.writeln('history: not written (attempt $attempt): $error');
+      await Future<void>.delayed(const Duration(seconds: 5));
+    }
+  }
+}
+
 /// 0 when the server on this machine answers /api/health with ok, else 1.
 Future<int> _healthcheck() async {
   final port = int.parse(Platform.environment['API_PORT'] ?? '9802');
@@ -529,9 +614,8 @@ Future<void> _handle(
   Db db,
   TokenVerifier verifier,
   Uri datyx,
-  _Live live, {
-  required bool aityx,
-}) async {
+  _Live live,
+) async {
   final response = request.response;
   final origin = request.headers.value('origin');
   if (origin != null && origins.contains(origin)) {
@@ -563,19 +647,19 @@ Future<void> _handle(
         method,
         path,
         db: await db.ping(),
-        aityx: aityx,
+        aityx: live.aityxAvailable,
         auth: auth,
         kafka: live.kafkaUp,
         simulation: live.simulation?.running ?? false,
         paused: live.simulation?.paused ?? false,
-        triageEnabled: live.triage,
+        triageEnabled: live.triaging,
       ),
       ('GET', '/api/triage') => route(
         method,
         path,
         query: request.uri.queryParameters,
         auth: auth,
-        triageEnabled: live.triage,
+        triageEnabled: live.triaging,
         triage: await _triage(db, request.uri.queryParameters),
       ),
       ('GET', _) when triageEventId(path) != null => route(
@@ -756,7 +840,7 @@ Future<void> _handle(
             ? null
             : await _forward(datyx, datyxPath(path)!, token),
       ),
-      _ => route(method, path, aityx: aityx, auth: auth, identity: identity),
+      _ => route(method, path, auth: auth, identity: identity),
     };
     response.statusCode = answer.status;
     if (answer.location case final location?) {

@@ -127,8 +127,9 @@ OpenAPI, and a REST client for OpenMetadata.
   runtime: `brew install libomp` on macOS. See
   [specs/training.md](specs/training.md).
 - `/api/inference`: the account of the calls to the trained models over
-  the last 7 days (totals, latency percentiles, per model, per hour, the
-  latest calls); `POST /api/datasources/{id}/inference` scores series by
+  the last 7 days (totals, latency percentiles, per model, hour by hour
+  over the last 24 hours or `?hours=` up to 168, each hour's calls,
+  failures, series, latency and calls per model, the latest calls); `POST /api/datasources/{id}/inference` scores series by
   their key, or all those still observed. See
   [specs/inference.md](specs/inference.md).
 - `/api/profile`: the caller's profile, made the first time an identity

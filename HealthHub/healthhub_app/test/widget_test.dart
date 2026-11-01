@@ -127,6 +127,7 @@ class FakeApi implements HealthHubApi {
       'reference': 'orange',
       'millis': 312,
       'inputTokens': 4100,
+      'via': 'datyx',
     },
     {
       'eventId': 'r1-lisboa-2-d2-t38',
@@ -1451,6 +1452,7 @@ void main() {
     expect(find.textContaining('The simulated patient has COPD, first visit.'), findsOneWidget);
     expect(find.textContaining('aityx gave the reference level'), findsOneWidget);
     expect(find.textContaining('8 inputs from Jev, age from the desk'), findsOneWidget);
+    expect(find.textContaining('312 ms, 4100 input tokens, via datyx.'), findsOneWidget);
 
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
@@ -1575,8 +1577,9 @@ void main() {
       expect(find.textContaining('1349d576'), findsNothing);
       final status = tester.widget<Text>(find.byKey(const Key('occupancy-status'))).data!;
       expect(status, contains('1 in care at Jan 19, 2026 12:00; at most 3 of 8 beds in the last 6 hours.'));
-      // How far off datyx was of the hours it predicted: |3-2.8|, |2-2.2|, |2-1.6|, |1-1.2|.
-      expect(status, contains('datyx predicted 4 of them before they came, off by 0.25 on average.'));
+      // How far off datyx was of the hours it predicted: |3-2.8|, |2-2.2|, |2-1.6|, |1-1.2|; how many in the band.
+      expect(status, contains('datyx predicted 4 of them before they came, off by 0.25 on average; '));
+      expect(status, matches(RegExp(r'; \d fell in its 80% band\.')));
       expect(status, contains("datyx's DeepAR expects 1.5 on average over the next 4 hours, 2.0 at most (model of training run 5)"));
       // Of 8 beds, 90% is 7.2: nothing reaches it.
       expect(status, isNot(contains('90% of the capacity')));
@@ -1732,6 +1735,151 @@ void main() {
         expect(top + 17 <= y - 11 || top >= y + 11, isTrue, reason: '$y');
         expect(top, greaterThanOrEqualTo(22));
       }
+    });
+
+    testWidgets('the forecast of the hours gone stays over them, to compare, until the run changes', (tester) async {
+      final semantics = tester.ensureSemantics();
+      // Day 19, 07:00 to 12:00, forecast 13:00 to 16:00; then 09:00 to 14:00, forecast 15:00 to 18:00;
+      // then a new run.
+      var read = 0;
+      HourlyOccupancy series(String run, int from, List<int> inCare) => HourlyOccupancy.fromJson({
+        'hospitalId': 2,
+        'run': run,
+        'current': true,
+        'end': '2026-01-19T${'${from + inCare.length - 1}'.padLeft(2, '0')}:00',
+        'hours': [
+          for (var k = 0; k < inCare.length; k++)
+            {'hour': '2026-01-19T${'${from + k}'.padLeft(2, '0')}:00', 'occupancy': inCare[k]},
+        ],
+      });
+      HourlyForecast ahead(int from, List<double> means) => HourlyForecast.fromJson({
+        'trainingRunId': 5,
+        'forecast': [
+          for (var k = 0; k < means.length; k++)
+            {'at': '2026-01-19T${from + k}:00', 'mean': means[k], 'p10': 0, 'p50': 1, 'p90': 3},
+        ],
+      });
+      await tester.pumpWidget(MaterialApp(
+        theme: aityxDarkTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 720,
+            child: OccupancyTimelineCard(
+              occupancy: (id, {run, hours}) async => switch (read++) {
+                0 => series('1349d576', 7, [0, 1, 3, 2, 2, 1]),
+                1 => series('1349d576', 9, [3, 2, 2, 1, 2, 5]),
+                _ => series('5eed0002', 9, [0, 0, 0, 0, 0, 1]),
+              },
+              forecast: (id, {run}) async => read <= 1 ? ahead(13, [1.0, 1.5, 2.0, 1.5]) : ahead(15, [2.0, 2.5, 2.0, 1.5]),
+              hospitalId: 2,
+              capacity: 8,
+              unit: 'beds',
+              refresh: const Duration(seconds: 10),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('before they came'), findsNothing);
+
+      // 13:00 and 14:00 were counted: 2 in care, in the band, and 5, above it; the first forecast stays over them
+      // (the API keeps no prediction of them here, so the view's own are shown).
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining(
+          'datyx predicted 2 of them before they came, off by ${expectedText(2.25)} on average; 1 fell in its 80% band.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel(
+          'Occupancy per hour: 5 in care now (Jan 19, 2026 14:00), at most 5 in the last 6 hours, of a capacity of 8; '
+          '2 of them predicted before; 2.0 on average forecast over the next 4; '
+          'alarm threshold 90%, 7.2: 0 hours in care and 0 predicted at or above it',
+        ),
+        findsOneWidget,
+      );
+      // 09:00 to 14:00 then 15:00 to 18:00: 13:00 is the fifth of ten.
+      final chart = tester.getRect(find.byType(OccupancyTimelineChart));
+      double xOf(int index) => chart.left + 28 + index / 9 * (chart.width - 36);
+      await tester.tapAt(Offset(xOf(4), chart.center.dy));
+      await tester.pump();
+      // Forecast from 12:00's series' end: 13:00 an hour ahead.
+      expect(find.text('Jan 19, 2026 13:00\n2 in care of 8 beds (25%)\npredicted 1.0, 1 h before\n0 to 3 (80%)'), findsOneWidget);
+      // An hour from before any forecast has none.
+      await tester.tapAt(Offset(xOf(1), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Jan 19, 2026 10:00\n2 in care of 8 beds (25%)'), findsOneWidget);
+
+      // A new run starts again: nothing of the old forecast is kept.
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('5eed0002'), findsNothing); // the run's id isn't shown: the simulated time is
+      expect(tester.widget<Text>(find.byKey(const Key('occupancy-now'))).data, startsWith('Now · '));
+      expect(find.textContaining('before they came'), findsNothing);
+      semantics.dispose();
+    });
+
+    testWidgets("the API's prediction of an hour comes first, the view's own only where the API has none", (tester) async {
+      // Day 19, 07:00 to 12:00, forecast 13:00 to 16:00; then 09:00 to 14:00, the API keeping a prediction of 13:00 only.
+      var read = 0;
+      HourlyOccupancy series(int from, List<int> inCare, {Map<int, Map<String, Object?>> predicted = const {}}) =>
+          HourlyOccupancy.fromJson({
+            'hospitalId': 2,
+            'run': '1349d576',
+            'current': true,
+            'end': '2026-01-19T${'${from + inCare.length - 1}'.padLeft(2, '0')}:00',
+            'hours': [
+              for (var k = 0; k < inCare.length; k++)
+                {
+                  'hour': '2026-01-19T${'${from + k}'.padLeft(2, '0')}:00',
+                  'occupancy': inCare[k],
+                  if (predicted[from + k] != null) 'predicted': predicted[from + k],
+                },
+            ],
+          });
+      final forecast = HourlyForecast.fromJson({
+        'trainingRunId': 5,
+        'forecast': [
+          for (var k = 0; k < 4; k++) {'at': '2026-01-19T${13 + k}:00', 'mean': 1.0 + k / 2, 'p10': 0, 'p50': 1, 'p90': 3},
+        ],
+      });
+      await tester.pumpWidget(MaterialApp(
+        theme: aityxDarkTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 720,
+            child: OccupancyTimelineCard(
+              occupancy: (id, {run, hours}) async => read++ == 0
+                  ? series(7, [0, 1, 3, 2, 2, 1])
+                  : series(9, [3, 2, 2, 1, 2, 5], predicted: {13: {'mean': 2.5, 'p10': 2, 'p90': 3, 'leadHours': 3}}),
+              forecast: (id, {run}) async => forecast,
+              hospitalId: 2,
+              capacity: 8,
+              unit: 'beds',
+              refresh: const Duration(seconds: 10),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+      // 13:00: the API's 2.5, 3 h before (in its band); 14:00: the view's own 1.5, 2 h before (5 is above its band).
+      expect(
+        find.textContaining('datyx predicted 2 of them before they came, off by ${expectedText((0.5 + 3.5) / 2)} on average; '
+            '1 fell in its 80% band.'),
+        findsOneWidget,
+      );
+      final chart = tester.getRect(find.byType(OccupancyTimelineChart));
+      double xOf(int index) => chart.left + 28 + index / 7 * (chart.width - 36);
+      await tester.tapAt(Offset(xOf(4), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Jan 19, 2026 13:00\n2 in care of 8 beds (25%)\npredicted 2.5, 3 h before\n2 to 3 (80%)'), findsOneWidget);
+      await tester.tapAt(Offset(xOf(5), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Jan 19, 2026 14:00\n5 in care of 8 beds (63%)\npredicted 1.5, 2 h before\n0 to 3 (80%)'), findsOneWidget);
     });
 
     testWidgets('without a model the hours still show, and the card says why', (tester) async {

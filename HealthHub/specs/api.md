@@ -14,7 +14,7 @@ and the [occupancy alarms](occupancy-alarms.md):
 | Request | Answer |
 |---|---|
 | `GET /` | 302 to `/app/`, so a forwarded port's bare URL opens the app |
-| `GET /api/health` | `{"ok": true, "db": <whether the database answers SELECT 1>, "aityx": <whether the API has its key>, "auth": <whether authentication is on>, "kafka": <whether Kafka's REST proxy answers GET /topics with 200>, "simulation": <whether the people simulation runs>, "paused": <whether it is paused>, "triage": <whether admissions are triaged with aityx>}`; `ok` is true whether or not the database or Kafka answer |
+| `GET /api/health` | `{"ok": true, "db": <whether the database answers SELECT 1>, "aityx": <whether the API has a key to reach aityx with: its own, or datyx's through its gateway with the service token, as datyx last said (GET /api/aityx/v1/status, asked at most once a minute in the background)>, "auth": <whether authentication is on>, "kafka": <whether Kafka's REST proxy answers GET /topics with 200>, "simulation": <whether the people simulation runs>, "paused": <whether it is paused>, "triage": <whether admissions are triaged with aityx>}`; `ok` is true whether or not the database or Kafka answer |
 | `GET /api/hello` | `{"message": "Hello, world", "since": <when the row was written, ISO 8601 UTC>, "postgres": <the server's version()>, "user": <the signed-in user's subject, email, name and picture, or null>}`, the first row of `greetings`; with a signed-in user the message is `Hello, <name>`; 503 `{"error": "the database is not answering"}` when it can't be read |
 | `GET /api/care-centers/nearest?lat=..&lon=..` | `{"center": {...the care center's fields..., "distance": <metres>}}`, the care center of any kind nearest the point by great-circle distance, `"center": null` when none has a location ([The map](map.md)); open to everyone; the point is used for the query only, never logged or kept; 400 for a point that isn't one, 503 when the database doesn't answer |
 | `GET /api/care-centers?bbox=west,south,east,north` | `{"centers": [...], "truncated": <whether there were more>}`, the care centers with a location in the area, hospitals first, at most 500 ([Care centers](care-centers.md)); open to everyone; 400 for a bbox that isn't one, 503 when the database doesn't answer |
@@ -44,6 +44,9 @@ The API reads from its environment `AITYX_API_KEY` and `AITYX_URL`
 (default `https://api.aityx.ai`, which must be https), with which it
 triages each admission unless `HEALTHHUB_TRIAGE` is `off` (`on` by
 default; anything else stops the server; [Triage at the desk](triage.md)),
+`HEALTHHUB_AITYX_VIA_DATYX` and `DATYX_SERVICE_TOKEN`, with which the
+triage's calls go through datyx's aityx gateway ([Triage at the
+desk](triage.md#which-way-through-datyx-or-directly)),
 `API_PORT` (9802), `HEALTHHUB_BIND_HOST` (127.0.0.1),
 `ALLOWED_ORIGINS` and the database settings `HEALTHHUB_DB_HOST`
 (127.0.0.1), `HEALTHHUB_DB_PORT` (9803), `HEALTHHUB_DB_NAME`,
@@ -58,10 +61,13 @@ anything else stops the server), `HEALTHHUB_KAFKA_REST_URL` (default
 `http://127.0.0.1:9805`; Compose sets `http://kafka-rest:8082`) and the
 simulation's `HEALTHHUB_SIM_PEOPLE`, `HEALTHHUB_SIM_TURN_MS` and
 `HEALTHHUB_SIM_MINUTES_PER_TURN` (2500 and 15: a simulated hour every
-10 s, [The simulation](simulation.md#pace)), `HEALTHHUB_ALARM_EVERY_MS`
-(5000: real milliseconds between two [occupancy
-alarm](occupancy-alarms.md) checks at least; 0 turns them off; anything
-but a whole number from 0 stops the server) and
+10 s, [The simulation](simulation.md#pace)), `HEALTHHUB_HISTORY_DAYS`
+(90; 0 for none; anything but a whole number up to 730 stops the
+server), the days of admissions history it writes at start in dev mode
+([The history](admissions-hourly.md#the-history)),
+`HEALTHHUB_ALARM_EVERY_MS` (5000: real milliseconds between two
+[occupancy alarm](occupancy-alarms.md) checks at least; 0 turns them
+off; anything but a whole number from 0 stops the server) and
 `HEALTHHUB_ALARM_THRESHOLD` (0.9: the share of a care center's capacity
 whose reaching is an alarm, or `90%`; anything but a number above 0 and
 at most 2 stops the server); `scripts/api.sh` falls back to `.env`

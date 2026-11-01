@@ -6,7 +6,7 @@
 # then each check as its emoji, a short label and ✅ (ok) / ❌ (failed),
 # separated by " · ":
 #   🌐 Web · 🔌 API · 🐘 Postgres (the API's connection) · 🤖 aityx (the
-#   API's key: ✅ set, ⚪ not set) · 📨 Kafka (its REST proxy lists the
+#   API's way to it, its key or datyx's gateway: ✅ set, ⚪ not set) · 📨 Kafka (its REST proxy lists the
 #   topics) · 🌊 Flink (the admissions-hourly job runs)
 # Runs via `devbox services up` (see process-compose.yaml) or standalone.
 set -uo pipefail
@@ -39,7 +39,7 @@ get() {
 check_web() { ok_if "🌐 Web" get 5 "http://localhost:${FLUTTER_WEB_PORT:-9801}/app/"; }
 
 # The API's /api/health: {"ok":true,"db":<whether the database answers>,
-# "aityx":<whether its key is set>}.
+# "aityx":<whether it reaches aityx, with its key or through datyx>}.
 check_api() {
     local body
     body="$(curl -fs --max-time 5 "http://localhost:${API_PORT:-9802}/api/health")"

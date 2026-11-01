@@ -4,8 +4,9 @@ The time series of the [care center view](care-center.md): how many
 people were in care at the care center in each simulated hour up to now
 ([Occupancy per hour](occupancy-hourly.md)), observed, and what datyx's
 DeepAR model predicted of every hour: of each past hour before it was
-observed, and of each of the next 24 now; against the capacity and the
-[occupancy alarms](occupancy-alarms.md)' threshold. App in
+observed, kept as the hours pass to compare with what happened, and of
+each of the next 24 now; against the capacity and the [occupancy
+alarms](occupancy-alarms.md)' threshold. App in
 [occupancy_timeline.dart](../healthhub_app/lib/care_centers/occupancy_timeline.dart),
 API in [routes.dart](../healthhub_api/lib/routes.dart),
 [db.dart](../healthhub_api/lib/db.dart) and
@@ -24,14 +25,21 @@ Both series always show:
   series end, as datyx reads them.
 - **Predicted, dashed blue**: what DeepAR predicted of every hour, a
   dashed line with a hollow point per hour, in a faint band from the
-  10th to the 90th percentile. Over the past hours, what it predicted of
-  each before it was observed (the forecast made closest to it, kept by
-  the API: [The API](#the-api)), beside the observed line, so how far off
-  it was shows; an hour nothing was kept of has no point, and the line
-  breaks there. Over the next 24 hours, datyx's forecast now, going on
-  from the last hour's prediction (from its observed point when there is
-  none). The blue is the theme's (`Aityx.blue`), apart from the orange
-  for colour-blind readers too (ΔE 21 protan), and dashed, hollow.
+  10th to the 90th percentile (the 80% band, the one band of the chart,
+  its tooltips and its status line). Over the past hours, what it
+  predicted of each before it was observed, beside the observed line, so
+  how far off it was shows: the forecast made closest to it, kept by the
+  API ([The API](#the-api)), so it survives a reload and is everyone's;
+  for an hour the API kept nothing of (the alarms off, or no check
+  settled on a datyx source yet), the last forecast the card itself was
+  given of it before it was counted, while the view is open (a forecast
+  only reaches past its series' end, so the reads after can't replace
+  it; a new run starts again from nothing, and closing the view forgets
+  them). An hour with neither has no point, and the line breaks there.
+  Over the next 24 hours, datyx's forecast now, going on from the last
+  hour's prediction (from its observed point when there is none). The
+  blue is the theme's (`Aityx.blue`), apart from the orange for
+  colour-blind readers too (ΔE 21 protan), and dashed, hollow.
 - **Now**: a solid vertical line at the simulated clock (the API's
   `now`; within the hours shown, the last hour observed without it),
   labelled at its top "Now Jan 19 12:40", and "Now" in the key. The
@@ -63,15 +71,20 @@ Both series always show:
   starts after the hours shown: the hours between are slots without a
   point, and the forecast's line goes on across them from the last hour
   observed). The points get smaller when the hours are close together.
-- Hovering an hour, or touching it, shows its numbers: "Jan 19, 2026
-  09:00 · 3 in care of 8 beds (38%) · predicted 2.8, 1 h before · 1 to
-  3.5 (80%)", and "at or above the 90% threshold" when it is; for an hour
-  ahead, "Jan 19, 2026 15:00, forecast · 2.0 expected of 8 beds (25%) · 0
-  to 3 (80%)", and "90% threshold expected" (or "possible").
+- Hovering an hour, or touching it, shows its numbers, its date and time
+  on the calendar: "Jan 19, 2026 09:00 · 3 in care of 8 beds (38%) ·
+  predicted 2.8, 1 h before · 1 to 3.5 (80%)" (what was forecast of it,
+  when anything was), and "at or above the 90% threshold" when it is;
+  for an hour ahead, "Jan 19, 2026 15:00, forecast · 2.0 expected of 8
+  beds (25%) · 0 to 3 (80%)", and "90% threshold expected" (or
+  "possible").
 - Above the chart, a line: how many are in care at the latest hour and
-  the most in the hours shown, of the capacity; how many of those hours
-  datyx predicted before they came and how far off it was on average
-  (the mean absolute difference of its mean); then what datyx expects on
+  the most in the hours shown, of the capacity; once hours predicted
+  have been counted, how the predictions did (`ForecastCheck`): how many
+  of those hours datyx predicted before they came, how far off it was on
+  average (the mean absolute difference of its mean) and how many fell
+  in its 80% band ("datyx predicted 12 of them before they came, off by
+  0.6 on average; 10 fell in its 80% band."); then what datyx expects on
   average over the next 24 and at most, from which training run, and the
   first hour ahead the threshold is expected or possible ("90% of the
   capacity expected at Jan 19, 2026 16:00"), or why there is no forecast
@@ -159,22 +172,27 @@ the run going on.
 `widget_test.dart` (group "a care center's occupancy per hour"): the
 card with both series (the hours observed and what was predicted of
 them, the forecast after), the now line at the clock and its header, the
-status line (how far off the predictions were, the forecast, no
-crossing), the key (threshold and marks included) and semantics; an
-hour touched with its prediction, one without, a forecast hour; with a
-capacity of 3, the hours observed and predicted at or above 90% counted,
-the first crossing ahead (possible) in the status and semantics, the
-tooltips saying so; the first crossing by the mean, else the 90th
-percentile; the now line without a clock and with one, the predicted past
-without a forecast, another threshold; a run that has ended, its header
-"Ended", no "Now" in the key nor in the semantics; a forecast starting two
-hours after the last hour observed (its crossing, the hour between a slot
-without a forecast, no failure); the crossing's label above or below its
-ring, never over it; without a model the hours and
-what was predicted still show and the card says why; without a capacity
-no capacity line; a care center nobody was admitted to; and the care
-center view opened from home shows the card under the capacity and above
-the people, asking for its id.
+status line (how far off the predictions were and how many in the band,
+the forecast, no crossing), the key (threshold and marks included) and
+semantics; an hour touched with its prediction, one without, a forecast
+hour; with a capacity of 3, the hours observed and predicted at or above
+90% counted, the first crossing ahead (possible) in the status and
+semantics, the tooltips saying so; the first crossing by the mean, else
+the 90th percentile; the now line without a clock and with one, the
+predicted past without a forecast, another threshold; a run that has
+ended, its header "Ended", no "Now" in the key nor in the semantics; a
+forecast starting two hours after the last hour observed (its crossing,
+the hour between a slot without a forecast, no failure); the crossing's
+label above or below its ring, never over it; the card's own forecast of
+two hours counted since kept over them when the API keeps none (one in
+the band, one above it), compared in the status line and the semantics,
+shown when an hour is touched, none for an hour from before it, and
+dropped when the run changes; the API's prediction of an hour preferred
+to the card's own, which fills only the hours it has none of; without a
+model the hours and what was predicted still show and the card says why;
+without a capacity no capacity line; a care center nobody was admitted
+to; and the care center view opened from home shows the card under the
+capacity and above the people, asking for its id.
 
 ## Known limitations
 
@@ -195,5 +213,9 @@ the people, asking for its id.
 - Occupancy is counted from the stays the conditions say, not from the
   moves: it can exceed the capacity, which the simulation doesn't
   enforce.
+- The card's own forecasts of the past hours, for the hours the API
+  kept none of, live in the card: they start when the view opens and are
+  gone when it closes. The API's (`occupancy_forecast`) stay, for
+  everyone, but only from the alarms' datyx source.
 - The series are the run's: when the API restarts, a new run starts
   from day 1 and its hours from nothing.

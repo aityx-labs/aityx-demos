@@ -104,19 +104,22 @@ class _CallTile extends StatelessWidget {
           style: const TextStyle(color: Aityx.muted, fontSize: 11),
         ),
         children: [
-          if (call.requestBody != null) _Body('Request', call.requestBody!),
+          if (call.requestBody != null) JsonBlock('Request', call.requestBody!),
           if (call.error != null)
-            _Body('Error', call.error!)
+            JsonBlock('Error', call.error!)
           else if (call.responseBody != null)
-            _Body('Response', call.responseBody!),
+            JsonBlock('Response', call.responseBody!),
         ],
       ),
     );
   }
 }
 
-class _Body extends StatelessWidget {
-  const _Body(this.label, this.text);
+/// A body under its label, pretty-printed when it is JSON, as text when
+/// not; selectable. The Audit tab's and the aityx tab's calls show theirs
+/// in one.
+class JsonBlock extends StatelessWidget {
+  const JsonBlock(this.label, this.text, {super.key});
   final String label;
   final String text;
 

@@ -77,8 +77,16 @@ admin by default; [catalog.md](catalog.md)), and OpenMetadata's webhook
 back to the API, `DATYX_OPENMETADATA_CALLBACK_URL` (empty: the API as
 OpenMetadata reaches it, `http://host.docker.internal:{API port}/api/catalog/openmetadata-events`
 from the host, `http://api:9900/...` in Docker Compose) and
-`DATYX_OPENMETADATA_WEBHOOK_SECRET` (empty: drawn at each start), which
-`scripts/api.sh` and the `api` compose service pass to the API. The API
+`DATYX_OPENMETADATA_WEBHOOK_SECRET` (empty: drawn at each start), and
+aityx's ([aityx.md](aityx.md)): datyx's key `AITYX_API_KEY`, aityx's URL
+`DATYX_AITYX_URL` (else `AITYX_URL`, else `https://api.aityx.ai`), the
+services' token `DATYX_SERVICE_TOKEN` and `DATYX_AITYX_SHARE_SERVICE_CALLS`,
+which `scripts/api.sh` and the `api` compose service pass to the API.
+`AITYX_API_KEY`, `AITYX_URL` and `DATYX_SERVICE_TOKEN` are also read
+from the repository root's `.env` when datyx's has none: the file
+HealthHub reads, so both share the key and the token. `.env.example`
+names `AITYX_API_KEY` commented out, so the root `start-all.sh` doesn't
+link datyx's `.env` to the root's. The API
 on localhost allows the callback's host in the Host header too
 (Quarkus's host validation; [catalog.md](catalog.md)). Secrets
 reach processes through their environment only.

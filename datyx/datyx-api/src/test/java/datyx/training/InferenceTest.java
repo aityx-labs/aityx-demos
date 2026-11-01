@@ -2,6 +2,7 @@ package datyx.training;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -155,11 +156,49 @@ class InferenceTest {
 
         given().when().get("/api/inference").then().statusCode(200)
             .body("totals.calls", is(3)).body("totals.failed", is(1)).body("totals.scored", is(6))
-            .body("lastHour", is(3)).body("perHour", hasSize(24)).body("perHour[23].calls", is(3))
+            .body("lastHour", is(3)).body("hours", is(24)).body("perHour", hasSize(24)).body("perHour[23].calls", is(3))
+            .body("perHour[23].failed", is(1)).body("perHour[23].scored", is(6))
+            .body("perHour[23].p50Millis", notNullValue()).body("perHour[23].p95Millis", notNullValue())
+            .body("perHour[23].byModel", hasSize(1)).body("perHour[23].byModel[0].algorithm", is("XGBoost"))
+            .body("perHour[23].byModel[0].group", is("care")).body("perHour[23].byModel[0].name", is("stays"))
+            .body("perHour[23].byModel[0].calls", is(3)).body("perHour[23].byModel[0].failed", is(1))
+            .body("perHour[22].calls", is(0)).body("perHour[22].p50Millis", nullValue()).body("perHour[22].byModel", hasSize(0))
             .body("models.find { it.runId == " + runId + " }.stats.calls", is(3))
+            .body("models.find { it.runId == " + runId + " }.algorithm", is("XGBoost"))
             .body("models.find { it.runId == " + runId + " }.seriesKey", is(List.of("run_id", "person")))
-            .body("models.findAll { it.table == 'datyx-ds-7.quarkus.ward.stays' }", hasSize(1))
-            .body("calls", hasSize(3)).body("calls[0].status", is("failed")).body("calls[2].requested", is(2));
+            // A model each algorithm the group has: XGBoost's answered every call, DeepAR's none.
+            .body("models.findAll { it.table == 'datyx-ds-7.quarkus.ward.stays' }", hasSize(2))
+            .body("models.find { it.table == 'datyx-ds-7.quarkus.ward.stays' && it.algorithm == 'DeepAR' }.stats.calls", is(0))
+            .body("calls", hasSize(3)).body("calls[0].status", is("failed")).body("calls[2].requested", is(2))
+            .body("calls[0].algorithm", is("XGBoost"));
+        // Hour by hour over the whole window, at most; at least one.
+        given().when().get("/api/inference?hours=168").then().statusCode(200)
+            .body("hours", is(168)).body("perHour", hasSize(168)).body("perHour[167].calls", is(3));
+        given().when().get("/api/inference?hours=1000").then().statusCode(200).body("perHour", hasSize(168));
+        given().when().get("/api/inference?hours=0").then().statusCode(200).body("perHour", hasSize(1));
+
+        // A call DeepAR's model answered is its model's, apart from XGBoost's, in the models as in the hour.
+        QuarkusTransaction.requiringNew().run(() -> {
+            TrainingRun deepAr = TrainingRun.find("dataSource.id = ?1 and algorithm = ?2", (long) sourceId, "DeepAR").firstResult();
+            InferenceCall call = new InferenceCall();
+            call.dataSource = deepAr.dataSource;
+            call.trainingRun = deepAr;
+            call.tableFqn = deepAr.tableFqn;
+            call.groupName = "care";
+            call.calledAt = Instant.now();
+            call.millis = 400;
+            call.requested = 1;
+            call.scored = 1;
+            call.status = InferenceCall.Status.OK;
+            call.persist();
+        });
+        given().when().get("/api/inference").then().statusCode(200)
+            .body("totals.calls", is(4)).body("perHour[23].byModel", hasSize(2))
+            .body("models.findAll { it.table == 'datyx-ds-7.quarkus.ward.stays' }", hasSize(2))
+            .body("models.find { it.runId == " + runId + " }.stats.calls", is(3))
+            .body("models.find { it.table == 'datyx-ds-7.quarkus.ward.stays' && it.algorithm == 'DeepAR' }.stats.calls", is(1))
+            .body("models.find { it.table == 'datyx-ds-7.quarkus.ward.stays' && it.algorithm == 'DeepAR' }.stats.p50Millis", is(400))
+            .body("models.find { it.runId == " + runId + " }.stats.p95Millis", org.hamcrest.Matchers.lessThan(400));
 
         given().when().delete("/api/datasources/" + sourceId).then().statusCode(204);
         given().when().get("/api/inference").then().statusCode(200).body("totals.calls", is(0));
@@ -260,6 +299,38 @@ class InferenceTest {
         } finally {
             given().when().delete("/api/datasources/" + sourceId).then().statusCode(204);
         }
+    }
+
+    @Test
+    void anHourCountsItsCallsAndEachModels() {
+        DataSource source = new DataSource();
+        source.id = 4L;
+        TrainingRun xgb = new TrainingRun();
+        xgb.algorithm = "XGBoost";
+        TrainingRun deepAr = new TrainingRun();
+        deepAr.algorithm = "DeepAR";
+        Instant hour = Instant.parse("2026-11-01T10:00:00Z");
+        List<InferenceCall> in = List.of(call(source, deepAr, 40, 24, InferenceCall.Status.OK),
+            call(source, xgb, 5, 2, InferenceCall.Status.OK), call(source, xgb, 9, 0, InferenceCall.Status.FAILED),
+            call(source, xgb, 7, 1, InferenceCall.Status.OK));
+        InferenceResource.Hour h = InferenceResource.hour(hour, in);
+        assertEquals(new InferenceResource.Hour(hour, 4, 1, 27, 7, 40, List.of(
+            new InferenceResource.HourModel(4, "ds.h.public.admissions", "admissions", "care", "DeepAR", 1, 0, 24),
+            new InferenceResource.HourModel(4, "ds.h.public.admissions", "admissions", "care", "XGBoost", 3, 1, 3))), h);
+        assertEquals(new InferenceResource.Hour(hour, 0, 0, 0, null, null, List.of()), InferenceResource.hour(hour, List.of()));
+    }
+
+    private static InferenceCall call(DataSource source, TrainingRun run, int millis, int scored, InferenceCall.Status status) {
+        InferenceCall c = new InferenceCall();
+        c.dataSource = source;
+        c.trainingRun = run;
+        c.tableFqn = "ds.h.public.admissions";
+        c.groupName = "care";
+        c.calledAt = Instant.parse("2026-11-01T10:30:00Z");
+        c.millis = millis;
+        c.scored = scored;
+        c.status = status;
+        return c;
     }
 
     @Test

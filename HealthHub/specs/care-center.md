@@ -37,7 +37,7 @@ theirs, and the person in a triage's detail is a link too.
 
 ## The view
 
-`CareCenterScreen`, at most 960 px wide, read again every 5 seconds while
+`CareCenterScreen`, the window's full width (less a 16 px margin), read again every 5 seconds while
 shown (a failed read after a good one keeps what is shown), in this
 order:
 
@@ -66,11 +66,12 @@ order:
    of the last 72 simulated hours up to now, a solid orange line with a
    point per hour, and what datyx's DeepAR predicted of every hour, a
    dashed blue line with hollow points in its band: of each past hour
-   before it was observed, and of the next 24; a vertical line at now,
-   labelled with the simulated time; a faint line at its capacity and a
-   red one at the alarm threshold, 90% of it, every hour observed or
-   predicted at or above it marked in red, the first ahead labelled ("90%
-   expected at Jan 19 16:00") ([A care center's occupancy per
+   before it was observed (kept as the hours pass, to compare with what
+   happened), and of the next 24; a vertical line at now, labelled with
+   the simulated time; a faint line at its capacity and a red one at the
+   alarm threshold, 90% of it, every hour observed or predicted at or
+   above it marked in red, the first ahead labelled ("90% expected at
+   Jan 19 16:00") ([A care center's occupancy per
    hour](occupancy-timeline.md)).
 4. **People here now**, then those on their way: a row each in their
    state's colour, the name and age (a link), the condition and what they
@@ -172,10 +173,11 @@ answer with its capacity, who is there and on the way, how many have it
 as their hospital, the admissions; in prod nobody now; 404 and 503; its
 flow factor in dev only; the flow's route: 401, 409, 400 for another
 action, 404, and the factor after each action. `flow_test.dart`: the
-factor's steps and bounds; a moved visit's daytime slot; nothing changes
-at the normal flow; in a seeded run the admissions at the hospital and at
-the health station scale with their factor (×2, ×1/2, ×8) and the daily
-profile stays; a change brings a planned visit forward or puts it off by
+factor's steps and bounds; a moved visit's slot, on its day at an hour
+of the daily profile, never in the past; nothing changes at the normal
+flow; in a seeded run the admissions at the hospital and at the health
+station scale with their factor (×2, ×1/2, ×8) and the daily profile
+stays, peaking at about 13:00; a change brings a planned visit forward or puts it off by
 the time left, draws the next acute onset again at the new pace, and
 thins the episodes headed to a care center slowed down; the simulation
 keeps a factor per care center, a new run at the normal flow.

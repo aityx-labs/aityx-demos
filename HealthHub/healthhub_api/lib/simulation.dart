@@ -41,9 +41,13 @@ const simStartMinutes = 6 * 60;
 
 const minutesPerDay = 24 * 60;
 
-/// A due visit starts on the hour, from 08:00 to 17:00.
-const visitFirstHour = 8;
-const visitLastHour = 17;
+/// The hour of day arrivals peak at, and how far they swing about their
+/// mean: the hour of an arrival is drawn with weight 1 + amplitude ×
+/// cos(2π (hour − peak) / 24) ([arrivalWeight]), a single daily harmonic,
+/// highest at 13:00 and, with an amplitude of 1, nil at 01:00. The
+/// amplitude is from 0 (flat) to 1, so no weight is negative.
+const arrivalPeakHour = 13;
+const arrivalAmplitude = 1.0;
 
 /// When the first visit of a person's chronic condition falls: within
 /// the first days of the simulation, so the map gets going.
@@ -345,13 +349,37 @@ final simEpoch = DateTime.utc(2026, 1, 1);
 /// their day and time.
 String simAt(int minutes) => simEpoch.add(Duration(minutes: minutes)).toIso8601String().substring(0, 16);
 
-/// A visit's start on [day], or the first day after it whose start is
-/// later than [after]: a random hour from [visitFirstHour] to
-/// [visitLastHour], so nobody turns up at the hospital at night for a
-/// planned visit, and none is scheduled in the past.
+/// The weight of [hour] (0 to 23) in the daily profile of arrivals:
+/// 1 + [arrivalAmplitude] × cos(2π (hour − [arrivalPeakHour]) / 24). The
+/// 24 weights add up to 24.
+double arrivalWeight(int hour) => 1 + arrivalAmplitude * cos(2 * pi * (hour - arrivalPeakHour) / 24);
+
+final _arrivalWeights = [for (var hour = 0; hour < 24; hour++) arrivalWeight(hour)];
+
+/// An hour of the day (0 to 23) drawn from the daily profile of arrivals
+/// ([arrivalWeight]): around midday mostly, at night seldom.
+int arrivalHour(Random random) {
+  var left = random.nextDouble() * 24;
+  for (var hour = 0; hour < 23; hour++) {
+    left -= _arrivalWeights[hour];
+    if (left < 0) return hour;
+  }
+  return 23;
+}
+
+/// A visit's start: on the hour, the hour drawn once from the daily
+/// profile ([arrivalHour]), on [day] or, when that hour of it is not later
+/// than [after], the first day after on which it is, so planned visits
+/// crowd around midday, seldom fall at night, and none is scheduled in
+/// the past. One draw, kept to the next day: drawing again for it would
+/// favour the hours later than [after], and put a same-day visit's peak
+/// past 13:00. On the hour, like an appointment: the person leaves at the
+/// turn it falls on and arrives within the hour, so the hours of the
+/// arrivals follow the profile.
 int nextVisitStart(int day, int after, Random random) {
+  final hour = arrivalHour(random);
   for (var d = max(day, 1); ; d++) {
-    final start = dayStart(d) + (visitFirstHour + random.nextInt(visitLastHour - visitFirstHour + 1)) * 60;
+    final start = dayStart(d) + hour * 60;
     if (start > after) return start;
   }
 }
@@ -392,16 +420,28 @@ double flowAt(Map<int, double> flow, Place place) => flow[place.id] ?? 1;
 /// [factor] as the log says it: ×2, ×1/4.
 String flowLabel(double factor) => factor >= 1 ? '×${factor.round()}' : '×1/${(1 / factor).round()}';
 
-/// A planned visit's start at or after [minutes]: on the hour from
-/// [visitFirstHour] to [visitLastHour] that day when it falls within them,
-/// else a random such hour that day (before them) or the next (after),
-/// as [nextVisitStart] gives.
-int visitSlotFrom(int minutes, Random random) {
-  final ofDay = minutes % minutesPerDay;
-  if (ofDay < visitFirstHour * 60 || ofDay > visitLastHour * 60) {
-    return nextVisitStart(simDay(minutes), minutes, random);
+/// A planned visit moved by the flow to about [minutes]: on the day of
+/// [minutes], on the hour drawn from the daily profile ([arrivalHour]), or
+/// the first day after on which that hour is later than [after] (now), as
+/// [nextVisitStart] gives: the day moves with the flow, the hours keep to
+/// the profile, and none is in the past.
+int visitSlotFrom(int minutes, int after, Random random) => nextVisitStart(simDay(minutes), after, random);
+
+/// When the next acute episode starts after [after]: on the day
+/// [acuteGapMinutes] (at [rate], [Person.acuteRate]) from it gives, on the
+/// hour, the hour from the daily profile ([arrivalHour]), so an emergency,
+/// made at once, comes mostly around midday too; the next day at that
+/// hour when it is not later than [after] (only at a rate above 1 can the
+/// gap leave the day), so never before [after]. On the hour, as a planned
+/// visit: with hour-long turns the person leaves at the turn of the onset
+/// and arrives within its hour, not the next.
+int acuteOnsetAfter(int after, Random random, [double rate = 1]) {
+  final day = simDay(after + acuteGapMinutes(random, rate));
+  final hour = arrivalHour(random);
+  for (var d = day; ; d++) {
+    final start = dayStart(d) + hour * 60;
+    if (start > after) return start;
   }
-  return minutes - ofDay + (ofDay + 59) ~/ 60 * 60;
 }
 
 /// The minutes a trip of [meters] by [mode] takes, rounded up.
@@ -629,17 +669,18 @@ class Person {
   }
 
   /// Gives them [condition] as their chronic condition, its first visit on
-  /// [day]: at a daytime slot, or at a random time of that day when it is
-  /// urgent; never before [after] (the run's start, or when they joined it).
+  /// [day]: at a visit's slot ([nextVisitStart]), or, when it is urgent, on
+  /// the hour of that day drawn from the daily profile ([arrivalHour]);
+  /// never before [after] (the run's start, or when they joined it).
   void giveChronic(MedicalCondition condition, int day, Random random, {int after = simStartMinutes}) {
     final course = chronic = Course(condition);
     course.dueAt = condition.urgent
-        ? max(after, dayStart(day) + random.nextInt(minutesPerDay))
+        ? max(after, dayStart(day) + arrivalHour(random) * 60)
         : nextVisitStart(day, after, random);
   }
 
   /// Starts an acute episode of [condition] at [onset]: its first visit
-  /// then when it is urgent, else at the next daytime slot. A null
+  /// then when it is urgent, else at the next visit's slot. A null
   /// [condition] (none fits) starts none, and waits for the next onset.
   /// Under [flow], the episode is kept with probability the flow factor at
   /// its first visit's care center over [acuteRate] (always at the normal
@@ -651,7 +692,7 @@ class Person {
       if (keep < 1 && random.nextDouble() >= keep) condition = null;
     }
     if (condition == null) {
-      acuteOnsetAt = onset + acuteGapMinutes(random, rate);
+      acuteOnsetAt = acuteOnsetAfter(onset, random, rate);
       return;
     }
     acuteOnsetAt = null;
@@ -806,7 +847,7 @@ Map<String, Object?> _admit(Person person, int turn, int minutes, Random random,
 
 /// Home again at [now] after a visit: the next visit of its course, and
 /// any visit that fell due while they were out moved to when they are
-/// back, at once for an emergency, else the next daytime slot.
+/// back, at once for an emergency, else the next visit's slot.
 void _backHome(Person person, int now, Random random, Map<int, double> flow) {
   final course = person.visiting;
   person
@@ -825,7 +866,7 @@ void _backHome(Person person, int now, Random random, Map<int, double> flow) {
 /// course's last visit, a chronic condition's next course after its gap
 /// ([MedicalCondition.courseGapDays], or [chronicGapDays]), or, for an
 /// acute episode, its end, and the next episode's onset
-/// [acuteGapMinutes] later, at the person's rate under [flow]
+/// ([acuteOnsetAfter]), at the person's rate under [flow]
 /// ([Person.acuteRate]). A chronic visit's wait from [now] is divided by
 /// the flow factor at its care center ([_flowed]).
 void _scheduleNext(Person person, Course course, int now, Random random, Map<int, double> flow) {
@@ -850,28 +891,31 @@ void _scheduleNext(Person person, Course course, int now, Random random, Map<int
   } else if (identical(course, person.acute)) {
     person
       ..acute = null
-      ..acuteOnsetAt = now + acuteGapMinutes(random, person.acuteRate(flow));
+      ..acuteOnsetAt = acuteOnsetAfter(now, random, person.acuteRate(flow));
   }
 }
 
 /// [due], the next visit of [person]'s [course] planned at [now], under
 /// the flow factor f at its care center ([Person.nextDestination]): the
-/// wait divided by f, at a daytime slot ([visitSlotFrom]); [due] itself
-/// at the normal flow.
+/// wait divided by f, at a visit's slot of the daily profile
+/// ([visitSlotFrom]); [due] itself at the normal flow.
 int _flowed(Person person, Course course, int now, int due, Map<int, double> flow, Random random) {
   final factor = flowAt(flow, person.nextDestination(course));
-  return factor == 1 ? due : visitSlotFrom(now + ((due - now) / factor).round(), random);
+  return factor == 1 ? due : visitSlotFrom(now + ((due - now) / factor).round(), now, random);
 }
 
 /// Retimes [person] at [now] for the care centers' flow factors going from
 /// [before] to [after], so a change shows at once rather than after the
 /// visits already planned: their chronic condition's next visit, when its
 /// care center's factor changed, is brought forward or put off, the time
-/// left until it times the old factor over the new (at a daytime slot,
-/// unless it is an emergency); the next acute onset, when their
-/// [Person.acuteRate] changed, is drawn again from now at the new rate
-/// (the gaps are exponential, so drawing again from now is the same
-/// process). Says whether anything moved.
+/// left until it times the old factor over the new (at a visit's slot,
+/// [visitSlotFrom], or for an urgent one at the hour from the daily
+/// profile that day, as [Person.giveChronic] puts it; never in the past);
+/// the next acute onset, when their [Person.acuteRate] changed, is drawn
+/// again from now at the new rate ([acuteOnsetAfter]; the gaps are
+/// exponential, so drawing again from now is the same process). The hours
+/// keep to the daily profile ([arrivalHour]) either way. Says whether
+/// anything moved.
 bool retime(Person person, int now, Map<int, double> before, Map<int, double> after, Random random) {
   var moved = false;
   final chronic = person.chronic;
@@ -882,14 +926,16 @@ bool retime(Person person, int now, Map<int, double> before, Map<int, double> af
     final factor = flowAt(after, place);
     if (was != factor) {
       final at = now + ((due - now) * was / factor).round();
-      chronic.dueAt = chronic.nextIsUrgent ? at : visitSlotFrom(at, random);
+      chronic.dueAt = chronic.nextIsUrgent
+          ? max(now, dayStart(simDay(at)) + arrivalHour(random) * 60)
+          : visitSlotFrom(at, now, random);
       moved = true;
     }
   }
   final onset = person.acuteOnsetAt;
   final rate = person.acuteRate(after);
   if (person.acute == null && onset != null && onset > now && person.acuteRate(before) != rate) {
-    person.acuteOnsetAt = now + acuteGapMinutes(random, rate);
+    person.acuteOnsetAt = acuteOnsetAfter(now, random, rate);
     moved = true;
   }
   return moved;
@@ -958,7 +1004,7 @@ Map<String, Object?> admissionEvent(
 /// Starts [person]'s conditions: no chronic one for [noChronicShare] of
 /// people, else one of the chronic [conditions] for their age and sex,
 /// its first visit within the first [chronicOnsetDays] days; and the first
-/// acute episode's onset [acuteGapMinutes] from the start.
+/// acute episode's onset ([acuteOnsetAfter] [from]).
 void startConditions(
   Person person,
   List<MedicalCondition> conditions,
@@ -974,8 +1020,14 @@ void startConditions(
   if (condition != null) {
     person.giveChronic(condition, simDay(from) + random.nextInt(chronicOnsetDays), random, after: from);
   }
-  person.acuteOnsetAt = acute ? from + acuteGapMinutes(random) : null;
+  person.acuteOnsetAt = acute ? acuteOnsetAfter(from, random) : null;
 }
+
+/// The seed the API draws its people with ([populate]): the same people,
+/// homes, care centers and conditions at every start, so the admissions
+/// history (lib/history.dart) covers exactly the care centers a live run
+/// sends people to. What they do from there is drawn afresh every run.
+const populationSeed = 20260101;
 
 /// The people of every city in [places] with a care center, [perCity]
 /// each, living within [homeRadiusMeters] of a random care center of
@@ -1199,7 +1251,7 @@ class Simulation {
 
   /// The run id, random hex new at every [start], the start of every
   /// event id: the people's ids and the turns repeat from run to run (and
-  /// API to API), and admissions.event_id is unique.
+  /// API to API), and admissions.event_id is unique. Never [historyRun].
   String get run => _run;
   String _run = '';
 
@@ -1221,7 +1273,9 @@ class Simulation {
     // A new run starts at the normal flow everywhere.
     _flow.clear();
     final generation = ++_generation;
-    _run = _hex(Random.secure());
+    do {
+      _run = _hex(Random.secure());
+    } while (_run == historyRun);
     _stopwatch
       ..reset()
       ..start();
@@ -1672,6 +1726,11 @@ class PeopleFeed {
     return _stopped ?? Future<void>.value();
   }
 }
+
+/// The history run: the run id of the admissions per hour the API
+/// generates at start (lib/history.dart), never a simulation's
+/// ([Simulation.run]), so its series stand apart from every live run's.
+const historyRun = '00000000';
 
 String _hex(Random random) =>
     List.generate(4, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join();

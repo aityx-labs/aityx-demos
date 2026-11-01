@@ -34,6 +34,32 @@ void main() {
     minutesPerTurn: minutesPerTurn,
   );
 
+  test('only the high-risk are monitored: the old, the pregnant, some chronic conditions', () {
+    Profile aged(int age) => Profile(firstName: 'Núria', lastName: 'Puig Soler', age: age, sex: 'woman', occupation: 'teacher');
+    MedicalCondition chronic(String code, String name) => MedicalCondition(
+      code: code, name: name, type: 'chronic', prevalence: 1, minAge: 18, maxAge: 90, summary: 's', treatment: 't',
+      treatmentDurationDays: null, duration: 'd', visitCount: 1, visitIntervalDays: 30, stayHours: 2,
+      first: const ['a', 'b', 'c'], repeat: const ['a', 'b', 'c'], last: const ['a', 'b', 'c'],
+      firstTriage: const ['green', 'green', 'green'], repeatTriage: const ['green', 'green', 'green'],
+      lastTriage: const ['green', 'green', 'green'],
+    );
+    expect(person().monitoredFor, isNull);
+    expect(person().monitored, false);
+    expect(person(who: aged(79)).monitoredFor, isNull);
+    expect(person(who: aged(84)).monitoredFor, 'aged 84');
+    final pregnant = Person(
+      id: 'reus-2', city: 'Reus', home: nearHome, hospital: reusHospital, profile: aged(31), minutesPerTurn: 60, pregnant: true,
+    );
+    expect((pregnant.monitored, pregnant.monitoredFor), (true, 'pregnant'));
+    final depressed = person()..giveChronic(chronic('major_depressive_disorder', 'Major depressive disorder'), 1, Random(1));
+    expect(depressed.monitoredFor, 'Major depressive disorder');
+    final failing = person()..giveChronic(chronic('heart_failure', 'Heart failure'), 1, Random(1));
+    expect(failing.monitoredFor, 'Heart failure');
+    // Anxiety, or hypertension, isn't high-risk enough.
+    expect((person()..giveChronic(chronic('generalized_anxiety_disorder', 'Anxiety'), 1, Random(1))).monitored, false);
+    expect((person()..giveChronic(chronic('hypertension', 'Hypertension'), 1, Random(1))).monitored, false);
+  });
+
   /// Runs [p] for [turns] turns from [from], returning each admission with
   /// its turn.
   List<(int, Map<String, Object?>)> run(
@@ -510,7 +536,8 @@ void main() {
       'homeLat': 41.2,
       'homeLon': 1.2,
       'hospitalName': 'H',
-      'state': 'home',
+      // On the way home: every such move is an event.
+      'state': 'to_home',
       'simTime': '06:00',
       'day': 1,
       'turn': turn,

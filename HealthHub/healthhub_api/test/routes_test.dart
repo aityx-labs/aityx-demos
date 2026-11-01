@@ -38,7 +38,7 @@ void main() {
     'id': id, 'city': 'Reus', 'lat': 41.15, 'lon': 1.1, 'homeLat': 41.16, 'homeLon': 1.11,
     'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan', 'careCenterKind': 'hospital', 'state': 'to_hospital',
     'simTime': time, 'day': 1, 'turn': turn, 'name': 'Núria Puig Soler', 'age': 54,
-    'mode': 'transit', 'conditionName': 'Influenza', 'conditionType': 'acute',
+    'mode': 'transit', 'monitored': false, 'monitoredFor': null, 'conditionName': 'Influenza', 'conditionType': 'acute',
   };
 
   test('people answer the latest moves and the newest time in dev mode', () {
@@ -53,7 +53,8 @@ void main() {
     expect((body['people'] as List).first, {
       'id': 'reus-1', 'name': 'Núria Puig Soler', 'age': 54, 'city': 'Reus', 'lat': 41.15,
       'lon': 1.1, 'homeLat': 41.16, 'homeLon': 1.11, 'state': 'to_hospital', 'mode': 'transit',
-      'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan', 'careCenterKind': 'hospital', 'conditionName': 'Influenza', 'conditionType': 'acute',
+      'monitored': false, 'monitoredFor': null, 'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan',
+      'careCenterKind': 'hospital', 'conditionName': 'Influenza', 'conditionType': 'acute',
     });
   });
 
@@ -86,16 +87,23 @@ void main() {
     expect(list, hasLength(eventsLimit));
     expect(list.first, {
       'type': 'move', 'id': 'reus-1', 'name': 'Núria Puig Soler', 'age': 54, 'city': 'Reus',
-      'state': 'to_hospital', 'mode': 'transit', 'conditionName': 'Influenza', 'conditionType': 'acute',
-      'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan', 'careCenterKind': 'hospital', 'simTime': '09:00',
-      'day': 1, 'turn': 30,
-      'lat': 41.15,
+      'state': 'to_hospital', 'mode': 'transit', 'monitored': false, 'monitoredFor': null, 'conditionName': 'Influenza',
+      'conditionType': 'acute', 'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan', 'careCenterKind': 'hospital',
+      'simTime': '09:00', 'day': 1, 'turn': 30, 'lat': 41.15,
       'lon': 1.1, 'partition': 0, 'offset': 130,
     });
     expect(body['topics'], ['healthhub.people.moves', 'healthhub.admissions']);
     expect((route('GET', '/api/events', dev: true, events: events, query: {'limit': '5'}).body as Map)['events'], hasLength(5));
     expect(route('GET', '/api/events', dev: true, query: {'limit': 'x'}).status, 400);
     expect((route('GET', '/api/events', events: events).body as Map)['events'], isEmpty);
+  });
+
+  test('events say how many the feed read, and how many a second', () {
+    final body = route('GET', '/api/events', dev: true, eventsTotal: 48213, eventsPerSecond: 70.4321).body as Map;
+    expect(body['total'], 48213);
+    expect(body['perSecond'], 70.4);
+    final prod = route('GET', '/api/events', eventsTotal: 5, eventsPerSecond: 1).body as Map;
+    expect((prod['total'], prod['perSecond']), (0, 0));
   });
 
   Map<String, Object?> admissionOf(int turn) => {
@@ -314,6 +322,93 @@ void main() {
     expect(noModel.body, {'error': 'no model of the group care has been trained yet'});
     expect(route('GET', '/api/people/reus-5/prediction').status, 502);
     expect(route('GET', '/api/people/reus-5/prediction', auth: on).status, 401);
+  });
+
+  group("a hospital's admissions per hour", () {
+    test('a path names the hospital, and whether it asks for the forecast', () {
+      expect(careCenterAdmissionsPath('/api/care-centers/42/admissions'), (42, false));
+      expect(careCenterAdmissionsPath('/api/care-centers/42/admissions/forecast'), (42, true));
+      expect(careCenterAdmissionsPath('/api/care-centers/42'), isNull);
+      expect(careCenterAdmissionsPath('/api/care-centers/x/admissions'), isNull);
+      expect(careCenterAdmissionsPath('/api/care-centers/42/admissions/other'), isNull);
+      expect(careCenterAdmissionsPath('/api/care-centers'), isNull);
+    });
+
+    test('every hour up to the run\'s end, an hour without a row a zero', () {
+      final hourly = HourlyLookup(
+        run: 'adf5309c',
+        end: DateTime.utc(2026, 1, 4, 10),
+        current: true,
+        rows: [
+          {'hour': DateTime.utc(2026, 1, 4, 8), 'admissions': 2, 'acute': 1, 'chronic': 1},
+          {'hour': DateTime.utc(2026, 1, 4, 10), 'admissions': 1, 'acute': 1, 'chronic': 0},
+        ],
+      );
+      final answer = route('GET', '/api/care-centers/42/admissions', query: {'hours': '4'}, hourly: hourly);
+      expect(answer.status, 200);
+      expect(answer.body, {
+        'hospitalId': 42,
+        'run': 'adf5309c',
+        'current': true,
+        'end': '2026-01-04T10:00',
+        'hours': [
+          {'hour': '2026-01-04T07:00', 'admissions': 0, 'acute': 0, 'chronic': 0},
+          {'hour': '2026-01-04T08:00', 'admissions': 2, 'acute': 1, 'chronic': 1},
+          {'hour': '2026-01-04T09:00', 'admissions': 0, 'acute': 0, 'chronic': 0},
+          {'hour': '2026-01-04T10:00', 'admissions': 1, 'acute': 1, 'chronic': 0},
+        ],
+      });
+      // Three simulated days unless asked, at most 30; open to everyone.
+      final unasked = route('GET', '/api/care-centers/42/admissions', hourly: hourly, auth: on);
+      expect((unasked.body as Map)['hours'], hasLength(72));
+      expect(((route('GET', '/api/care-centers/42/admissions', query: {'hours': '5000'}, hourly: hourly).body
+          as Map)['hours'] as List), hasLength(720));
+    });
+
+    test('no admissions there: no run, no hours; bad hours, no database', () {
+      final none = route('GET', '/api/care-centers/7/admissions', hourly: const HourlyLookup());
+      expect(none.body, {'hospitalId': 7, 'run': null, 'current': false, 'end': null, 'hours': []});
+      expect(route('GET', '/api/care-centers/7/admissions', query: {'hours': '0'}, hourly: const HourlyLookup()).status,
+          400);
+      expect(route('GET', '/api/care-centers/7/admissions').status, 503);
+    });
+
+    test("the forecast is datyx's, step by step; datyx's errors pass through", () {
+      const step = {'at': '2026-01-04T11:00', 'mean': 0.31, 'p10': 0.0, 'p50': 0.0, 'p90': 1.0};
+      const scored = Forwarded(200, {
+        'callId': 9, 'runId': 4, 'trainedAt': '2026-11-01T11:31:53Z',
+        'table': 'datyx-ds-1.healthhub.public.admissions_hourly', 'group': 'default', 'target': 'admissions',
+        'horizon': '1D', 'requested': 1, 'scored': 1, 'millis': 21, 'sourceId': 1,
+        'predictions': [
+          {
+            'series': {'run_id': 'adf5309c', 'hospital_id': '42'},
+            'predicted': 0.31, 'last': 1.0, 'note': null, 'forecast': [step],
+          },
+        ],
+      });
+      final answer = route('GET', '/api/care-centers/42/admissions/forecast', forecast: scored);
+      expect(answer.status, 200);
+      final body = answer.body as Map;
+      expect(body['forecast'], [step]);
+      expect(body['predicted'], 0.31);
+      expect(body['horizon'], '1D');
+      expect(body['trainingRunId'], 4);
+      expect(body['series'], {'run_id': 'adf5309c', 'hospital_id': '42'});
+      final noRows = route('GET', '/api/care-centers/42/admissions/forecast', forecast: const Forwarded(200, {
+        'predictions': [
+          {'series': {'run_id': 'adf5309c', 'hospital_id': '42'}, 'predicted': null, 'last': null,
+            'note': 'no rows for this series'},
+        ],
+      }));
+      expect((noRows.body as Map)['forecast'], isEmpty);
+      expect((noRows.body as Map)['note'], 'no rows for this series');
+      final noModel = route('GET', '/api/care-centers/42/admissions/forecast',
+          forecast: const Forwarded(404, {'error': 'no model of the group default has been trained yet'}));
+      expect(noModel.status, 404);
+      expect(noModel.body, {'error': 'no model of the group default has been trained yet'});
+      expect(route('GET', '/api/care-centers/42/admissions/forecast').status, 502);
+      expect(route('GET', '/api/care-centers/42/admissions/forecast', auth: on).status, 401);
+    });
   });
 
   group('pausing the simulation', () {

@@ -435,7 +435,7 @@ class _PredictionBody extends StatelessWidget {
           runSpacing: 4,
           children: [
             Text(
-              _hours(predicted),
+              hoursOf(predicted),
               key: const Key('prediction-value'),
               style: const TextStyle(fontSize: 40, height: 1, fontWeight: FontWeight.w800, color: Aityx.fg0),
             ),
@@ -456,7 +456,7 @@ class _PredictionBody extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                '${_hours(last)} in the last 30 days',
+                '${hoursOf(last)} in the last 30 days',
                 style: const TextStyle(color: Aityx.fg, fontSize: 13),
               ),
             ],
@@ -466,10 +466,11 @@ class _PredictionBody extends StatelessWidget {
     );
   }
 
-  static String _hours(num h) => '${h == h.roundToDouble() ? h.toInt() : h.toStringAsFixed(1)} h';
-
   static String _date(DateTime t) => t.toLocal().toIso8601String().substring(0, 16).replaceFirst('T', ' ');
 }
+
+/// Hours as the prediction shows them: "9 h", "9.5 h".
+String hoursOf(num h) => '${h == h.roundToDouble() ? h.toInt() : h.toStringAsFixed(1)} h';
 
 /// Their admissions and days, counted.
 class _Summary extends StatelessWidget {

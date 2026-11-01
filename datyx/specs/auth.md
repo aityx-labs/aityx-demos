@@ -28,10 +28,16 @@ issuer is always set.
 
 ## What is secured
 
-`/api/datasources`, `/api/datasources/*`, `/api/me`, `/api/profile` and
-`/api/profile/*` want a signed-in user once authentication is on: a 401 without a valid token (unsigned,
-expired, from another issuer, or for a client not in the audiences).
-Everything else stays open: the sign-in config, health, OpenAPI.
+`/api/datasources`, `/api/datasources/*`, `/api/me`, `/api/profile`,
+`/api/profile/*`, `/api/training`, `/api/training/*`, `/api/inference`,
+`/api/inference/*` and `/api/catalog/events` want a signed-in user once
+authentication is on: a 401 without a valid token (unsigned, expired,
+from another issuer, or for a client not in the audiences). Everything
+else stays open: the sign-in config, health, OpenAPI, and
+`/api/catalog/openmetadata-events`, OpenMetadata's webhook, permitted
+explicitly (its own policy) because OpenMetadata can't sign in: it is
+authenticated by its signature instead, a 401 without it
+([catalog.md](catalog.md)).
 
 ## Endpoints
 
@@ -61,7 +67,9 @@ also carry who added them: a data source's `createdBy` and
 (a test profile with a client id and the OIDC test server, WireMock,
 as the issuer): the config publishes the client id; the secured paths
 answer 401 without a token, with a bad one and with one for another
-client, while the open paths answer; a token for the extra audience is
+client (`/api/catalog/events` too), while the open paths answer;
+OpenMetadata's webhook answers without a token, 401 unsigned and 200
+signed; a token for the extra audience is
 accepted; `/api/me` tells who is signed in; a data source added carries
 its author.
 

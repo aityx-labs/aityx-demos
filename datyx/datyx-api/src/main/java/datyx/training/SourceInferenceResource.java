@@ -2,6 +2,7 @@ package datyx.training;
 
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,22 +55,40 @@ public class SourceInferenceResource {
     @Inject
     Inference inference;
 
+    @Inject
+    DeepArInference deepAr;
+
     /**
      * What POST takes: a table (its name, schema.table or FQN), its group
      * (default when none), and the series to score, each its SeriesKey's
      * values by column; none scores every series still observed, the
-     * highest {@code limit} (25) answered.
+     * highest {@code limit} (25) answered. The model is the group's latest
+     * of {@code algorithm}; none named, XGBoost's when it has one, else
+     * DeepAR's.
      */
-    public record Request(String table, String group, List<Map<String, String>> series, Integer limit) {
+    public record Request(String table, String group, List<Map<String, String>> series, Integer limit, String algorithm) {
     }
 
-    /** What POST answers: the call, the model that answered, and its predictions. */
+    /** What POST answers: the call, the model that answered, and its predictions (a DeepAR model's with their forecasts). */
     public record Answer(long callId, long runId, Instant trainedAt, String table, String group, String target,
             String horizon, int requested, int scored, int millis, List<Inference.Prediction> predictions) {
     }
 
+    /** The model that answers: XGBoost's ({@code model}) or DeepAR's ({@code forecaster}). */
     private record Prepared(long sourceId, long runId, String tableFqn, String group, DatabaseAccess access,
-            Inference.Model model) {
+            Inference.Model model, DeepArInference.Model forecaster) {
+
+        Instant trainedAt() {
+            return model != null ? model.trainedAt() : forecaster.trainedAt();
+        }
+
+        String target() {
+            return model != null ? model.result().spec().target() : forecaster.result().spec().target();
+        }
+
+        String horizon() {
+            return model != null ? model.result().spec().horizon() : forecaster.result().dataset().horizon();
+        }
     }
 
     @POST
@@ -80,8 +99,10 @@ public class SourceInferenceResource {
                 "name the table: \"table\":\"schema.table\", its \"group\", and the \"series\" to score (none: all)");
         }
         String group;
+        TimeSeries.Algorithm algorithm;
         try {
             group = TimeSeries.group(request.group());
+            algorithm = TimeSeries.Algorithm.named(request.algorithm());
         } catch (IllegalArgumentException e) {
             return TrainingResource.error(Response.Status.BAD_REQUEST, e.getMessage());
         }
@@ -100,14 +121,19 @@ public class SourceInferenceResource {
                 Optional<TrainingRun> run = TrainingRun.<TrainingRun>find(
                     "dataSource = ?1 and groupName = ?2 and status = ?3", Sort.descending("queuedAt", "id"), s, group,
                     TrainingRun.Status.SUCCEEDED).stream()
-                    .filter(r -> r.tableFqn.equals(wanted) || r.tableFqn.endsWith("." + wanted)).findFirst();
+                    .filter(r -> r.tableFqn.equals(wanted) || r.tableFqn.endsWith("." + wanted))
+                    .filter(r -> algorithm == null || algorithm.tag.equals(r.algorithm))
+                    .min(Comparator.comparing(r -> !TimeSeries.Algorithm.XGBOOST.tag.equals(r.algorithm)));
                 if (run.isEmpty()) {
-                    throw new NoModel("no model of the group " + group + " of " + wanted + " has been trained yet");
+                    throw new NoModel("no " + (algorithm == null ? "" : algorithm.tag + " ") + "model of the group " + group + " of "
+                        + wanted + " has been trained yet");
                 }
                 DatabaseAccess access = AccessCodec.unseal(crypto, json, s.profile.id, s.profile.keyWrapped, s.access)
                     .database();
                 TrainingRun r = run.get();
-                return new Prepared(s.id, r.id, r.tableFqn, group, access, inference.model(r));
+                return TimeSeries.Algorithm.XGBOOST.tag.equals(r.algorithm)
+                    ? new Prepared(s.id, r.id, r.tableFqn, group, access, inference.model(r), null)
+                    : new Prepared(s.id, r.id, r.tableFqn, group, access, null, deepAr.model(r));
             });
         } catch (NoModel e) {
             return TrainingResource.error(Response.Status.NOT_FOUND, e.getMessage());
@@ -120,14 +146,14 @@ public class SourceInferenceResource {
         int requested = request.series() == null ? 0 : request.series().size();
         long started = System.nanoTime();
         try {
-            List<Inference.Prediction> predictions = inference.predict(prepared.model(), prepared.access(),
-                request.series(), limit);
+            List<Inference.Prediction> predictions = prepared.model() != null
+                ? inference.predict(prepared.model(), prepared.access(), request.series(), limit)
+                : deepAr.predict(prepared.forecaster(), prepared.access(), request.series(), limit);
             int millis = (int) ((System.nanoTime() - started) / 1_000_000);
             int scored = (int) predictions.stream().filter(p -> p.predicted() != null).count();
             long callId = record(prepared, millis, requested, scored, null, caller);
-            var spec = prepared.model().result().spec();
-            return Response.ok(new Answer(callId, prepared.runId(), prepared.model().trainedAt(), prepared.tableFqn(),
-                group, spec.target(), spec.horizon(), requested, scored, millis, predictions)).build();
+            return Response.ok(new Answer(callId, prepared.runId(), prepared.trainedAt(), prepared.tableFqn(),
+                group, prepared.target(), prepared.horizon(), requested, scored, millis, predictions)).build();
         } catch (Throwable e) {
             int millis = (int) ((System.nanoTime() - started) / 1_000_000);
             String error = Training.reason(e);

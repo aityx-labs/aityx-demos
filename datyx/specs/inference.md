@@ -1,8 +1,9 @@
 # Inference
 
 The models datyx trains ([training.md](training.md)) score series on
-demand, and every call is accounted for. Code in
-`datyx-api/src/main/java/datyx/training/` (`Inference`,
+demand, XGBoost's the Target summed over the horizon ahead, DeepAR's each
+step of it, and every call is accounted for. Code in
+`datyx-api/src/main/java/datyx/training/` (`Inference`, `DeepArInference`,
 `SourceInferenceResource`, `InferenceResource`, `InferenceCall`).
 
 ## Scoring
@@ -17,7 +18,9 @@ series to score, each its SeriesKey's values by column:
 ```
 
 The latest model that succeeded for that group answers (the training run
-it came from): its series are read from the source as they are now, only
+it came from), of the `algorithm` the request names (`XGBoost` or
+`DeepAR`, optional); none named, a group trained with both answers with
+XGBoost's: its series are read from the source as they are now, only
 their rows (their key's values as query parameters, compared as text, so
 a key of any type takes a string) and their cohort's latest time, so a
 series ends where training would end it; their features are built as
@@ -39,6 +42,28 @@ scored, the highest `limit` (25, at most 100) answered. At most 100
 series a call. The model is loaded from the run once and kept (the
 latest 8). A model trained the same way scores a series as its training
 scored it: the tests check it.
+
+### A DeepAR model
+
+The same call, on a group DeepAR trained, answers each series' forecast
+from its end (its cohort's, as training ends it), step by step over the
+horizon: the step's time (`at`, the step's start, as the table's
+timestamps read, without a zone), the mean, and the 10th, 50th and 90th
+percentiles of 100 sample paths. `predicted` is the mean summed over the
+horizon, `last` the Target over the last horizon, and `horizon` the one
+it forecasts (the table's, or 24 steps of the frequency):
+
+```json
+{"callId":12,"runId":1,"trainedAt":"...","table":"datyx-ds-1.healthhub.public.admissions_hourly","group":"default",
+ "target":"admissions","horizon":"1D","requested":1,"scored":1,"millis":62,
+ "predictions":[{"series":{"run_id":"1349d576","hospital_id":"2"},"predicted":0.69,"last":2.0,"note":null,
+   "forecast":[{"at":"2026-01-19T18:00","mean":0.02,"p10":0.0,"p50":0.0,"p90":0.0},...]}]}
+```
+
+The series are read and laid out as the run laid them out (the codes its
+categories had: a value never seen is unknown), the network is loaded
+from the run once and kept (the latest 8), and its calls take turns. An
+XGBoost model's predictions have no `forecast`.
 
 No model for the group is a 404 (`no model of the group care of
 public.patient_days has been trained yet`); a run trained before datyx
@@ -64,7 +89,8 @@ calls.
   `p50Millis` and `p95Millis` (nearest rank), `lastCalledAt`;
 - `lastHour`: the calls of the last hour;
 - `models`: each group with a trained model, and any a call named, with
-  its latest model (`runId`, `trainedAt`), what it predicts (`target`,
+  its latest model (XGBoost's when it has both: the one a call without
+  an `algorithm` gets; `runId`, `trainedAt`), what it predicts (`target`,
   `horizon`, `seriesKey`, from the run) and its calls' `stats`, as the
   totals;
 - `perHour`: the last 24 hours, each `hour` with its `calls` and
@@ -84,11 +110,17 @@ person without rows says so; with none named, the series still observed
 as training's scores; a series missing a key column is a 400; no model
 yet a 404; the account counts the calls, the failure, the series, the
 hour, the model's calls and key, newest first, and forgets them with
-the source; percentiles by nearest rank.
+the source; percentiles by nearest rank. A DeepAR model trained on an
+hourly table of two runs and four hospitals forecasts a hospital named by
+key over the next 24 hours from its run's end, step by step, its
+percentiles in order and whole, its mean summing to `predicted`; a
+hospital without rows says so, with no forecast; with none named, the
+running run's hospitals, the highest first.
 
 ## Known limitations
 
-- The latest model of a group answers; an older one can't be asked for.
+- The latest model of a group's algorithm answers; an older one can't be
+  asked for.
 - Scoring reads the series' rows from the source at every call: fast for
   a few series, a scan of the table for all those still observed.
 - The account is the database's: no metrics endpoint (Prometheus) yet,

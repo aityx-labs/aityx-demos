@@ -115,7 +115,7 @@ class CareCenter {
 
 /// A care center's capacity in the simulation: beds for a hospital,
 /// places (rooms, chairs) for a clinic or a health station. The registries
-/// don't say how big a facility is, and the simulation's twenty people a
+/// don't say how big a facility is, and the simulation's forty people a
 /// city would fill no real hospital, so the capacity is sized to the
 /// simulation instead: 4 to 12 beds, 2 to 6 places at a clinic, 2 to 5 at
 /// a health station, drawn from the center's [key] so it is the same at

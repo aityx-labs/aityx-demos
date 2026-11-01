@@ -14,7 +14,14 @@ The map on the [index](index.md) and on [home](home.md)'s first tile
   as the device's accuracy, in metres.
 - **Moving**: the map shows the whole world (zoom 2) until the location
   comes, then centres on it at zoom 14, once; later fixes move only the
-  dot, so looking around isn't undone. **Zoom in** and **Zoom out**
+  dot, so looking around isn't undone. On [home](home.md) it then moves
+  on to the **care center nearest the user**, of any kind, once the API
+  says which (`GET /api/care-centers/nearest`): centred on it, at zoom
+  14 or as far out as keeps the user's dot in view too (from Lisbon,
+  Cornudella's CAP 900 km away, with Spain in between). It stays on the
+  user when the API doesn't answer or knows none, or when the user has
+  already moved the map. The nearest is pinned even when the care
+  centers in view leave it out. The index centres on the user only. **Zoom in** and **Zoom out**
   buttons (+ and −, bottom right) step one level at a time, between
   zoom 2 and 19; below them, once there is a location, a **Back to
   where you are** button centres it again. Drag, pinch and wheel zoom
@@ -91,7 +98,10 @@ Android (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`) and iOS
 **found**, **denied** (the user said no, or the browser blocks it) and
 **unavailable** (services off, or a platform without them, such as
 Linux). A failure after a location was found keeps the last one on the
-map. The location stays on the device: nothing sends it to the API.
+map. On the index the location stays on the device: the API only sees
+the areas the map asks for. Home sends it once, to find the nearest
+care center (`GET /api/care-centers/nearest?lat=..&lon=..`); the API
+uses it for that query only, and neither logs nor keeps it.
 
 ## Known limitations
 

@@ -54,14 +54,18 @@ reload).
   again**) calls `POST .../catalog` and says how many tables and columns
   it read. Each table is a tile that opens on its columns: name (a key
   icon for the primary key), OpenMetadata's type, and its tags, a
-  TimeSeries tag shown as its role and what it is to the algorithm that
-  trains its group, DeepAR's field (`Target · target`) or its part in
-  XGBoost's dataset (`Target · label: sum over the horizon`), with its
+  TimeSeries tag shown as its role and what it is to the algorithms that
+  train its group, DeepAR's field (`Target · target`), its part in
+  XGBoost's dataset (`Target · label: sum over the horizon`), or both
+  (`Target · label: sum over the horizon / target`), with its
   group first when it isn't the default one (`acute: Target · target`).
-  The table's own tags come first, *on the table*: a group's algorithm
-  tag shown as `care: trained by XGBoost`. A table can hold several time
+  The table's own tags come first, *on the table*: each of a group's
+  algorithm tags shown as `care: trained by XGBoost`, its Disabled tag as `chronic:
+  disabled, not trained`. A table can hold several time
   series, one per group of tags, each read by the API on its own and
-  trained by its own algorithm (DeepAR, or XGBoost). Each group has a
+  trained by its own algorithms (DeepAR, XGBoost, or both, each its own
+  model; the API's `algorithms`, XGBoost first; an API that only says
+  `algorithm`, that one). Each group has a
   color, on its tags and its box (a dot and the border): the
   default group first, then the others by name, take orange, blue and
   aqua (`groupPalette`, checked with the dataviz skill's validator to
@@ -72,32 +76,63 @@ reload).
   a badge, *time series: ready* or *needs work* for one group, *3 time
   series: all ready* (or how many are) for several; under its name, even
   closed, what trains each group, in the group's color (`care: XGBoost,
-  30D ahead`, `acute: DeepAR`); and a box per group named by its
-  algorithm (`DeepAR · acute`, `XGBoost · care`, the default's first)
+  30D ahead`, `acute: DeepAR`, `chronic: DeepAR, disabled`, `care:
+  XGBoost + DeepAR, 30D ahead`); and a box per group named by its
+  algorithms (`DeepAR · acute`, `XGBoost · care`, `XGBoost + DeepAR ·
+  care`, the default's first)
   with what its tags give the algorithm (`item_id = run_id +
   hospital_id`; for XGBoost first what it scores, `scores stay_hours
   summed over the next 30D, per run_id + person_id`), `freq`, `horizon`
   (the trainer's choice for DeepAR when the table has none), a missing
-  row as 0 or unknown, whether it is ready, the API's problems and
-  **Edit**.
+  row as 0 or unknown, whether it is ready, the API's problems, an
+  **Enabled**/**Disabled** switch and **Edit**.
+  A group is enabled or disabled, as the API answers (`enabled` in
+  `GET .../timeseries`; an API that doesn't say, enabled): disabled, the
+  table carries the group's tag `TimeSeries.<group>.Disabled`
+  (`TimeSeries.Disabled` for the default group) in OpenMetadata and
+  datyx doesn't train the group. The switch is that tag: flipping it
+  calls `PUT .../timeseries/enabled` with the table, the group and
+  `enabled`, which adds the tag to disable and removes it to enable;
+  while the call is on, a spinner stands in for the switch; the group
+  becomes the API's answer and the table's tags are read again. Enabling
+  has datyx queue a run for each of the group's algorithms, and so does
+  removing the tag in OpenMetadata itself, which datyx hears of from
+  OpenMetadata's webhook. Its tooltip says so, with the algorithms
+  (*Disabled: datyx doesn't train this group. Enabling removes its
+  TimeSeries.chronic.Disabled tag in OpenMetadata, and datyx queues a
+  training run of it (DeepAR); removing the tag in OpenMetadata itself
+  does the same.*; with several, *... and datyx queues a run for each of
+  its algorithms: XGBoost, DeepAR; ...*). Enabling shows a snack bar
+  (*chronic enabled: datyx queues a training run of it (DeepAR); see the
+  Training tab.*, or *care enabled: datyx queues a run for each of its
+  algorithms: XGBoost, DeepAR; see the Training tab.*), as disabling does (*... tagged TimeSeries.chronic.Disabled in
+  OpenMetadata, datyx doesn't train it.*). A disabled group's box is
+  muted (its lines faded, its name gray, its border fainter) and shows
+  its tag's FQN as a gray chip, with a line saying it isn't trained
+  while the table has that tag; it can still be edited. On the table,
+  the tag reads `chronic: disabled, not trained` in the group's color,
+  and the badge adds how many are disabled (*3 time series: all ready,
+  1 disabled*). An error shows the API's words, the group as it was.
   **Tag for training** on an untagged table, **Add a group** on a tagged
   one, and **Edit** open `TimeSeriesDialog`: for a new group, its name
   (`default` for a table's first, else empty to type; a name the table
   has already is refused there, other names by the API), starting from
   the first group's roles but its Target; for a group, the API's
-  reading of it. **Trained by** DeepAR or XGBoost, the group's (a new
-  one's starts from the group it copies, else DeepAR), named in the
-  title (`Tag public.patient_days for XGBoost: care`) and sent
-  explicitly, so the table carries its tag. One row per role (Timestamp,
-  Target, SeriesKey, StaticCategorical, StaticReal, KnownCovariate,
-  PastCovariate, with what it is to the algorithm picked and what it
-  means as a tooltip), each a chip per column, one column for Timestamp
+  reading of it. **Trained by** DeepAR, XGBoost or both (one at least),
+  the group's (a new one's starts from the group it copies, else
+  DeepAR), named in the title (`Tag public.patient_days for XGBoost:
+  care`, `... for XGBoost + DeepAR: care`) and sent explicitly as
+  `algorithms`, so the table carries a tag for each and no other. One
+  row per role (Timestamp, Target, SeriesKey, StaticCategorical,
+  StaticReal, KnownCovariate, PastCovariate, with what it is to each
+  algorithm picked and what it means as a tooltip), each a chip per column, one column for Timestamp
   and Target and any number for the others; the table's frequency
   (typed, or 15min, 1h, 1D, 1W, 1MS), horizon (typed, or 24h, 7D, 30D,
-  90D; *required* for XGBoost) and whether a missing row counts as 0 or
+  90D; *required* when XGBoost is picked) and whether a missing row counts as 0 or
   is unknown, shared by its groups. **Save
-  tags** sends `PUT .../timeseries` with the group, its algorithm and
-  the horizon: a ready group closes
+  tags** sends `PUT .../timeseries` with the group, its `algorithms`
+  (and the first as `algorithm`, for an API that takes one) and the
+  horizon: a ready group closes
   the dialog and the card reloads; otherwise the dialog stays with the
   API's problems. **Remove group**, pressed twice, sends the group with
   no roles, which takes it off the table. The tab only shows what the API
@@ -119,27 +154,45 @@ reload).
 
 - **Training** (`TrainingTab`, `?tab=training`): the models datyx
   trains, from `GET /api/training`. A card says what datyx does (each
-  group tagged for XGBoost trained at the API's start if it never was,
+  group tagged on the Catalog tab trained with its algorithm, XGBoost or
+  DeepAR, at the API's start if it never was,
   then as often as its table's `timeSeriesRetrain` says, 1D when not
-  set, and when asked), with a reload button; the sources whose
+  set, when asked, and when the group is enabled, its Disabled tag
+  removed on the Catalog tab or in OpenMetadata, which tells datyx at
+  once, a run for each of its algorithms; a disabled group isn't
+  trained; XGBoost scores the Target summed over the horizon, DeepAR
+  forecasts each step of it), with a reload button; the sources whose
   catalogue couldn't be read in amber; none tagged yet, where to tag one.
-  A card per model (`ModelCard`): `XGBoost · care`, its table and
+  A card per model, one per group and algorithm datyx trains
+  (`ModelCard`): `XGBoost · care`, its table and
   source, its latest run's status (`StatusChip`: an icon and the word,
   succeeded green, queued and running amber, failed red; *not ready*
   amber, with the API's problems), and what it scores (*Scores
   stay_hours summed over the next 30D, per run_id + person_id, from
-  steps of 1D.*). **Retrain every**: the table's setting, typed or
+  steps of 1D.*) or, for DeepAR, forecasts (*Forecasts admissions step
+  by step over the next 1D, per run_id + hospital_id, from steps of
+  1h.*, the horizon the API says it forecasts); a group the API says isn't `enabled` gets a gray
+  *disabled* chip, its tooltip naming its `TimeSeries.<group>.Disabled`
+  tag. **Retrain every**: the table's setting, typed or
   picked (1h, 6h, 1D, 1W, never; empty for the default) and **Save**d
   with `PUT /api/datasources/{id}/training`, which writes it to
   OpenMetadata, saying so; under it what applies and when the model is
-  next due (*Next in 42 min, at ...*, *Due now*, *A run is running*, or
-  never). **Train now** (`POST .../training`; off while a run is on or
-  the group isn't ready). A failed latest run shows its error in red.
+  next due (*Next in 42 min, at ...*, *Due now*, *A run is running*,
+  never, or for a disabled group *Disabled: not trained until enabled on
+  the Catalog tab, which removes its TimeSeries.acute.Disabled tag.*).
+  **Train now** (`POST .../training` with the model's `algorithm`; off
+  while a run is on, the group isn't ready or it is disabled). When the latest run has a
+  `triggerNote`, it is shown under (*The latest run (enabled):
+  TimeSeries.chronic.Disabled removed in OpenMetadata (table version
+  0.9, by admin, ...)*). A failed latest run shows its error in red.
   From its latest success (`GET /api/training/runs/{id}`): which run,
   when, why and how long, and how many test examples; four stat tiles
   (`StatTile`: a large value, its label above and a note below): the
   mean error, the naive forecast's, *better than naive* as a percentage
-  (with an arrow icon, green when better), and the actual average; the
+  (with an arrow icon, green when better), and the actual average (for
+  DeepAR, per step, to three decimals, the error the forecast median's,
+  and a fifth tile, *inside its 80% band*, the share of held-out steps
+  between its 10th and 90th percentiles); for XGBoost the
   features that weighed most (`FeatureWeights`): a bar per feature, its
   share of the mean |SHAP| in the brand orange (one series, no legend;
   checked against the card's surface with the dataviz skill's
@@ -148,10 +201,24 @@ reload).
   the 10 series still observed with the highest prediction, their key's
   values, the prediction and the last horizon's actual. Then
   **Activity**: every run of them all, newest first, with when it was
-  queued, its status chip, the table and group, why (initial, schedule,
-  manual), how long, its test MAE against the naive one and its
-  examples, and a failure's error. While a run is queued or running the
-  tab asks again every 3 s.
+  queued, its status chip, the table and group, its algorithm, why
+  (initial, schedule, manual, or enabled: the group's Disabled tag
+  removed), a link to the group switch that queued it when the API
+  gives its `eventId` (*switch #5*, which scrolls to it and outlines it
+  in orange), how long, its test MAE against the naive one and its
+  examples, the API's `triggerNote` when it gives one (which tag, the
+  table's version in OpenMetadata, by whom and when, how datyx heard),
+  and a failure's error. Then **Group switches** (`GET /api/catalog/events`, the latest
+  50): each time a group was switched on or off, newest first, with
+  when (the change's time, else when datyx heard), *switched on* (green)
+  or *switched off* (gray), the table and group, how datyx heard (*via
+  OpenMetadata's webhook*, *via the datyx API*, *via datyx's minute
+  check*), who switched it, the table's version in OpenMetadata, and the
+  runs it queued (*queued runs 12, 13*, one per algorithm; *no run
+  queued*; *not trained while off*). It is read on its own: when it
+  fails (an API without it), its card shows the API's words and the
+  rest of the tab stays. While a run is queued or running the tab asks
+  again (both) every 3 s.
 - **Inference** (`InferenceTab`, `?tab=inference`): the account of the
   calls to the trained models, from `GET /api/inference` (the last 7
   days), with a reload button. Six stat tiles: calls, the last hour's,
@@ -260,8 +327,18 @@ tokens live an hour. Signing in or out refreshes the screen.
 `removeDataSource(id)`, `syncCatalog(id)`, `catalog(id)` (a database's
 tables), `topics(id)` (a Kafka source's topics, `CatalogTopic` and
 `CatalogField`), `timeSeries(id)`, `setTimeSeries(id, roles)`,
-`training()`, `trainingRun(id)`, `trainNow(source, table, group)` and
-`setRetrain(source, table, retrain)`, `inference()` and
+`setGroupEnabled(id, table, group, enabled)` (`PUT
+.../timeseries/enabled`, answering the group; `TimeSeriesSpec.enabled`,
+true when the API doesn't say, and `disabledTag(group)`, the tag's FQN),
+`TimeSeriesSpec.algorithms` (the API's `algorithms`, else
+`[algorithm]`; `algorithm` its first), `TimeSeriesRoles.algorithms`
+(sent as `algorithms`), `training()`, `trainingRun(id)`,
+`trainNow(source, table, group, algorithm)` (`algorithm` sent when
+given) and `setRetrain(source, table, retrain)`
+(`TrainingRunInfo.triggerNote` and `eventId`, `TrainingModel.enabled`),
+`groupEvents(limit)` (`GET /api/catalog/events?limit=50`, `{"events":
+[...]}` read as `GroupEvent`: id, source, table, name, group, enabled,
+via, version, by, at, receivedAt, runIds), `inference()` and
 `score(source, table, group, series, limit)`, and the `CallLog` the
 Audit tab listens to.
 `HttpDatyxApi` is the real one, over `package:http`, with a token
@@ -328,7 +405,19 @@ default's, and removing it sends it with no roles; a group tagged for
 XGBoost with a 30D horizon sends both, and the table then says who
 trains it (closed and open, the algorithm's tag in the group's color),
 what it scores and each role in XGBoost's terms, and its Edit starts
-from XGBoost and the horizon; groups' colors go
+from XGBoost and the horizon; a group tagged for both XGBoost and
+DeepAR (the picker taking several, one at least) sends both, XGBoost
+first, shows both on the table, its box, its tags and its roles,
+says enabling queues a run for each in its tooltip and snack bar, and
+its Edit starts from both; a group's `algorithms` are read (falling
+back to `algorithm`, then DeepAR) and sent, a `GroupEvent` and a run's
+`eventId` read; a table with `chronic` disabled shows it
+switched off and muted, with its `TimeSeries.chronic.Disabled` chip, the
+table's tag and the badge's count, and is still editable; switching it
+on sends the table, the group and true, says a training run is queued,
+and drops the tag, while switching the default group off sends false and
+shows `TimeSeries.Disabled`; a refused switch shows the API's words and
+leaves the group as it was; groups' colors go
 by name, the default first, gray past the third; the tab the address names opens; and,
 with a session store in memory, the audit is read back after a reload
 (a waiting call as never answered), a fresh token signs in without
@@ -337,7 +426,17 @@ that can't be renewed signs out, and signing out forgets it. The
 Training tab shows a model's scope, its next run, its latest run's
 failure, its latest success's tiles (3.10 against 5.20, 40% better),
 its features' bars in proportion with their shares, its scores and
-every run newest first; **Train now** and saving *never* call the API.
+every run newest first; **Train now** (with the model's algorithm) and
+saving *never* call the API. Runs show their algorithm and link to the
+group switch that queued them, which is outlined when followed; the
+group switches show on and off, how datyx heard, by whom, the version
+and the runs queued, newest first; when they can't be read, their card
+says so and the training still shows. A DeepAR model says it forecasts
+step by step over its horizon, shows its error per step (0.005, the
+median's) and its band's tile (99%), no feature weights, and its scores.
+A run triggered by enabling a group shows *enabled* and its note, in the
+activity and under its model; a disabled group says so, is never next
+and can't be trained now.
 The Inference tab shows the totals' tiles, the hours' columns in
 proportion with the tallest, a model's account and calls with their
 failure; **Score** waits for the whole key, then sends it and shows the

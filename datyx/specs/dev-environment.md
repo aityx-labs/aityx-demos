@@ -73,8 +73,14 @@ master key `DATYX_MASTER_KEY` ([profiles.md](profiles.md); required by
 the packaged API and Docker, a development key in dev mode), and the
 catalogue's sign-in to OpenMetadata, `DATYX_OPENMETADATA_TOKEN` or
 `DATYX_OPENMETADATA_EMAIL` and `DATYX_OPENMETADATA_PASSWORD` (the stack's
-admin by default; [catalog.md](catalog.md)), which
-`scripts/api.sh` and the `api` compose service pass to the API. Secrets
+admin by default; [catalog.md](catalog.md)), and OpenMetadata's webhook
+back to the API, `DATYX_OPENMETADATA_CALLBACK_URL` (empty: the API as
+OpenMetadata reaches it, `http://host.docker.internal:{API port}/api/catalog/openmetadata-events`
+from the host, `http://api:9900/...` in Docker Compose) and
+`DATYX_OPENMETADATA_WEBHOOK_SECRET` (empty: drawn at each start), which
+`scripts/api.sh` and the `api` compose service pass to the API. The API
+on localhost allows the callback's host in the Host header too
+(Quarkus's host validation; [catalog.md](catalog.md)). Secrets
 reach processes through their environment only.
 
 ## Development data

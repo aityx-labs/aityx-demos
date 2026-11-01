@@ -1,0 +1,362 @@
+{
+  "sources": {"database": "HealthHub", "kafka": "HealthHub Kafka"},
+  "team": {
+    "name": "healthhub-data",
+    "displayName": "HealthHub Data",
+    "description": "The people who keep HealthHub's data: its hospital catalogue, the medical conditions of the simulation, the admissions it records and the counts and series made from them. Ask them about any of HealthHub's tables, topics or pipelines."
+  },
+  "domain": {
+    "name": "Healthcare",
+    "displayName": "Healthcare",
+    "domainType": "Source-aligned",
+    "description": "Care delivery: the places care is given (hospitals, clinics, health stations), the conditions that bring people to them, their admissions and triage, and the activity counted from them. Source-aligned: the data as the systems that make it hold it."
+  },
+  "dataProduct": {
+    "name": "HealthHub",
+    "displayName": "HealthHub",
+    "description": "HealthHub's data, end to end: the care centers of Catalonia, Brazil and Florida, a simulation of people falling ill and visiting hospitals, every admission with its triage at the desk by aityx, and the hourly admissions and patient days that datyx forecasts and scores. **The people are simulated, not real**: no row is about a real person, though the data is shaped and classified as if it were (PII and GDPR special category tags)."
+  },
+  "glossary": {
+    "name": "HealthHub",
+    "displayName": "HealthHub",
+    "description": "The terms of HealthHub's data: what a care center, an admission, a visit or a triage level means in its tables, topics and pipelines.",
+    "terms": [
+      {"name": "Care Center", "description": "A place where care is given: a hospital, a clinic or a health station (primary care), from public catalogues of Catalonia, Brazil and Florida.", "synonyms": ["Facility", "Health facility"], "related": ["Hospital"]},
+      {"name": "Hospital", "description": "A care center of kind hospital: the only kind the simulation admits people to.", "synonyms": ["Hospital center"], "related": ["Care Center", "Admission"]},
+      {"name": "Medical Condition", "description": "A common illness the simulation gives people, with its treatment, how long it lasts and how it brings people to the hospital. Acute or chronic.", "synonyms": ["Condition", "Illness", "Disease"], "related": ["Acute Condition", "Chronic Condition", "Course"]},
+      {"name": "Acute Condition", "description": "A medical condition that passes: one course of visits, then the person is healthy again.", "synonyms": ["Acute episode"], "related": ["Medical Condition"]},
+      {"name": "Chronic Condition", "description": "A medical condition that stays: courses of visits come back for as long as the simulation runs.", "synonyms": ["Long-term condition"], "related": ["Medical Condition"]},
+      {"name": "Course", "description": "The visits of one episode of a condition: a number of visits a number of days apart, the first, repeats and the last.", "synonyms": ["Course of treatment"], "related": ["Visit", "Medical Condition"]},
+      {"name": "Visit", "description": "One trip to the hospital within a course: first, repeat or last. Each visit is an admission.", "synonyms": ["Hospital visit"], "related": ["Course", "Admission"]},
+      {"name": "Admission", "description": "A simulated person's arrival at a hospital for a visit: who, what condition, which visit of the course, what they said, where and when (simulated day and minute). Recorded once per event id.", "synonyms": ["Arrival", "Hospital admission"], "related": ["Visit", "Triage", "Complaint", "Simulated Person"]},
+      {"name": "Complaint", "description": "What a patient says at the desk on arrival, filled from a template of their condition and visit; the only words, with their age, that triage reads.", "synonyms": ["Chief complaint", "Presenting complaint"], "related": ["Admission", "Triage"]},
+      {"name": "Triage", "description": "How soon an arriving patient must be seen, where in the hospital they go and whether a nurse checks first, decided by aityx from their complaint and age, with the rule behind each answer.", "synonyms": ["Triage at the desk"], "related": ["Triage Level", "Admission", "Complaint"]},
+      {"name": "Triage Level", "description": "The urgency of a triage, on five levels after the Manchester Triage System: red (immediate, 0 min), orange (very urgent, 10 min), yellow (urgent, 60 min), green (standard, 120 min), blue (non-urgent, 240 min).", "synonyms": ["Urgency", "Priority", "Manchester level"], "related": ["Triage"]},
+      {"name": "Simulated Person", "description": "A synthetic person of the simulation, with a name, age, sex, job, home and conditions. Not a real person; their data is classified as a real person's would be.", "synonyms": ["Person", "Patient"], "related": ["Admission", "Run"]},
+      {"name": "Run", "description": "One start of the simulation, named by 8 hex digits: each replays the simulated calendar from day 1 with new people, so a person or a series is the run and its id together.", "synonyms": ["Simulation run"], "related": ["Simulated Time", "Simulated Person"]},
+      {"name": "Simulated Time", "description": "The simulation's clock: day 1 is 2026-01-01, a real second a simulated hour by default. Days and hours in HealthHub's data are simulated, years ahead of the wall clock.", "synonyms": ["Sim time", "Simulated day"], "related": ["Run"]},
+      {"name": "Hourly Admissions", "description": "The admissions at a hospital in a simulated hour of a run, in all and for acute and chronic conditions: the time series datyx forecasts with DeepAR. Sparse: an hour without admissions has no row, and means zero.", "synonyms": ["Admissions per hour"], "related": ["Admission", "Hospital"]},
+      {"name": "Patient Day", "description": "A simulated person's visits and hours of hospital care on a simulated day, with their facts: the series datyx scores with XGBoost for each patient's care in the next 30 days.", "synonyms": ["Person day"], "related": ["Stay Hours", "Simulated Person"]},
+      {"name": "Stay Hours", "description": "The hours of hospital care a visit takes: its condition's stay for a first visit, its follow-up stay after.", "synonyms": ["Length of stay", "Hours of care"], "related": ["Patient Day", "Visit"]},
+      {"name": "Move", "description": "A simulated person's position and state each turn: at home, on the way to the hospital, there, or on the way back.", "synonyms": ["Movement"], "related": ["Simulated Person"]}
+    ]
+  },
+  "certification": "Certification.Gold",
+  "termsOfUse": "HealthHub's data is simulated: no row is about a real person, and none may be joined with real people's data. Use it to build and test analytics, forecasts and models; treat the columns tagged PII Sensitive and PersonalData SpecialCategory as if they were real (GDPR Art. 9), in access, retention and sharing.",
+  "database": {
+    "description": "HealthHub's PostgreSQL database: the care centers and medical conditions it is seeded with, the admissions its feed records from Kafka with their triage at the desk, the hourly admissions its Flink job counts, and the patient days view. HealthHub's API makes and describes the schema at every start. The people in it are simulated.",
+    "tier": "Tier.Tier1",
+    "schemas": {
+      "public": "HealthHub's one schema: reference data (care_centers, medical_conditions, complaint_templates, greetings), events (admissions, admission_triage) and series (admissions_hourly, patient_days)."
+    }
+  },
+  "tables": {
+    "public.admissions": {
+      "tier": "Tier.Tier1",
+      "terms": ["Admission", "Visit"],
+      "columns": {
+        "event_id": ["Admission"],
+        "person_id": ["Simulated Person"],
+        "person_name": ["Simulated Person"],
+        "condition_code": ["Medical Condition"],
+        "condition_name": ["Medical Condition"],
+        "condition_type": ["Acute Condition", "Chronic Condition"],
+        "visit": ["Visit"],
+        "visit_number": ["Course"],
+        "complaint": ["Complaint"],
+        "template": ["Complaint"],
+        "hospital_id": ["Hospital"],
+        "hospital_name": ["Hospital"],
+        "sim_day": ["Simulated Time"],
+        "sim_time": ["Simulated Time"]
+      },
+      "checks": [
+        {"test": "tableRowCountToBeBetween", "parameters": {"minValue": 1}, "description": "The feed has recorded admissions."},
+        {"test": "columnValuesToMatchRegex", "column": "event_id", "parameters": {"regex": "^[0-9a-f]{8}-.+-d[0-9]+-t[0-9]+$"}, "description": "Every event id has the simulation's shape: run, person, day and turn."},
+        {"test": "columnValuesToBeBetween", "column": "age", "parameters": {"minValue": 18, "maxValue": 90}, "description": "Every person is an adult of 18 to 90, the simulation's ages."},
+        {"test": "columnValuesToBeInSet", "column": "sex", "parameters": {"allowedValues": ["woman", "man"]}, "description": "Every person's sex is woman or man."},
+        {"test": "columnValuesToBeInSet", "column": "condition_type", "parameters": {"allowedValues": ["acute", "chronic"]}, "description": "Every condition is acute or chronic."},
+        {"test": "columnValuesToBeInSet", "column": "visit", "parameters": {"allowedValues": ["first", "repeat", "last"]}, "description": "Every visit is the first, a repeat or the last of its course."},
+        {"test": "columnValuesToBeBetween", "column": "visit_number", "parameters": {"minValue": 1}, "description": "Visits are numbered from 1."},
+        {"test": "columnValuesToBeBetween", "column": "template", "parameters": {"minValue": 0, "maxValue": 2}, "description": "The complaint template is one of the visit kind's three, 0 to 2."},
+        {"test": "columnValuesToBeBetween", "column": "sim_day", "parameters": {"minValue": 1}, "description": "Simulated days count from 1."},
+        {"test": "columnValuesToMatchRegex", "column": "sim_time", "parameters": {"regex": "^([01][0-9]|2[0-3]):[0-5][0-9]$"}, "description": "Every arrival time is a minute of the day, HH:MM."}
+      ]
+    },
+    "public.admission_triage": {
+      "tier": "Tier.Tier1",
+      "terms": ["Triage"],
+      "columns": {
+        "event_id": ["Admission"],
+        "level": ["Triage Level"],
+        "reference": ["Triage Level"],
+        "wait_minutes": ["Triage Level"],
+        "area": ["Triage"],
+        "nurse_check": ["Triage"]
+      },
+      "checks": [
+        {"test": "columnValuesToBeInSet", "column": "level", "parameters": {"allowedValues": ["red", "orange", "yellow", "green", "blue"]}, "description": "Every level is one of the five Manchester levels."},
+        {"test": "columnValuesToBeInSet", "column": "reference", "parameters": {"allowedValues": ["red", "orange", "yellow", "green", "blue"]}, "description": "Every reference level is one of the five Manchester levels."},
+        {"test": "columnValuesToBeInSet", "column": "wait_minutes", "parameters": {"allowedValues": ["0", "10", "60", "120", "240"]}, "description": "Every wait is its level's: 0, 10, 60, 120 or 240 minutes."},
+        {"test": "columnValuesToBeInSet", "column": "area", "parameters": {"allowedValues": ["resuscitation", "emergency", "mental_health", "minor_care", "outpatients", "day_unit"]}, "description": "Every area is one of the hospital's six."},
+        {"test": "columnValuesToBeBetween", "column": "millis", "parameters": {"minValue": 0, "maxValue": 60000}, "description": "Every call took no longer than its 60 s timeout."},
+        {"test": "columnValuesToBeBetween", "column": "input_tokens", "parameters": {"minValue": 0}, "description": "Token counts are never negative."}
+      ]
+    },
+    "public.admissions_hourly": {
+      "tier": "Tier.Tier1",
+      "terms": ["Hourly Admissions"],
+      "columns": {
+        "run_id": ["Run"],
+        "hospital_id": ["Hospital"],
+        "hospital_name": ["Hospital"],
+        "hour_start": ["Simulated Time"],
+        "admissions": ["Hourly Admissions"],
+        "acute_admissions": ["Acute Condition"],
+        "chronic_admissions": ["Chronic Condition"]
+      },
+      "checks": [
+        {"test": "tableRowCountToBeBetween", "parameters": {"minValue": 1}, "description": "The Flink job has counted admissions."},
+        {"test": "columnValuesToMatchRegex", "column": "run_id", "parameters": {"regex": "^[0-9a-f]{8}$"}, "description": "Every run id is 8 hex digits."},
+        {"test": "columnValuesToBeBetween", "column": "admissions", "parameters": {"minValue": 1}, "description": "Sparse: a row is an hour with at least one admission."},
+        {"test": "columnValuesToBeBetween", "column": "acute_admissions", "parameters": {"minValue": 0}, "description": "Counts are never negative."},
+        {"test": "columnValuesToBeBetween", "column": "chronic_admissions", "parameters": {"minValue": 0}, "description": "Counts are never negative."}
+      ]
+    },
+    "public.patient_days": {
+      "tier": "Tier.Tier2",
+      "terms": ["Patient Day"],
+      "columns": {
+        "run_id": ["Run"],
+        "person_id": ["Simulated Person"],
+        "day": ["Simulated Time"],
+        "hospital_id": ["Hospital"],
+        "chronic_condition": ["Chronic Condition"],
+        "visits": ["Visit"],
+        "acute_visits": ["Acute Condition"],
+        "chronic_visits": ["Chronic Condition"],
+        "stay_hours": ["Stay Hours"]
+      },
+      "checks": [
+        {"test": "columnValuesToBeBetween", "column": "visits", "parameters": {"minValue": 1}, "description": "Sparse: a row is a day with at least one visit."},
+        {"test": "columnValuesToBeBetween", "column": "age", "parameters": {"minValue": 18, "maxValue": 90}, "description": "Every person is an adult of 18 to 90."},
+        {"test": "columnValuesToBeInSet", "column": "sex", "parameters": {"allowedValues": ["woman", "man"]}, "description": "Every person's sex is woman or man."},
+        {"test": "columnValuesToBeNotNull", "column": "stay_hours", "description": "Every day's visits have their hours of care: no visit is of a condition the seed no longer has."},
+        {"test": "columnValuesToBeBetween", "column": "stay_hours", "parameters": {"minValue": 1, "maxValue": 144}, "description": "A day's care is 1 to 144 hours: at most two visits of up to 72."}
+      ]
+    },
+    "public.care_centers": {
+      "tier": "Tier.Tier1",
+      "terms": ["Care Center"],
+      "columns": {
+        "id": ["Care Center"],
+        "kind": ["Care Center", "Hospital"]
+      },
+      "checks": [
+        {"test": "tableRowCountToBeBetween", "parameters": {"minValue": 1}, "description": "The seed is there."},
+        {"test": "columnValuesToBeInSet", "column": "kind", "parameters": {"allowedValues": ["hospital", "clinic", "health_station"]}, "description": "Every care center is a hospital, a clinic or a health station."},
+        {"test": "columnValuesToBeInSet", "column": "ownership", "parameters": {"allowedValues": ["public", "private", "unknown"]}, "description": "Ownership is public, private or unknown."},
+        {"test": "columnValuesToBeInSet", "column": "country", "parameters": {"allowedValues": ["ES", "BR", "US"]}, "description": "Every care center is in Spain, Brazil or the United States."},
+        {"test": "columnValuesToBeBetween", "column": "latitude", "parameters": {"minValue": -90, "maxValue": 90}, "description": "Latitudes are on the globe."},
+        {"test": "columnValuesToBeBetween", "column": "longitude", "parameters": {"minValue": -180, "maxValue": 180}, "description": "Longitudes are on the globe."}
+      ]
+    },
+    "public.medical_conditions": {
+      "tier": "Tier.Tier2",
+      "terms": ["Medical Condition"],
+      "columns": {
+        "code": ["Medical Condition"],
+        "type": ["Acute Condition", "Chronic Condition"],
+        "visit_count": ["Course"],
+        "visit_interval_days": ["Course"],
+        "stay_hours": ["Stay Hours"],
+        "follow_up_stay_hours": ["Stay Hours"]
+      },
+      "checks": [
+        {"test": "tableRowCountToBeBetween", "parameters": {"minValue": 1}, "description": "The seed is there."},
+        {"test": "columnValuesToBeInSet", "column": "type", "parameters": {"allowedValues": ["acute", "chronic"]}, "description": "Every condition is acute or chronic."},
+        {"test": "columnValuesToBeBetween", "column": "min_age", "parameters": {"minValue": 18, "maxValue": 90}, "description": "Adult ages only."},
+        {"test": "columnValuesToBeBetween", "column": "max_age", "parameters": {"minValue": 18, "maxValue": 90}, "description": "Adult ages only."},
+        {"test": "columnValuesToBeBetween", "column": "female_share", "parameters": {"minValue": 0, "maxValue": 1}, "description": "A share, 0 to 1."},
+        {"test": "columnValuesToBeBetween", "column": "stay_hours", "parameters": {"minValue": 1, "maxValue": 72}, "description": "A first visit stays 1 to 72 hours."},
+        {"test": "columnValuesToBeBetween", "column": "follow_up_stay_hours", "parameters": {"minValue": 1, "maxValue": 72}, "description": "A later visit stays 1 to 72 hours."},
+        {"test": "columnValuesToBeBetween", "column": "visit_count", "parameters": {"minValue": 1}, "description": "A course has at least one visit."},
+        {"test": "columnValuesToBeBetween", "column": "visit_interval_days", "parameters": {"minValue": 1}, "description": "Visits are at least a day apart."}
+      ]
+    },
+    "public.complaint_templates": {
+      "tier": "Tier.Tier3",
+      "terms": ["Complaint"],
+      "columns": {
+        "condition_code": ["Medical Condition"],
+        "visit": ["Visit"],
+        "text": ["Complaint"],
+        "triage": ["Triage Level"]
+      },
+      "checks": [
+        {"test": "columnValuesToBeInSet", "column": "visit", "parameters": {"allowedValues": ["first", "repeat", "last"]}, "description": "Every template is for a first, repeat or last visit."},
+        {"test": "columnValuesToBeBetween", "column": "position", "parameters": {"minValue": 0, "maxValue": 2}, "description": "Three templates per condition and visit, 0 to 2."},
+        {"test": "columnValuesToBeNotNull", "column": "triage", "description": "Every template has its reference triage level."},
+        {"test": "columnValuesToBeInSet", "column": "triage", "parameters": {"allowedValues": ["red", "orange", "yellow", "green", "blue"]}, "description": "Every reference level is one of the five Manchester levels."}
+      ]
+    },
+    "public.greetings": {
+      "tier": "Tier.Tier5",
+      "terms": [],
+      "checks": [
+        {"test": "tableRowCountToBeBetween", "parameters": {"minValue": 1, "maxValue": 1}, "description": "One greeting, written at the first start."}
+      ]
+    }
+  },
+  "topics": {
+    "healthhub.admissions": {
+      "description": "Every simulated arrival at a hospital, as HealthHub's simulation publishes it through Kafka's REST proxy, keyed by the person. HealthHub's API records each in the admissions table, and the Flink job counts them per hospital and hour. Kept 24 hours. The people are simulated.",
+      "tier": "Tier.Tier1",
+      "terms": ["Admission"],
+      "fields": {
+        "type": "The record's type: admission.",
+        "eventId": "The event's id: the run, the person, the day and the turn, as <run>-<person>-d<day>-t<turn>; unique.",
+        "personId": "The simulated person's id within the run, such as reus-3.",
+        "name": "The simulated person's name.",
+        "age": "The person's age in years, 18 to 90.",
+        "sex": "The person's sex: woman or man.",
+        "occupation": "The person's job, one of 40.",
+        "city": "The city the person lives in.",
+        "conditionCode": "The condition that brings them (medical_conditions.code).",
+        "conditionName": "The condition's name.",
+        "conditionType": "acute or chronic.",
+        "visit": "Which visit of the course: first, repeat or last.",
+        "visitNumber": "The visit's number in the course, from 1.",
+        "complaint": "What the patient says on arrival.",
+        "template": "Which of the visit kind's complaint templates it was said from, 0 to 2.",
+        "hospitalId": "The hospital they arrive at (care_centers.id).",
+        "hospitalName": "The hospital's name.",
+        "simTime": "The simulated minute of arrival, HH:MM.",
+        "day": "The simulated day, from 1 at each run's start.",
+        "turn": "The simulation's turn, an hour of simulated time by default."
+      }
+    },
+    "healthhub.admissions.hourly": {
+      "description": "The admissions per run, hospital and simulated hour, upserted by HealthHub's Flink job (admissions-hourly) as it counts healthhub.admissions; the same rows it writes to the admissions_hourly table. Keyed by run, hospital and hour, so the latest record of a key is its count.",
+      "tier": "Tier.Tier2",
+      "terms": ["Hourly Admissions"],
+      "fields": {
+        "run_id": "The run, 8 hex digits.",
+        "hospital_id": "The hospital (care_centers.id).",
+        "hospital_name": "The hospital's name.",
+        "hour_start": "The simulated hour, ISO 8601 without a time zone: day 1 is 2026-01-01.",
+        "admissions": "The admissions in the hour; acute and chronic add up to it.",
+        "acute_admissions": "The admissions in the hour for an acute condition.",
+        "chronic_admissions": "The admissions in the hour for a chronic condition."
+      }
+    },
+    "healthhub.people.moves": {
+      "description": "Every simulated person's move, once a turn, as HealthHub's simulation publishes it, keyed by the person: where they are, where home and their hospital are, and what they are doing. HealthHub's map reads it back; it isn't stored. Kept 24 hours. The people are simulated.",
+      "tier": "Tier.Tier2",
+      "terms": ["Move", "Simulated Person"],
+      "fields": {
+        "id": "The simulated person's id within the run, such as reus-3.",
+        "name": "The simulated person's name.",
+        "age": "The person's age in years, 18 to 90.",
+        "city": "The city the person lives in.",
+        "lat": "Where the person is now: latitude, WGS84.",
+        "lon": "Where the person is now: longitude, WGS84.",
+        "homeLat": "The person's home: latitude, WGS84.",
+        "homeLon": "The person's home: longitude, WGS84.",
+        "hospitalId": "The person's hospital (care_centers.id).",
+        "hospitalName": "The hospital's name.",
+        "state": "What the person is doing: home, to_hospital, at_hospital or to_home.",
+        "mode": "How the person travels, by the distance from home to the hospital: walk (up to 2 km), transit (up to 15 km) or car.",
+        "monitored": "Whether the person is monitored at home, the high-risk only: their moves at home are check-ins.",
+        "monitoredFor": "Why the person is monitored at home, such as \"aged 84\" or \"pregnant\"; null when they aren't.",
+        "conditionName": "The condition of the visit under way; at home, the acute episode's if one is on, else the chronic condition's; null while healthy.",
+        "conditionType": "That condition's type: acute or chronic; null while healthy.",
+        "simTime": "The turn's simulated time, HH:MM.",
+        "day": "The simulated day, from 1 at each run's start.",
+        "turn": "The simulation's turn."
+      }
+    },
+    "healthhub.test": {
+      "description": "The topic of HealthHub's live Kafka test (healthhub_api/test/kafka_rest_live_test.dart): a record produced through the REST proxy and consumed back, apart from the simulation's topics so a test never writes into what a running API reads. Made by the kafka service's health check. No business data.",
+      "tier": "Tier.Tier5",
+      "terms": [],
+      "fields": {
+        "id": "The test run's id, live-<random>, also the record's key.",
+        "lat": "A fixed sample number, 41.1554."
+      }
+    }
+  },
+  "timeSeries": [
+    {"roles": {"table": "public.admissions_hourly", "group": "default", "timestamp": "hour_start", "target": "admissions", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}},
+    {"roles": {"table": "public.admissions_hourly", "group": "acute", "timestamp": "hour_start", "target": "acute_admissions", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}},
+    {"roles": {"table": "public.admissions_hourly", "group": "chronic", "timestamp": "hour_start", "target": "chronic_admissions", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}},
+    {"roles": {"table": "public.patient_days", "group": "care", "timestamp": "day", "target": "stay_hours", "seriesKey": ["run_id", "person_id"], "staticCategorical": ["sex", "city", "hospital_id", "chronic_condition"], "staticReal": ["age"], "pastCovariates": ["visits", "acute_visits", "chronic_visits"], "frequency": "1D", "missing": "zero", "algorithm": "XGBoost", "horizon": "30D"}, "retrain": "1h"}
+  ],
+  "pipelines": [
+    {
+      "service": {"name": "healthhub-api", "displayName": "HealthHub API", "description": "HealthHub's API (Dart): it runs the simulation of people, records what it publishes, and triages each admission with aityx."},
+      "serviceType": "CustomPipeline",
+      "name": "simulation",
+      "tier": "Tier.Tier1",
+      "displayName": "Simulation",
+      "description": "Simulated people living in the cities of the care centers: each falls ill with the seeded conditions, travels to their hospital for each visit of a course, and is admitted on arrival. Every turn it publishes each person's move to healthhub.people.moves, and each arrival to healthhub.admissions.",
+      "tasks": {
+        "people": "Makes the run's people, each with a home near a city's hospital, a job and conditions weighed by age and sex.",
+        "move": "Each turn, moves every person a step and publishes the move.",
+        "admit": "On arrival at the hospital, publishes the admission with a complaint from the condition's templates."
+      }
+    },
+    {
+      "service": {"name": "healthhub-api", "displayName": "HealthHub API", "description": "HealthHub's API (Dart): it runs the simulation of people, records what it publishes, and triages each admission with aityx."},
+      "serviceType": "CustomPipeline",
+      "name": "admissions-feed",
+      "tier": "Tier.Tier1",
+      "displayName": "Admissions feed",
+      "description": "Reads healthhub.admissions in a stable consumer group and records each valid admission in the admissions table, once per event id, so a replay never doubles one.",
+      "tasks": {
+        "consume": "Polls the topic through Kafka's REST proxy, from where it left off.",
+        "record": "Inserts each admission, skipping an event id already there."
+      }
+    },
+    {
+      "service": {"name": "healthhub-api", "displayName": "HealthHub API", "description": "HealthHub's API (Dart): it runs the simulation of people, records what it publishes, and triages each admission with aityx."},
+      "serviceType": "CustomPipeline",
+      "name": "triage",
+      "tier": "Tier.Tier1",
+      "displayName": "Triage at the desk",
+      "description": "Triages each admission it records with aityx, from the complaint and the age only: Jev reads the danger signs and choices, a decision (Manchester Triage System levels) gives the level, the wait, the area and a nurse's check. Writes admission_triage, with the template's reference level beside it.",
+      "tasks": {
+        "ask": "One call to aityx per admission, four at a time.",
+        "record": "Keeps the triage, its rules and aityx's receipt, or why it failed."
+      }
+    },
+    {
+      "service": {"name": "healthhub-flink", "displayName": "HealthHub Flink", "description": "HealthHub's Flink cluster (a JobManager and a TaskManager), running its streaming SQL jobs."},
+      "serviceType": "Flink",
+      "name": "admissions-hourly",
+      "tier": "Tier.Tier1",
+      "displayName": "Admissions per hour",
+      "description": "Flink SQL (HealthHub/flink/admissions-hourly.sql): reads healthhub.admissions from the earliest record, drops malformed and repeated events, counts the admissions per run, hospital and simulated hour, in all and acute and chronic, and upserts each count to the healthhub.admissions.hourly topic and the admissions_hourly table.",
+      "tasks": {
+        "admission_events": "The topic as a table: the admission's type, event id, hospital, condition type, day and minute.",
+        "admissions_once": "Valid admissions only, each event id once, with the simulated hour it falls in.",
+        "hourly": "The counts per run, hospital and hour.",
+        "sink": "Upserts each count to the topic and the table by its key."
+      }
+    }
+  ],
+  "lineage": [
+    {"from": "table:public.care_centers", "to": "topic:healthhub.people.moves", "pipeline": "healthhub-api.simulation", "description": "The simulation sends people to the hospitals among the care centers."},
+    {"from": "table:public.medical_conditions", "to": "topic:healthhub.people.moves", "pipeline": "healthhub-api.simulation", "description": "The conditions decide when people travel and how long they stay."},
+    {"from": "table:public.care_centers", "to": "topic:healthhub.admissions", "pipeline": "healthhub-api.simulation", "description": "An admission names the hospital the person arrives at."},
+    {"from": "table:public.medical_conditions", "to": "topic:healthhub.admissions", "pipeline": "healthhub-api.simulation", "description": "An admission names the condition that brings the person, and its visit of the course."},
+    {"from": "table:public.complaint_templates", "to": "topic:healthhub.admissions", "pipeline": "healthhub-api.simulation", "description": "An admission's complaint is filled from one of its condition's templates."},
+    {"from": "topic:healthhub.admissions", "to": "table:public.admissions", "pipeline": "healthhub-api.admissions-feed", "description": "The feed records each admission once."},
+    {"from": "table:public.admissions", "to": "table:public.admission_triage", "pipeline": "healthhub-api.triage", "description": "aityx triages each recorded admission from its complaint and age."},
+    {"from": "table:public.complaint_templates", "to": "table:public.admission_triage", "pipeline": "healthhub-api.triage", "description": "The triage keeps the template's reference level beside aityx's."},
+    {"from": "topic:healthhub.admissions", "to": "table:public.admissions_hourly", "pipeline": "healthhub-flink.admissions-hourly", "description": "The Flink job counts the admissions per run, hospital and hour."},
+    {"from": "topic:healthhub.admissions", "to": "topic:healthhub.admissions.hourly", "pipeline": "healthhub-flink.admissions-hourly", "description": "The same counts, upserted to a topic."},
+    {"from": "table:public.admissions", "to": "table:public.patient_days", "description": "The view groups each person's admissions by run and simulated day."},
+    {"from": "table:public.medical_conditions", "to": "table:public.patient_days", "description": "The view takes each visit's hours of care from its condition."}
+  ]
+}

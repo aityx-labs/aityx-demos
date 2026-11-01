@@ -2,16 +2,19 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:healthhub_app/api/health_hub_api.dart';
 import 'package:healthhub_app/auth/auth_controller.dart';
 import 'package:healthhub_app/care_centers/care_center_screen.dart';
 import 'package:healthhub_app/events/stream_events.dart';
+import 'package:healthhub_app/care_centers/admissions_timeline.dart';
 import 'package:healthhub_app/location/location_controller.dart';
 import 'package:healthhub_app/main.dart';
 import 'package:healthhub_app/people/person_screen.dart';
 import 'package:healthhub_app/persist/session_store.dart';
 import 'package:healthhub_app/triage/triage_card.dart';
+import 'package:healthhub_app/theme.dart';
 import 'package:latlong2/latlong.dart';
 
 /// An API with sign-in on or off, a hospital, a clinic and a health
@@ -188,11 +191,15 @@ class FakeApi implements HealthHubApi {
         partition: 0,
         offset: 42,
       ),
-      const StreamEvent(id: 'lisboa-2', name: 'Ana Sousa', state: PersonState.home, simTime: '09:40', day: 2, partition: 0, offset: 41),
+      // At home, so monitored: the API leaves out everyone else at home.
+      const StreamEvent(id: 'lisboa-2', name: 'Ana Sousa', state: PersonState.home, monitored: true, monitoredFor: 'aged 84', simTime: '09:40', day: 2, partition: 0, offset: 41),
     ];
     return StreamEvents(
       enabled: true,
       paused: paused,
+      // The feed's counts; the answer read later counts more.
+      total: type == StreamEventType.admission ? 48213 : 48190,
+      perSecond: type == StreamEventType.admission ? 70.4 : 70.1,
       topics: [type == StreamEventType.admission ? 'healthhub.admissions' : 'healthhub.people.moves'],
       events: [
         for (final event in all)
@@ -259,6 +266,16 @@ class FakeApi implements HealthHubApi {
       CareCenter(id: 2, name: 'Clínica do Campo', kind: CareCenterKind.clinic, lat: 38.722, lon: -9.141, subtype: 'Policlínica'),
       CareCenter(id: 3, name: 'Centro de Saúde', kind: CareCenterKind.healthStation, lat: 38.715, lon: -9.135),
     ], truncated: truncated);
+  }
+
+  /// The points the map asked the nearest care center of.
+  final nearestAsked = <List<double>>[];
+
+  /// Nearest to Lisbon's center: a hospital the care centers in view leave out.
+  @override
+  Future<CareCenter?> nearestCareCenter({required double lat, required double lon}) async {
+    nearestAsked.add([lat, lon]);
+    return const CareCenter(id: 9, name: 'Hospital da Luz', kind: CareCenterKind.hospital, lat: 38.75, lon: -9.17);
   }
 
   @override
@@ -416,6 +433,47 @@ class FakeApi implements HealthHubApi {
     });
   }
 
+  /// The hospitals whose admissions per hour, and whose forecast, were asked for.
+  final hourlyAsked = <(int, String?, int?)>[];
+  final forecastAsked = <(int, String?)>[];
+
+  /// Hospitals 1 and 2 admitted at 09:00 and 11:00 of day 19, run 1349d576 (current); 7, nobody.
+  @override
+  Future<HourlyAdmissions> hospitalAdmissions(int id, {String? run, int? hours}) async {
+    hourlyAsked.add((id, run, hours));
+    if (id != 1 && id != 2) return HourlyAdmissions(hospitalId: id);
+    return HourlyAdmissions.fromJson({
+      'hospitalId': id,
+      'run': '1349d576',
+      'current': true,
+      'end': '2026-01-19T12:00',
+      'hours': [
+        for (var h = 7; h <= 12; h++)
+          {'hour': '2026-01-19T${'$h'.padLeft(2, '0')}:00', 'admissions': h == 9 ? 2 : (h == 11 ? 1 : 0),
+            'acute': h == 9 ? 1 : 0, 'chronic': h == 9 ? 1 : (h == 11 ? 1 : 0)},
+      ],
+    });
+  }
+
+  /// DeepAR's forecast of the next four hours of hospital 2; none without a [model].
+  @override
+  Future<AdmissionsForecast> admissionsForecast(int id, {String? run}) async {
+    forecastAsked.add((id, run));
+    if (!model) throw const ApiException(404, 'no model of the group default of public.admissions_hourly has been trained yet');
+    return AdmissionsForecast.fromJson({
+      'predicted': 1.4,
+      'last': 3.0,
+      'target': 'admissions',
+      'horizon': '4h',
+      'group': 'default',
+      'trainingRunId': 5,
+      'forecast': [
+        for (var h = 13; h <= 16; h++)
+          {'at': '2026-01-19T$h:00', 'mean': 0.35, 'p10': 0, 'p50': 0, 'p90': 1},
+      ],
+    });
+  }
+
   @override
   Future<Prediction> prediction(String id, {String? run}) async {
     predictionAsked.add((id, run));
@@ -542,6 +600,48 @@ void main() {
     await tester.tap(find.byTooltip('Sign out'));
     await tester.pumpAndSettle();
     expect(find.text('Welcome to HealthHub'), findsOneWidget);
+  });
+
+  testWidgets('home centres the map on the care center nearest the user', (tester) async {
+    final api = FakeApi();
+    final auth = FakeAuth(signedInAs: const SignedInUser(name: 'Ada', email: 'ada@example.com'));
+    final locations = FakeLocations();
+    await tester.pumpWidget(app(api: api, auth: auth, locations: locations));
+    await tester.pumpAndSettle();
+
+    locations.move(38.72, -9.14);
+    await tester.pumpAndSettle();
+    expect(api.nearestAsked, [
+      [38.72, -9.14],
+    ]);
+    final camera = MapCamera.of(tester.element(find.byKey(const Key('you-are-here'))));
+    expect(camera.center.latitude, closeTo(38.75, 1e-6));
+    expect(camera.center.longitude, closeTo(-9.17, 1e-6));
+    // Close, but not so close that the user is out of view; and the
+    // nearest is pinned though the area's answer leaves it out.
+    expect(camera.visibleBounds.contains(const LatLng(38.72, -9.14)), isTrue);
+    expect(camera.zoom, lessThanOrEqualTo(14));
+    expect(find.byKey(const Key('care-center-9')), findsOneWidget);
+
+    // The button still brings it back to the user.
+    await tester.tap(find.byTooltip('Back to where you are'));
+    await tester.pumpAndSettle();
+    final back = MapCamera.of(tester.element(find.byKey(const Key('you-are-here'))));
+    expect(back.center.latitude, closeTo(38.72, 1e-6));
+    expect(back.center.longitude, closeTo(-9.14, 1e-6));
+  });
+
+  testWidgets('the index centres on the user, asking for no nearest care center', (tester) async {
+    final api = FakeApi();
+    final locations = FakeLocations();
+    await tester.pumpWidget(app(api: api, locations: locations));
+    locations.move(38.72, -9.14);
+    await tester.pumpAndSettle();
+
+    expect(api.nearestAsked, isEmpty);
+    final camera = MapCamera.of(tester.element(find.byKey(const Key('you-are-here'))));
+    expect(camera.center.latitude, closeTo(38.72, 1e-6));
+    expect(camera.zoom, 14);
   });
 
   testWidgets('the care centers in view are pinned, each kind with its icon', (tester) async {
@@ -705,6 +805,13 @@ void main() {
     // admissions out.
     expect(api.eventTypes, containsAll([StreamEventType.move, StreamEventType.admission]));
     expect(find.text('1 admission · 2 moves'), findsOneWidget);
+    // Beside the title, every event the API read, hidden ones too, and a second over the last minute.
+    expect(tester.widget<Text>(find.byKey(const Key('stream-events-total'))).data, '48,213 events · 70.4/s');
+    // Ana is at home and monitored, so her move shows, marked, why on hover.
+    final events = find.byKey(const Key('stream-events'));
+    final monitor = find.descendant(of: events, matching: find.byKey(const Key('monitored')));
+    expect(monitor, findsOneWidget);
+    expect(tester.widget<Tooltip>(find.ancestor(of: monitor, matching: find.byType(Tooltip)).first).message, 'Monitored at home: aged 84');
 
     final row = find.byKey(const Key('admission-a1b2c3d4-lisboa-3-d2-t32'));
     expect(row, findsOneWidget);
@@ -718,6 +825,13 @@ void main() {
     expect(inRow(find.byKey(const Key('care-center-link-1'))), findsOneWidget);
     expect(inRow(find.text('08:00, day 2')), findsOneWidget);
     expect(inRow(find.text('p0 · #9')), findsOneWidget);
+    // datyx's 30-day prediction for her, asked once for the admission's run.
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
+    expect(
+      tester.widget<Text>(inRow(find.byKey(const Key('admission-care-a1b2c3d4-lisboa-3-d2-t32')))).data,
+      '9.0 h expected in 30 days',
+    );
+    expect(inRow(find.byIcon(Icons.bed_outlined)), findsOneWidget);
     final complaint = tester.widget<Text>(inRow(find.textContaining('back for my sugar check')));
     expect(complaint.data, "“Hi, I'm Inês Carvalho, 67, back for my sugar check. The new tablets upset my stomach a little.”");
     expect(complaint.style?.fontStyle, FontStyle.italic);
@@ -748,6 +862,24 @@ void main() {
       tester.getTopLeft(row).dy,
       greaterThan(tester.getTopLeft(find.descendant(of: find.byKey(const Key('stream-events')), matching: find.text('Rui Matos'))).dy),
     );
+  });
+
+  testWidgets('without a model, an admission shows no 30-day hours', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeApi(auth: false, simulation: true)..model = false;
+    await tester.pumpWidget(app(api: api));
+    await tester.pumpAndSettle();
+
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
+    expect(find.byKey(const Key('admission-a1b2c3d4-lisboa-3-d2-t32')), findsOneWidget);
+    expect(find.byKey(const Key('admission-care-a1b2c3d4-lisboa-3-d2-t32')), findsNothing);
+    expect(find.byIcon(Icons.bed_outlined), findsNothing);
+    // Asked once, however many times the events are read again.
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pumpAndSettle();
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
   });
 
   testWidgets('the conditions under the pause keep only their events, through the reads', (tester) async {
@@ -832,7 +964,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(PersonScreen), findsOneWidget);
     expect(api.personAsked, [('lisboa-1', null)]);
-    expect(api.predictionAsked, [('lisboa-1', null)]);
+    // After the events card's own, for its admission.
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4'), ('lisboa-1', null)]);
     expect(find.text('Inês Carvalho'), findsNWidgets(2)); // the title and the header
     expect(find.text('67 · woman · retired teacher · Lisboa'), findsOneWidget);
     expect(find.text('At the hospital · Hospital de Santa Maria'), findsOneWidget);
@@ -886,10 +1019,12 @@ void main() {
     await tester.pumpWidget(app(api: api));
     await tester.pumpAndSettle();
 
+    // The events card asked once for the admission's 30 days.
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
     await tester.tap(find.byKey(const Key('person-link-lisboa-3')));
     await tester.pumpAndSettle();
     expect(api.personAsked, [('lisboa-3', 'a1b2c3d4')]);
-    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4'), ('lisboa-3', 'a1b2c3d4')]);
     expect(find.text('lisboa-3 · run a1b2c3d4 · a past run'), findsOneWidget);
   });
 
@@ -969,6 +1104,16 @@ void main() {
     final admission = find.byKey(const Key('person-admission-cafe0001-lisboa-3-d2-t32'));
     expect(find.descendant(of: admission, matching: find.text('Inês Carvalho, 67')), findsOneWidget);
     expect(find.descendant(of: admission, matching: find.textContaining('Standard · 2 h')), findsOneWidget);
+
+    // Its admissions per hour up to now, and datyx's forecast of the next ones, under the map.
+    final timeline = find.byType(AdmissionsTimelineCard);
+    expect(timeline, findsOneWidget);
+    expect(api.hourlyAsked.first, (1, null, 72));
+    expect(api.forecastAsked.first, (1, null));
+    expect(find.descendant(of: timeline, matching: find.byType(AdmissionsTimelineChart)), findsOneWidget);
+    expect(find.textContaining("datyx's DeepAR expects 1.4 in the next 4 hours"), findsOneWidget);
+    expect(tester.getTopLeft(timeline).dy, greaterThan(tester.getBottomLeft(usage).dy));
+    expect(tester.getTopLeft(timeline).dy, lessThan(tester.getTopLeft(find.byKey(const Key('care-center-person-lisboa-2'))).dy));
 
     // It follows them: read again every 5 seconds.
     await tester.pump(const Duration(seconds: 5));
@@ -1098,7 +1243,7 @@ void main() {
           'partition': 0,
           'offset': 77,
         },
-        {'type': 'move', 'id': 'reus-4', 'state': 'to_home', 'simTime': '10:00', 'day': 4, 'name': 'Anna Vidal', 'age': 33},
+        {'type': 'move', 'id': 'reus-4', 'state': 'to_home', 'simTime': '10:00', 'day': 4, 'name': 'Anna Vidal', 'age': 33, 'monitored': true, 'monitoredFor': 'pregnant'},
         // The records before admissions existed carried no type and a single topic.
         {'id': 'reus-5', 'state': 'home'},
         {'type': 'admission'}, // no person: left out
@@ -1116,7 +1261,13 @@ void main() {
     expect(admission.hospitalId, 12);
     expect(events.events[1].isAdmission, isFalse);
     expect(events.events[1].name, 'Anna Vidal');
+    expect((events.events[1].monitored, events.events[1].monitoredFor), (true, 'pregnant'));
     expect(events.events[2].type, StreamEventType.move);
+    expect(events.events[2].monitored, isFalse);
+    // An API from before the counts: none.
+    expect((events.total, events.perSecond), (null, null));
+    final counted = StreamEvents.fromJson({'enabled': true, 'total': 48213, 'perSecond': 70, 'events': []});
+    expect((counted.total, counted.perSecond), (48213, 70.0));
     expect(StreamEvents.fromJson({'enabled': true, 'topic': 'healthhub.people.moves'}).topics, ['healthhub.people.moves']);
   });
 
@@ -1262,5 +1413,68 @@ void main() {
       ],
     });
     expect(people.people.map((p) => p.id), ['reus-1']);
+  });
+
+  group("a hospital's admissions per hour", () {
+    Widget card(FakeApi api, int id) => MaterialApp(
+      theme: aityxDarkTheme(),
+      home: Scaffold(
+        body: SizedBox(width: 720, child: AdmissionsTimelineCard(
+          admissions: api.hospitalAdmissions,
+          forecast: api.admissionsForecast,
+          hospitalId: id,
+          refresh: const Duration(days: 1))),
+      ),
+    );
+
+    testWidgets('the hours solid, then DeepAR\'s forecast dashed after them', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final api = FakeApi();
+      await tester.pumpWidget(card(api, 2));
+      await tester.pumpAndSettle();
+      expect(api.hourlyAsked, [(2, null, 72)]);
+      expect(api.forecastAsked, [(2, null)]);
+      expect(find.text('Admissions per hour'), findsOneWidget);
+      expect(find.text('run 1349d576, now'), findsOneWidget);
+      expect(find.textContaining('3 admitted in the last 6 hours, to Day 19, 12:00.'), findsOneWidget);
+      expect(find.textContaining("datyx's DeepAR expects 1.4 in the next 4 hours (model of training run 5)"), findsOneWidget);
+      expect(find.text('Admitted'), findsOneWidget);
+      expect(find.text('DeepAR forecast (mean; the band, 10th to 90th percentile)'), findsOneWidget);
+      expect(find.bySemanticsLabel('Admissions per hour: 3 in the last 6 hours; 1.4 forecast over the next 4'), findsOneWidget);
+
+      // Touching an hour shows its numbers: one admitted, then a forecast hour.
+      final chart = tester.getRect(find.byType(AdmissionsTimelineChart));
+      double xOf(int index) => chart.left + 28 + index / 9 * (chart.width - 36);
+      await tester.tapAt(Offset(xOf(2), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Day 19, 09:00\n2 admitted (1 acute, 1 chronic)'), findsOneWidget);
+      await tester.tapAt(Offset(xOf(8), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Day 19, 15:00, forecast\n0.35 expected\n0 to 1 (80%)'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('without a model the hours still show, and the card says why', (tester) async {
+      final api = FakeApi()..model = false;
+      await tester.pumpWidget(card(api, 2));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('No forecast: no model of the group default of public.admissions_hourly has been trained yet'),
+          findsOneWidget);
+      expect(find.byType(AdmissionsTimelineChart), findsOneWidget);
+      expect(find.text('Admitted'), findsOneWidget);
+      expect(find.textContaining('DeepAR forecast'), findsNothing);
+    });
+
+    testWidgets('a hospital nobody was admitted to says so', (tester) async {
+      await tester.pumpWidget(card(FakeApi(), 7));
+      await tester.pumpAndSettle();
+      expect(find.text('Nobody has been admitted here yet.'), findsOneWidget);
+      expect(find.byType(AdmissionsTimelineChart), findsNothing);
+    });
+
+    test('a simulated hour is named by its day', () {
+      expect(simHour(DateTime.utc(2026, 1, 1, 6)), 'Day 1, 06:00');
+      expect(simHour(DateTime.utc(2026, 2, 1, 17)), 'Day 32, 17:00');
+    });
   });
 }

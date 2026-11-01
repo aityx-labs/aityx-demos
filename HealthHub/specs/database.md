@@ -28,7 +28,19 @@ container is healthy once `pg_isready` sees the `healthhub` database.
 
 The schema is the API's ([API](api.md),
 [lib/db.dart](../healthhub_api/lib/db.dart)): at start it creates what is
-missing, and the view anew, so a fresh database works without a separate migration step:
+missing, and the view anew, so a fresh database works without a separate
+migration step. It then describes every table, the view and every
+column with a PostgreSQL comment (`COMMENT ON`), from `schemaComments`
+in [lib/schema_comments.dart](../healthhub_api/lib/schema_comments.dart):
+what the table holds, and for each column what it is, its values or
+range, and which table a reference points to (`care_centers.id`). A
+catalogue that reads the schema takes them as descriptions: datyx
+carries them into OpenMetadata. They are set again at every start, so
+a changed text replaces the old one, and the view, made anew, gets its
+own again. A table or column added to the schema needs its comment too:
+`test/schema_comments_test.dart` checks, against a live database
+(skipped when none answers), that the described tables, views and
+columns are exactly the schema's.
 
 | Table | Columns | What |
 |---|---|---|
@@ -51,6 +63,6 @@ missing, and the view anew, so a fresh database works without a separate migrati
 - `admissions` and `admissions_hourly` grow with every run of the
   simulation and nothing prunes them (`admissions_hourly` by at most a
   row per hospital and simulated hour, fewer, as most hours have none).
-  `admissions`: one row per visit, about twenty a minute of real time with the
+  `admissions`: one row per visit, about forty a minute of real time with the
   defaults at the start of a run, when most people's first visits fall,
   and fewer after.

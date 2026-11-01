@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:healthhub_app/api/health_hub_api.dart';
 import 'package:healthhub_app/auth/auth_controller.dart';
@@ -261,6 +262,16 @@ class FakeApi implements HealthHubApi {
       CareCenter(id: 2, name: 'Clínica do Campo', kind: CareCenterKind.clinic, lat: 38.722, lon: -9.141, subtype: 'Policlínica'),
       CareCenter(id: 3, name: 'Centro de Saúde', kind: CareCenterKind.healthStation, lat: 38.715, lon: -9.135),
     ], truncated: truncated);
+  }
+
+  /// The points the map asked the nearest care center of.
+  final nearestAsked = <List<double>>[];
+
+  /// Nearest to Lisbon's center: a hospital the care centers in view leave out.
+  @override
+  Future<CareCenter?> nearestCareCenter({required double lat, required double lon}) async {
+    nearestAsked.add([lat, lon]);
+    return const CareCenter(id: 9, name: 'Hospital da Luz', kind: CareCenterKind.hospital, lat: 38.75, lon: -9.17);
   }
 
   @override
@@ -585,6 +596,48 @@ void main() {
     await tester.tap(find.byTooltip('Sign out'));
     await tester.pumpAndSettle();
     expect(find.text('Welcome to HealthHub'), findsOneWidget);
+  });
+
+  testWidgets('home centres the map on the care center nearest the user', (tester) async {
+    final api = FakeApi();
+    final auth = FakeAuth(signedInAs: const SignedInUser(name: 'Ada', email: 'ada@example.com'));
+    final locations = FakeLocations();
+    await tester.pumpWidget(app(api: api, auth: auth, locations: locations));
+    await tester.pumpAndSettle();
+
+    locations.move(38.72, -9.14);
+    await tester.pumpAndSettle();
+    expect(api.nearestAsked, [
+      [38.72, -9.14],
+    ]);
+    final camera = MapCamera.of(tester.element(find.byKey(const Key('you-are-here'))));
+    expect(camera.center.latitude, closeTo(38.75, 1e-6));
+    expect(camera.center.longitude, closeTo(-9.17, 1e-6));
+    // Close, but not so close that the user is out of view; and the
+    // nearest is pinned though the area's answer leaves it out.
+    expect(camera.visibleBounds.contains(const LatLng(38.72, -9.14)), isTrue);
+    expect(camera.zoom, lessThanOrEqualTo(14));
+    expect(find.byKey(const Key('care-center-9')), findsOneWidget);
+
+    // The button still brings it back to the user.
+    await tester.tap(find.byTooltip('Back to where you are'));
+    await tester.pumpAndSettle();
+    final back = MapCamera.of(tester.element(find.byKey(const Key('you-are-here'))));
+    expect(back.center.latitude, closeTo(38.72, 1e-6));
+    expect(back.center.longitude, closeTo(-9.14, 1e-6));
+  });
+
+  testWidgets('the index centres on the user, asking for no nearest care center', (tester) async {
+    final api = FakeApi();
+    final locations = FakeLocations();
+    await tester.pumpWidget(app(api: api, locations: locations));
+    locations.move(38.72, -9.14);
+    await tester.pumpAndSettle();
+
+    expect(api.nearestAsked, isEmpty);
+    final camera = MapCamera.of(tester.element(find.byKey(const Key('you-are-here'))));
+    expect(camera.center.latitude, closeTo(38.72, 1e-6));
+    expect(camera.zoom, 14);
   });
 
   testWidgets('the care centers in view are pinned, each kind with its icon', (tester) async {

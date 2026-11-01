@@ -21,6 +21,13 @@
 ///                       more}: the hospitals, clinics and health stations
 ///                       in the area (lib/care_centers.dart), open to all;
 ///                       503 when the database doesn't answer
+///   GET  /api/care-centers/nearest?lat=..&lon=..
+///                       {"center": {..., "distance": metres} or null}: the
+///                       care center nearest the point, of any kind, which
+///                       home's map centres on; open to all; the point is
+///                       used for the query only, never logged or kept; 400
+///                       for a point that isn't one, 503 when the database
+///                       doesn't answer
 ///   GET  /api/people    {"enabled": dev mode, "simTime", "day", "people":
 ///                       [...]}: the simulated people's latest moves, read
 ///                       back from Kafka (lib/simulation.dart), open to all
@@ -504,6 +511,13 @@ Future<void> _handle(
         careCenters: await _careCenters(db, request.uri.queryParameters['bbox']),
         auth: auth,
       ),
+      ('GET', '/api/care-centers/nearest') => route(
+        method,
+        path,
+        query: request.uri.queryParameters,
+        nearest: await _nearest(db, request.uri.queryParameters),
+        auth: auth,
+      ),
       ('GET', _) when datyxPath(path) != null => route(
         method,
         path,
@@ -538,6 +552,20 @@ Future<List<Map<String, Object?>>?> _careCenters(Db db, String? bbox) async {
     return await db.careCenters(box, limit: careCentersLimit + 1);
   } catch (error) {
     stderr.writeln('care centers: $error');
+    return null;
+  }
+}
+
+/// The care center nearest the point [query] names (none for a point that
+/// isn't one, which the route answers 400); null when the database doesn't
+/// answer (logged, without the point).
+Future<NearestCenter?> _nearest(Db db, Map<String, String> query) async {
+  final point = nearestPoint(query);
+  if (point == null) return const NearestCenter(null);
+  try {
+    return NearestCenter(await db.nearestCareCenter(point.lat, point.lon));
+  } catch (error) {
+    stderr.writeln('nearest care center: $error');
     return null;
   }
 }

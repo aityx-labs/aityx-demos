@@ -397,6 +397,33 @@ The feature files hold the current specification; see the
    [Simulation](simulation.md#people), [The map](map.md), [The care
    center view](care-center.md), [API](api.md), [Database](database.md)
    and [Admissions per hour](admissions-hourly.md).
+1. **Check HealthHub's data classification and quality indexing in
+   OpenMetadata, add the OpenMetadata calls needed after the data
+   initialization, reset what needs it: the console should show
+   everything at top quality, described and in context.** HealthHub's
+   part is the descriptions, set by its data initialization: every table,
+   the `patient_days` view and every column of the schema says what it
+   is, as a PostgreSQL comment that the migration sets at every start
+   (`COMMENT ON TABLE`, `COMMENT ON VIEW`, `COMMENT ON COLUMN`, from
+   `schemaComments` in
+   [lib/schema_comments.dart](../healthhub_api/lib/schema_comments.dart)).
+   HealthHub still knows nothing of datyx or OpenMetadata: datyx's schema
+   read carries a database's comments into OpenMetadata, and datyx, in
+   development, waits for them before it catalogues and curates
+   HealthHub (its own spec, `catalog.md`). A test checks against a live
+   database that the described tables and columns are exactly the
+   schema's, so a table or column added without a description fails. See
+   [Database](database.md).
+1. **When the HealthHub dashboard is opened, centre the map on the care
+   center nearest to the user.** Home's map, once the location is known,
+   asks the API for the nearest care center of any kind and centres on
+   it, at zoom 14 or as far out as keeps the user in view; it stays on
+   the user when there is no answer or the user has moved the map. The
+   index still centres on the user. The API has
+   `GET /api/care-centers/nearest?lat=..&lon=..`, answering the care
+   center and its great-circle distance in metres, the point used for
+   the query only and never logged. See [The map](map.md), [API](api.md)
+   and [Home](home.md).
 1. **In the care center view, plot a time series: for a start only the
    admissions per hour, historically until now in simulation time, and
    predicted for the next 24 hours in simulation time** (after an

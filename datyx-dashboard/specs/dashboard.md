@@ -66,9 +66,10 @@ reload).
   yet; with authentication on and nobody signed in, the tab says to sign
   in. An error answer shows the API's own words (`{"error":...}`).
 
-- **Audit** (`CallsPanel`): every call made, newest first, up to 100
-  (the panel says how many it keeps; the tab's label is just *Audit*,
-  since the refresh every 15 s soon fills it to 100): method, path with its query, status (or
+- **Audit** (`CallsPanel`): every call made, newest first, up to 100,
+  under the title *API calls* and on a tab labelled *Audit*, neither
+  with a count (the refresh every 15 s soon fills it to 100): method,
+  path with its query, status (or
   pending, or error), time of day and duration; expanded, the request and
   the response bodies pretty-printed. A button clears it. The calls are
   kept across a reload of the page.

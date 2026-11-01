@@ -4,6 +4,14 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: the Audit panel's title without the count
+
+Asked: remove the count from the Audit panel's title too
+(*API calls · 4 of the latest 100 kept*): there's no point in it.
+
+Changed: the title is *API calls* alone, the Clear button at the right.
+The widget test no longer looks for the count.
+
 ## 2026-11-01: the Audit tab without the count
 
 Asked: the Audit tab's label read *Audit (100)*; remove the number, and

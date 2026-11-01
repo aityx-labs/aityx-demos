@@ -171,7 +171,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // The calls made so far: the sign-in config, the status, the data
-    // sources and the profile. The tab's label doesn't count them.
+    // sources and the profile. Neither the tab's label nor the panel's
+    // title counts them.
     expect(find.text('Audit'), findsOneWidget);
     await tester.tap(find.byKey(const Key('tab-audit')));
     await tester.pumpAndSettle();
@@ -179,7 +180,8 @@ void main() {
     expect(find.text('/api/health'), findsOneWidget);
     expect(find.text('/api/datasources'), findsOneWidget);
     expect(find.text('/api/profile'), findsOneWidget);
-    expect(find.text('4 of the latest 100 kept'), findsOneWidget);
+    expect(find.text('API calls'), findsOneWidget);
+    expect(find.textContaining('of the latest'), findsNothing);
 
     await tester.tap(find.byTooltip('Clear'));
     await tester.pumpAndSettle();

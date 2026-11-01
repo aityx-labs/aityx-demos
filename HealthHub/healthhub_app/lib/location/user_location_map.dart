@@ -508,7 +508,7 @@ class PersonPin extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final details = [
-      person.state.label,
+      person.state.labelAt(person.careCenterKind),
       if (person.hospitalName != null) person.hospitalName!,
       ?simTime,
     ].join(' · ');
@@ -522,7 +522,7 @@ class PersonPin extends StatelessWidget {
       person.id,
       message: [who, ?condition, details].join('\n'),
       child: Semantics(
-        label: 'Person, ${person.state.label}',
+        label: 'Person, ${person.state.labelAt(person.careCenterKind)}',
         child: Container(
           decoration: BoxDecoration(
             shape: BoxShape.circle,
@@ -578,7 +578,7 @@ class CareCenterLegend extends StatelessWidget {
                 margin: const EdgeInsets.all(2),
                 decoration: BoxDecoration(shape: BoxShape.circle, color: state.color),
               ),
-              'Person, ${state.label.toLowerCase()}',
+              'Person, ${state.legend}',
             ),
           if (people.simTime != null)
             Padding(

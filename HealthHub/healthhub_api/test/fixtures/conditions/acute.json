@@ -15,6 +15,7 @@
       "interval_days": 3,
       "stay_hours": 3
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}, with a fever since yesterday.",

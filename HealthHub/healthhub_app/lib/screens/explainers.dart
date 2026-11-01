@@ -25,8 +25,9 @@ class SimulationExplainer extends StatelessWidget {
       ),
       (
         'An hour a second',
-        'When a condition calls for it, a person travels to the nearest general hospital, says what is wrong '
-            'at the desk, stays, and goes home.',
+        'When a condition calls for it, a person travels to the nearest care center the visit needs: a health '
+            'station for a check-up, urgent care for a sprain, a general hospital for an emergency. They say what '
+            'is wrong at the desk, stay, and go home.',
       ),
       (
         'A real stream',

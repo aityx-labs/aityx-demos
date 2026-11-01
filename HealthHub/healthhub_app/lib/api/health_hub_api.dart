@@ -152,6 +152,9 @@ enum CareCenterKind {
 
   final String label;
 
+  /// As in "going to the health station".
+  String get noun => label.toLowerCase();
+
   /// The API's name for it (`hospital`, `clinic`, `health_station`);
   /// anything else counts as a clinic.
   static CareCenterKind named(String? name) => switch (name) {
@@ -197,7 +200,28 @@ enum PersonState {
     'to_home' => toHome,
     _ => home,
   };
+
+  /// What they are doing when the care center they go to or are at is a
+  /// [kind]: "Going to the health station", "At the clinic"; the hospital
+  /// when the record doesn't say, as before visits went elsewhere.
+  String labelAt(CareCenterKind? kind) => switch (this) {
+    toHospital => 'Going to the ${(kind ?? CareCenterKind.hospital).noun}',
+    atHospital => 'At the ${(kind ?? CareCenterKind.hospital).noun}',
+    _ => label,
+  };
+
+  /// The legend's words for it, of any kind of care center.
+  String get legend => switch (this) {
+    home => 'at home',
+    toHospital => 'going for care',
+    atHospital => 'in care',
+    toHome => 'going home',
+  };
 }
+
+/// The kind of care center a record names (`careCenterKind`); null when
+/// it doesn't say.
+CareCenterKind? _kindOf(Object? name) => name is String ? CareCenterKind.named(name) : null;
 
 /// A simulated person, as the last record the API read from the Kafka
 /// stream left them: one row of `GET /api/people`.
@@ -211,6 +235,7 @@ class Person {
     required this.homeLon,
     required this.state,
     this.hospitalName,
+    this.careCenterKind,
     this.name,
     this.age,
     this.conditionName,
@@ -226,6 +251,7 @@ class Person {
     homeLon: (json['homeLon'] as num).toDouble(),
     state: PersonState.named(json['state'] as String?),
     hospitalName: json['hospitalName'] as String?,
+    careCenterKind: _kindOf(json['careCenterKind']),
     name: _string(json['name']),
     age: _int(json['age']),
     conditionName: _string(json['conditionName']),
@@ -241,9 +267,10 @@ class Person {
   final double homeLon;
   final PersonState state;
 
-  /// The hospital they go to when a visit is due, the one closest to
-  /// their home.
+  /// The care center of the visit under way, else the general hospital
+  /// closest to their home, and its kind.
   final String? hospitalName;
+  final CareCenterKind? careCenterKind;
 
   /// Who they are and what brings them to the hospital, from their
   /// profile; null when the record doesn't carry them (an older API).
@@ -340,6 +367,7 @@ class StreamEvent {
     this.type = StreamEventType.move,
     this.city,
     this.hospitalName,
+    this.careCenterKind,
     this.simTime,
     this.day,
     this.partition,
@@ -369,6 +397,7 @@ class StreamEvent {
       state: admission ? PersonState.atHospital : PersonState.named(json['state'] as String?),
       city: _string(json['city']),
       hospitalName: _string(json['hospitalName']),
+      careCenterKind: _kindOf(json['careCenterKind']),
       simTime: _string(json['simTime']),
       day: _int(json['day']),
       partition: _int(json['partition']),
@@ -394,6 +423,9 @@ class StreamEvent {
   final PersonState state;
   final String? city;
   final String? hospitalName;
+
+  /// What kind of care center [hospitalName] is.
+  final CareCenterKind? careCenterKind;
   final String? simTime;
   final int? day;
   final int? partition;
@@ -802,6 +834,7 @@ class PersonNow {
     this.mode,
     this.hospitalId,
     this.hospitalName,
+    this.careCenterKind,
     this.conditionName,
     this.conditionType,
     this.simTime,
@@ -813,6 +846,7 @@ class PersonNow {
     mode: _string(json['mode']),
     hospitalId: _int(json['hospitalId']),
     hospitalName: _string(json['hospitalName']),
+    careCenterKind: _kindOf(json['careCenterKind']),
     conditionName: _string(json['conditionName']),
     conditionType: ConditionType.named(json['conditionType']),
     simTime: _string(json['simTime']),
@@ -823,6 +857,7 @@ class PersonNow {
   final String? mode;
   final int? hospitalId;
   final String? hospitalName;
+  final CareCenterKind? careCenterKind;
   final String? conditionName;
   final ConditionType? conditionType;
   final String? simTime;
@@ -978,6 +1013,7 @@ class CareCenterDetail {
     this.website,
     this.ownership,
     this.source,
+    this.serves = const [],
     this.capacity = 0,
     this.unit = 'places',
     this.now = const CareCenterNow(),
@@ -1002,6 +1038,7 @@ class CareCenterDetail {
       website: _string(json['website']),
       ownership: _string(json['ownership']),
       source: _string(json['source']),
+      serves: [for (final s in json['serves'] as List? ?? const []) if (s is String) s],
       capacity: _int(capacity['places']) ?? 0,
       unit: _string(capacity['unit']) ?? 'places',
       now: CareCenterNow.fromJson((json['now'] as Map?)?.cast() ?? const {}),
@@ -1032,6 +1069,11 @@ class CareCenterDetail {
 
   /// The registry it comes from.
   final String? source;
+
+  /// What the simulation sends people to it for: `hospital`, `primary`,
+  /// `urgent_care`, `mental_health`, `dialysis`; none for a kind of clinic
+  /// it doesn't route to (dental, rehabilitation...).
+  final List<String> serves;
 
   /// How many people it takes at once in the simulation, in [unit]s (beds
   /// for a hospital, places for the rest): sized to the simulation, not

@@ -59,9 +59,10 @@ order:
      is the simulation's. In prod, that nobody is there.
 3. **People here now**, then those on their way: a row each in their
    state's colour, the name and age (a link), the condition and what they
-   do. When nobody can come: the simulation runs in dev mode only; it
-   sends people to general hospitals only (a clinic, a health station);
-   nobody has it as their nearest general hospital (a specialised one).
+   do ("At the health station"). When nobody can come: the simulation
+   runs in dev mode only; it sends nobody to this kind of care center (a
+   specialised hospital, a dental or rehabilitation clinic: `serves` is
+   empty).
 4. **Admissions**: how many this run, acute and chronic this run, and in
    all runs; then the latest, of this run when it has any there, else of
    any run: the time and day, the condition, the person (a link to the
@@ -76,13 +77,15 @@ each care center has a capacity sized to the simulation instead
 (`simulatedCapacity`): 4 to 12 beds for a hospital, 2 to 6 places for a
 clinic, 2 to 5 for a health station, drawn from its key with FNV-1a, so
 it is the same at every start and in every run. In use is the people the
-stream last saw at the hospital whose hospital it is.
+stream last saw at it (`at_hospital`, at a care center of any kind).
 
 ## The API
 
 - `GET /api/care-centers/{id}`: `{"id", "name", "kind", "subtype",
   "address", "postalCode", "city", "region", "country", "lat", "lon",
-  "phone", "website", "ownership", "source", "capacity": {"places",
+  "phone", "website", "ownership", "source", "serves" (the settings the
+  simulation sends people to it for: `hospital`, `primary`,
+  `urgent_care`, `mental_health`, `dialysis`), "capacity": {"places",
   "unit" ("beds" or "places"), "simulated": true}, "now": {"enabled",
   "run", "simTime", "day", "inUse", "usage" (in use over places),
   "assigned", "here": [...], "onTheWay": [...]}, "admissions": {"run",
@@ -122,7 +125,8 @@ detail opens theirs; a clinic's view says nobody comes; a 404.
 - The capacity is the simulation's, not the building's: the registries
   have no beds. CNES, the Catálogo Nacional de Hospitales and AHCA's
   files do list beds for hospitals, and could replace it.
-- The simulation sends people to general hospitals only, so a clinic's
-  or a health station's view never has anyone in it.
+- Only the care centers the simulation sends people to have anyone in
+  them: general hospitals, health stations, and the urgent care, adult
+  mental health and dialysis clinics ([Simulation](simulation.md#people)).
 - Who is there is the stream's latest move of each person, read every 5
   seconds: someone admitted and gone between two reads isn't seen.

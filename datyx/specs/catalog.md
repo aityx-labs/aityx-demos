@@ -80,6 +80,22 @@ static category).
 | `TimeSeries.KnownCovariate` | A number over time known ahead, for the hours to forecast too (a schedule, a holiday) | `feat_dynamic_real` |
 | `TimeSeries.PastCovariate` | A number over time known only once observed (a related count) | `past_feat_dynamic_real`, where supported |
 
+### Groups: more than one series in a table
+
+A table can hold several datasets to train on, each a **group** of roles
+with a name. The tags above are the `default` group's. Another group's
+roles are the same tags under the group's own tag:
+`TimeSeries.acute.Target` is the `acute` group's Target, a child tag of
+`TimeSeries.acute`, which datyx makes, with a child per role, the first
+time a group is set (`ensureGroup`). The groups share the table's
+columns, frequency and missing rows, and each is read and checked as a
+series of its own, so one column can be every group's Timestamp, a
+Target in one group and a PastCovariate in another. A group's name is
+letters, digits, `_` and `-`, up to 64; `default` names the group of the
+tags without one, and a role's name (in any case) can't be a group's.
+A tag under a group that isn't a role, or the group's tag itself on a
+column, isn't read.
+
 And two custom properties of the table entity, strings:
 
 - `timeSeriesFrequency`: how often rows come, as a pandas offset
@@ -92,32 +108,41 @@ People set them in OpenMetadata's UI (a column's tags, the table's
 Custom Properties tab), or through datyx:
 
 `PUT /api/datasources/{id}/timeseries` with a table (its name,
-`schema.table`, or its FQN) and its roles:
-`{"table":"public.admissions_hourly","timestamp":"hour_start",
-"target":"admissions","seriesKey":["run_id","hospital_id"],
+`schema.table`, or its FQN), a group (`default` when left out) and its
+roles:
+`{"table":"public.admissions_hourly","group":"acute","timestamp":"hour_start",
+"target":"acute_admissions","seriesKey":["run_id","hospital_id"],
 "staticCategorical":["hospital_id"],"staticReal":[],"knownCovariates":[],
 "pastCovariates":[],"frequency":"1h","missing":"zero"}`. It replaces the
-table's TimeSeries tags with these (other tags stay) and sets the two
-properties, removing one left out; a column the table doesn't have is a
-400, a table the catalogue doesn't have a 404. Nothing is patched when
-nothing changes. It answers the table read as a time series (below).
-This is the call a tool that suggests the roles will make.
+group's tags on the table's columns with these (other tags, other
+groups' too, stay) and sets the table's two properties, removing one
+left out: they are every group's. A group with no roles left is gone
+from the table (its tags stay in the classification). A column the
+table doesn't have, or a name that can't be a group's, is a 400, a table
+the catalogue doesn't have a 404. Nothing is patched when nothing
+changes. It answers the group read as a time series (below). This is
+the call a tool that suggests the roles will make.
 
 ## Time series
 
-`GET /api/datasources/{id}/timeseries` answers every table of the
-source with a column tagged with a TimeSeries role, read as a time
-series (`TimeSeries.Spec`):
+`GET /api/datasources/{id}/timeseries` answers every group of every
+table of the source, read as a time series (`TimeSeries.Spec`): a group
+is there when a column is tagged with one of its roles, a table's
+`default` group first, then the others as its columns name them:
 
 ```json
 {"service":"datyx-ds-1","series":[{
   "table":"datyx-ds-1.healthhub.public.admissions_hourly","schema":"public","name":"admissions_hourly",
-  "timestamp":"hour_start","target":"admissions","seriesKey":["run_id","hospital_id"],
+  "group":"default","timestamp":"hour_start","target":"admissions","seriesKey":["run_id","hospital_id"],
   "staticCategorical":["hospital_id"],"staticReal":[],"knownCovariates":[],"pastCovariates":[],
-  "frequency":"1h","missing":"zero","ready":true,"problems":[]}]}
+  "frequency":"1h","missing":"zero","ready":true,"problems":[]},
+ {"table":"datyx-ds-1.healthhub.public.admissions_hourly","schema":"public","name":"admissions_hourly",
+  "group":"acute","timestamp":"hour_start","target":"acute_admissions",...}]}
 ```
 
-`ready` when there are no `problems`, which say in words what to fix:
+A series is the table and the group together. `ready` when there are
+no `problems`, which say in words what to fix, of the group's own tags
+(`no column is tagged TimeSeries.acute.Target`):
 no Timestamp or Target, or more than one; a Timestamp that isn't a date
 or timestamp; a Target, StaticReal or covariate that isn't a number; a
 Timestamp or Target that also has another role; a column both
@@ -132,9 +157,10 @@ simulated hour into `admissions_hourly` (HealthHub's own Flink job, in
 its folder), and datyx knows nothing of it beyond the catalogue: one
 sync, then the roles above, by datyx's PUT or by hand in OpenMetadata.
 The run is part of the series key because each HealthHub start replays
-the simulated calendar from day 1; `acute_admissions` and
-`chronic_admissions` are left untagged, since together they are the
-target.
+the simulated calendar from day 1. Three groups can train on it:
+`default` forecasting `admissions`, `acute` forecasting
+`acute_admissions` and `chronic` forecasting `chronic_admissions`, each
+with the same `hour_start`, series key and static category.
 
 ## Signing in to OpenMetadata
 
@@ -151,9 +177,12 @@ string with raw line breaks.
 
 `TimeSeriesTest`, no server: a tagged table read as a ready series, the
 problems of a badly tagged one, the frequency required and missing rows
-unknown by default, the roles' patch (TimeSeries tags replaced, others
-kept, unchanged columns left alone, the properties set and removed) and
-a column the table lacks refused, the type mapping, quoted FQNs.
+unknown by default, a table's groups read as series of their own (with
+their own problems), groups' names and tags, the roles' patch (the
+group's tags replaced, other tags and other groups' kept, unchanged
+columns left alone whatever the order of their tags, the properties set
+and removed) and a column the table lacks refused, the type mapping,
+quoted FQNs.
 `CatalogResourceTest`, against the Dev Services Postgres standing in for
 a source: `SchemaReader` reads a schema's table, view, column order,
 types, comments and composite key, and no system schema; an S3 source is
@@ -166,8 +195,10 @@ OpenMetadata itself isn't started for the tests.
 - PostgreSQL sources only; another engine needs its JDBC driver.
 - Nothing reads rows yet: training on a series (DeepAR on GraalPy) is
   the next step, and will fill the missing hours by `timeSeriesMissing`.
-- One Target per table; a table with two values to forecast is two
-  tagged views.
+- One Target per group; a table with two values to forecast is two
+  groups.
+- A group can't be renamed: set its roles under the new name, then
+  empty the old one. Its tags stay in the classification once emptied.
 - No suggestion of roles yet: they are set by hand or by the PUT.
 - OpenMetadata keeps a composite key's columns in its own order, not
   the key's.

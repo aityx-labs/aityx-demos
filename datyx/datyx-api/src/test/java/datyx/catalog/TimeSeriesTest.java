@@ -38,7 +38,7 @@ class TimeSeriesTest {
 
     @Test
     void readsATaggedTableAsASeries() throws Exception {
-        TimeSeries.Spec spec = TimeSeries.spec(hourly("{\"timeSeriesFrequency\":\"1h\",\"timeSeriesMissing\":\"zero\"}"));
+        TimeSeries.Spec spec = TimeSeries.spec(hourly("{\"timeSeriesFrequency\":\"1h\",\"timeSeriesMissing\":\"zero\"}"), "default");
         assertTrue(spec.ready(), spec.problems().toString());
         assertEquals("hour_start", spec.timestamp());
         assertEquals("admissions", spec.target());
@@ -47,6 +47,73 @@ class TimeSeriesTest {
         assertEquals("1h", spec.frequency());
         assertEquals("zero", spec.missing());
         assertEquals("public", spec.schema());
+        assertEquals("default", spec.group());
+    }
+
+    /** admissions_hourly with two more groups: acute (ready, sharing the default's columns) and chronic (no Timestamp). */
+    private JsonNode grouped() throws Exception {
+        return json.readTree("""
+            {"name":"admissions_hourly","columns":[
+              {"name":"hospital_id","dataType":"INT","tags":[{"tagFQN":"TimeSeries.SeriesKey"},{"tagFQN":"TimeSeries.acute.SeriesKey"},{"tagFQN":"TimeSeries.chronic.SeriesKey"}]},
+              {"name":"hour_start","dataType":"TIMESTAMP","tags":[{"tagFQN":"TimeSeries.Timestamp"},{"tagFQN":"TimeSeries.acute.Timestamp"},{"tagFQN":"TimeSeries.acute"}]},
+              {"name":"admissions","dataType":"INT","tags":[{"tagFQN":"TimeSeries.Target"},{"tagFQN":"TimeSeries.acute.PastCovariate"}]},
+              {"name":"acute_admissions","dataType":"INT","tags":[{"tagFQN":"TimeSeries.chronic.Target"},{"tagFQN":"TimeSeries.acute.Target"}]},
+              {"name":"chronic_admissions","dataType":"INT","tags":[{"tagFQN":"TimeSeries.chronic.Target"},{"tagFQN":"Other.acute.Target"}]}],
+             "extension":{"timeSeriesFrequency":"1h","timeSeriesMissing":"zero"}}
+            """);
+    }
+
+    @Test
+    void readsEachGroupAsASeriesOfItsOwn() throws Exception {
+        List<TimeSeries.Spec> specs = TimeSeries.specs(grouped());
+        assertEquals(List.of("default", "acute", "chronic"), specs.stream().map(TimeSeries.Spec::group).toList());
+        TimeSeries.Spec admissions = specs.get(0);
+        assertTrue(admissions.ready(), admissions.problems().toString());
+        assertEquals("admissions", admissions.target());
+        assertEquals(List.of(), admissions.pastCovariates());
+        TimeSeries.Spec acute = specs.get(1);
+        assertTrue(acute.ready(), acute.problems().toString());
+        assertEquals("hour_start", acute.timestamp());
+        assertEquals("acute_admissions", acute.target());
+        assertEquals(List.of("hospital_id"), acute.seriesKey());
+        assertEquals(List.of("admissions"), acute.pastCovariates());
+        assertEquals("1h", acute.frequency());
+        TimeSeries.Spec chronic = specs.get(2);
+        assertFalse(chronic.ready());
+        assertEquals(List.of("no column is tagged TimeSeries.chronic.Timestamp, the time index",
+            "2 columns are tagged TimeSeries.chronic.Target (acute_admissions, chronic_admissions); one is the value to forecast"),
+            chronic.problems());
+    }
+
+    @Test
+    void namesGroups() {
+        assertEquals("default", TimeSeries.group(null));
+        assertEquals("default", TimeSeries.group(" default "));
+        assertEquals("acute_2", TimeSeries.group("acute_2"));
+        assertEquals("TimeSeries.acute.Target", TimeSeries.Role.TARGET.fqn("acute"));
+        assertEquals("TimeSeries.Target", TimeSeries.Role.TARGET.fqn("default"));
+        assertEquals("'target' is a role, so it can't name a group",
+            assertThrows(IllegalArgumentException.class, () -> TimeSeries.group("target")).getMessage());
+        assertThrows(IllegalArgumentException.class, () -> TimeSeries.group("a.b"));
+        assertThrows(IllegalArgumentException.class, () -> TimeSeries.group("x".repeat(65)));
+    }
+
+    @Test
+    void aGroupsRolesLeaveTheOtherGroupsAlone() throws Exception {
+        Catalog catalog = new Catalog();
+        catalog.json = json;
+        Catalog.Roles roles = new Catalog.Roles("admissions_hourly", "acute", "hour_start", "acute_admissions",
+            List.of("hospital_id"), null, null, null, null, "1h", "zero");
+        ArrayNode patch = catalog.rolesPatch(grouped(), roles);
+        JsonNode byPath = json.createObjectNode();
+        patch.forEach(op -> ((com.fasterxml.jackson.databind.node.ObjectNode) byPath).set(op.path("path").asText(), op.path("value")));
+        assertTrue(byPath.path("/columns/0/tags").isMissingNode(), "hospital_id stays the key of all three");
+        assertTrue(byPath.path("/columns/1/tags").isMissingNode(), "hour_start stays the Timestamp");
+        assertEquals(List.of("TimeSeries.Target"), fqns(byPath.path("/columns/2/tags")));
+        assertTrue(byPath.path("/columns/3/tags").isMissingNode(), "acute_admissions stays the Target");
+        assertTrue(byPath.path("/columns/4/tags").isMissingNode(), "another classification's tag isn't a group's");
+        assertTrue(byPath.path("/extension").isMissingNode());
+        assertEquals(1, patch.size());
     }
 
     @Test
@@ -59,7 +126,7 @@ class TimeSeriesTest {
               {"name":"c","dataType":"INT","tags":[{"tagFQN":"TimeSeries.KnownCovariate"},{"tagFQN":"TimeSeries.PastCovariate"}]}],
              "extension":{"timeSeriesFrequency":"hourly","timeSeriesMissing":"nothing"}}
             """);
-        TimeSeries.Spec spec = TimeSeries.spec(table);
+        TimeSeries.Spec spec = TimeSeries.spec(table, "default");
         assertFalse(spec.ready());
         assertNull(spec.target());
         String problems = String.join("\n", spec.problems());
@@ -74,7 +141,7 @@ class TimeSeriesTest {
 
     @Test
     void wantsAFrequencyAndTakesMissingRowsAsUnknown() throws Exception {
-        TimeSeries.Spec spec = TimeSeries.spec(hourly("null"));
+        TimeSeries.Spec spec = TimeSeries.spec(hourly("null"), "default");
         assertFalse(spec.ready());
         assertEquals(List.of("the table has no timeSeriesFrequency (such as 1h, 1D or 1W)"), spec.problems());
         assertEquals("unknown", spec.missing());
@@ -82,15 +149,15 @@ class TimeSeriesTest {
 
     @Test
     void anUntaggedTableIsNoSeries() throws Exception {
-        assertTrue(TimeSeries.tagged(hourly("null")));
-        assertFalse(TimeSeries.tagged(json.readTree("{\"columns\":[{\"name\":\"a\",\"tags\":[{\"tagFQN\":\"PII.None\"}]}]}")));
+        assertEquals(List.of("default"), TimeSeries.groups(hourly("null")));
+        assertTrue(TimeSeries.groups(json.readTree("{\"columns\":[{\"name\":\"a\",\"tags\":[{\"tagFQN\":\"PII.None\"}]}]}")).isEmpty());
     }
 
     @Test
     void rolesReplaceTheTimeSeriesTagsAndKeepTheOthers() throws Exception {
         Catalog catalog = new Catalog();
         catalog.json = json;
-        Catalog.Roles roles = new Catalog.Roles("admissions_hourly", "hour_start", "acute_admissions",
+        Catalog.Roles roles = new Catalog.Roles("admissions_hourly", null, "hour_start", "acute_admissions",
             List.of("hospital_id"), null, null, null, null, "1D", null);
         ArrayNode patch = catalog.rolesPatch(hourly("{\"timeSeriesFrequency\":\"1h\",\"timeSeriesMissing\":\"zero\",\"owner\":\"x\"}"), roles);
         JsonNode byPath = json.createObjectNode();
@@ -109,7 +176,7 @@ class TimeSeriesTest {
     void rolesNameColumnsTheTableHas() throws Exception {
         Catalog catalog = new Catalog();
         catalog.json = json;
-        Catalog.Roles roles = new Catalog.Roles("admissions_hourly", "when", null, null, null, null, null, null, null, null);
+        Catalog.Roles roles = new Catalog.Roles("admissions_hourly", null, "when", null, null, null, null, null, null, null, null);
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> catalog.rolesPatch(hourly("null"), roles));
         assertEquals("admissions_hourly has no column when", e.getMessage());
     }

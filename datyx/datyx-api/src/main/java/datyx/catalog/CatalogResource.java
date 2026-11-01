@@ -37,10 +37,12 @@ import org.jboss.logging.Logger;
  * OpenMetadata, answering what it wrote;
  * GET /api/datasources/{id}/catalog answers its tables as OpenMetadata
  * has them, each column with its type and tags;
- * GET /api/datasources/{id}/timeseries answers the tables with a column
- * tagged with a TimeSeries role, read as time series (TimeSeries.Spec);
- * PUT /api/datasources/{id}/timeseries sets one table's roles,
- * frequency and missing rows, and answers its spec.
+ * GET /api/datasources/{id}/timeseries answers each group of TimeSeries
+ * roles a table's columns are tagged with, read as a time series
+ * (TimeSeries.Spec);
+ * PUT /api/datasources/{id}/timeseries sets one group's roles in a
+ * table, and the table's frequency and missing rows, and answers the
+ * group's spec.
  * Only database sources (PostgreSQL so far) have a catalogue: another
  * type, or another engine, is a 400. A source or OpenMetadata that can't
  * be reached is a 502 naming which. No database transaction is held
@@ -119,9 +121,7 @@ public class CatalogResource {
         try {
             List<TimeSeries.Spec> series = new ArrayList<>();
             for (JsonNode table : catalog.tables(id)) {
-                if (TimeSeries.tagged(table)) {
-                    series.add(TimeSeries.spec(table));
-                }
+                series.addAll(TimeSeries.specs(table));
             }
             return Response.ok(Map.of("service", Catalog.serviceName(id), "series", series)).build();
         } catch (WebApplicationException | ProcessingException | IllegalStateException e) {

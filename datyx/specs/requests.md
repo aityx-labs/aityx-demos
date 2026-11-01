@@ -2,6 +2,25 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-01: groups of time series tags in one table
+
+Asked: tag separate groups in the same table, to train on it more than
+once with partly the same columns: in `admissions_hourly`, one series
+forecasting `admissions`, one `acute_admissions` and one
+`chronic_admissions`, all with the same timestamp.
+
+Changed: a group of roles is tagged under the group's own tag of the
+TimeSeries classification (`TimeSeries.acute.Target`, a child of
+`TimeSeries.acute`), the existing tags being the `default` group's;
+`GET .../timeseries` answers one series per table and group (a new
+`group` field), each checked on its own; `PUT .../timeseries` takes a
+`group` and replaces only that group's tags, making the group's tags in
+OpenMetadata when missing; a role's name, or a name with other than
+letters, digits, `_` and `-`, is a 400. The frequency and missing rows
+stay the table's, shared by its groups. A column's tags are compared
+without regard to order, so setting a group again doesn't patch what
+didn't change. Tests; `catalog.md`, README.
+
 ## 2026-10-31: HealthHub's data in OpenMetadata, as time series
 
 Asked: make sure OpenMetadata can find HealthHub's data, as a step

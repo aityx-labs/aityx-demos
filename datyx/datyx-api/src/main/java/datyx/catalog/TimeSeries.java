@@ -20,6 +20,13 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
  * the source itself never changes. The roles are the model's inputs in
  * general terms, so one tagging serves DeepAR (whose field each maps to
  * is in its description) or any other forecaster.
+ *
+ * A table can hold more than one series, each a group of roles with a
+ * name: TimeSeries.Target is the default group's Target,
+ * TimeSeries.acute.Target the acute group's (a child tag of
+ * TimeSeries.acute). Groups share the table's columns, frequency and
+ * missing rows, and are read as datasets of their own, so one column can
+ * be the Timestamp of every group and a Target in one of them only.
  */
 public final class TimeSeries {
 
@@ -27,7 +34,14 @@ public final class TimeSeries {
 
     public static final String CLASSIFICATION_DESCRIPTION = """
         What a column is to a time series forecast, such as DeepAR's. A table is a time series dataset \
-        when one column is its Timestamp and one its Target; set the table's timeSeriesFrequency too.""";
+        when one column is its Timestamp and one its Target; set the table's timeSeriesFrequency too. \
+        For more than one dataset in a table, tag a group's columns with the roles under the group's own \
+        tag (TimeSeries.acute.Target): each group is a dataset of its own.""";
+
+    /** The group of the roles tagged without one (TimeSeries.Target). */
+    public static final String DEFAULT_GROUP = "default";
+
+    private static final Pattern GROUP_PATTERN = Pattern.compile("[A-Za-z0-9_-]{1,64}");
 
     /** The table's custom property for how often rows come: a pandas offset such as 15min, 1h, 1D, 1W, 1MS. */
     public static final String FREQUENCY = "timeSeriesFrequency";
@@ -73,14 +87,66 @@ public final class TimeSeries {
             return CLASSIFICATION + "." + tag;
         }
 
-        static Role ofFqn(String fqn) {
+        /** The role's tag in a group: TimeSeries.Target in the default group, TimeSeries.acute.Target in acute. */
+        public String fqn(String group) {
+            return DEFAULT_GROUP.equals(group) ? fqn() : CLASSIFICATION + "." + group + "." + tag;
+        }
+
+        static Role ofTag(String tag) {
             for (Role role : values()) {
-                if (role.fqn().equals(fqn)) {
+                if (role.tag.equals(tag)) {
                     return role;
                 }
             }
             return null;
         }
+    }
+
+    /** A role in a group, as a column's tag says it. */
+    record Tagged(String group, Role role) {
+    }
+
+    /** The group and role a tag FQN names, or null for a tag that isn't a TimeSeries role. */
+    static Tagged ofFqn(String fqn) {
+        String[] parts = fqn.split("\\.", -1);
+        if (parts.length < 2 || parts.length > 3 || !CLASSIFICATION.equals(parts[0])) {
+            return null;
+        }
+        Role role = Role.ofTag(parts[parts.length - 1]);
+        if (role == null) {
+            return null;
+        }
+        if (parts.length == 2) {
+            return new Tagged(DEFAULT_GROUP, role);
+        }
+        return GROUP_PATTERN.matcher(parts[1]).matches() && !isRole(parts[1]) ? new Tagged(parts[1], role) : null;
+    }
+
+    /**
+     * The group a request names: the default one when none, else the name as
+     * given. An IllegalArgumentException says why a name can't be a group's.
+     */
+    public static String group(String name) {
+        if (name == null || name.isBlank() || DEFAULT_GROUP.equals(name.strip())) {
+            return DEFAULT_GROUP;
+        }
+        String group = name.strip();
+        if (!GROUP_PATTERN.matcher(group).matches()) {
+            throw new IllegalArgumentException("a group's name is letters, digits, _ and -, up to 64: not '" + group + "'");
+        }
+        if (isRole(group)) {
+            throw new IllegalArgumentException("'" + group + "' is a role, so it can't name a group");
+        }
+        return group;
+    }
+
+    private static boolean isRole(String name) {
+        for (Role role : Role.values()) {
+            if (role.tag.equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private TimeSeries() {
@@ -92,25 +158,36 @@ public final class TimeSeries {
      * being one ({@code problems}; ready when there are none).
      */
     @RegisterForReflection
-    public record Spec(String table, String schema, String name, String timestamp, String target, List<String> seriesKey,
+    public record Spec(String table, String schema, String name, String group, String timestamp, String target, List<String> seriesKey,
             List<String> staticCategorical, List<String> staticReal, List<String> knownCovariates,
             List<String> pastCovariates, String frequency, String missing, boolean ready, List<String> problems) {
     }
 
-    /** Whether OpenMetadata's table (with columns and their tags) has a column tagged with a TimeSeries role. */
-    public static boolean tagged(JsonNode table) {
+    /** The groups OpenMetadata's table (with columns and their tags) has a column tagged in, the default first; none: no series. */
+    public static List<String> groups(JsonNode table) {
+        Set<String> groups = new LinkedHashSet<>();
         for (JsonNode column : table.path("columns")) {
             for (JsonNode tag : column.path("tags")) {
-                if (Role.ofFqn(tag.path("tagFQN").asText()) != null) {
-                    return true;
+                Tagged tagged = ofFqn(tag.path("tagFQN").asText());
+                if (tagged != null) {
+                    groups.add(tagged.group());
                 }
             }
         }
-        return false;
+        List<String> ordered = new ArrayList<>(groups);
+        if (ordered.remove(DEFAULT_GROUP)) {
+            ordered.add(0, DEFAULT_GROUP);
+        }
+        return ordered;
     }
 
-    /** OpenMetadata's table (with columns, their tags, and extension) as a time series dataset. */
-    public static Spec spec(JsonNode table) {
+    /** OpenMetadata's table as the time series datasets it holds, one per group. */
+    public static List<Spec> specs(JsonNode table) {
+        return groups(table).stream().map(group -> spec(table, group)).toList();
+    }
+
+    /** OpenMetadata's table (with columns, their tags, and extension) as one group's time series dataset. */
+    public static Spec spec(JsonNode table, String group) {
         Map<Role, List<String>> columns = new LinkedHashMap<>();
         for (Role role : Role.values()) {
             columns.put(role, new ArrayList<>());
@@ -121,16 +198,16 @@ public final class TimeSeries {
             String name = column.path("name").asText();
             types.put(name, column.path("dataType").asText("UNKNOWN"));
             for (JsonNode tag : column.path("tags")) {
-                Role role = Role.ofFqn(tag.path("tagFQN").asText());
-                if (role != null) {
-                    columns.get(role).add(name);
-                    rolesOf.computeIfAbsent(name, n -> new LinkedHashSet<>()).add(role);
+                Tagged tagged = ofFqn(tag.path("tagFQN").asText());
+                if (tagged != null && tagged.group().equals(group)) {
+                    columns.get(tagged.role()).add(name);
+                    rolesOf.computeIfAbsent(name, n -> new LinkedHashSet<>()).add(tagged.role());
                 }
             }
         }
         List<String> problems = new ArrayList<>();
-        String timestamp = single(columns.get(Role.TIMESTAMP), Role.TIMESTAMP, "the time index", problems);
-        String target = single(columns.get(Role.TARGET), Role.TARGET, "the value to forecast", problems);
+        String timestamp = single(columns.get(Role.TIMESTAMP), Role.TIMESTAMP.fqn(group), "the time index", problems);
+        String target = single(columns.get(Role.TARGET), Role.TARGET.fqn(group), "the value to forecast", problems);
         if (timestamp != null && !ColumnTypes.TEMPORAL.contains(types.get(timestamp))) {
             problems.add("the Timestamp column " + timestamp + " is " + types.get(timestamp) + ", not a date or timestamp");
         }
@@ -165,19 +242,19 @@ public final class TimeSeries {
             problems.add(MISSING + " '" + missing + "' is neither zero (a missing row counts nothing) nor unknown");
         }
         return new Spec(table.path("fullyQualifiedName").asText(), table.path("databaseSchema").path("name").asText(null),
-            table.path("name").asText(), timestamp, target, columns.get(Role.SERIES_KEY),
+            table.path("name").asText(), group, timestamp, target, columns.get(Role.SERIES_KEY),
             columns.get(Role.STATIC_CATEGORICAL), columns.get(Role.STATIC_REAL), columns.get(Role.KNOWN_COVARIATE),
             columns.get(Role.PAST_COVARIATE), frequency, missing, problems.isEmpty(), problems);
     }
 
-    private static String single(List<String> columns, Role role, String what, List<String> problems) {
+    private static String single(List<String> columns, String tag, String what, List<String> problems) {
         if (columns.size() == 1) {
             return columns.get(0);
         }
         if (columns.isEmpty()) {
-            problems.add("no column is tagged " + role.fqn() + ", " + what);
+            problems.add("no column is tagged " + tag + ", " + what);
         } else {
-            problems.add(columns.size() + " columns are tagged " + role.fqn() + " (" + String.join(", ", columns)
+            problems.add(columns.size() + " columns are tagged " + tag + " (" + String.join(", ", columns)
                 + "); one is " + what);
         }
         return null;

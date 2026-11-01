@@ -247,8 +247,12 @@ public class Catalog {
         return tables;
     }
 
-    /** What PUT /api/datasources/{id}/timeseries asks: each role's columns, and the table's frequency and missing rows. */
-    public record Roles(String table, String timestamp, String target, List<String> seriesKey,
+    /**
+     * What PUT /api/datasources/{id}/timeseries asks: a group's roles (the
+     * default group when none), each role's columns, and the table's
+     * frequency and missing rows, which its groups share.
+     */
+    public record Roles(String table, String group, String timestamp, String target, List<String> seriesKey,
             List<String> staticCategorical, List<String> staticReal, List<String> knownCovariates,
             List<String> pastCovariates, String frequency, String missing) {
 
@@ -266,13 +270,15 @@ public class Catalog {
     }
 
     /**
-     * The JSON Patch that makes a table's TimeSeries tags and custom
-     * properties what {@code roles} says: every column's TimeSeries tags
-     * replaced, its other tags kept; the frequency and missing set when
-     * given and removed when not. An IllegalArgumentException names
-     * columns the table doesn't have.
+     * The JSON Patch that makes a table's TimeSeries tags of the group and
+     * custom properties what {@code roles} says: every column's tags of the
+     * group replaced, its other tags (other groups' too) kept; the frequency
+     * and missing set when given and removed when not. An
+     * IllegalArgumentException names columns the table doesn't have, or why
+     * the group's name can't be one.
      */
     ArrayNode rolesPatch(JsonNode table, Roles roles) {
+        String group = TimeSeries.group(roles.group());
         Map<String, List<TimeSeries.Role>> wanted = new LinkedHashMap<>();
         roles.columns().forEach((role, names) -> names.forEach(
             name -> wanted.computeIfAbsent(name, n -> new ArrayList<>()).add(role)));
@@ -285,18 +291,19 @@ public class Catalog {
             unknown.remove(name);
             ArrayNode tags = json.createArrayNode();
             for (JsonNode tag : column.path("tags")) {
-                if (!tag.path("tagFQN").asText().startsWith(TimeSeries.CLASSIFICATION + ".")) {
+                TimeSeries.Tagged tagged = TimeSeries.ofFqn(tag.path("tagFQN").asText());
+                if (tagged == null || !tagged.group().equals(group)) {
                     tags.add(tag);
                 }
             }
             for (TimeSeries.Role role : wanted.getOrDefault(name, List.of())) {
                 tags.addObject()
-                    .put("tagFQN", role.fqn())
+                    .put("tagFQN", role.fqn(group))
                     .put("source", "Classification")
                     .put("labelType", "Manual")
                     .put("state", "Confirmed");
             }
-            // By name: OpenMetadata's tags carry more than datyx writes.
+            // By name, in any order: OpenMetadata's tags carry more than datyx writes.
             if (!tagNames(tags).equals(tagNames(column.path("tags")))) {
                 patch.addObject().put("op", "add").put("path", "/columns/" + i + "/tags").set("value", tags);
             }
@@ -315,8 +322,8 @@ public class Catalog {
         return patch;
     }
 
-    private static List<String> tagNames(JsonNode tags) {
-        List<String> names = new ArrayList<>();
+    private static Set<String> tagNames(JsonNode tags) {
+        Set<String> names = new HashSet<>();
         tags.forEach(tag -> names.add(tag.path("tagFQN").asText()));
         return names;
     }
@@ -329,15 +336,17 @@ public class Catalog {
         }
     }
 
-    /** Applies {@code roles} to one of the source's tables ({@link #rolesPatch}) and answers it read again as a time series. */
+    /** Applies {@code roles} to one of the source's tables ({@link #rolesPatch}) and answers its group read again as a time series. */
     public TimeSeries.Spec applyRoles(JsonNode table, Roles roles) {
-        ensureVocabulary();
+        String group = TimeSeries.group(roles.group());
         ArrayNode patch = rolesPatch(table, roles);
+        ensureVocabulary();
+        ensureGroup(group);
         String fqn = table.path("fullyQualifiedName").asText();
         if (!patch.isEmpty()) {
             session.call(auth -> client.patchTable(auth, table.path("id").asText(), patch));
         }
-        return TimeSeries.spec(session.call(auth -> client.table(auth, fqn, "columns,tags,extension,tableConstraints")));
+        return TimeSeries.spec(session.call(auth -> client.table(auth, fqn, "columns,tags,extension,tableConstraints")), group);
     }
 
     /** Removes the source's service and everything under it from OpenMetadata; nothing when there is none. */
@@ -349,6 +358,25 @@ public class Catalog {
             if (e.getResponse().getStatus() != 404) {
                 throw e;
             }
+        }
+    }
+
+    /** A group's tag, TimeSeries.{group}, and a child tag of it per role; nothing for the default group, whose roles are the classification's own. */
+    void ensureGroup(String group) {
+        if (TimeSeries.DEFAULT_GROUP.equals(group)) {
+            return;
+        }
+        session.call(auth -> client.putTag(auth, json.createObjectNode()
+            .put("name", group)
+            .put("classification", TimeSeries.CLASSIFICATION)
+            .put("description", "The roles of the time series dataset named " + group + ", one of a table's: a column tagged "
+                + TimeSeries.Role.TARGET.fqn(group) + " is that dataset's Target, and so on.")));
+        for (TimeSeries.Role role : TimeSeries.Role.values()) {
+            session.call(auth -> client.putTag(auth, json.createObjectNode()
+                .put("name", role.tag)
+                .put("classification", TimeSeries.CLASSIFICATION)
+                .put("parent", TimeSeries.CLASSIFICATION + "." + group)
+                .put("description", role.description)));
         }
     }
 

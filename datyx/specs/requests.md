@@ -2,6 +2,33 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-01: HealthHub at top quality in OpenMetadata, described and in context
+
+Asked: check HealthHub's data classification and quality indexing in
+OpenMetadata, add the OpenMetadata calls needed after the data
+initialization, reset what needs it; the console should show everything
+at top quality, described and in context.
+
+Changed: every database sync now profiles each table and runs the
+checks its schema implies (`Quality`: no nulls where `NOT NULL`, no
+duplicate keys), with SQL aggregates, writing the profile and each check
+as a test case with its result; the answer gains `tests`, `failed` and
+`failing`. A sync keeps what a PUT would clear: data products, domains,
+the certification, the database's and schemas' descriptions. New
+`Curation`: a document's owners, domain, data product, glossary, tiers,
+descriptions, checks, TimeSeries roles, pipelines and lineage written to
+OpenMetadata, a data contract per table validated by datyx, and the
+certification each table and topic earns. In development, `DevCatalog`
+waits for HealthHub's data initialization (its tables described, which
+HealthHub's API now does), then syncs and curates HealthHub's sources
+with `devdata/healthhub-catalog.json`, every 10 minutes, and runs Data
+Insights. Reset: HealthHub's services in OpenMetadata, three scratch
+services and a stray Kafka topic were deleted and everything rebuilt by
+datyx. Result: 18 assets 100% described, owned and tiered, 113 tests
+passing, 12 assets Gold, 8 contracts kept. Tests (`QualityTest`,
+`CurationTest`, `CatalogResourceTest`); `catalog.md`, new
+`curation.md`, `data-sources.md`, `api.md`, README.
+
 ## 2026-11-01: a PII classification for every column and JSON field, by the GDPR
 
 Asked: make sure the catalogue has a PII classification for every data

@@ -654,6 +654,13 @@ Object? redacted(Object? body) {
   return body;
 }
 
+/// Where the API answers [path], as a link for the browser: the app's own
+/// origin, as the calls go, unless API_BASE_URL was set at build time.
+Uri apiAddress(String path) {
+  const base = String.fromEnvironment('API_BASE_URL');
+  return Uri.base.resolve('${base.endsWith('/') ? base.substring(0, base.length - 1) : base}$path');
+}
+
 /// The API over HTTP. [baseUrl] is API_BASE_URL at build time: empty, the
 /// app's own origin (the dev server and the web server proxy /api/ there).
 /// [token] gives the signed-in user's ID token, sent as `Authorization:

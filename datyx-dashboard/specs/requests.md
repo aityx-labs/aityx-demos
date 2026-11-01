@@ -4,6 +4,18 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: links on the Health tab
+
+Asked: make OpenMetadata's address on the Health tab clickable, and the
+dashboard's, and the API's health check.
+
+Changed: the API, OpenMetadata and Dashboard cards end with a link that
+opens in a new tab (`StatusCard.link`): `/api/health` where the app
+calls the API (`apiAddress`), the URL OpenMetadata's check reports, and
+this page (`Address.page`). `Address.open` opens it (`window.open`,
+`noopener`; off the web it records the link, for tests). A widget test
+taps the three.
+
 ## 2026-10-31: the catalogue and DeepAR tags on the Catalog tab
 
 Asked: see HealthHub's schema in the dashboard (in dev) and tag it for

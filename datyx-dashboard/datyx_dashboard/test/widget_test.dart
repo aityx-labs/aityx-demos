@@ -4,6 +4,8 @@ import 'package:datyx_dashboard/api/datyx_api.dart';
 import 'package:datyx_dashboard/auth/auth_controller.dart';
 import 'package:datyx_dashboard/dashboard/dashboard_screen.dart';
 import 'package:datyx_dashboard/main.dart';
+import 'package:datyx_dashboard/persist/address.dart';
+import 'package:datyx_dashboard/persist/address_memory.dart' as address;
 import 'package:datyx_dashboard/persist/session_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -160,6 +162,14 @@ void main() {
     expect(find.text('off: no OIDC_CLIENT_ID on the API'), findsOneWidget);
     // A test build has no version compiled in.
     expect(find.text('no version: not built by the scripts'), findsOneWidget);
+
+    // OpenMetadata, the API's health check and the dashboard are links.
+    expect(find.text('http://localhost:9902'), findsOneWidget);
+    address.opened.clear();
+    await tester.tap(find.byKey(const ValueKey('link-OpenMetadata')));
+    await tester.tap(find.byKey(const ValueKey('link-API')));
+    await tester.tap(find.byKey(const ValueKey('link-Dashboard')));
+    expect(address.opened, ['http://localhost:9902', Uri.base.resolve('/api/health').toString(), Address.page.toString()]);
   });
 
   testWidgets('audits every call', (tester) async {

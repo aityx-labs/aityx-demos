@@ -112,11 +112,7 @@ class _PersonScreenState extends State<PersonScreen> {
         }
         final person = snapshot.data;
         if (person == null) return const Center(child: CircularProgressIndicator());
-        return Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 960),
-            child: ListView(
+        return ListView(
               padding: const EdgeInsets.all(16),
               children: [
                 _Header(person),
@@ -131,9 +127,7 @@ class _PersonScreenState extends State<PersonScreen> {
                 const SizedBox(height: 16),
                 _Days(person.days),
               ],
-            ),
-          ),
-        );
+            );
       },
     ),
   );

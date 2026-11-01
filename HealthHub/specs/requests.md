@@ -536,3 +536,10 @@ The feature files hold the current specification; see the
    [Home](home.md), [The map](map.md), [API](api.md) and
    [Database](database.md).
 
+1. **Make all views full width: narrow views are weird.** The care
+   center view and the person view no longer stop at 960 px: they take
+   the window's full width, less a 16 px margin, as home does. The
+   welcome card on the index and the triage dialog keep their widths.
+   See [The care center view](care-center.md) and
+   [The person view](person.md).
+

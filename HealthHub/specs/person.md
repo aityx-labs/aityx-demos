@@ -46,7 +46,7 @@ back button and a refresh.
 
 ## The view
 
-`PersonScreen`, at most 960 px wide, in this order:
+`PersonScreen`, the window's full width (less a 16 px margin), in this order:
 
 1. **Who**: the name large, then age, sex, occupation and city (sex and
    occupation come from an admission: a move doesn't carry them), the

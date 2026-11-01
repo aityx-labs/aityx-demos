@@ -167,11 +167,7 @@ class _CareCenterScreenState extends State<CareCenterScreen> {
                         ? 'No care center with the id ${widget.id}.'
                         : 'The care center can\'t be read: ${error is ApiException ? error.message : error}',
                   ))
-          : Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 960),
-                child: ListView(
+          : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
                     _Header(center),
@@ -212,8 +208,6 @@ class _CareCenterScreenState extends State<CareCenterScreen> {
                     _Admissions(center),
                   ],
                 ),
-              ),
-            ),
     );
   }
 }

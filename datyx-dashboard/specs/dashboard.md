@@ -78,8 +78,11 @@ reload).
   closed, what trains each group, in the group's color (`care: XGBoost,
   30D ahead`, `acute: DeepAR`, `chronic: DeepAR, disabled`, `care:
   XGBoost + DeepAR, 30D ahead`); and a box per group named by its
-  algorithms (`DeepAR · acute`, `XGBoost · care`, `XGBoost + DeepAR ·
-  care`, the default's first)
+  algorithms in full (`DeepAR Forecasting · acute`, `XGBoost Classification · care`, `XGBoost Classification + DeepAR Forecasting ·
+  care`, the default's first; only these boxes name them in full, the
+  rest of the dashboard says `DeepAR` and `XGBoost`), its switch and
+  **Edit** always at its top right, whatever its left side holds (its tag
+  chip when disabled)
   with what its tags give the algorithm (`item_id = run_id +
   hospital_id`; for XGBoost first what it scores, `scores stay_hours
   summed over the next 30D, per run_id + person_id`), `freq`, `horizon`

@@ -207,7 +207,8 @@ class ProfileIdentity {
 enum DataSourceType {
   database('database', 'Database'),
   s3('s3', 'S3 bucket'),
-  filesystem('filesystem', 'Filesystem');
+  filesystem('filesystem', 'Filesystem'),
+  kafka('kafka', 'Kafka');
 
   const DataSourceType(this.json, this.label);
   final String json;
@@ -269,8 +270,85 @@ class DataSource {
             '${region == null ? '' : ' ($region)'}${endpoint == null ? '' : ' at $endpoint'}';
       case DataSourceType.filesystem:
         return '${details['path']}';
+      case DataSourceType.kafka:
+        final protocol = details['securityProtocol'];
+        final user = details['username'];
+        return 'kafka://${details['bootstrapServers']}'
+            '${protocol == null || protocol == 'PLAINTEXT' ? '' : ' ($protocol${details['saslMechanism'] == null ? '' : ', ${details['saslMechanism']}'})'}'
+            '${user == null ? '' : ' as $user'}';
     }
   }
+}
+
+/// A topic of a Kafka source as the catalogue (OpenMetadata) has it:
+/// `GET /api/datasources/{id}/catalog`, under `topics`.
+class CatalogTopic {
+  const CatalogTopic({
+    required this.fqn,
+    required this.name,
+    this.description,
+    this.partitions = 0,
+    this.replicationFactor,
+    this.cleanupPolicies = const [],
+    this.retentionTime,
+    this.retentionSize,
+    this.schemaType,
+    this.fields = const [],
+    this.tags = const [],
+  });
+
+  factory CatalogTopic.fromJson(Map<String, Object?> json) => CatalogTopic(
+    fqn: json['fqn'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    description: json['description'] as String?,
+    partitions: (json['partitions'] as num?)?.toInt() ?? 0,
+    replicationFactor: (json['replicationFactor'] as num?)?.toInt(),
+    cleanupPolicies: [for (final p in (json['cleanupPolicies'] as List?) ?? const []) '$p'],
+    retentionTime: (json['retentionTime'] as num?)?.toInt(),
+    retentionSize: (json['retentionSize'] as num?)?.toInt(),
+    schemaType: json['schemaType'] as String?,
+    fields: [
+      for (final f in (json['fields'] as List?) ?? const [])
+        CatalogField.fromJson((f as Map).cast<String, Object?>()),
+    ],
+    tags: [for (final t in (json['tags'] as List?) ?? const []) '$t'],
+  );
+
+  final String fqn;
+  final String name;
+  final String? description;
+  final int partitions;
+  final int? replicationFactor;
+  final List<String> cleanupPolicies;
+
+  /// How long records are kept, in ms; null when for ever.
+  final int? retentionTime;
+
+  /// How many bytes a partition keeps; null when unlimited.
+  final int? retentionSize;
+  final String? schemaType;
+  final List<CatalogField> fields;
+  final List<String> tags;
+}
+
+/// A field of a topic's records, with a record's own fields as [children].
+class CatalogField {
+  const CatalogField({required this.name, this.dataType, this.tags = const [], this.children = const []});
+
+  factory CatalogField.fromJson(Map<String, Object?> json) => CatalogField(
+    name: json['name'] as String? ?? '',
+    dataType: json['dataType'] as String?,
+    tags: [for (final t in (json['tags'] as List?) ?? const []) '$t'],
+    children: [
+      for (final c in (json['children'] as List?) ?? const [])
+        CatalogField.fromJson((c as Map).cast<String, Object?>()),
+    ],
+  );
+
+  final String name;
+  final String? dataType;
+  final List<String> tags;
+  final List<CatalogField> children;
 }
 
 /// A table of a data source as the catalogue (OpenMetadata) has it:
@@ -525,18 +603,33 @@ class TimeSeriesRoles {
   };
 }
 
-/// What `POST /api/datasources/{id}/catalog` answers: what it wrote.
+/// What `POST /api/datasources/{id}/catalog` answers: what it wrote. A
+/// database's tables and columns, or a Kafka cluster's topics, their
+/// top-level fields and how many had a record to learn them from.
 class CatalogSync {
-  const CatalogSync({this.tables = 0, this.columns = 0, this.removed = const []});
+  const CatalogSync({
+    this.tables = 0,
+    this.columns = 0,
+    this.topics = 0,
+    this.fields = 0,
+    this.sampled = 0,
+    this.removed = const [],
+  });
 
   factory CatalogSync.fromJson(Map<String, Object?> json) => CatalogSync(
     tables: (json['tables'] as num?)?.toInt() ?? 0,
     columns: (json['columns'] as num?)?.toInt() ?? 0,
+    topics: (json['topics'] as num?)?.toInt() ?? 0,
+    fields: (json['fields'] as num?)?.toInt() ?? 0,
+    sampled: (json['sampled'] as num?)?.toInt() ?? 0,
     removed: [for (final r in (json['removed'] as List?) ?? const []) '$r'],
   );
 
   final int tables;
   final int columns;
+  final int topics;
+  final int fields;
+  final int sampled;
   final List<String> removed;
 }
 
@@ -716,6 +809,7 @@ abstract class DatyxApi {
   Future<void> removeDataSource(int id);
   Future<CatalogSync> syncCatalog(int sourceId);
   Future<List<CatalogTable>> catalog(int sourceId);
+  Future<List<CatalogTopic>> topics(int sourceId);
   Future<List<TimeSeriesSpec>> timeSeries(int sourceId);
   Future<TimeSeriesSpec> setTimeSeries(int sourceId, TimeSeriesRoles roles);
 }
@@ -854,6 +948,15 @@ class HttpDatyxApi implements DatyxApi {
     return [
       for (final t in (json['tables'] as List?) ?? const [])
         CatalogTable.fromJson((t as Map).cast<String, Object?>()),
+    ];
+  }
+
+  @override
+  Future<List<CatalogTopic>> topics(int sourceId) async {
+    final json = await _send('GET', '/api/datasources/$sourceId/catalog') as Map;
+    return [
+      for (final t in (json['topics'] as List?) ?? const [])
+        CatalogTopic.fromJson((t as Map).cast<String, Object?>()),
     ];
   }
 

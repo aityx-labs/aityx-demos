@@ -27,10 +27,15 @@ class _AddDataSourceDialogState extends State<AddDataSourceDialog> {
       'engine', 'host', 'port', 'database', 'username', 'password',
       'bucket', 'region', 'endpoint', 'prefix', 'accessKeyId', 'secretAccessKey',
       'path',
+      'bootstrapServers', 'kafkaUsername', 'kafkaPassword',
     ])
       key: TextEditingController(),
   };
+  String _protocol = 'PLAINTEXT';
+  String _mechanism = 'PLAIN';
   String? _problem;
+
+  bool get _sasl => _protocol.startsWith('SASL_');
 
   @override
   void initState() {
@@ -101,6 +106,20 @@ class _AddDataSourceDialogState extends State<AddDataSourceDialog> {
           return;
         }
         details = {'path': _text('path')};
+      case DataSourceType.kafka:
+        if (_text('bootstrapServers') == null || (_sasl && _text('kafkaUsername') == null)) {
+          setState(() => _problem = _sasl
+              ? 'The bootstrap servers and a username are needed.'
+              : 'The bootstrap servers are needed.');
+          return;
+        }
+        details = {
+          'bootstrapServers': _text('bootstrapServers'),
+          'securityProtocol': _protocol,
+          if (_sasl) 'saslMechanism': _mechanism,
+          if (_sasl) 'username': _text('kafkaUsername'),
+          if (_sasl) 'password': _secret('kafkaPassword'),
+        };
     }
     details.removeWhere((_, v) => v == null);
     Navigator.of(context).pop(NewDataSource(
@@ -115,7 +134,7 @@ class _AddDataSourceDialogState extends State<AddDataSourceDialog> {
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Add a data source'),
     content: SizedBox(
-      width: 480,
+      width: 560,
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -183,7 +202,39 @@ class _AddDataSourceDialogState extends State<AddDataSourceDialog> {
     DataSourceType.filesystem => [
       _field(_fields['path']!, 'Path', key: 'ds-path'),
     ],
+    DataSourceType.kafka => [
+      _field(_fields['bootstrapServers']!, 'Bootstrap servers (host:port, comma-separated)', key: 'ds-bootstrap'),
+      Row(children: [
+        Expanded(
+          child: _choice('Security protocol', _protocol, const ['PLAINTEXT', 'SSL', 'SASL_PLAINTEXT', 'SASL_SSL'],
+              (v) => setState(() => _protocol = v)),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _choice('SASL mechanism', _mechanism, const ['PLAIN', 'SCRAM-SHA-256', 'SCRAM-SHA-512'],
+              _sasl ? (v) => setState(() => _mechanism = v) : null),
+        ),
+      ]),
+      if (_sasl)
+        Row(children: [
+          Expanded(child: _field(_fields['kafkaUsername']!, 'Username')),
+          const SizedBox(width: 8),
+          Expanded(child: _field(_fields['kafkaPassword']!, 'Password', secret: true)),
+        ]),
+    ],
   };
+
+  /// A pick among [options], as the API names them; disabled without [onChanged].
+  Widget _choice(String label, String value, List<String> options, void Function(String)? onChanged) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: DropdownButtonFormField<String>(
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(labelText: label),
+      items: [for (final o in options) DropdownMenuItem(value: o, child: Text(o))],
+      onChanged: onChanged == null ? null : (v) => onChanged(v!),
+    ),
+  );
 
   Widget _field(
     TextEditingController controller,
@@ -212,4 +263,5 @@ IconData iconForType(DataSourceType type) => switch (type) {
   DataSourceType.database => Icons.storage,
   DataSourceType.s3 => Icons.cloud_outlined,
   DataSourceType.filesystem => Icons.folder_outlined,
+  DataSourceType.kafka => Icons.stream,
 };

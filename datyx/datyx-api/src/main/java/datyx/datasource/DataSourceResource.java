@@ -48,18 +48,21 @@ import org.jboss.logging.Logger;
  * DELETE /api/datasources/{id} removes one (204), and its entry in the
  * catalogue, OpenMetadata, when it has one (datyx.catalog.Catalog).
  * Another profile's sources are not there: a 404 by id, absent from the list.
- * A body names the source, its type (database, s3, filesystem) and the
+ * A body names the source, its type (database, s3, filesystem, kafka) and the
  * access details of that type, under a key of the same name:
  * {"name":"warehouse","type":"database","description":"...",
  *  "database":{"engine":"postgresql","host":"db","port":5432,"database":"dw","username":"u","password":"p"}}
  * {"name":"lake","type":"s3","s3":{"bucket":"b","region":"eu-west-1","endpoint":null,"prefix":"raw/","accessKeyId":"...","secretAccessKey":"..."}}
  * {"name":"exports","type":"filesystem","filesystem":{"path":"/data/exports"}}
+ * {"name":"stream","type":"kafka","kafka":{"bootstrapServers":"broker:9092","securityProtocol":"SASL_SSL",
+ *  "saslMechanism":"SCRAM-SHA-512","username":"u","password":"p"}}
  * Missing or mismatched details are a 400, a name the profile already
  * uses (whatever its case: the database's unique index decides, so a race
  * has one winner) a 409.
  * The details are stored encrypted with the profile's key (Crypto) and
  * decrypted to answer; answers carry them without their secrets:
- * passwordSet and secretAccessKeySet say whether one was given. Every
+ * passwordSet (a database's, a Kafka cluster's) and secretAccessKeySet
+ * say whether one was given. Every
  * call needs a signed-in user once authentication is on; who added a
  * source is kept as createdBy (email) and createdByName.
  */
@@ -141,11 +144,12 @@ public class DataSourceResource {
         if (source.isEmpty()) {
             return notFound(id);
         }
+        Type type = source.get().type;
         source.get().delete();
         // Best effort: a catalogue that can't be reached keeps the entry,
         // which a later sync of no source can't reach either; it is logged.
         try {
-            catalog.forget(id);
+            catalog.forget(id, type);
         } catch (WebApplicationException | ProcessingException | IllegalStateException e) {
             LOG.warnf("catalogue: data source %d removed, but not from OpenMetadata: %s", id, e.getMessage());
         }
@@ -199,6 +203,15 @@ public class DataSourceResource {
                 map.put("s3", d);
             }
             case FILESYSTEM -> map.put("filesystem", Map.of("path", access.filesystem().path()));
+            case KAFKA -> {
+                Map<String, Object> d = new LinkedHashMap<>();
+                d.put("bootstrapServers", access.kafka().bootstrapServers());
+                d.put("securityProtocol", access.kafka().securityProtocol());
+                d.put("saslMechanism", access.kafka().saslMechanism());
+                d.put("username", access.kafka().username());
+                d.put("passwordSet", access.kafka().password() != null);
+                map.put("kafka", d);
+            }
         }
         return map;
     }
@@ -214,16 +227,19 @@ public class DataSourceResource {
             @Size(max = 500) String description,
             @Valid DatabaseDetails database,
             @Valid S3Details s3,
-            @Valid FilesystemDetails filesystem) {
+            @Valid FilesystemDetails filesystem,
+            @Valid KafkaDetails kafka) {
 
         /** What is wrong with the body beyond the field constraints, or null. */
         String problem() {
-            int given = (database != null ? 1 : 0) + (s3 != null ? 1 : 0) + (filesystem != null ? 1 : 0);
+            int given = (database != null ? 1 : 0) + (s3 != null ? 1 : 0) + (filesystem != null ? 1 : 0)
+                + (kafka != null ? 1 : 0);
             String expected = type.json();
             boolean present = switch (type) {
                 case DATABASE -> database != null;
                 case S3 -> s3 != null;
                 case FILESYSTEM -> filesystem != null;
+                case KAFKA -> kafka != null;
             };
             if (!present) {
                 return "a " + expected + " data source needs its '" + expected + "' details";
@@ -231,15 +247,16 @@ public class DataSourceResource {
             if (given > 1) {
                 return "a " + expected + " data source takes only its '" + expected + "' details";
             }
-            return null;
+            return type == Type.KAFKA ? kafka.problem() : null;
         }
 
         /** The details of the type, cleaned, as stored. */
         Access access() {
             return switch (type) {
-                case DATABASE -> new Access(database.toAccess(), null, null);
-                case S3 -> new Access(null, s3.toAccess(), null);
-                case FILESYSTEM -> new Access(null, null, filesystem.toAccess());
+                case DATABASE -> new Access(database.toAccess(), null, null, null);
+                case S3 -> new Access(null, s3.toAccess(), null, null);
+                case FILESYSTEM -> new Access(null, null, filesystem.toAccess(), null);
+                case KAFKA -> new Access(null, null, null, kafka.toAccess());
             };
         }
     }
@@ -276,6 +293,51 @@ public class DataSourceResource {
 
         DataSource.FilesystemAccess toAccess() {
             return new DataSource.FilesystemAccess(path.strip());
+        }
+    }
+
+    /**
+     * A Kafka cluster. The protocol is PLAINTEXT unless given; a SASL one
+     * wants a username, and its mechanism is PLAIN unless given. Protocol
+     * and mechanism are upper-cased; the servers lose their blanks.
+     */
+    public record KafkaDetails(
+            @NotBlank @Size(max = 1000) String bootstrapServers,
+            @Size(max = 20) String securityProtocol,
+            @Size(max = 20) String saslMechanism,
+            @Size(max = 200) String username,
+            @Size(max = 500) String password) {
+
+        static final List<String> PROTOCOLS = List.of("PLAINTEXT", "SSL", "SASL_PLAINTEXT", "SASL_SSL");
+
+        static final List<String> MECHANISMS = List.of("PLAIN", "SCRAM-SHA-256", "SCRAM-SHA-512");
+
+        /** What is wrong with the details beyond the field constraints, or null. */
+        String problem() {
+            DataSource.KafkaAccess access = toAccess();
+            if (!PROTOCOLS.contains(access.securityProtocol())) {
+                return "a kafka securityProtocol is one of " + String.join(", ", PROTOCOLS);
+            }
+            boolean sasl = access.securityProtocol().startsWith("SASL_");
+            if (sasl && !MECHANISMS.contains(access.saslMechanism())) {
+                return "a kafka saslMechanism is one of " + String.join(", ", MECHANISMS);
+            }
+            if (sasl && access.username() == null) {
+                return "a kafka source over " + access.securityProtocol() + " needs a username";
+            }
+            if (!sasl && (access.username() != null || access.password() != null || access.saslMechanism() != null)) {
+                return "a kafka username, password and saslMechanism need a SASL securityProtocol";
+            }
+            return null;
+        }
+
+        DataSource.KafkaAccess toAccess() {
+            String protocol = securityProtocol == null || securityProtocol.isBlank()
+                ? "PLAINTEXT" : securityProtocol.strip().toUpperCase();
+            String mechanism = saslMechanism == null || saslMechanism.isBlank()
+                ? (protocol.startsWith("SASL_") ? "PLAIN" : null) : saslMechanism.strip().toUpperCase();
+            return new DataSource.KafkaAccess(bootstrapServers.replaceAll("\\s+", ""), protocol, mechanism,
+                blankToNull(username), password == null || password.isEmpty() ? null : password);
         }
     }
 }

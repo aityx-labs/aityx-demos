@@ -7,14 +7,16 @@ import 'add_data_source_dialog.dart' show iconForType;
 import 'health_tab.dart' show ApiDownLine;
 import 'time_series_dialog.dart';
 
-/// The Catalog tab: each database source as the catalogue (OpenMetadata)
-/// has it, after the API reads its schema ("Read schema": tables, columns,
-/// types, keys), and the time series in it: a table's columns tagged with
-/// their roles for a forecast, set with "Tag for training", in one or more
-/// groups, each a series of its own ("Add a group") trained by its own
-/// algorithm (DeepAR, or XGBoost with a horizon), a tag on the table. What
-/// is shown, the readiness and the problems are the API's; the tab asks
-/// and shows.
+/// The Catalog tab, in sections: Databases, each database source as the
+/// catalogue (OpenMetadata) has it, after the API reads its schema ("Read
+/// schema": tables, columns, types, keys), and the time series in it: a
+/// table's columns tagged with their roles for a forecast, set with "Tag
+/// for training", in one or more groups, each a series of its own ("Add a
+/// group") trained by its own algorithm (DeepAR, or XGBoost with a
+/// horizon), a tag on the table; Streams, each Kafka source's topics after
+/// the API reads them ("Read topics": partitions, retention, the fields of
+/// their records); and the sources nothing reads yet. What is shown, the
+/// readiness and the problems are the API's; the tab asks and shows.
 class CatalogTab extends StatelessWidget {
   const CatalogTab({
     super.key,
@@ -35,9 +37,13 @@ class CatalogTab extends StatelessWidget {
       for (final s in sources)
         if (s.type == DataSourceType.database) s,
     ];
+    final streams = [
+      for (final s in sources)
+        if (s.type == DataSourceType.kafka) s,
+    ];
     final others = [
       for (final s in sources)
-        if (s.type != DataSourceType.database) s,
+        if (s.type != DataSourceType.database && s.type != DataSourceType.kafka) s,
     ];
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -56,7 +62,8 @@ class CatalogTab extends StatelessWidget {
                   'a table\'s columns for training: the time index, the value '
                   'to forecast, what tells series apart and the features, in '
                   'groups, each trained by DeepAR or by XGBoost, which scores '
-                  'the value summed over a horizon. The tags live in '
+                  'the value summed over a horizon. Read a Kafka source\'s topics '
+                  'too, with the fields of their latest records. The tags live in '
                   'OpenMetadata, where they can be edited too; the source itself '
                   'never changes.',
                   style: TextStyle(color: Aityx.muted),
@@ -73,13 +80,86 @@ class CatalogTab extends StatelessWidget {
             ),
           ),
         ),
-        if (!locked)
-          for (final s in databases) SourceCatalog(key: ValueKey('catalog-${s.id}'), api: api, source: s),
-        if (!locked)
-          for (final s in others) _Row(source: s),
+        if (!locked && databases.isNotEmpty) ...[
+          const _SectionTitle(Icons.storage, 'Databases', 'tables, columns and the time series in them'),
+          for (final s in databases) _Spaced(SourceCatalog(key: ValueKey('catalog-${s.id}'), api: api, source: s)),
+        ],
+        if (!locked && streams.isNotEmpty) ...[
+          const _SectionTitle(Icons.stream, 'Streams', 'Kafka topics and the fields of their records'),
+          for (final s in streams) _Spaced(StreamCatalog(key: ValueKey('catalog-${s.id}'), api: api, source: s)),
+        ],
+        if (!locked && others.isNotEmpty) ...[
+          const _SectionTitle(Icons.hourglass_empty, 'Not read yet', 'S3 buckets and folders'),
+          for (final s in others) _Spaced(_Row(source: s)),
+        ],
       ],
     );
   }
+}
+
+/// A section of the tab: its icon, name and what its cards show, with room
+/// above it to set it apart from the section before.
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.icon, this.title, this.subtitle);
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 28, bottom: 12, left: 4),
+    child: Row(
+      children: [
+        Icon(icon, size: 18, color: Aityx.orange),
+        const SizedBox(width: 8),
+        Expanded(child: CardTitle(title, subtitle)),
+      ],
+    ),
+  );
+}
+
+/// A card of a section, with a gap under it before the next.
+class _Spaced extends StatelessWidget {
+  const _Spaced(this.child);
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 16), child: child);
+}
+
+/// The top of a source's card: its icon, name and where it points, and the
+/// button that has the API read it into the catalogue.
+class _SourceHeader extends StatelessWidget {
+  const _SourceHeader({required this.source, required this.busy, required this.label, required this.onRead});
+  final DataSource source;
+  final bool busy;
+  final String label;
+  final VoidCallback onRead;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(iconForType(source.type), size: 20, color: Aityx.orangeLight),
+      const SizedBox(width: 10),
+      Text(source.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          source.summary,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
+        ),
+      ),
+      const SizedBox(width: 8),
+      FilledButton.tonalIcon(
+        onPressed: busy ? null : onRead,
+        icon: busy
+            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.sync, size: 18),
+        label: Text(label),
+      ),
+    ],
+  );
 }
 
 /// One database source: its tables in the catalogue, and its time series.
@@ -168,28 +248,11 @@ class _SourceCatalogState extends State<SourceCatalog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(iconForType(widget.source.type), size: 20, color: Aityx.orangeLight),
-                const SizedBox(width: 10),
-                Text(widget.source.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    widget.source.summary,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.tonalIcon(
-                  onPressed: _busy ? null : _sync,
-                  icon: _busy
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.sync, size: 18),
-                  label: Text(tables == null || tables.isEmpty ? 'Read schema' : 'Read again'),
-                ),
-              ],
+            _SourceHeader(
+              source: widget.source,
+              busy: _busy,
+              label: tables == null || tables.isEmpty ? 'Read schema' : 'Read again',
+              onRead: _sync,
             ),
             if (_note != null) ...[
               const SizedBox(height: 8),
@@ -555,6 +618,249 @@ class _SeriesSummary extends StatelessWidget {
   }
 }
 
+/// One Kafka source: its topics in the catalogue, each with its records' fields.
+class StreamCatalog extends StatefulWidget {
+  const StreamCatalog({super.key, required this.api, required this.source});
+
+  final DatyxApi api;
+  final DataSource source;
+
+  @override
+  State<StreamCatalog> createState() => _StreamCatalogState();
+}
+
+class _StreamCatalogState extends State<StreamCatalog> {
+  List<CatalogTopic>? _topics;
+  String? _error;
+  String? _note;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final topics = await widget.api.topics(widget.source.id);
+      if (!mounted) return;
+      setState(() {
+        _topics = topics;
+        _error = null;
+      });
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    }
+  }
+
+  Future<void> _sync() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+      _note = null;
+    });
+    try {
+      final synced = await widget.api.syncCatalog(widget.source.id);
+      _note =
+          'Read ${synced.topics} topics, ${synced.fields} fields from the ${synced.sampled} with records'
+          '${synced.removed.isEmpty ? '' : '; ${synced.removed.length} gone from the cluster'}.';
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topics = _topics;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SourceHeader(
+              source: widget.source,
+              busy: _busy,
+              label: topics == null || topics.isEmpty ? 'Read topics' : 'Read again',
+              onRead: _sync,
+            ),
+            if (_note != null) ...[
+              const SizedBox(height: 8),
+              Text(_note!, style: const TextStyle(color: Aityx.green, fontSize: 12)),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(_error!, style: const TextStyle(color: Aityx.red, fontSize: 12)),
+            ],
+            const SizedBox(height: 8),
+            if (topics == null && _error == null)
+              const Text('Loading the catalogue…', style: TextStyle(color: Aityx.muted))
+            else if (topics != null && topics.isEmpty)
+              const Text(
+                'Not catalogued yet: Read topics reads its topics into OpenMetadata.',
+                style: TextStyle(color: Aityx.amber),
+              )
+            else if (topics != null)
+              for (final t in topics) _TopicTile(topic: t),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TopicTile extends StatelessWidget {
+  const _TopicTile({required this.topic});
+  final CatalogTopic topic;
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = [
+      '${topic.partitions} ${topic.partitions == 1 ? 'partition' : 'partitions'}',
+      if (topic.replicationFactor != null) 'replication ${topic.replicationFactor}',
+      'kept ${topic.retentionTime == null ? 'for ever' : duration(topic.retentionTime!)}',
+      if (topic.retentionSize != null) 'up to ${bytes(topic.retentionSize!)} a partition',
+    ];
+    return ExpansionTile(
+      key: PageStorageKey(topic.fqn),
+      tilePadding: EdgeInsets.zero,
+      leading: const Icon(Icons.topic_outlined, size: 20, color: Aityx.muted),
+      expandedAlignment: Alignment.centerLeft,
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(topic.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'monospace')),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            topic.fields.isEmpty ? 'no fields read' : '${topic.fields.length} fields',
+            style: const TextStyle(color: Aityx.muted, fontSize: 12),
+          ),
+          for (final p in topic.cleanupPolicies) ...[const SizedBox(width: 8), _PlainChip(p)],
+        ],
+      ),
+      childrenPadding: const EdgeInsets.only(left: 40, bottom: 12),
+      expandedCrossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(settings.join(' · '), style: const TextStyle(color: Aityx.muted, fontSize: 12)),
+        ),
+        if (topic.description != null && topic.description!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(topic.description!, style: const TextStyle(color: Aityx.muted)),
+          ),
+        if (topic.tags.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Wrap(spacing: 8, runSpacing: 4, children: [for (final t in topic.tags) _PlainChip(t)]),
+          ),
+        if (topic.fields.isEmpty)
+          const Text(
+            'No record to learn the fields from yet, or none is a JSON object.',
+            style: TextStyle(color: Aityx.muted, fontSize: 12),
+          )
+        else ...[
+          if (topic.schemaType != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                'Records: ${topic.schemaType}, fields as their latest records have them',
+                style: const TextStyle(color: Aityx.muted, fontSize: 12),
+              ),
+            ),
+          for (final f in topic.fields) _FieldRow(field: f, depth: 0),
+        ],
+      ],
+    );
+  }
+}
+
+/// A field of a topic's records, its own fields under it, indented.
+class _FieldRow extends StatelessWidget {
+  const _FieldRow({required this.field, required this.depth});
+  final CatalogField field;
+  final int depth;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: EdgeInsets.only(left: 16.0 * depth, top: 2, bottom: 2),
+        child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            SizedBox(
+              width: 180 - 16.0 * depth.clamp(0, 5),
+              child: Text(
+                field.name,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+              ),
+            ),
+            SizedBox(
+              width: 100,
+              child: Text(
+                field.dataType ?? '?',
+                style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
+              ),
+            ),
+            for (final t in field.tags) _PlainChip(t),
+          ],
+        ),
+      ),
+      for (final c in field.children) _FieldRow(field: c, depth: depth + 1),
+    ],
+  );
+}
+
+/// A tag or setting in gray.
+class _PlainChip extends StatelessWidget {
+  const _PlainChip(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    decoration: BoxDecoration(
+      color: Aityx.bg2,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: Aityx.border),
+    ),
+    child: Text(text, style: const TextStyle(fontSize: 11, color: Aityx.muted)),
+  );
+}
+
+/// A retention in ms, as people say it: `1 day`, `12 hours`, `90 minutes`.
+String duration(int ms) {
+  String unit(int n, String name) => '$n $name${n == 1 ? '' : 's'}';
+  const minute = 60 * 1000, hour = 60 * minute, day = 24 * hour;
+  if (ms >= day && ms % day == 0) return unit(ms ~/ day, 'day');
+  if (ms >= hour && ms % hour == 0) return unit(ms ~/ hour, 'hour');
+  if (ms >= minute && ms % minute == 0) return unit(ms ~/ minute, 'minute');
+  return '$ms ms';
+}
+
+/// A size in bytes, in the largest binary unit it reaches: `1 GiB`, `512 MiB`.
+String bytes(int n) {
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+  var value = n.toDouble();
+  var i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i++;
+  }
+  return '${value == value.roundToDouble() ? value.toInt() : value.toStringAsFixed(1)} ${units[i]}';
+}
+
 /// A source the catalogue doesn't read (S3, a folder).
 class _Row extends StatelessWidget {
   const _Row({required this.source});
@@ -577,7 +883,7 @@ class _Row extends StatelessWidget {
               style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
             ),
           ),
-          const Text('not read yet: only databases so far', style: TextStyle(color: Aityx.amber, fontSize: 12)),
+          const Text('not read yet: only databases and Kafka so far', style: TextStyle(color: Aityx.amber, fontSize: 12)),
         ],
       ),
     ),

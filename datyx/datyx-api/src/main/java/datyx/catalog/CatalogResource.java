@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import datyx.crypto.Crypto;
 import datyx.datasource.AccessCodec;
 import datyx.datasource.DataSource;
-import datyx.datasource.DataSource.DatabaseAccess;
+import datyx.datasource.DataSource.Access;
 import datyx.profile.Profile;
 import datyx.profile.Profiles;
 import io.quarkus.narayana.jta.QuarkusTransaction;
@@ -36,8 +36,9 @@ import org.jboss.logging.Logger;
  * within the caller's profile like the sources themselves:
  * POST /api/datasources/{id}/catalog reads the source and writes it to
  * OpenMetadata, answering what it wrote;
- * GET /api/datasources/{id}/catalog answers its tables as OpenMetadata
- * has them, each column with its type and tags;
+ * GET /api/datasources/{id}/catalog answers a database's tables as
+ * OpenMetadata has them, each column with its type and tags, or a Kafka
+ * cluster's topics, each with its settings and its records' fields;
  * GET /api/datasources/{id}/timeseries answers each group of TimeSeries
  * roles a table's columns are tagged with, read as a time series
  * (TimeSeries.Spec), or with ?algorithm=XGBoost only the groups that
@@ -45,8 +46,9 @@ import org.jboss.logging.Logger;
  * PUT /api/datasources/{id}/timeseries sets one group's roles and
  * algorithm in a table, and the table's frequency, missing rows and
  * horizon, and answers the group's spec.
- * Only database sources (PostgreSQL so far) have a catalogue: another
- * type, or another engine, is a 400. A source or OpenMetadata that can't
+ * Only database sources (PostgreSQL so far) and Kafka clusters have a
+ * catalogue, and only tables have time series: another type, or another
+ * engine, is a 400. A source or OpenMetadata that can't
  * be reached is a 502 naming which. No database transaction is held
  * while datyx talks to them.
  */
@@ -69,7 +71,7 @@ public class CatalogResource {
     Catalog catalog;
 
     /** A source of the caller's, its access details decrypted: read in a transaction of its own. */
-    record Source(long id, String name, String description, DataSource.Type type, DatabaseAccess database) {
+    record Source(long id, String name, String description, DataSource.Type type, Access access) {
     }
 
     @POST
@@ -80,14 +82,17 @@ public class CatalogResource {
             return notFound(id);
         }
         Source s = source.get();
-        if (s.type() != DataSource.Type.DATABASE) {
-            return error(Response.Status.BAD_REQUEST, "only database sources have a catalogue, not " + s.type().json());
+        if (s.type() != DataSource.Type.DATABASE && s.type() != DataSource.Type.KAFKA) {
+            return error(Response.Status.BAD_REQUEST,
+                "only database and kafka sources have a catalogue, not " + s.type().json());
         }
         try {
-            return Response.ok(catalog.sync(s.id(), s.name(), s.description(), s.database())).build();
+            return Response.ok(s.type() == DataSource.Type.KAFKA
+                ? catalog.syncStream(s.id(), s.name(), s.description(), s.access().kafka())
+                : catalog.sync(s.id(), s.name(), s.description(), s.access().database())).build();
         } catch (IllegalArgumentException e) {
             return error(Response.Status.BAD_REQUEST, e.getMessage());
-        } catch (SQLException e) {
+        } catch (SQLException | StreamReader.Unreadable e) {
             LOG.infof("catalogue: data source %d can't be read: %s", id, e.getMessage());
             return error(Response.Status.BAD_GATEWAY, "the data source can't be read: " + e.getMessage());
         } catch (WebApplicationException | ProcessingException | IllegalStateException e) {
@@ -103,6 +108,13 @@ public class CatalogResource {
             return notFound(id);
         }
         try {
+            if (source.get().type() == DataSource.Type.KAFKA) {
+                List<Map<String, Object>> topics = new ArrayList<>();
+                for (JsonNode topic : catalog.topics(id)) {
+                    topics.add(topicView(topic));
+                }
+                return Response.ok(Map.of("service", Catalog.serviceName(id), "topics", topics)).build();
+            }
             List<Map<String, Object>> tables = new ArrayList<>();
             for (JsonNode table : catalog.tables(id)) {
                 tables.add(view(table));
@@ -216,12 +228,57 @@ public class CatalogResource {
         return map;
     }
 
+    /** A topic for GET .../catalog: its names, partitions and settings, its tags, and its records' fields with theirs. */
+    private static Map<String, Object> topicView(JsonNode topic) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("fqn", topic.path("fullyQualifiedName").asText());
+        map.put("name", topic.path("name").asText());
+        map.put("description", topic.path("description").asText(null));
+        map.put("partitions", topic.path("partitions").asInt());
+        map.put("replicationFactor", topic.path("replicationFactor").isNumber() ? topic.path("replicationFactor").asInt() : null);
+        List<String> policies = new ArrayList<>();
+        topic.path("cleanupPolicies").forEach(p -> policies.add(p.asText()));
+        map.put("cleanupPolicies", policies);
+        map.put("retentionTime", limit(topic.path("retentionTime")));
+        map.put("retentionSize", limit(topic.path("retentionSize")));
+        map.put("schemaType", topic.path("messageSchema").path("schemaType").asText(null));
+        map.put("fields", fieldsView(topic.path("messageSchema").path("schemaFields")));
+        map.put("tags", tagsOf(topic));
+        return map;
+    }
+
+    /** A retention, in ms or bytes: null when none is set or it is unlimited (OpenMetadata's -1). */
+    private static Long limit(JsonNode value) {
+        return value.isNumber() && value.asLong() >= 0 ? value.asLong() : null;
+    }
+
+    private static List<Map<String, Object>> fieldsView(JsonNode fields) {
+        List<Map<String, Object>> list = new ArrayList<>();
+        for (JsonNode field : fields) {
+            Map<String, Object> f = new LinkedHashMap<>();
+            f.put("name", field.path("name").asText());
+            f.put("dataType", field.path("dataType").asText(null));
+            f.put("tags", tagsOf(field));
+            if (field.path("children").isArray() && !field.path("children").isEmpty()) {
+                f.put("children", fieldsView(field.path("children")));
+            }
+            list.add(f);
+        }
+        return list;
+    }
+
+    private static List<String> tagsOf(JsonNode entity) {
+        List<String> tags = new ArrayList<>();
+        entity.path("tags").forEach(tag -> tags.add(tag.path("tagFQN").asText()));
+        return tags;
+    }
+
     private Optional<Source> source(long id) {
         return QuarkusTransaction.requiringNew().call(() -> {
             Profile profile = profiles.current();
             return DataSource.of(profile, id).map(s -> new Source(s.id, s.name, s.description, s.type,
-                s.type == DataSource.Type.DATABASE
-                    ? AccessCodec.unseal(crypto, json, profile.id, profile.keyWrapped, s.access).database()
+                s.type == DataSource.Type.DATABASE || s.type == DataSource.Type.KAFKA
+                    ? AccessCodec.unseal(crypto, json, profile.id, profile.keyWrapped, s.access)
                     : null));
         });
     }

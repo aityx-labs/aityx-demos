@@ -2,6 +2,25 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-01: Kafka clusters as data sources, in the catalogue
+
+Asked: add Kafka to the data sources, connect the dev profile to
+HealthHub's Kafka as it is to HealthHub's database, and show it in the
+dashboard's Catalog, in a section of its own.
+
+Changed: a fourth type, `kafka`: bootstrap servers, security protocol
+and SASL mechanism, user and password, encrypted like the other
+details, the password never answered back (`V4__kafka_sources.sql`
+widens the type's check). `POST .../catalog` on a Kafka source reads its
+topics with Kafka's client (`StreamReader`): partitions, replication,
+cleanup and retention, and the fields of the latest JSON records, and
+writes them to OpenMetadata as a `Kafka` messaging service and its
+topics, keeping what people added there; `GET .../catalog` answers the
+topics; deleting the source removes them. The dev data seeds HealthHub
+Kafka (`localhost:9804`) in every profile next to HealthHub
+(`R__HealthHub_data_source` version 2). Tests; `data-sources.md`,
+`catalog.md`, `api.md`, `dev-environment.md`, README.
+
 ## 2026-11-01: XGBoost groups, scoring each patient's care in the next 30 days
 
 Asked: score each patient's hospital care in the next 30 days with

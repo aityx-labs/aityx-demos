@@ -14,7 +14,9 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import datyx.datasource.DataSource;
 import datyx.datasource.DataSource.DatabaseAccess;
+import datyx.datasource.DataSource.KafkaAccess;
 import datyx.openmetadata.OpenMetadataClient;
 import datyx.openmetadata.OpenMetadataSession;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -24,13 +26,16 @@ import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
 
 /**
- * A database source in OpenMetadata, the catalogue: datyx reads the
- * source's tables (SchemaReader) and writes them there as a database
+ * A data source in OpenMetadata, the catalogue. A database: datyx reads
+ * the source's tables (SchemaReader) and writes them there as a database
  * service named datyx-ds-{id}, its database, schemas and tables, columns
- * and primary keys. No credentials go to OpenMetadata: datyx reads the
+ * and primary keys. A Kafka cluster: datyx reads its topics
+ * (StreamReader) and writes them as a messaging service of the same
+ * name, its topics with their partitions, settings and the fields of
+ * their records. No credentials go to OpenMetadata: datyx reads the
  * source, OpenMetadata only keeps what it read. A sync again updates
  * the same entities and keeps what people added in OpenMetadata (tags,
- * descriptions, owners); a table the source no longer has is
+ * descriptions, owners); a table or topic the source no longer has is
  * soft-deleted. The TimeSeries vocabulary (TimeSeries) is made with the
  * first sync, then read back from the tags to find the time series.
  */
@@ -187,6 +192,193 @@ public class Catalog {
             return comment;
         }
         return known == null || known.isBlank() ? null : known;
+    }
+
+    @RegisterForReflection
+    public record StreamSynced(String service, int topics, int fields, int sampled, List<String> removed) {
+    }
+
+    /** Reads a Kafka cluster and writes its topics to OpenMetadata. */
+    public StreamSynced syncStream(long sourceId, String name, String description, KafkaAccess access)
+            throws StreamReader.Unreadable {
+        List<StreamReader.Topic> topics = StreamReader.read(access);
+        String service = serviceName(sourceId);
+        ObjectNode serviceBody = json.createObjectNode()
+            .put("name", service)
+            .put("displayName", name)
+            .put("serviceType", "Kafka");
+        if (description != null) {
+            serviceBody.put("description", description);
+        }
+        session.call(auth -> client.putMessagingService(auth, serviceBody));
+        // What OpenMetadata has already, to send back what people wrote
+        // there (descriptions, field tags) and what no record says now.
+        Map<String, JsonNode> known = new LinkedHashMap<>();
+        for (JsonNode topic : topicsOf(service)) {
+            known.put(topic.path("fullyQualifiedName").asText(), topic);
+        }
+        int fields = 0;
+        int sampled = 0;
+        Set<String> present = new HashSet<>();
+        for (StreamReader.Topic topic : topics) {
+            ObjectNode body = topicBody(service, topic, known.get(fqn(service, topic.name())));
+            JsonNode put = session.call(auth -> client.putTopic(auth, body));
+            present.add(put.path("fullyQualifiedName").asText());
+            fields += topic.fields() == null ? 0 : topic.fields().size();
+            sampled += topic.sampled() ? 1 : 0;
+        }
+        List<String> removed = new ArrayList<>();
+        for (JsonNode topic : known.values()) {
+            String topicFqn = topic.path("fullyQualifiedName").asText();
+            if (!present.contains(topicFqn)) {
+                session.run(auth -> client.deleteTopic(auth, topic.path("id").asText()));
+                removed.add(topicFqn);
+            }
+        }
+        LOG.infof("catalogue: %s synced, %d topics, %d fields, %d removed", service, topics.size(), fields, removed.size());
+        return new StreamSynced(service, topics.size(), fields, sampled, removed);
+    }
+
+    /**
+     * A topic as OpenMetadata's create request wants it: its partitions and
+     * settings, and the fields of its records as a JSON message schema.
+     * With no record to read them from, the schema OpenMetadata has stays;
+     * descriptions and tags people gave the topic or its fields stay too
+     * ({@code known}, null for a new topic).
+     */
+    ObjectNode topicBody(String service, StreamReader.Topic topic, JsonNode known) {
+        ObjectNode body = json.createObjectNode()
+            .put("name", topic.name())
+            .put("service", service)
+            .put("partitions", Math.max(1, topic.partitions()))
+            .put("replicationFactor", topic.replicationFactor());
+        ArrayNode policies = body.putArray("cleanupPolicies");
+        topic.cleanupPolicies().stream().filter(p -> p.equals("delete") || p.equals("compact")).forEach(policies::add);
+        if (topic.retentionMs() != null) {
+            body.put("retentionTime", topic.retentionMs());
+        }
+        if (topic.retentionBytes() != null) {
+            body.put("retentionSize", topic.retentionBytes());
+        }
+        if (topic.maxMessageBytes() != null) {
+            body.put("maximumMessageSize", topic.maxMessageBytes());
+        }
+        if (topic.minInSyncReplicas() != null) {
+            body.put("minimumInSyncReplicas", topic.minInSyncReplicas());
+        }
+        ObjectNode config = body.putObject("topicConfig");
+        topic.config().forEach(config::put);
+        String description = known == null ? null : known.path("description").asText(null);
+        if (description != null && !description.isBlank()) {
+            body.put("description", description);
+        }
+        if (topic.fields() != null) {
+            Map<String, JsonNode> knownFields = new LinkedHashMap<>();
+            if (known != null) {
+                collectFields(known.path("messageSchema").path("schemaFields"), "", knownFields);
+            }
+            ObjectNode schema = body.putObject("messageSchema")
+                .put("schemaType", "JSON")
+                .put("schemaText", jsonSchema(topic.fields()).toString());
+            schema.set("schemaFields", fieldsNode(topic.fields(), "", knownFields));
+        } else if (known != null && known.path("messageSchema").isObject()) {
+            body.set("messageSchema", known.path("messageSchema"));
+        }
+        return body;
+    }
+
+    private static void collectFields(JsonNode fields, String prefix, Map<String, JsonNode> into) {
+        for (JsonNode field : fields) {
+            String path = prefix + field.path("name").asText();
+            into.put(path, field);
+            collectFields(field.path("children"), path + ".", into);
+        }
+    }
+
+    private ArrayNode fieldsNode(List<StreamReader.Field> fields, String prefix, Map<String, JsonNode> known) {
+        ArrayNode array = json.createArrayNode();
+        for (StreamReader.Field field : fields) {
+            String path = prefix + field.name();
+            ObjectNode node = array.addObject()
+                .put("name", field.name())
+                .put("dataType", field.dataType());
+            JsonNode before = known.get(path);
+            if (before != null) {
+                String description = before.path("description").asText(null);
+                if (description != null && !description.isBlank()) {
+                    node.put("description", description);
+                }
+                if (before.path("tags").isArray() && !before.path("tags").isEmpty()) {
+                    node.set("tags", before.path("tags"));
+                }
+            }
+            if (field.children() != null) {
+                node.set("children", fieldsNode(field.children(), path + ".", known));
+            }
+        }
+        return array;
+    }
+
+    /** A JSON Schema of the fields, the message schema's text as OpenMetadata shows it. */
+    ObjectNode jsonSchema(List<StreamReader.Field> fields) {
+        ObjectNode schema = json.createObjectNode()
+            .put("$schema", "http://json-schema.org/draft-07/schema#")
+            .put("type", "object");
+        schema.set("properties", properties(fields));
+        return schema;
+    }
+
+    private ObjectNode properties(List<StreamReader.Field> fields) {
+        ObjectNode properties = json.createObjectNode();
+        for (StreamReader.Field field : fields) {
+            ObjectNode property = properties.putObject(field.name());
+            switch (field.dataType()) {
+                case "RECORD" -> {
+                    property.put("type", "object");
+                    property.set("properties", properties(field.children()));
+                }
+                case "ARRAY" -> {
+                    property.put("type", "array");
+                    if (field.children() != null) {
+                        property.putObject("items").put("type", "object").set("properties", properties(field.children()));
+                    }
+                }
+                case "STRING" -> property.put("type", "string");
+                case "INT", "LONG" -> property.put("type", "integer");
+                case "DOUBLE" -> property.put("type", "number");
+                case "BOOLEAN" -> property.put("type", "boolean");
+                case "NULL" -> property.put("type", "null");
+                default -> {
+                }
+            }
+        }
+        return properties;
+    }
+
+    /** A Kafka source's topics as OpenMetadata knows them, with their message schemas and tags; empty before a sync. */
+    public List<JsonNode> topics(long sourceId) {
+        String service = serviceName(sourceId);
+        try {
+            session.call(auth -> client.messagingService(auth, service));
+        } catch (WebApplicationException e) {
+            if (e.getResponse().getStatus() == 404) {
+                return new ArrayList<>();
+            }
+            throw e;
+        }
+        return topicsOf(service);
+    }
+
+    private List<JsonNode> topicsOf(String serviceFqn) {
+        List<JsonNode> topics = new ArrayList<>();
+        String after = null;
+        do {
+            String cursor = after;
+            JsonNode page = session.call(auth -> client.topics(auth, serviceFqn, "messageSchema,tags", PAGE, cursor));
+            page.path("data").forEach(topics::add);
+            after = page.path("paging").path("after").asText(null);
+        } while (after != null);
+        return topics;
     }
 
     /** The source's tables as OpenMetadata knows them, with their columns, tags and custom properties; empty before a sync. */
@@ -372,10 +564,15 @@ public class Catalog {
     }
 
     /** Removes the source's service and everything under it from OpenMetadata; nothing when there is none. */
-    public void forget(long sourceId) {
+    public void forget(long sourceId, DataSource.Type type) {
         try {
-            JsonNode service = session.call(auth -> client.databaseService(auth, serviceName(sourceId)));
-            session.run(auth -> client.deleteDatabaseService(auth, service.path("id").asText(), true, true));
+            if (type == DataSource.Type.KAFKA) {
+                JsonNode service = session.call(auth -> client.messagingService(auth, serviceName(sourceId)));
+                session.run(auth -> client.deleteMessagingService(auth, service.path("id").asText(), true, true));
+            } else {
+                JsonNode service = session.call(auth -> client.databaseService(auth, serviceName(sourceId)));
+                session.run(auth -> client.deleteDatabaseService(auth, service.path("id").asText(), true, true));
+            }
         } catch (WebApplicationException e) {
             if (e.getResponse().getStatus() != 404) {
                 throw e;

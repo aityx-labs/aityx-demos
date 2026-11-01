@@ -113,6 +113,36 @@ public interface OpenMetadataClient {
     void deleteTable(@HeaderParam("Authorization") String authorization, @PathParam("id") String id);
 
     @PUT
+    @Path("/services/messagingServices")
+    JsonNode putMessagingService(@HeaderParam("Authorization") String authorization, JsonNode service);
+
+    @GET
+    @Path("/services/messagingServices/name/{fqn}")
+    JsonNode messagingService(@HeaderParam("Authorization") String authorization, @PathParam("fqn") String fqn);
+
+    /** Removes a messaging service and its topics, for good. */
+    @DELETE
+    @Path("/services/messagingServices/{id}")
+    void deleteMessagingService(@HeaderParam("Authorization") String authorization, @PathParam("id") String id,
+            @QueryParam("recursive") @DefaultValue("true") boolean recursive,
+            @QueryParam("hardDelete") @DefaultValue("true") boolean hardDelete);
+
+    @PUT
+    @Path("/topics")
+    JsonNode putTopic(@HeaderParam("Authorization") String authorization, JsonNode topic);
+
+    /** A messaging service's topics, with the fields asked for (messageSchema, tags): {"data":[...],"paging":{"after":...}}. */
+    @GET
+    @Path("/topics")
+    JsonNode topics(@HeaderParam("Authorization") String authorization, @QueryParam("service") String service,
+            @QueryParam("fields") String fields, @QueryParam("limit") int limit, @QueryParam("after") String after);
+
+    /** Soft-deletes a topic the cluster no longer has; a PUT of the same name brings it back. */
+    @DELETE
+    @Path("/topics/{id}")
+    void deleteTopic(@HeaderParam("Authorization") String authorization, @PathParam("id") String id);
+
+    @PUT
     @Path("/classifications")
     JsonNode putClassification(@HeaderParam("Authorization") String authorization, JsonNode classification);
 

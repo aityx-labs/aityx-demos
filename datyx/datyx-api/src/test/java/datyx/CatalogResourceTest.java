@@ -72,12 +72,12 @@ class CatalogResourceTest {
     }
 
     @Test
-    void readsOnlyDatabaseSources() {
+    void readsOnlyDatabaseAndKafkaSources() {
         int id = given().contentType(ContentType.JSON)
             .body("{\"name\":\"catalogue lake\",\"type\":\"s3\",\"s3\":{\"bucket\":\"b\"}}")
             .when().post("/api/datasources").then().statusCode(201).extract().path("id");
         given().when().post("/api/datasources/" + id + "/catalog")
-            .then().statusCode(400).body("error", is("only database sources have a catalogue, not s3"));
+            .then().statusCode(400).body("error", is("only database and kafka sources have a catalogue, not s3"));
         given().when().delete("/api/datasources/" + id).then().statusCode(204);
     }
 
@@ -102,6 +102,19 @@ class CatalogResourceTest {
         // Removing a source doesn't wait on the catalogue.
         given().when().delete("/api/datasources/" + right).then().statusCode(204);
         given().when().delete("/api/datasources/" + wrong).then().statusCode(204);
+    }
+
+    @Test
+    void saysWhenAKafkaClusterCantBeReached() {
+        int id = given().contentType(ContentType.JSON)
+            .body("{\"name\":\"catalogue stream\",\"type\":\"kafka\",\"kafka\":{\"bootstrapServers\":\"localhost:1\"}}")
+            .when().post("/api/datasources").then().statusCode(201).extract().path("id");
+        given().when().post("/api/datasources/" + id + "/catalog")
+            .then().statusCode(502).body("error", startsWith("the data source can't be read: "));
+        // Its topics are OpenMetadata's to answer, closed in tests.
+        given().when().get("/api/datasources/" + id + "/catalog")
+            .then().statusCode(502).body("error", startsWith("OpenMetadata "));
+        given().when().delete("/api/datasources/" + id).then().statusCode(204);
     }
 
     @Test

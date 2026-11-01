@@ -761,7 +761,16 @@ class Simulation {
   String get run => _run;
   String _run = '';
 
+  /// Whether the simulation was started and not stopped since, paused or not.
   bool get running => _running;
+
+  /// While paused, what every loop waits on before its next turn; null
+  /// when not paused.
+  Completer<void>? _resumed;
+
+  /// Whether the simulation is paused ([pause]): no moves, no admissions,
+  /// and the simulated clock stands still until [resume].
+  bool get paused => _resumed != null;
 
   /// Starts every person's loop; they run until [stop].
   void start() {
@@ -778,20 +787,62 @@ class Simulation {
     stdout.writeln('simulation: run $_run, ${people.length} people, ${conditions.length} conditions, $settings');
   }
 
+  /// Ends every loop, paused or asleep until its next turn: each wakes,
+  /// sees the generation moved on, and ends.
   void stop() {
     _running = false;
     _generation++;
     _stopwatch.stop();
+    final resumed = _resumed;
+    _resumed = null;
+    resumed?.complete();
   }
 
+  /// Freezes the simulation: the clock stops, so the turns continue from
+  /// where they were on [resume], with none skipped, and each loop waits
+  /// before its next turn (a publish already under way finishes). Nothing
+  /// when it doesn't run or is paused already.
+  void pause() {
+    if (!_running || paused) return;
+    _resumed = Completer<void>();
+    _stopwatch.stop();
+    stdout.writeln('simulation: paused run $_run at turn ${_turnNow()}');
+  }
+
+  /// Lets a paused simulation go on from where it stood. Nothing when it
+  /// isn't paused.
+  void resume() {
+    final resumed = _resumed;
+    if (resumed == null) return;
+    _resumed = null;
+    _stopwatch.start();
+    resumed.complete();
+    stdout.writeln('simulation: resumed run $_run at turn ${_turnNow()}');
+  }
+
+  int _turnNow() => _stopwatch.elapsedMilliseconds ~/ settings.turn.inMilliseconds;
+
   /// A person's loop: wait for the next turn, move, publish the move and
-  /// any admission. Turn n starts n turns after the simulation did, so
-  /// every loop agrees on the clock however long its own publishing took.
+  /// any admission. Turn n starts n turns after the simulation did, on
+  /// its clock, which stands still while paused, so every loop agrees on
+  /// the clock however long its own publishing took.
   Future<void> _live(Person person, int generation) async {
     final turnMs = settings.turn.inMilliseconds;
     final run = _run;
     var turn = 0;
-    while (generation == _generation) {
+    while (true) {
+      // Wait for the turn's start, and for a resume while paused: a pause
+      // during the wait stops the clock, so the rest is waited after.
+      while (generation == _generation) {
+        if (_resumed case final resumed?) {
+          await resumed.future;
+          continue;
+        }
+        final wait = turn * turnMs - _stopwatch.elapsedMilliseconds;
+        if (wait <= 0) break;
+        await Future<void>.delayed(Duration(milliseconds: wait));
+      }
+      if (generation != _generation) return;
       final admission = advance(
         person,
         turn: turn,
@@ -824,10 +875,9 @@ class Simulation {
         }
       }
       // A slow publish skips the turns it overran, rather than falling
-      // behind the others.
+      // behind the others; the paused time isn't on the clock, so a pause
+      // skips none.
       turn = max(turn + 1, _stopwatch.elapsedMilliseconds ~/ turnMs);
-      final wait = turn * turnMs - _stopwatch.elapsedMilliseconds;
-      if (wait > 0) await Future<void>.delayed(Duration(milliseconds: wait));
     }
   }
 

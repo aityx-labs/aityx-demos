@@ -55,6 +55,15 @@ back button and a refresh.
    long the call took. While it loads, a spinner; when datyx can't say,
    its words: no model trained yet, the person has no rows, datyx not
    answering. The rest of the view doesn't wait for it.
+   Under it, **How this prediction is made** (`PredictionExplainer`):
+   datyx's XGBoost model, trained on `patient_days`, builds for this
+   person the features training built, from their own days up to now (the
+   hours of care over the last day, 30, 90 and 360 days, the days since
+   their last stay, how much history there is), and its trees add up to
+   the hours of the next 30 days; what it knows is what followed similar
+   histories in every other patient's days. And **why not Jev**: Jev reads
+   text, and this number isn't in anything the person says; it comes from
+   their history and everyone else's, rows of numbers Jev never sees.
 3. **Counts**: admissions, acute and chronic, triaged by aityx, days of
    care, hours of care.
 4. **Admissions**, newest first: the time and day, the condition and

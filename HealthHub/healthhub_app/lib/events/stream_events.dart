@@ -11,19 +11,32 @@ import '../theme.dart';
 /// only moves or only admissions with [type].
 typedef EventsLoader = Future<StreamEvents> Function({int limit, StreamEventType? type});
 
+/// Pauses the simulation (true) or resumes it, and says whether it is
+/// paused now: the API's `POST /api/simulation/pause` and `/resume`.
+typedef SimulationControl = Future<bool> Function(bool pause);
+
 /// The latest events on the Kafka stream, newest first: people's moves,
 /// compact, and their admissions at a hospital, highlighted with what they
 /// said on arrival. Asked every 5 seconds while shown, like the map's
 /// people. Nothing shows until the API says the simulation runs (dev
-/// mode), and nothing in prod.
+/// mode), and nothing in prod. Each row names its person, a link to
+/// their view, and the card invites opening anyone's. With [simulation],
+/// a button at the top pauses the simulation and resumes it.
 ///
 /// Moves and admissions are asked for apart: every person moves every
 /// second, so the latest [limit] records of the stream are nearly always
 /// all moves and an admission would scroll out before it is ever seen.
 class StreamEventsCard extends StatefulWidget {
-  const StreamEventsCard({super.key, required this.events, this.limit = 12, this.admissionsLimit = 8});
+  const StreamEventsCard({
+    super.key,
+    required this.events,
+    this.simulation,
+    this.limit = 12,
+    this.admissionsLimit = 8,
+  });
 
   final EventsLoader events;
+  final SimulationControl? simulation;
 
   /// How many moves and how many admissions are shown at most.
   final int limit;
@@ -37,6 +50,32 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
   StreamEvents _events = const StreamEvents(enabled: false);
   Timer? _poll;
   bool _asking = false;
+
+  /// While a pause or resume is under way, and what it said: shown until
+  /// the next events say it too.
+  bool _switching = false;
+  bool? _pausedNow;
+
+  bool get _paused => _pausedNow ?? _events.paused;
+
+  Future<void> _switch() async {
+    final control = widget.simulation;
+    if (control == null || _switching) return;
+    setState(() => _switching = true);
+    try {
+      final paused = await control(!_paused);
+      if (mounted) setState(() => _pausedNow = paused);
+    } catch (error) {
+      if (!mounted) return;
+      final message = error is ApiException && error.status == 401
+          ? 'Sign in to pause the simulation.'
+          : 'The simulation can\'t be ${_paused ? 'resumed' : 'paused'}: '
+                '${error is ApiException ? error.message : error}';
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) setState(() => _switching = false);
+    }
+  }
 
   @override
   void initState() {
@@ -60,7 +99,12 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
         widget.events(limit: widget.limit, type: StreamEventType.move),
         widget.events(limit: widget.admissionsLimit, type: StreamEventType.admission),
       ]);
-      if (mounted) setState(() => _events = mergeEvents(answers[0], answers[1]));
+      if (mounted) {
+        setState(() {
+          _events = mergeEvents(answers[0], answers[1]);
+          if (_pausedNow == _events.paused) _pausedNow = null;
+        });
+      }
     } catch (_) {
       // The API or Kafka may be down for a moment: keep what is shown.
     } finally {
@@ -90,16 +134,42 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
                     children: [
                       const Text('Latest events', style: TextStyle(fontWeight: FontWeight.w700)),
                       Text(
-                        'On Kafka, ${_events.topics.join(', ')}; every 5 seconds',
-                        style: const TextStyle(color: Aityx.muted, fontSize: 12),
+                        _paused
+                            ? 'Paused: nobody moves, the clock stands'
+                            : 'On Kafka, ${_events.topics.join(', ')}; every 5 seconds',
+                        style: TextStyle(color: _paused ? Aityx.amber : Aityx.muted, fontSize: 12),
                       ),
                     ],
                   ),
                 ),
+                if (widget.simulation != null) ...[
+                  OutlinedButton.icon(
+                    key: const Key('simulation-pause'),
+                    onPressed: _switching ? null : _switch,
+                    icon: Icon(_paused ? Icons.play_arrow : Icons.pause, size: 18),
+                    label: Text(_paused ? 'Resume the simulation' : 'Pause the simulation'),
+                  ),
+                  const SizedBox(width: 12),
+                ],
                 Text(
                   '${_count(admissions, 'admission')} · ${_count(moves, 'move')}',
                   key: const Key('stream-events-counts'),
                   style: const TextStyle(color: Aityx.muted, fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Row(
+              children: [
+                Icon(Icons.touch_app_outlined, color: Aityx.orangeLight, size: 16),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Open anyone by their name to see their data and statistics: their admissions, '
+                    'aityx\'s triage, their days of care and datyx\'s prediction.',
+                    key: Key('person-invite'),
+                    style: TextStyle(color: Aityx.orangeLight, fontSize: 12),
+                  ),
                 ),
               ],
             ),
@@ -180,7 +250,13 @@ class _EventRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           SizedBox(width: 96, child: Text(_when(event), style: muted)),
-          SizedBox(width: 190, child: PersonLink(event.id, event.id, overflow: TextOverflow.ellipsis)),
+          SizedBox(
+            width: 190,
+            child: Tooltip(
+              message: event.id,
+              child: PersonLink(event.id, event.name ?? event.id, overflow: TextOverflow.ellipsis),
+            ),
+          ),
           Expanded(child: Text(what, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13))),
           Text(_where(event), style: muted.copyWith(fontFamily: 'monospace')),
         ],

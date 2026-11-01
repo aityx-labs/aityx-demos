@@ -100,6 +100,28 @@ everyone. The loops agree on the clock because each derives its turn from
 the time since the simulation started; a loop that overran a turn (a slow
 publish) skips to the current one instead of falling behind.
 
+## Pausing
+
+`POST /api/simulation/pause` freezes the simulation and `POST
+/api/simulation/resume` lets it go on ([API](api.md)), for anyone signed
+in (anyone at all while authentication is off). Paused, the clock that
+the turns are counted on stops, and every person's loop waits before its
+next turn: nobody moves, nobody is admitted, nothing is published, and
+the simulated time and day stand still (a publish already under way when
+the pause comes still lands). Resumed, the turns go on from the one they
+stood at, with none skipped for the time spent paused. The admissions
+already published go on being recorded and triaged, and the map and the
+events keep showing the last moves. Pausing a paused simulation, or
+resuming a running one, changes nothing. The API logs each pause and
+resume with the run and the turn.
+
+There is one simulation, in the API's process, so a pause is everyone's:
+every app watching sees it stand still, and anyone can resume it.
+`/api/health` and `GET /api/events` say `"paused"`. It is dev mode only:
+in prod, and before the simulation has started, both calls answer 409.
+Restarting the API starts a new run, not paused. `Simulation.stop` ends
+the loops of a paused simulation too.
+
 ## Visits
 
 A condition's visits come in courses of `count` visits, `interval_days`
@@ -235,8 +257,9 @@ are lost) and exits, so restarts don't leave consumers behind.
 `Simulation.stop` ends every person's loop, even one asleep until its
 next turn.
 
-`/api/health` says `"simulation": true` once the people are moving and
-`"kafka"` whether the proxy answered its last ping (every 5 s).
+`/api/health` says `"simulation": true` once the people are moving
+(paused or not), `"paused"` whether they are paused, and `"kafka"`
+whether the proxy answered its last ping (every 5 s).
 
 ## Known limitations
 

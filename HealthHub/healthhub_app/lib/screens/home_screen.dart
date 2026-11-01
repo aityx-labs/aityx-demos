@@ -9,9 +9,13 @@ import '../location/user_location_map.dart';
 import '../people/person_screen.dart';
 import '../theme.dart';
 import '../triage/triage_card.dart';
+import 'explainers.dart';
 
-/// Home: where the user lands after signing in. A dashboard of tiles; for
-/// now one, the map with the user's position highlighted, full width.
+/// Home: where the user lands after signing in. A dashboard in rows: the
+/// map with the user's position highlighted, and beside it what the data
+/// and the simulation are ([SimulationExplainer]); aityx's triage at the
+/// desk, and beside it what aityx does ([AityxExplainer]); the latest
+/// events. Below [wideFrom] wide, each explainer goes under its row.
 /// With [person] and [prediction], every person it names (on the map, in
 /// the events and the triage) opens their view ([PersonOpener]).
 class HomeScreen extends StatelessWidget {
@@ -26,8 +30,13 @@ class HomeScreen extends StatelessWidget {
     this.triageDetail,
     this.person,
     this.prediction,
+    this.simulation,
     this.showTiles = true,
   });
+
+  /// From how wide the explainers sit beside their rows, and how wide.
+  static const wideFrom = 1000.0;
+  static const explainerWidth = 340.0;
 
   final AuthController auth;
   final LocationController location;
@@ -48,6 +57,9 @@ class HomeScreen extends StatelessWidget {
   /// Where a person's view comes from: the API, and datyx through it.
   final PersonLoader? person;
   final PredictionLoader? prediction;
+
+  /// Pauses or resumes the simulation, from the events.
+  final SimulationControl? simulation;
   final bool showTiles;
 
   @override
@@ -56,6 +68,19 @@ class HomeScreen extends StatelessWidget {
     if (person == null || prediction == null) return scaffold;
     return PersonOpener(person: person!, prediction: prediction!, child: scaffold);
   }
+
+  /// [main] with [side] to its right when the window is wide, under it
+  /// when it isn't.
+  static Widget _row(BuildContext context, Widget main, Widget side) => MediaQuery.sizeOf(context).width >= wideFrom
+      ? Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: main),
+            const SizedBox(width: 16),
+            SizedBox(width: explainerWidth, child: side),
+          ],
+        )
+      : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [main, const SizedBox(height: 16), side]);
 
   Widget _scaffold(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -70,42 +95,48 @@ class HomeScreen extends StatelessWidget {
         SliverPadding(
           padding: const EdgeInsets.all(16),
           sliver: SliverToBoxAdapter(
-            child: SizedBox(
-              height: (MediaQuery.sizeOf(context).height * 0.78).clamp(520.0, 1100.0),
-              child: _Tile(
-                key: const Key('location-tile'),
-                icon: Icons.my_location,
-                title: 'Where you are',
-                subtitle: ListenableBuilder(
-                  listenable: location,
-                  builder: (context, _) => Text(
-                    switch (location.status) {
-                      LocationStatus.asking => 'Finding where you are…',
-                      LocationStatus.found => 'The orange dot is you.',
-                      _ => location.message ?? 'No location.',
-                    },
-                    style: const TextStyle(color: Aityx.muted, fontSize: 12),
+            child: _row(
+              context,
+              SizedBox(
+                height: (MediaQuery.sizeOf(context).height * 0.78).clamp(520.0, 1100.0),
+                child: _Tile(
+                  key: const Key('location-tile'),
+                  icon: Icons.my_location,
+                  title: 'Where you are',
+                  subtitle: ListenableBuilder(
+                    listenable: location,
+                    builder: (context, _) => Text(
+                      switch (location.status) {
+                        LocationStatus.asking => 'Finding where you are…',
+                        LocationStatus.found => 'The orange dot is you.',
+                        _ => location.message ?? 'No location.',
+                      },
+                      style: const TextStyle(color: Aityx.muted, fontSize: 12),
+                    ),
+                  ),
+                  child: UserLocationMap(
+                    location: location,
+                    careCenters: careCenters,
+                    people: people,
+                    showTiles: showTiles,
                   ),
                 ),
-                child: UserLocationMap(
-                  location: location,
-                  careCenters: careCenters,
-                  people: people,
-                  showTiles: showTiles,
-                ),
               ),
+              const SimulationExplainer(),
             ),
           ),
         ),
         if (triage != null && triageDetail != null)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            sliver: SliverToBoxAdapter(child: TriageCard(triage: triage!, detail: triageDetail!)),
+            sliver: SliverToBoxAdapter(
+              child: _row(context, TriageCard(triage: triage!, detail: triageDetail!), const AityxExplainer()),
+            ),
           ),
         if (events != null)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            sliver: SliverToBoxAdapter(child: StreamEventsCard(events: events!)),
+            sliver: SliverToBoxAdapter(child: StreamEventsCard(events: events!, simulation: simulation)),
           ),
         if (AppVersion.version.isNotEmpty)
           const SliverToBoxAdapter(

@@ -440,10 +440,11 @@ enum StreamEventType {
 /// The latest records on the stream, newest first, and the topics they
 /// came from; off in prod.
 class StreamEvents {
-  const StreamEvents({required this.enabled, this.topics = const [], this.events = const []});
+  const StreamEvents({required this.enabled, this.paused = false, this.topics = const [], this.events = const []});
 
   factory StreamEvents.fromJson(Map<String, Object?> json) => StreamEvents(
     enabled: json['enabled'] == true,
+    paused: json['paused'] == true,
     topics: [
       for (final topic in (json['topics'] as List? ?? [?json['topic']]))
         if (topic is String && topic.isNotEmpty) topic,
@@ -456,6 +457,9 @@ class StreamEvents {
   );
 
   final bool enabled;
+
+  /// Whether the simulation is paused: nobody moves, the clock stands.
+  final bool paused;
   final List<String> topics;
   final List<StreamEvent> events;
 }
@@ -1022,6 +1026,10 @@ abstract class HealthHubApi {
   /// datyx's prediction of a person's hours of care over the next 30
   /// days: `GET /api/people/{id}/prediction?run=`.
   Future<Prediction> prediction(String id, {String? run});
+
+  /// Pauses the simulation, or resumes it: `POST /api/simulation/pause`
+  /// or `/resume`. Whether it is paused now.
+  Future<bool> pauseSimulation(bool pause);
 }
 
 /// Thrown when the API answers an error, with its message.
@@ -1109,6 +1117,10 @@ class HttpHealthHubApi implements HealthHubApi {
   static String _personPath(String id, String suffix, String? run) =>
       '/api/people/${Uri.encodeComponent(id)}$suffix${run == null ? '' : '?run=${Uri.encodeQueryComponent(run)}'}';
 
+  @override
+  Future<bool> pauseSimulation(bool pause) async =>
+      (await _send('POST', '/api/simulation/${pause ? 'pause' : 'resume'}') as Map?)?['paused'] == true;
+
   /// An area as the API's `bbox` takes it: west,south,east,north.
   static String _bbox(double west, double south, double east, double north) =>
       [west, south, east, north].map((d) => d.toStringAsFixed(5)).join(',');
@@ -1127,14 +1139,18 @@ class HttpHealthHubApi implements HealthHubApi {
     return json;
   }
 
-  Future<Object?> _get(String path) async {
+  Future<Object?> _get(String path) => _send('GET', path);
+
+  /// [method] [path] with the user's token, refreshed once on a 401: the
+  /// JSON answer, or an [ApiException] with the API's error.
+  Future<Object?> _send(String method, String path) async {
     var bearer = await token?.call();
     var retried = false;
     while (true) {
-      final response = await _client
-          .get(_uri(path), headers: {
-            if (bearer != null && bearer.isNotEmpty) 'authorization': 'Bearer $bearer',
-          })
+      final headers = {if (bearer != null && bearer.isNotEmpty) 'authorization': 'Bearer $bearer'};
+      final response = await (method == 'POST'
+              ? _client.post(_uri(path), headers: headers)
+              : _client.get(_uri(path), headers: headers))
           .timeout(const Duration(seconds: 15));
       if (response.statusCode == 401 && bearer != null && !retried && refreshToken != null) {
         retried = true;

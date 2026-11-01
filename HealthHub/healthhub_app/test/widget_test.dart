@@ -29,6 +29,16 @@ class FakeApi implements HealthHubApi {
   /// The event ids whose triage detail was asked for.
   final triageDetailsAsked = <String>[];
 
+  /// Whether the simulation is paused, and every pause (true) or resume asked.
+  bool paused = false;
+  final pausesAsked = <bool>[];
+
+  @override
+  Future<bool> pauseSimulation(bool pause) async {
+    pausesAsked.add(pause);
+    return paused = pause;
+  }
+
   static const _signs = {
     'life_threat': 0.04,
     'breathing': 0.86,
@@ -162,11 +172,12 @@ class FakeApi implements HealthHubApi {
         offset: 9,
         eventId: 'a1b2c3d4-lisboa-3-d2-t32',
       ),
-      const StreamEvent(id: 'lisboa-1', state: PersonState.toHospital, hospitalName: 'Hospital de Santa Maria', simTime: '09:40', day: 2, partition: 0, offset: 42),
-      const StreamEvent(id: 'lisboa-2', state: PersonState.home, simTime: '09:40', day: 2, partition: 0, offset: 41),
+      const StreamEvent(id: 'lisboa-1', name: 'Rui Matos', state: PersonState.toHospital, hospitalName: 'Hospital de Santa Maria', simTime: '09:40', day: 2, partition: 0, offset: 42),
+      const StreamEvent(id: 'lisboa-2', name: 'Ana Sousa', state: PersonState.home, simTime: '09:40', day: 2, partition: 0, offset: 41),
     ];
     return StreamEvents(
       enabled: true,
+      paused: paused,
       topics: [type == StreamEventType.admission ? 'healthhub.admissions' : 'healthhub.people.moves'],
       events: [
         for (final event in all)
@@ -524,10 +535,67 @@ void main() {
 
     expect(find.byKey(const Key('stream-events')), findsOneWidget);
     expect(find.text('On Kafka, healthhub.people.moves, healthhub.admissions; every 5 seconds'), findsOneWidget);
-    expect(find.text('lisboa-1'), findsOneWidget);
+    // Each move names its person, a link to their view.
+    final card = find.byKey(const Key('stream-events'));
+    expect(find.descendant(of: card, matching: find.text('Rui Matos')), findsOneWidget);
+    expect(find.descendant(of: card, matching: find.text('Ana Sousa')), findsOneWidget);
     expect(find.text('Going to the hospital · Hospital de Santa Maria'), findsOneWidget);
     expect(find.text('p0 · #42'), findsOneWidget);
     expect(find.text('At home'), findsOneWidget);
+  });
+
+  testWidgets('the explainers sit beside the map and the triage, and under them when narrow', (tester) async {
+    tester.view.physicalSize = const Size(1400, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(app(api: FakeApi(auth: false, simulation: true)));
+    await tester.pumpAndSettle();
+
+    final simulation = find.byKey(const Key('simulation-explainer'));
+    final aityx = find.byKey(const Key('aityx-explainer'));
+    expect(find.descendant(of: simulation, matching: find.text('The data, and the simulation')), findsOneWidget);
+    expect(find.descendant(of: simulation, matching: find.text('A real stream')), findsOneWidget);
+    expect(find.descendant(of: aityx, matching: find.text('What aityx does at the desk')), findsOneWidget);
+    for (final point in ['Jev reads', 'Rules decide', 'In one call', 'Explained']) {
+      expect(find.descendant(of: aityx, matching: find.text(point)), findsOneWidget);
+    }
+    // In the map's row, to its right; in the triage's row, to its right.
+    final map = tester.getRect(find.byKey(const Key('location-tile')));
+    expect(tester.getRect(simulation).left, greaterThan(map.right));
+    expect(tester.getRect(simulation).top, map.top);
+    final triage = tester.getRect(find.byKey(const Key('triage-card')));
+    expect(tester.getRect(aityx).left, greaterThan(triage.right));
+    expect(tester.getRect(aityx).top, triage.top);
+
+    // Narrow: under them.
+    tester.view.physicalSize = const Size(800, 4000);
+    await tester.pumpAndSettle();
+    expect(tester.getRect(simulation).top, greaterThan(tester.getRect(find.byKey(const Key('location-tile'))).bottom));
+  });
+
+  testWidgets('the events invite opening anyone, and pause the simulation', (tester) async {
+    tester.view.physicalSize = const Size(1400, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeApi(auth: false, simulation: true);
+    await tester.pumpWidget(app(api: api));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('person-invite')), findsOneWidget);
+    expect(find.textContaining('Open anyone by their name'), findsOneWidget);
+
+    final button = find.byKey(const Key('simulation-pause'));
+    expect(find.descendant(of: button, matching: find.text('Pause the simulation')), findsOneWidget);
+    await tester.tap(button);
+    await tester.pump();
+    expect(api.pausesAsked, [true]);
+    expect(find.descendant(of: button, matching: find.text('Resume the simulation')), findsOneWidget);
+    expect(find.text('Paused: nobody moves, the clock stands'), findsOneWidget);
+
+    await tester.tap(button);
+    await tester.pump();
+    expect(api.pausesAsked, [true, false]);
+    expect(find.descendant(of: button, matching: find.text('Pause the simulation')), findsOneWidget);
   });
 
   testWidgets('an admission stands out in the events, with the complaint in full', (tester) async {
@@ -563,7 +631,10 @@ void main() {
     final box = tester.widget<Container>(row).decoration! as BoxDecoration;
     expect((box.border! as Border).left.color, const Color(0xFFE36742));
     // It sorts by simulated time: 08:00 is older than the moves at 09:40.
-    expect(tester.getTopLeft(row).dy, greaterThan(tester.getTopLeft(find.text('lisboa-1')).dy));
+    expect(
+      tester.getTopLeft(row).dy,
+      greaterThan(tester.getTopLeft(find.descendant(of: find.byKey(const Key('stream-events')), matching: find.text('Rui Matos'))).dy),
+    );
   });
 
   testWidgets("a person's id opens their view, datyx's 30-day prediction highlighted", (tester) async {
@@ -598,6 +669,13 @@ void main() {
     expect(border.top.color, const Color(0xFFE36742));
     // Right under who they are, above their admissions and days.
     expect(tester.getTopLeft(card).dy, lessThan(tester.getTopLeft(find.text('Admissions')).dy));
+
+    // Under it, how it is made, and why Jev can't make it.
+    final explainer = find.byKey(const Key('prediction-explainer'));
+    expect(find.descendant(of: explainer, matching: find.text('How this prediction is made')), findsOneWidget);
+    expect(find.descendant(of: explainer, matching: find.text('XGBoost, on their history')), findsOneWidget);
+    expect(find.descendant(of: explainer, matching: find.text('Why not Jev')), findsOneWidget);
+    expect(tester.getTopLeft(explainer).dy, greaterThan(tester.getBottomLeft(card).dy));
 
     // Their admissions with aityx's triage, newest first, and their days.
     final first = find.byKey(const Key('person-admission-a1b2c3d4-lisboa-3-d2-t32'));

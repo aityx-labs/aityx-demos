@@ -100,6 +100,7 @@ class _HealthHubAppState extends State<HealthHubApp> {
               triageDetail: _api.triageOf,
               person: _api.person,
               prediction: _api.prediction,
+              simulation: _api.pauseSimulation,
               showTiles: widget.showTiles,
             )
           : IndexScreen(

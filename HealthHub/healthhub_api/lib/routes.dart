@@ -45,6 +45,12 @@ class Forwarded {
 /// the simulation runs and GET /api/people serves it.
 /// [kafka]: whether Kafka's REST proxy answers; [simulation]: whether the
 /// simulation runs; both reported by /api/health.
+/// [paused]: whether the simulation is paused, reported by /api/health
+/// and GET /api/events.
+/// [control]: for POST /api/simulation/pause and /resume, pauses (true)
+/// or resumes (false) the simulation and says whether it is paused now;
+/// called only for a signed-in user (once authentication is on) and while
+/// the simulation runs in dev mode (else 401, 409).
 /// [people]: the latest move of each simulated person, as read back from
 /// Kafka by the server (lib/simulation.dart's PeopleFeed).
 /// [events]: the latest moves and admissions the feed read, newest first.
@@ -80,6 +86,8 @@ Answer route(
   bool dev = false,
   bool kafka = false,
   bool simulation = false,
+  bool paused = false,
+  bool Function(bool pause)? control,
   List<Map<String, Object?>> people = const [],
   List<Map<String, Object?>>? admissions,
   bool triageEnabled = false,
@@ -89,6 +97,18 @@ Answer route(
   Forwarded? prediction,
 }) {
   if (method == 'OPTIONS') return const Answer(204);
+  if (method == 'POST') {
+    switch (path) {
+      // Anyone signed in may pause or resume it: there is one simulation,
+      // and everyone watching sees it stand still.
+      case simulationPausePath || simulationResumePath:
+        if (auth.enabled && identity == null) return _signIn;
+        if (!dev || !simulation || control == null) {
+          return const Answer(409, body: {'error': 'the simulation does not run'});
+        }
+        return Answer(200, body: {'paused': control(path == simulationPausePath)});
+    }
+  }
   if (method == 'GET') {
     switch (personPath(path)) {
       case (final id, false):
@@ -121,6 +141,7 @@ Answer route(
           'auth': auth.enabled,
           'kafka': kafka,
           'simulation': simulation,
+          'paused': paused,
           'triage': triageEnabled,
         });
       case '/api/auth/config':
@@ -168,7 +189,7 @@ Answer route(
         if (type != null && !eventTypes.contains(type)) {
           return const Answer(400, body: {'error': 'type is admission or move'});
         }
-        return Answer(200, body: eventsAnswer(dev, events, limit: limit, type: type));
+        return Answer(200, body: eventsAnswer(dev, events, limit: limit, type: type, paused: paused));
       // Open to everyone, like the events: the people are simulated. Read
       // from the database, so in prod too, whatever an earlier dev run
       // recorded.
@@ -358,6 +379,10 @@ Answer predictionAnswer(Forwarded prediction) {
   });
 }
 
+/// The paths that pause and resume the simulation (POST).
+const simulationPausePath = '/api/simulation/pause';
+const simulationResumePath = '/api/simulation/resume';
+
 /// How many events GET /api/events answers unless asked, and at most.
 const eventsLimit = 20;
 const eventsMax = 100;
@@ -365,18 +390,21 @@ const eventsMax = 100;
 /// What GET /api/events answers: in dev mode, the latest [events] read
 /// from the streams (newest first, only those of [type] when given, at
 /// most [limit], never more than [eventsMax]), each with its type and
-/// where it sits in its topic; in prod, nothing. "topic" is the moves'
-/// topic, as before admissions; "topics" names both.
+/// where it sits in its topic, and whether the simulation is [paused]; in
+/// prod, nothing. "topic" is the moves' topic, as before admissions;
+/// "topics" names both.
 Map<String, Object?> eventsAnswer(
   bool dev,
   List<Map<String, Object?>> events, {
   int limit = eventsLimit,
   String? type,
+  bool paused = false,
 }) {
   const topics = [movesTopic, admissionsTopic];
-  if (!dev) return const {'enabled': false, 'topic': movesTopic, 'topics': topics, 'events': []};
+  if (!dev) return const {'enabled': false, 'paused': false, 'topic': movesTopic, 'topics': topics, 'events': []};
   return {
     'enabled': true,
+    'paused': paused,
     'topic': movesTopic,
     'topics': topics,
     'events': [

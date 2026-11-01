@@ -41,6 +41,9 @@ class Forwarded {
 /// the query's bbox read by the server, up to [careCentersLimit] + 1 so
 /// the answer can say whether there were more (null: the database didn't
 /// answer, 503).
+/// [nearest]: for GET /api/care-centers/nearest, the care center nearest
+/// the query's lat and lon the server read (its center null when there is
+/// none; null itself when the database didn't answer, 503).
 /// [dev]: whether the API runs in dev mode (HEALTHHUB_MODE=dev), where
 /// the simulation runs and GET /api/people serves it.
 /// [kafka]: whether Kafka's REST proxy answers; [simulation]: whether the
@@ -83,6 +86,7 @@ Answer route(
   Map<String, String> query = const {},
   List<Map<String, Object?>> events = const [],
   List<Map<String, Object?>>? careCenters,
+  NearestCenter? nearest,
   bool dev = false,
   bool kafka = false,
   bool simulation = false,
@@ -178,6 +182,16 @@ Answer route(
           'centers': careCenters.take(careCentersLimit).toList(),
           'truncated': careCenters.length > careCentersLimit,
         });
+      // Open to everyone, like the care centers. The point is the user's
+      // location: used for the query only, never logged or kept.
+      case '/api/care-centers/nearest':
+        if (nearestPoint(query) == null) {
+          return const Answer(400, body: {'error': 'lat and lon are degrees, -90 to 90 and -180 to 180'});
+        }
+        if (nearest == null) {
+          return const Answer(503, body: {'error': 'the database is not answering'});
+        }
+        return Answer(200, body: {'center': nearest.center});
       // Open to everyone, like the care centers: the people are simulated.
       // The latest records on the stream, newest first, for home's events.
       case '/api/events':
@@ -477,6 +491,24 @@ String? datyxPath(String path) => switch (path) {
 /// The most care centers one answer holds: hospitals first, then health
 /// stations, then clinics, so a wide area shows the biggest first.
 const careCentersLimit = 500;
+
+/// The point GET /api/care-centers/nearest asks about: its lat and lon in
+/// degrees, or null when they aren't.
+({double lat, double lon})? nearestPoint(Map<String, String> query) {
+  final lat = double.tryParse(query['lat']?.trim() ?? '');
+  final lon = double.tryParse(query['lon']?.trim() ?? '');
+  if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) return null;
+  return (lat: lat, lon: lon);
+}
+
+/// What the server read for GET /api/care-centers/nearest: the nearest
+/// care center with its distance in metres, or null when none has a
+/// location.
+class NearestCenter {
+  const NearestCenter(this.center);
+
+  final Map<String, Object?>? center;
+}
 
 /// An area of the map: GET /api/care-centers?bbox=west,south,east,north,
 /// in degrees, west not east of east (no crossing the antimeridian).

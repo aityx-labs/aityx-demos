@@ -786,24 +786,48 @@ class Db {
         'limit': limit,
       },
     );
-    return [
-      for (final row in rows)
-        {
-          'id': row[0],
-          'name': row[1],
-          'kind': row[2],
-          'subtype': row[3],
-          'address': row[4],
-          'city': row[5],
-          'country': (row[6] as String).trim(),
-          'lat': row[7],
-          'lon': row[8],
-          'phone': row[9],
-          'website': row[10],
-          'ownership': row[11],
-        },
-    ];
+    return [for (final row in rows) _careCenter(row)];
   });
+
+  /// The care center nearest [lat], [lon], of any kind, with its
+  /// great-circle `distance` in metres; null when none has a location:
+  /// what GET /api/care-centers/nearest answers.
+  Future<Map<String, Object?>?> nearestCareCenter(double lat, double lon) => _run((c) async {
+    final rows = await c.execute(
+      Sql.named('''
+        SELECT id, name, kind, subtype, address, city, country, latitude, longitude,
+               phone, website, ownership,
+               2 * 6371008.8 * asin(least(1, sqrt(
+                 power(sin(radians(latitude - @lat) / 2), 2)
+                 + cos(radians(@lat)) * cos(radians(latitude)) * power(sin(radians(longitude - @lon) / 2), 2)
+               ))) AS distance
+        FROM care_centers
+        WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+        ORDER BY distance, id
+        LIMIT 1
+      '''),
+      parameters: {'lat': TypedValue(Type.double, lat), 'lon': TypedValue(Type.double, lon)},
+    );
+    if (rows.isEmpty) return null;
+    return {..._careCenter(rows.first), 'distance': (rows.first[12] as double).round()};
+  });
+
+  /// A care center as the API answers it, from a row of the columns
+  /// [careCenters] selects, in its order.
+  static Map<String, Object?> _careCenter(ResultRow row) => {
+    'id': row[0],
+    'name': row[1],
+    'kind': row[2],
+    'subtype': row[3],
+    'address': row[4],
+    'city': row[5],
+    'country': (row[6] as String).trim(),
+    'lat': row[7],
+    'lon': row[8],
+    'phone': row[9],
+    'website': row[10],
+    'ownership': row[11],
+  };
 
   /// Every care center with a location, as the simulation places homes
   /// near them and sends people to the hospitals among them.

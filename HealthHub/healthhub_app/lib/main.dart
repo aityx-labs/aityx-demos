@@ -94,6 +94,7 @@ class _HealthHubAppState extends State<HealthHubApp> {
               auth: _auth,
               location: _location,
               careCenters: _api.careCenters,
+              nearest: _api.nearestCareCenter,
               people: _api.people,
               events: _api.events,
               triage: _api.triage,

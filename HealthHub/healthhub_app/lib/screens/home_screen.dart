@@ -24,6 +24,7 @@ class HomeScreen extends StatelessWidget {
     required this.auth,
     required this.location,
     this.careCenters,
+    this.nearest,
     this.people,
     this.events,
     this.triage,
@@ -43,6 +44,10 @@ class HomeScreen extends StatelessWidget {
 
   /// Where the map's care centers come from: the API.
   final CareCentersLoader? careCenters;
+
+  /// Where the care center nearest the user comes from, which the map
+  /// centres on: the API.
+  final NearestCareCenterLoader? nearest;
 
   /// Where the map's simulated people come from: the API.
   final PeopleLoader? people;
@@ -117,6 +122,7 @@ class HomeScreen extends StatelessWidget {
                   child: UserLocationMap(
                     location: location,
                     careCenters: careCenters,
+                    nearest: nearest,
                     people: people,
                     showTiles: showTiles,
                   ),

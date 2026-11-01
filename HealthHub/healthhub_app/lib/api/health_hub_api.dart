@@ -1002,6 +1002,10 @@ abstract class HealthHubApi {
     required double north,
   });
 
+  /// The care center nearest the point, or null when none has a location:
+  /// `GET /api/care-centers/nearest?lat=..&lon=..`.
+  Future<CareCenter?> nearestCareCenter({required double lat, required double lon});
+
   /// The simulated people and their homes: `GET /api/people`.
   Future<People> people({
     required double west,
@@ -1120,6 +1124,12 @@ class HttpHealthHubApi implements HealthHubApi {
   @override
   Future<bool> pauseSimulation(bool pause) async =>
       (await _send('POST', '/api/simulation/${pause ? 'pause' : 'resume'}') as Map?)?['paused'] == true;
+
+  @override
+  Future<CareCenter?> nearestCareCenter({required double lat, required double lon}) async {
+    final json = await _getMap('/api/care-centers/nearest?lat=${lat.toStringAsFixed(6)}&lon=${lon.toStringAsFixed(6)}');
+    return json['center'] is Map ? CareCenter.fromJson((json['center'] as Map).cast()) : null;
+  }
 
   /// An area as the API's `bbox` takes it: west,south,east,north.
   static String _bbox(double west, double south, double east, double north) =>

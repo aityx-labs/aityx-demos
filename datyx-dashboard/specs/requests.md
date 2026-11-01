@@ -4,6 +4,14 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: space between the Training and Inference tabs' cards
+
+Asked: on the Training view the cards are glued together: add
+separation between them; same for the Inference tab.
+
+Changed: the Training and Inference tabs put 16 px between their cards,
+as their padding (`spaced`, in `card_title.dart`: the theme's cards have
+no margin of their own). Tests.
 ## 2026-11-01: a group's buttons at its top right, and its algorithms named in full
 
 Asked: on the Catalog tab, keep a group box's buttons at its top right

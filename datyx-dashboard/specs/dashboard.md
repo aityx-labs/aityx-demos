@@ -277,7 +277,12 @@ reload).
   (the `datyx` check: name and version, its profile, launch mode and
   `jvm` or `native`, as `dev profile, development, jvm`, uptime, started
   at), PostgreSQL (ok, or the error), OpenMetadata (version and URL, or
-  the error), Sign-in (off, with no `OIDC_CLIENT_ID` on the API; on and
+  the error, and where datyx's tagging is seen there: **TimeSeries tags,
+  and the tables that carry them**, the classification's page in
+  OpenMetadata (`/tags/TimeSeries`), each tag leading to its tables and
+  columns, and **Alerts: datyx-catalog-events tells datyx of tag
+  changes**, OpenMetadata's notification alerts (`/settings/notifications/alerts`),
+  where datyx's event subscription is listed), Sign-in (off, with no `OIDC_CLIENT_ID` on the API; on and
   nobody signed in; or the issuer, whom the API sees and their profile
   id, from `GET /api/me`), and Dashboard: this build's version, when built by the scripts
   (`dash 0.1.202610291200`; a bare `flutter run` or a test has none), and

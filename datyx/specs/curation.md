@@ -116,7 +116,13 @@ approved and passing; the Flink job and HealthHub's API pipelines
 centers and conditions through the topics to the tables and the
 `patient_days` and `occupancy_hourly` views; and the TimeSeries roles of
 `admissions_hourly` (`default`, `acute`, `chronic`), `occupancy_hourly`
-(`default`) and `patient_days` (`care`, XGBoost).
+(`default`, retrained every `15min`: HealthHub's occupancy alarms and
+its care center view forecast from it while a run goes on) and
+`patient_days` (`care`, XGBoost, every `1h`). The document's `retrain` is
+set as the table's `timeSeriesRetrain` only when the table has none, so
+a catalogue curated before keeps its own until it is set (`PUT
+/api/datasources/{id}/training`) or cleared (OpenMetadata's custom
+property).
 
 ## Tests
 

@@ -97,6 +97,7 @@ processes:
       - HEALTHHUB_SIM_TURN_MS=${HEALTHHUB_SIM_TURN_MS:-}
       - HEALTHHUB_SIM_MINUTES_PER_TURN=${HEALTHHUB_SIM_MINUTES_PER_TURN:-}
       - HEALTHHUB_ALARM_EVERY_MS=${HEALTHHUB_ALARM_EVERY_MS:-}
+      - HEALTHHUB_ALARM_THRESHOLD=${HEALTHHUB_ALARM_THRESHOLD:-}
     # Only the database: the API reaches Kafka through its REST proxy and
     # retries until it answers, so it starts without waiting for it.
     depends_on:

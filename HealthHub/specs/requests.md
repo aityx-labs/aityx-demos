@@ -645,3 +645,55 @@ The feature files hold the current specification; see the
    which its row shows as a small pill in the level's colour. See
    [Home](home.md), [Simulation](simulation.md#the-stream) and
    [API](api.md).
+
+1. **The occupancy chart: now, both series, the threshold; retrained in
+   time; alarms at 90%.** "In the occupancy per hour time series view,
+   put a vertical divider indicating current time and always show the
+   two time series: the actual observed occupancy and the predicted
+   one." "Make sure data is re-trained in time. Run the simulation slower
+   if needed to allow time for prediction to be trained." "When
+   predicted or actual hit a threshold — let's set a default of 90%
+   occupancy — raise an alarm. Make sure that point is marked and
+   highlighted in the time series graph."
+   - **The chart** draws a solid vertical line at the simulated clock,
+     labelled "Now Jan 19 12:40", and both series always: the occupancy
+     observed (solid orange) and what DeepAR predicted of every hour
+     (dashed blue, in its band), over the past hours too. The API keeps
+     what datyx forecast of each care center's hours, from the alarms'
+     checks and the view's own forecasts, in a new table,
+     `occupancy_forecast` (run, care center and hour; a forecast from a
+     later series' end replaces an earlier one's, so each hour keeps the
+     one made closest to it), and answers it with the occupancy per hour
+     as `predicted`, with the alarms' `threshold` and the clock `now`.
+     The capacity line has a red threshold line beside it ("90% · 7.2"),
+     every hour observed or predicted at or above it is marked (red
+     filled with a halo, red hollow), and the first hour ahead is ringed
+     and labelled ("90% expected at Jan 19 16:00"). The status line says
+     how far off datyx's predictions of the hours shown were. See [A care
+     center's occupancy per hour](occupancy-timeline.md).
+   - **The pace**: measured on the development machine, datyx trains
+     `occupancy_hourly` in 106 s and answers a forecast for 33 care
+     centers in about 7 s, seven simulated hours at a second an hour. The
+     simulation now runs a simulated hour every 10 s
+     (`HEALTHHUB_SIM_TURN_MS` 2500, `HEALTHHUB_SIM_MINUTES_PER_TURN` 15,
+     both still settings), so a forecast comes within the hour, the
+     alarms' checks read every care center about once a simulated hour,
+     and the 24 hours ahead are 4 real minutes of warning; datyx's
+     development catalogue retrains `occupancy_hourly` every 15 minutes
+     (`retrain`: `15min`, 90 simulated hours). See
+     [The simulation](simulation.md#pace) and [Development
+     environment](dev-environment.md).
+   - **The alarms** are against `HEALTHHUB_ALARM_THRESHOLD` (0.9, or
+     `90%`; above 0 and at most 2, else the server stops) of each care
+     center's capacity, at or above it: a new level, **actual**, the
+     worst, when the occupancy observed at the run's latest hour reaches
+     it ("Occupancy now at 92%"), checked even while datyx can't
+     forecast; **expected** when the forecast's mean does, **possible**
+     when its 90th percentile does, each with its earliest hour and lead
+     from now. Events, transitions and the three-checks hysteresis are as
+     before; the events carry the threshold and the occupancy, which
+     `occupancy_alarm` stores in new columns (its level checks take
+     `actual`). The banners and rows use the threshold's wording ("90%
+     occupancy expected at ...", "Alarm: 90% reached now", "Cleared:
+     below 90%"). See [Occupancy alarms](occupancy-alarms.md),
+     [Database](database.md), [Home](home.md) and [API](api.md).

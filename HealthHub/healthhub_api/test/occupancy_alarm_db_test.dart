@@ -13,6 +13,11 @@ final _event = <String, Object?>{
   'hospitalName': "Hospital de l'Esperança",
   'careCenterKind': 'hospital',
   'level': 'expected',
+  'threshold': 0.9,
+  'thresholdPlaces': 7.2,
+  'occupancy': 6,
+  'occupancyShare': 0.75,
+  'observedAt': '2026-06-03T09:00',
   'overflowAt': '2026-06-03T16:00',
   'overflowDay': 154,
   'leadHours': 7,
@@ -41,6 +46,9 @@ void main() {
     expect(parameters['simDay']!.value, 154);
     expect(parameters['simTime']!.value, '09:12');
     expect(parameters['trainingRun']!.value, 4);
+    expect(parameters['threshold']!.value, 0.9);
+    expect(parameters['occupancy']!.value, 6);
+    expect(parameters['observedAt']!.value, DateTime.utc(2026, 6, 3, 9));
     expect(parameters['raisedAt']!.value, DateTime.utc(2026, 11, 1, 14, 3, 5, 120));
     // A cleared event: no level, no overflow.
     final cleared = Db.alarmParameters({..._event, 'kind': 'cleared', 'level': null, 'overflowAt': null, 'peak': null, 'now': null});
@@ -82,6 +90,19 @@ void main() {
           ..._event, 'id': 'fffffff0-1-2', 'kind': 'cleared', 'level': null, 'previous': 'expected',
           'overflowAt': null, 'leadHours': null, 'mean': null, 'p90': null,
         });
+        // The actual level, which the table's check takes since it was made again.
+        final actual = await insert({
+          ..._event, 'id': 'fffffff0-1-4', 'level': 'actual', 'previous': 'expected', 'occupancy': 8,
+          'overflowAt': '2026-06-03T09:00', 'leadHours': 0, 'mean': null, 'p90': null,
+        });
+        expect(actual, 1);
+        // A level that isn't one is refused.
+        await tx.execute('SAVEPOINT level');
+        await expectLater(
+          tx.execute(Sql.named(Db.insertAlarmSql), parameters: Db.alarmParameters({..._event, 'id': 'fffffff0-1-5', 'level': 'over'})),
+          throwsA(isA<ServerException>()),
+        );
+        await tx.execute('ROLLBACK TO SAVEPOINT level');
         // A cleared event with a level is refused by the table's check.
         await tx.execute('SAVEPOINT bad');
         await expectLater(
@@ -91,9 +112,9 @@ void main() {
         await tx.execute('ROLLBACK TO SAVEPOINT bad');
         final rows = await tx.execute(
           Sql.named('''
-            SELECT kind, run_id, hospital_id, hospital_name, care_center_kind, level, previous_level, overflow_at,
-                   lead_hours, mean, p90, peak_at, peak_mean, peak_p90, capacity, unit, series_end, horizon_hours,
-                   training_run, sim_day, sim_time, raised_at
+            SELECT kind, run_id, hospital_id, hospital_name, care_center_kind, level, previous_level, threshold,
+                   occupancy, observed_at, overflow_at, lead_hours, mean, p90, peak_at, peak_mean, peak_p90, capacity,
+                   unit, series_end, horizon_hours, training_run, sim_day, sim_time, raised_at
             FROM occupancy_alarm WHERE id = @id
           '''),
           parameters: {'id': _event['id']},
@@ -106,11 +127,107 @@ void main() {
     }
     expect((first, again, cleared), (1, 0, 1));
     expect(row, [
-      'alarm', 'fffffff0', 1, "Hospital de l'Esperança", 'hospital', 'expected', null,
-      DateTime.utc(2026, 6, 3, 16), 7, 10.2, 12.0, DateTime.utc(2026, 6, 3, 18), 11.3, 13.0, 8, 'beds',
+      'alarm', 'fffffff0', 1, "Hospital de l'Esperança", 'hospital', 'expected', null, 0.9, 6,
+      DateTime.utc(2026, 6, 3, 9), DateTime.utc(2026, 6, 3, 16), 7, 10.2, 12.0, DateTime.utc(2026, 6, 3, 18), 11.3, 13.0, 8, 'beds',
       DateTime.utc(2026, 6, 3, 9), 24, 4, 154, '09:12', DateTime.utc(2026, 11, 1, 14, 3, 5, 120),
     ]);
     final left = await c.execute("SELECT count(*) FROM occupancy_alarm WHERE run_id = 'fffffff0'");
+    expect(left.single[0], 0);
+  });
+
+  test('a forecast\'s steps as occupancy_forecast\'s rows: the series\' end and each step\'s lead', () {
+    final rows = Db.forecastRows({
+      12: [
+        {'at': '2026-01-02T02:00', 'mean': 3.5, 'p10': 2, 'p50': 3, 'p90': 5},
+        {'at': '2026-01-02T01:00', 'mean': 3.0, 'p10': 1, 'p50': 3, 'p90': 4},
+        'nonsense',
+      ],
+      13: const [],
+    });
+    expect(rows, [
+      {'hospital_id': 12, 'hour_start': '2026-01-02T01:00:00', 'series_end': '2026-01-02T00:00:00', 'lead_hours': 1,
+        'mean': 3.0, 'p10': 1.0, 'p90': 4.0},
+      {'hospital_id': 12, 'hour_start': '2026-01-02T02:00:00', 'series_end': '2026-01-02T00:00:00', 'lead_hours': 2,
+        'mean': 3.5, 'p10': 2.0, 'p90': 5.0},
+    ]);
+    // Every value a parameter: the rows one JSON parameter.
+    for (final sql in [Db.upsertForecastSql, Db.predictedOccupancySql, Db.runEndSql, Db.occupancyAtSql]) {
+      expect(sql, isNot(contains("'")));
+    }
+    final parameters = Db.forecastParameters('abcd1234', rows, 4, DateTime.utc(2026, 11, 1, 14));
+    for (final name in RegExp(r'@(\w+)').allMatches(Db.upsertForecastSql).map((m) => m[1]!)) {
+      expect(parameters, contains(name), reason: name);
+    }
+    expect(parameters['rows']!.value, rows);
+  });
+
+  /// Against a scratch database (HEALTHHUB_DB_*), when it is up; skipped
+  /// otherwise. Its rows are rolled back.
+  test('what was predicted of each hour: the forecast made closest to it wins, and is read back by hour', () async {
+    final settings = DbSettings.fromEnvironment();
+    final db = Db(settings);
+    addTearDown(db.close);
+    if (!await db.ping()) {
+      markTestSkipped('PostgreSQL not answering at $settings');
+      return;
+    }
+    await db.migrate();
+    final c = await Connection.open(
+      Endpoint(
+        host: settings.host,
+        port: settings.port,
+        database: settings.database,
+        username: settings.user,
+        password: settings.password,
+      ),
+      settings: const ConnectionSettings(sslMode: SslMode.disable),
+    );
+    addTearDown(c.close);
+    const run = 'fffffff0';
+    List<Map<String, Object?>> forecast(int fromHour, List<num> means) => [
+      for (var i = 0; i < means.length; i++)
+        {
+          'at': DateTime.utc(2026, 1, 2, fromHour + i + 1).toIso8601String().substring(0, 16),
+          'mean': means[i],
+          'p10': means[i] - 1,
+          'p50': means[i],
+          'p90': means[i] + 1,
+        },
+    ];
+    List<List<Object?>>? read;
+    try {
+      await c.runTx((tx) async {
+        Future<void> keep(Map<int, List<Object?>> forecasts, int trainingRun) => tx.execute(
+          Sql.named(Db.upsertForecastSql),
+          parameters: Db.forecastParameters(run, Db.forecastRows(forecasts), trainingRun, DateTime.utc(2026, 11, 1, 14)),
+        );
+        // From 00:00: 01:00 to 04:00. Then from 02:00: 03:00 to 05:00, closer, so they win.
+        await keep({900001: forecast(0, [1, 2, 3, 4]), 900002: forecast(0, [9])}, 4);
+        await keep({900001: forecast(2, [30, 40, 50])}, 5);
+        // An older forecast, from 01:00, comes late: it changes 02:00 (closer than 00:00's) but not 03:00 or 04:00.
+        await keep({900001: forecast(1, [200, 300, 400])}, 6);
+        final rows = await tx.execute(
+          Sql.named(Db.predictedOccupancySql),
+          parameters: {
+            'run': run,
+            'id': 900001,
+            'from': TypedValue(Type.timestampWithoutTimezone, DateTime.utc(2026, 1, 2)),
+            'to': TypedValue(Type.timestampWithoutTimezone, DateTime.utc(2026, 1, 2, 4)),
+          },
+        );
+        read = [for (final row in rows) row.toList()];
+        throw _Rollback();
+      });
+    } on _Rollback {
+      // Nothing written stays.
+    }
+    expect(read, [
+      [DateTime.utc(2026, 1, 2, 1), 1.0, 0.0, 2.0, 1],
+      [DateTime.utc(2026, 1, 2, 2), 200.0, 199.0, 201.0, 1],
+      [DateTime.utc(2026, 1, 2, 3), 30.0, 29.0, 31.0, 1],
+      [DateTime.utc(2026, 1, 2, 4), 40.0, 39.0, 41.0, 2],
+    ]);
+    final left = await c.execute("SELECT count(*) FROM occupancy_forecast WHERE run_id = 'fffffff0'");
     expect(left.single[0], 0);
   });
 }

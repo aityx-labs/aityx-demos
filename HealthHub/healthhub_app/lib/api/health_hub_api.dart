@@ -662,13 +662,17 @@ DateTime? _simHour(Object? value) {
 
 double? _double(Object? value) => value is num ? value.toDouble() : null;
 
-/// How bad an occupancy alarm is: datyx's forecast mean over the capacity
-/// ([expected]), or only its 90th percentile ([possible]).
+/// How bad an occupancy alarm is, against its threshold (90% of the
+/// capacity): the occupancy observed now reaches it ([actual], the worst),
+/// datyx's forecast mean does at some hour ahead ([expected]), or only its
+/// 90th percentile ([possible]).
 enum AlarmLevel {
+  actual,
   expected,
   possible;
 
   static AlarmLevel? named(Object? name) => switch (name) {
+    'actual' => actual,
     'expected' => expected,
     'possible' => possible,
     _ => null,
@@ -690,11 +694,13 @@ enum AlarmKind {
 }
 
 /// One care center's occupancy alarm, now ([OccupancyAlarms.active]) or
-/// as an event on `healthhub.alarms` ([OccupancyAlarms.recent]): datyx's
-/// DeepAR forecast of its people in care against its capacity. The
-/// earliest forecast hour over it ([overflowAt]), how many simulated hours
-/// ahead ([leadHours]), the forecast mean and 90th percentile there, the
-/// peak over the horizon, and when it was checked ([now]).
+/// as an event on `healthhub.alarms` ([OccupancyAlarms.recent]): its
+/// people in care, observed and as datyx's DeepAR forecasts them, against
+/// a [threshold] of its capacity. The earliest hour at or above it
+/// ([overflowAt]: the hour observed for [AlarmLevel.actual]), how many
+/// simulated hours ahead ([leadHours]), the forecast mean and 90th
+/// percentile there, the peak over the horizon, the occupancy observed,
+/// and when it was checked ([now]).
 class OccupancyAlarm {
   const OccupancyAlarm({
     required this.careCenterId,
@@ -704,6 +710,11 @@ class OccupancyAlarm {
     this.kind = AlarmKind.alarm,
     this.level,
     this.run,
+    this.threshold,
+    this.thresholdPlaces,
+    this.occupancy,
+    this.occupancyShare,
+    this.observedAt,
     this.overflowAt,
     this.leadHours,
     this.mean,
@@ -744,6 +755,11 @@ class OccupancyAlarm {
       kind: AlarmKind.named(eventKind ? kind : json['event'] ?? json['type']),
       level: AlarmLevel.named(json['level']),
       run: _string(json['run']),
+      threshold: _double(json['threshold']),
+      thresholdPlaces: _double(json['thresholdPlaces']),
+      occupancy: _int(json['occupancy']),
+      occupancyShare: _double(json['occupancyShare']),
+      observedAt: _simHour(json['observedAt']),
       overflowAt: _simHour(json['overflowAt']),
       leadHours: _double(json['leadHours']),
       mean: _double(json['mean']),
@@ -774,9 +790,21 @@ class OccupancyAlarm {
   final AlarmLevel? level;
   final String? run;
 
-  /// The earliest simulated hour the forecast goes over the capacity at
-  /// [level], and how many simulated hours after the series' end (the
-  /// run's latest hour, where the forecast starts) it is.
+  /// The share of the capacity whose reaching is an alarm (0.9), and that
+  /// share of [capacity] in people (7.2 of 8 beds); null from an API
+  /// before them, which alarmed over the capacity.
+  final double? threshold;
+  final double? thresholdPlaces;
+
+  /// The people in care at [observedAt], the run's latest hour at the
+  /// check, and their share of the capacity (0.92).
+  final int? occupancy;
+  final double? occupancyShare;
+  final DateTime? observedAt;
+
+  /// The earliest simulated hour at or above the threshold at [level] (the
+  /// one observed for actual), and how many simulated hours after the
+  /// series' end (the run's latest hour, where the forecast starts) it is.
   final DateTime? overflowAt;
   final double? leadHours;
 
@@ -812,6 +840,7 @@ class OccupancyAlarm {
   final bool stale;
 
   bool get expected => level == AlarmLevel.expected;
+  bool get actual => level == AlarmLevel.actual;
 }
 
 /// The occupancy alarms as `GET /api/events` carries them (`alarms`), as
@@ -828,10 +857,11 @@ class OccupancyAlarms {
     this.checkedAt,
     this.stale = false,
     this.signIn = false,
+    this.threshold,
   });
 
-  /// `{"enabled", "checkedAt", "status", "note", "stale", "active",
-  /// "recent"}`; not [reported] when [json] isn't one.
+  /// `{"enabled", "threshold", "checkedAt", "status", "note", "stale",
+  /// "active", "recent"}`; not [reported] when [json] isn't one.
   static OccupancyAlarms fromJson(Object? json) {
     if (json is! Map) return const OccupancyAlarms();
     List<OccupancyAlarm> all(Object? list) => [
@@ -850,10 +880,15 @@ class OccupancyAlarms {
       checkedAt: json['checkedAt'] is String ? DateTime.tryParse(json['checkedAt'] as String) : null,
       stale: json['stale'] == true,
       signIn: json['signIn'] == true,
+      threshold: _double(json['threshold']),
     );
   }
 
   final List<OccupancyAlarm> active;
+
+  /// The share of the capacity whose reaching is an alarm (0.9); null
+  /// when the API doesn't say.
+  final double? threshold;
   final List<OccupancyAlarm> recent;
 
   /// Whether the answer said anything of alarms: an API without them
@@ -1627,16 +1662,41 @@ class Prediction {
 }
 
 /// One hour of a care center's occupancy: when it starts (simulated time,
-/// day 1 being 2026-01-01) and how many people were in care there at any
-/// minute of it.
+/// day 1 being 2026-01-01), how many people were in care there at any
+/// minute of it, and what datyx had [predicted] of it before (null when
+/// nothing was kept).
 class HourOccupancy {
-  const HourOccupancy({required this.hour, this.occupancy = 0});
+  const HourOccupancy({required this.hour, this.occupancy = 0, this.predicted});
 
-  factory HourOccupancy.fromJson(Map<String, Object?> json) =>
-      HourOccupancy(hour: _hour(json['hour']), occupancy: _int(json['occupancy']) ?? 0);
+  factory HourOccupancy.fromJson(Map<String, Object?> json) => HourOccupancy(
+    hour: _hour(json['hour']),
+    occupancy: _int(json['occupancy']) ?? 0,
+    predicted: PredictedHour.fromJson(json['predicted']),
+  );
 
   final DateTime hour;
   final int occupancy;
+  final PredictedHour? predicted;
+}
+
+/// What datyx's DeepAR predicted of an hour before it was observed: the
+/// forecast made closest to it, its mean, 10th and 90th percentiles, and
+/// how many hours ahead it was made ([leadHours], 1 for the next hour).
+class PredictedHour {
+  const PredictedHour({required this.mean, this.p10, this.p90, this.leadHours});
+
+  /// `{"mean", "p10", "p90", "leadHours"}`; null without a mean.
+  static PredictedHour? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final mean = _double(json['mean']);
+    if (mean == null) return null;
+    return PredictedHour(mean: mean, p10: _double(json['p10']), p90: _double(json['p90']), leadHours: _int(json['leadHours']));
+  }
+
+  final double mean;
+  final double? p10;
+  final double? p90;
+  final int? leadHours;
 }
 
 /// A simulated hour as the API writes it, `YYYY-MM-DDTHH:MM`, read as UTC.
@@ -1646,13 +1706,23 @@ DateTime _hour(Object? value) => DateTime.parse('${value as String}Z');
 /// care at a care center in each hour up to its run's end, oldest first;
 /// no run and no hours when nobody has been admitted there.
 class HourlyOccupancy {
-  const HourlyOccupancy({required this.hospitalId, this.run, this.current = false, this.end, this.hours = const []});
+  const HourlyOccupancy({
+    required this.hospitalId,
+    this.run,
+    this.current = false,
+    this.end,
+    this.hours = const [],
+    this.threshold,
+    this.now,
+  });
 
   factory HourlyOccupancy.fromJson(Map<String, Object?> json) => HourlyOccupancy(
     hospitalId: _int(json['hospitalId']) ?? 0,
     run: _string(json['run']),
     current: json['current'] == true,
     end: json['end'] is String ? _hour(json['end']) : null,
+    threshold: _double(json['threshold']),
+    now: SimNow.fromJson(json['now']),
     hours: [
       for (final hour in (json['hours'] as List? ?? const []))
         HourOccupancy.fromJson((hour as Map).cast()),
@@ -1668,6 +1738,13 @@ class HourlyOccupancy {
   /// The run's latest hour, where its series end.
   final DateTime? end;
   final List<HourOccupancy> hours;
+
+  /// The occupancy alarms' threshold, a share of the capacity (0.9); null
+  /// when the API doesn't say.
+  final double? threshold;
+
+  /// The simulated clock, for the run going on; null otherwise.
+  final SimNow? now;
 }
 
 /// One step of a forecast: the hour, the mean, and the 10th, 50th and

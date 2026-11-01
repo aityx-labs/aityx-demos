@@ -141,7 +141,7 @@ class _UserLocationMapState extends State<UserLocationMap> {
 
   /// Reads the people in view every 5 seconds while the map is shown, and
   /// once the view has settled after a move ([_viewChanged]). They move
-  /// every turn, a second by default, but the map needn't follow each one.
+  /// every turn, 2.5 s by default, but the map needn't follow each one.
   void _followPeople() {
     _poll?.cancel();
     _poll = null;

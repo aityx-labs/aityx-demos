@@ -389,15 +389,62 @@ void main() {
         'run': 'adf5309c',
         'current': false,
         'end': '2026-01-04T10:00',
+        'threshold': null,
+        'now': null,
         'hours': [
-          {'hour': '2026-01-04T08:00', 'occupancy': 3},
-          {'hour': '2026-01-04T09:00', 'occupancy': 2},
-          {'hour': '2026-01-04T10:00', 'occupancy': 0},
+          {'hour': '2026-01-04T08:00', 'occupancy': 3, 'predicted': null},
+          {'hour': '2026-01-04T09:00', 'occupancy': 2, 'predicted': null},
+          {'hour': '2026-01-04T10:00', 'occupancy': 0, 'predicted': null},
         ],
       });
       expect(route('GET', '/api/care-centers/42/occupancy', query: {'hours': 'x'}, hourly: hourly).status, 400);
       expect(route('GET', '/api/care-centers/42/occupancy').status, 503);
       expect(CareCenterSeries.occupancy.table, 'public.occupancy_hourly');
+    });
+
+    test('the people in care with what datyx predicted of each hour before it, the threshold and the clock', () {
+      final hourly = HourlyLookup(
+        run: 'adf5309c',
+        end: DateTime.utc(2026, 1, 4, 10),
+        current: true,
+        rows: [
+          {'hour': DateTime.utc(2026, 1, 4, 9), 'occupancy': 7},
+          {'hour': DateTime.utc(2026, 1, 4, 10), 'occupancy': 8},
+        ],
+        predicted: [
+          {'hour': DateTime.utc(2026, 1, 4, 9), 'mean': 6.4, 'p10': 4.0, 'p90': 8.5, 'leadHours': 1},
+          {'hour': DateTime.utc(2026, 1, 4, 10), 'mean': 7.1, 'p10': 5.0, 'p90': 9.0, 'leadHours': 2},
+        ],
+        threshold: 0.9,
+        now: {'day': 4, 'simTime': '10:40', 'date': '2026-01-04'},
+      );
+      final answer = route('GET', '/api/care-centers/42/occupancy', query: {'hours': '3'}, hourly: hourly);
+      expect(answer.status, 200);
+      expect(answer.body, {
+        'hospitalId': 42,
+        'run': 'adf5309c',
+        'current': true,
+        'end': '2026-01-04T10:00',
+        'threshold': 0.9,
+        'now': {'day': 4, 'simTime': '10:40', 'date': '2026-01-04'},
+        'hours': [
+          // Nothing kept of 08:00: no prediction, not a zero.
+          {'hour': '2026-01-04T08:00', 'occupancy': 0, 'predicted': null},
+          {'hour': '2026-01-04T09:00', 'occupancy': 7, 'predicted': {'mean': 6.4, 'p10': 4.0, 'p90': 8.5, 'leadHours': 1}},
+          {'hour': '2026-01-04T10:00', 'occupancy': 8, 'predicted': {'mean': 7.1, 'p10': 5.0, 'p90': 9.0, 'leadHours': 2}},
+        ],
+      });
+      // datyx's forecast it is: with sign-in on, a signed-in user's only; the hours still everyone's.
+      final anyone = route('GET', '/api/care-centers/42/occupancy', query: {'hours': '3'}, hourly: hourly, auth: on).body as Map;
+      expect([for (final h in anyone['hours'] as List) (h['occupancy'], h['predicted'])], [(0, null), (7, null), (8, null)]);
+      const ana = Identity(subject: 'ana', email: 'ana@example.com');
+      final signedIn = route('GET', '/api/care-centers/42/occupancy',
+          query: {'hours': '3'}, hourly: hourly, auth: on, identity: ana).body as Map;
+      expect(((signedIn['hours'] as List).last as Map)['predicted'], isNotNull);
+      // The admissions have none of it.
+      final admissions = route('GET', '/api/care-centers/42/admissions', query: {'hours': '1'}, hourly: hourly).body as Map;
+      expect(admissions.containsKey('threshold'), isFalse);
+      expect(((admissions['hours'] as List).single as Map).containsKey('predicted'), isFalse);
     });
 
     test('every hour up to the run\'s end, an hour without a row a zero', () {
@@ -554,6 +601,7 @@ void main() {
       expect(body['enabled'], true);
       expect(body['paused'], false);
       expect(body['everyMs'], 5000);
+      expect(body['threshold'], 0.9);
       expect(body['now'], {'day': 154, 'simTime': '08:20', 'date': '2026-06-03'});
       expect(body['checkedAt'], '2026-11-01T14:00:00.000Z');
       expect((body['status'], body['note'], body['trainingRun']), (200, null, 4));
@@ -584,8 +632,8 @@ void main() {
       final body = events.body as Map;
       expect(body['now'], {'day': 154, 'simTime': '08:20', 'date': '2026-06-03'});
       expect(body['alarms'], {
-        'enabled': true, 'checkedAt': null, 'status': null, 'note': null, 'stale': false, 'active': [], 'recent': [],
-        'signIn': true,
+        'enabled': true, 'threshold': 0.9, 'checkedAt': null, 'status': null, 'note': null, 'stale': false,
+        'active': [], 'recent': [], 'signIn': true,
       });
       final signedIn = route('GET', '/api/events', dev: true, auth: auth, identity: ana, alarms: failed).body as Map;
       expect((signedIn['alarms'] as Map)['active'], [active]);
@@ -594,8 +642,8 @@ void main() {
 
     test('/api/alarms says nothing in prod or with the alarms off; the clock still in dev', () {
       const empty = {
-        'enabled': false, 'paused': false, 'everyMs': 0, 'now': null, 'checkedAt': null, 'status': null,
-        'note': null, 'stale': false, 'trainingRun': null, 'active': [], 'recent': [],
+        'enabled': false, 'paused': false, 'everyMs': 0, 'threshold': 0.9, 'now': null, 'checkedAt': null,
+        'status': null, 'note': null, 'stale': false, 'trainingRun': null, 'active': [], 'recent': [],
       };
       expect(route('GET', '/api/alarms', alarms: alarms, people: moves, paused: true).body, empty);
       final off = route('GET', '/api/alarms', dev: true, people: moves).body as Map;
@@ -608,7 +656,7 @@ void main() {
       final body = route('GET', '/api/events', dev: true, alarms: alarms, people: moves).body as Map;
       expect(body['now'], {'day': 154, 'simTime': '08:20', 'date': '2026-06-03'});
       final carried = body['alarms'] as Map;
-      expect(carried.keys, ['enabled', 'checkedAt', 'status', 'note', 'stale', 'active', 'recent']);
+      expect(carried.keys, ['enabled', 'threshold', 'checkedAt', 'status', 'note', 'stale', 'active', 'recent']);
       expect(carried['enabled'], true);
       expect(carried['active'], [active]);
       expect(carried['recent'], hasLength(eventsAlarmsRecent));
@@ -620,7 +668,8 @@ void main() {
       final prod = route('GET', '/api/events', alarms: alarms, people: moves).body as Map;
       expect(prod['now'], isNull);
       expect(prod['alarms'], {
-        'enabled': false, 'checkedAt': null, 'status': null, 'note': null, 'stale': false, 'active': [], 'recent': [],
+        'enabled': false, 'threshold': 0.9, 'checkedAt': null, 'status': null, 'note': null, 'stale': false,
+        'active': [], 'recent': [],
       });
       // Before the first move, no clock.
       expect((route('GET', '/api/events', dev: true).body as Map)['now'], isNull);

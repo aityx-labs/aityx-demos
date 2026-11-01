@@ -117,20 +117,22 @@ which starts again from `HEALTHHUB_SIM_PEOPLE`.
   transport (`transit`) up to 15 km at 20 km/h, and by car (`car`)
   beyond, at 50 km/h. Each turn a traveller moves at most that speed
   times the turn's simulated time, in a straight line, stopping exactly
-  at the destination. With an hour a turn, a walk or a city trip ends in
-  the turn it starts; Cornudella de Montsant to Reus, about 20 km by car,
-  too; with shorter turns the trips take several. The arrival is timed to
+  at the destination. With the default quarter of an hour a turn, a
+  walk of up to 1.25 km, a city trip of up to 5 km or a drive of up to
+  12.5 km ends in the turn it starts, and longer ones take several:
+  Cornudella de Montsant to Reus, about 20 km by car, two turns; a 2 km
+  walk two, a 15 km city trip three. The map shows them on the way. The arrival is timed to
   the minute: the departure plus the distance at that speed (a 1 km walk
   that leaves at 09:00 arrives at 09:13).
 
 ## Turns and the clock
 
 The simulated clock starts at 06:00 on day 1 and advances
-`HEALTHHUB_SIM_MINUTES_PER_TURN` minutes (60) every turn, a turn every
-`HEALTHHUB_SIM_TURN_MS` real milliseconds (1000): a real second is a
-simulated hour, a simulated day 24 seconds, a simulated month about 12
-minutes. Each turn every person does one thing, in the state `home`,
-`to_hospital`, `at_hospital` or `to_home`:
+`HEALTHHUB_SIM_MINUTES_PER_TURN` minutes (15) every turn, a turn every
+`HEALTHHUB_SIM_TURN_MS` real milliseconds (2500): a simulated hour every
+10 real seconds, a simulated day 4 minutes, a simulated month about 2
+hours ([The pace](#pace) says why). Each turn every person does one
+thing, in the state `home`, `to_hospital`, `at_hospital` or `to_home`:
 
 - **home**: nothing, until a visit is due; then they leave at the
   turn's time, and travel in the same turn.
@@ -149,10 +151,49 @@ everyone. The loops agree on the clock because each derives its turn from
 the time since the simulation started; a loop that overran a turn (a slow
 publish) skips to the current one instead of falling behind.
 
+## Pace
+
+A simulated hour takes 10 real seconds by default (a turn of 15
+simulated minutes every 2.5 s), so that datyx's forecasts stay
+meaningful for the live run: the [occupancy alarms](occupancy-alarms.md)
+warn before a care center fills, and the [care center
+view](occupancy-timeline.md) keeps what was predicted of each hour
+before it came. Measured on the development machine (datyx's
+`training_run` and `inference_call`, 2026-11-01):
+
+| | Real time | At 1 s an hour (before) | At 10 s an hour (now) |
+| --- | --- | --- | --- |
+| datyx's DeepAR inference, 33 care centers | about 7 s a call (two calls past 100 care centers) | 7 simulated hours | 0.7 h |
+| The alarms' check interval | 5 s at least, a check at a time | 5 h | half an hour |
+| A forecast's horizon, 24 h | | 24 s of warning | 4 minutes |
+| A DeepAR training of `occupancy_hourly` | 106 s (`admissions_hourly`'s first, 182 s) | 106 h | 11 h |
+| datyx's retraining of it (`15min`) | 15 minutes | 900 h | 90 h, almost 4 days |
+| The care center card's refresh | 10 s | 10 h | 1 h |
+
+At a second an hour a forecast arrived 7 simulated hours after the hour
+it started from, a third of its horizon gone, and the alarms' checks
+kept one forecast in every five or more hours: what was predicted of an
+hour was mostly made many hours before it. At 10 s an hour the
+forecast comes within the hour, a check reads every care center about
+once a simulated hour, so the prediction kept of each hour is the one
+made an hour before it, and an alarm warns up to 4 real minutes ahead.
+datyx retrains the occupancy model every 15 minutes
+([datyx's curation](../../datyx/specs/curation.md), its development
+document), 90 simulated hours of the run's new data each time, and
+the model reads the run's latest 48 hours at every forecast anyway.
+The quarter-hour turns also move people on the map four times a
+simulated hour, with fewer records a real second than before (one turn
+every 2.5 s, not every second).
+
+Both stay settings: `HEALTHHUB_SIM_TURN_MS=1000` and
+`HEALTHHUB_SIM_MINUTES_PER_TURN=60` run it at the old pace (an `.env`
+copied from an older `.env.example` has them: remove them for the new
+one).
+
 ## The calendar
 
 Simulated time is a calendar that starts on 2026-01-01 at 00:00 (day 1)
-and runs from there, a simulated hour every real second with the
+and runs from there, a simulated hour every 10 real seconds with the
 defaults: a run's day 4 at 09:09 is 2026-01-04 09:09, its day 554
 2027-07-08. Every record carries its `day` and `simTime` and the same
 moment as `at`, ISO 8601 without a zone (`simAt`); the admissions table

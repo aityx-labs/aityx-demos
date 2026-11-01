@@ -179,7 +179,7 @@ void main() {
     people.first.beginAcute(cold, simStartMinutes, Random(5));
     final simulation = Simulation(
       people,
-      const SimulationSettings(turn: Duration(milliseconds: 15)),
+      const SimulationSettings(turn: Duration(milliseconds: 15), minutesPerTurn: 60),
       kafka,
       conditions: [cold],
     )..start();

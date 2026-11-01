@@ -12,7 +12,7 @@ import 'care_centers.dart';
 import 'care_centers_seed.dart';
 import 'conditions.dart';
 import 'conditions_seed.dart';
-import 'occupancy_alarms.dart' show AlarmCareCenter;
+import 'occupancy_alarms.dart' show AlarmCareCenter, ObservedOccupancy, forecastSteps;
 import 'routes.dart' show Bbox;
 import 'schema_comments.dart';
 import 'simulation.dart' show LatLon, Place;
@@ -402,7 +402,8 @@ class Db {
       GROUP BY run_id, hospital_id, hour_start
     ''');
     // Each occupancy alarm event (lib/occupancy_alarms.dart): a care
-    // center's level rising, falling or clearing against datyx's forecast.
+    // center's level rising, falling or clearing against a threshold of
+    // its capacity, by the occupancy observed or datyx's forecast.
     await c.execute('''
       CREATE TABLE IF NOT EXISTS occupancy_alarm (
         id TEXT PRIMARY KEY,
@@ -411,8 +412,8 @@ class Db {
         hospital_id INT NOT NULL,
         hospital_name TEXT NOT NULL,
         care_center_kind TEXT NOT NULL,
-        level TEXT CHECK (level IN ('possible', 'expected')),
-        previous_level TEXT CHECK (previous_level IN ('possible', 'expected')),
+        level TEXT,
+        previous_level TEXT,
         overflow_at TIMESTAMP,
         lead_hours INT,
         mean DOUBLE PRECISION,
@@ -434,6 +435,40 @@ class Db {
     await c.execute(
       'CREATE INDEX IF NOT EXISTS occupancy_alarm_run_idx ON occupancy_alarm (run_id, hospital_id, raised_at)',
     );
+    // The threshold (a share of the capacity), the occupancy observed and
+    // its hour, and the actual level, which the table didn't have at
+    // first: the levels' checks made again with it, by name.
+    await c.execute('ALTER TABLE occupancy_alarm ADD COLUMN IF NOT EXISTS threshold DOUBLE PRECISION');
+    await c.execute('ALTER TABLE occupancy_alarm ADD COLUMN IF NOT EXISTS occupancy INT');
+    await c.execute('ALTER TABLE occupancy_alarm ADD COLUMN IF NOT EXISTS observed_at TIMESTAMP');
+    for (final column in ['level', 'previous_level']) {
+      await c.execute('ALTER TABLE occupancy_alarm DROP CONSTRAINT IF EXISTS occupancy_alarm_${column}_check');
+      await c.execute(
+        "ALTER TABLE occupancy_alarm ADD CONSTRAINT occupancy_alarm_${column}_check "
+        "CHECK ($column IN ('possible', 'expected', 'actual'))",
+      );
+    }
+    // What datyx's DeepAR predicted of each care center's occupancy in
+    // each hour of a run before the hour was observed: the latest
+    // forecast made before it (from the latest series' end, the shortest
+    // lead), from the occupancy alarms' checks and the care center view's
+    // forecasts.
+    await c.execute('''
+      CREATE TABLE IF NOT EXISTS occupancy_forecast (
+        run_id TEXT NOT NULL,
+        hospital_id INT NOT NULL,
+        hour_start TIMESTAMP NOT NULL,
+        series_end TIMESTAMP NOT NULL,
+        lead_hours INT NOT NULL,
+        mean DOUBLE PRECISION NOT NULL,
+        p10 DOUBLE PRECISION NOT NULL,
+        p90 DOUBLE PRECISION NOT NULL,
+        training_run BIGINT,
+        forecast_at TIMESTAMPTZ NOT NULL,
+        PRIMARY KEY (run_id, hospital_id, hour_start),
+        CHECK (hour_start > series_end)
+      )
+    ''');
     // What each table and column is, for a catalogue reading the schema.
     await commentSchema(c);
   }
@@ -1169,11 +1204,11 @@ class Db {
   /// The statement [recordAlarm] runs: every value a parameter.
   static const insertAlarmSql = '''
     INSERT INTO occupancy_alarm (id, kind, run_id, hospital_id, hospital_name, care_center_kind, level,
-      previous_level, overflow_at, lead_hours, mean, p90, peak_at, peak_mean, peak_p90, capacity, unit,
-      series_end, horizon_hours, training_run, sim_day, sim_time, raised_at)
+      previous_level, threshold, occupancy, observed_at, overflow_at, lead_hours, mean, p90, peak_at, peak_mean,
+      peak_p90, capacity, unit, series_end, horizon_hours, training_run, sim_day, sim_time, raised_at)
     VALUES (@id, @kind, @run, @hospitalId, @hospitalName, @careCenterKind, @level,
-      @previous, @overflowAt, @leadHours, @mean, @p90, @peakAt, @peakMean, @peakP90, @capacity, @unit,
-      @end, @horizonHours, @trainingRun, @simDay, @simTime, @raisedAt)
+      @previous, @threshold, @occupancy, @observedAt, @overflowAt, @leadHours, @mean, @p90, @peakAt, @peakMean,
+      @peakP90, @capacity, @unit, @end, @horizonHours, @trainingRun, @simDay, @simTime, @raisedAt)
     ON CONFLICT (id) DO NOTHING
     RETURNING id
   ''';
@@ -1193,6 +1228,9 @@ class Db {
       'careCenterKind': TypedValue(Type.text, event['careCenterKind']),
       'level': TypedValue(Type.text, event['level']),
       'previous': TypedValue(Type.text, event['previous']),
+      'threshold': TypedValue(Type.double, number(event['threshold'])),
+      'occupancy': TypedValue(Type.integer, event['occupancy'] is num ? (event['occupancy'] as num).toInt() : null),
+      'observedAt': TypedValue(Type.timestampWithoutTimezone, hour(event['observedAt'])),
       'overflowAt': TypedValue(Type.timestampWithoutTimezone, hour(event['overflowAt'])),
       'leadHours': TypedValue(Type.integer, event['leadHours']),
       'mean': TypedValue(Type.double, number(event['mean'])),
@@ -1210,6 +1248,128 @@ class Db {
       'raisedAt': TypedValue(Type.timestampWithTimezone, DateTime.parse(event['raisedAt'] as String)),
     };
   }
+
+  /// The occupancy of each care center of [run] at the run's latest hour
+  /// (its series' end, null before any), from occupancy_hourly, for the
+  /// occupancy alarms' actual level: a care center nobody is in care at
+  /// then has no row.
+  Future<ObservedOccupancy> observedOccupancy(String run) => _run((c) => readObserved(c, run));
+
+  /// [observedOccupancy] in [session]: the run's latest hour, then each
+  /// care center's occupancy then.
+  static Future<ObservedOccupancy> readObserved(Session session, String run) async {
+    final ends = await session.execute(Sql.named(runEndSql), parameters: {'run': run});
+    final end = ends.first[0] as DateTime?;
+    if (end == null) return (end: null, occupancy: const <int, int>{});
+    final rows = await session.execute(
+      Sql.named(occupancyAtSql),
+      parameters: {'run': run, 'end': TypedValue(Type.timestampWithoutTimezone, end)},
+    );
+    return (end: end.toUtc(), occupancy: {for (final row in rows) row[0] as int: row[1] as int});
+  }
+
+  /// A run's latest hour in occupancy_hourly, and each care center's
+  /// occupancy in an hour of it.
+  static const runEndSql = 'SELECT max(hour_start) FROM occupancy_hourly WHERE run_id = @run';
+  static const occupancyAtSql =
+      'SELECT hospital_id, occupancy FROM occupancy_hourly WHERE run_id = @run AND hour_start = @end';
+
+  /// Keeps what datyx's DeepAR [forecasts] (per care center of [run], its
+  /// steps from its series' end, `{"at", "mean", "p10", "p90"}`) say of
+  /// each hour in occupancy_forecast, one row per care center and hour: a
+  /// forecast from a later series' end (made closer to the hour) replaces
+  /// one from an earlier one, never the other way round. One statement,
+  /// the rows a JSON parameter. Throws when the database doesn't answer.
+  Future<void> recordForecasts(
+    String run,
+    Map<int, List<Object?>> forecasts, {
+    Object? trainingRun,
+    DateTime? at,
+  }) => _run((c) async {
+    final rows = forecastRows(forecasts);
+    if (rows.isEmpty) return;
+    await c.execute(Sql.named(upsertForecastSql), parameters: forecastParameters(run, rows, trainingRun, at ?? DateTime.now()));
+  });
+
+  /// [upsertForecastSql]'s parameters, each typed.
+  static Map<String, TypedValue> forecastParameters(
+    String run,
+    List<Map<String, Object?>> rows,
+    Object? trainingRun,
+    DateTime at,
+  ) => {
+    'run': TypedValue(Type.text, run),
+    'rows': TypedValue(Type.jsonb, rows),
+    'trainingRun': TypedValue(Type.bigInteger, trainingRun is num ? trainingRun.toInt() : null),
+    'at': TypedValue(Type.timestampWithTimezone, at.toUtc()),
+  };
+
+  /// [forecasts]' steps as occupancy_forecast's rows: each care center's
+  /// steps with its series' end (a step before its first) and each step's
+  /// lead in hours from it, the hours as `YYYY-MM-DDTHH:MM:SS`.
+  static List<Map<String, Object?>> forecastRows(Map<int, List<Object?>> forecasts) {
+    String key(DateTime t) => t.toUtc().toIso8601String().substring(0, 19);
+    final rows = <Map<String, Object?>>[];
+    for (final MapEntry(key: id, value: forecast) in forecasts.entries) {
+      final steps = forecastSteps(forecast);
+      if (steps.isEmpty) continue;
+      final stride = steps.length > 1 ? steps[1].at.difference(steps[0].at) : const Duration(hours: 1);
+      final end = steps.first.at.subtract(stride);
+      for (final step in steps) {
+        rows.add({
+          'hospital_id': id,
+          'hour_start': key(step.at),
+          'series_end': key(end),
+          'lead_hours': step.at.difference(end).inHours,
+          'mean': step.mean,
+          'p10': step.p10,
+          'p90': step.p90,
+        });
+      }
+    }
+    return rows;
+  }
+
+  /// The statement [recordForecasts] runs: every value a parameter.
+  static const upsertForecastSql = '''
+    INSERT INTO occupancy_forecast (run_id, hospital_id, hour_start, series_end, lead_hours, mean, p10, p90,
+      training_run, forecast_at)
+    SELECT @run, r.hospital_id, r.hour_start, r.series_end, r.lead_hours, r.mean, r.p10, r.p90, @trainingRun, @at
+    FROM jsonb_to_recordset(@rows) AS r(hospital_id INT, hour_start TIMESTAMP, series_end TIMESTAMP,
+      lead_hours INT, mean DOUBLE PRECISION, p10 DOUBLE PRECISION, p90 DOUBLE PRECISION)
+    WHERE r.hour_start > r.series_end
+    ON CONFLICT (run_id, hospital_id, hour_start) DO UPDATE SET
+      series_end = EXCLUDED.series_end, lead_hours = EXCLUDED.lead_hours, mean = EXCLUDED.mean,
+      p10 = EXCLUDED.p10, p90 = EXCLUDED.p90, training_run = EXCLUDED.training_run,
+      forecast_at = EXCLUDED.forecast_at
+    WHERE occupancy_forecast.series_end <= EXCLUDED.series_end
+  ''';
+
+  /// What datyx predicted of one care center's occupancy in [run], hour by
+  /// hour after [from] up to [to], as occupancy_forecast keeps it, oldest
+  /// first: `{"hour", "mean", "p10", "p90", "leadHours"}`.
+  Future<List<Map<String, Object?>>> predictedOccupancy(int hospitalId, String run, DateTime from, DateTime to) =>
+      _run((c) async {
+        final rows = await c.execute(
+          Sql.named(predictedOccupancySql),
+          parameters: {
+            'run': run,
+            'id': hospitalId,
+            'from': TypedValue(Type.timestampWithoutTimezone, from),
+            'to': TypedValue(Type.timestampWithoutTimezone, to),
+          },
+        );
+        return [
+          for (final row in rows) {'hour': row[0], 'mean': row[1], 'p10': row[2], 'p90': row[3], 'leadHours': row[4]},
+        ];
+      });
+
+  /// The statement [predictedOccupancy] runs.
+  static const predictedOccupancySql = '''
+    SELECT hour_start, mean, p10, p90, lead_hours FROM occupancy_forecast
+    WHERE run_id = @run AND hospital_id = @id AND hour_start > @from AND hour_start <= @to
+    ORDER BY hour_start
+  ''';
 
   Future<void> close() async {
     await _connection?.close();

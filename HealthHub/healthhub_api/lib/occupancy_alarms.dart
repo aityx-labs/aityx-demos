@@ -1,8 +1,9 @@
-/// Occupancy alarms: datyx's DeepAR forecast of every care center's
-/// occupancy per hour (the view occupancy_hourly, group default) against
-/// the care center's capacity in the simulation, kept per care center of
-/// the run going on; an event when a care center's level rises, falls or
-/// clears (specs/occupancy-alarms.md).
+/// Occupancy alarms: every care center's occupancy per hour (the view
+/// occupancy_hourly), observed and as datyx's DeepAR forecasts it (group
+/// default), against a threshold of its capacity in the simulation (90%
+/// unless HEALTHHUB_ALARM_THRESHOLD says), kept per care center of the run
+/// going on; an event when a care center's level rises, falls or clears
+/// (specs/occupancy-alarms.md).
 ///
 /// datyx needs a user's token and the API keeps none: a request carrying
 /// the caller's token sets a check off ([OccupancyAlarms.poke]), at most
@@ -38,15 +39,42 @@ Duration alarmEveryOf(String? raw) {
   return Duration(milliseconds: ms);
 }
 
-/// How bad it looks: the forecast's 90th percentile over the capacity
-/// ([possible]), or its mean ([expected]). Ordered: expected is worse.
-enum AlarmLevel { possible, expected }
+/// The share of a care center's capacity whose reaching is an alarm unless
+/// HEALTHHUB_ALARM_THRESHOLD says: 90%.
+const alarmThresholdDefault = 0.9;
+
+/// HEALTHHUB_ALARM_THRESHOLD: the share of a care center's capacity whose
+/// reaching is an alarm, a number above 0 and at most 2 ("0.9", or "90%"),
+/// [alarmThresholdDefault] when empty. Throws a FormatException for
+/// anything else.
+double alarmThresholdOf(String? raw) {
+  final text = raw?.trim() ?? '';
+  if (text.isEmpty) return alarmThresholdDefault;
+  final percent = text.endsWith('%');
+  final number = double.tryParse(percent ? text.substring(0, text.length - 1).trim() : text);
+  final share = number == null ? null : (percent ? number / 100 : number);
+  if (share == null || !share.isFinite || share <= 0 || share > 2) {
+    throw FormatException('HEALTHHUB_ALARM_THRESHOLD must be a share of the capacity above 0 and at most 2, such as 0.9 or 90%', raw);
+  }
+  return share;
+}
+
+/// How bad it looks, against the threshold: the forecast's 90th
+/// percentile reaches it at some hour ahead ([possible]), its mean does
+/// ([expected]), or the occupancy observed now does ([actual]). Ordered:
+/// actual is the worst.
+enum AlarmLevel { possible, expected, actual }
 
 AlarmLevel? alarmLevelNamed(Object? name) => switch (name) {
   'possible' => AlarmLevel.possible,
   'expected' => AlarmLevel.expected,
+  'actual' => AlarmLevel.actual,
   _ => null,
 };
+
+/// Whether [value] reaches [limit]: at or above it, give or take the
+/// rounding of a share times a capacity (0.9 × 10 is 9).
+bool reaches(num value, double limit) => value >= limit - 1e-9;
 
 /// The simulated [day] (from 1) as a date on the simulation's calendar
 /// ([simEpoch]), YYYY-MM-DD.
@@ -81,7 +109,7 @@ String _hourKey(DateTime hour) => hour.toUtc().toIso8601String().substring(0, 16
 /// One step of a forecast.
 typedef ForecastStep = ({DateTime at, double mean, double p90});
 
-/// What a care center's forecast says against its capacity.
+/// What a care center's forecast says against its threshold.
 class OccupancyReading {
   const OccupancyReading({
     this.level,
@@ -94,12 +122,14 @@ class OccupancyReading {
     this.horizonHours = 0,
   });
 
-  /// None when neither the mean nor the 90th percentile is ever over.
+  /// None when neither the mean nor the 90th percentile ever reaches the
+  /// threshold; never actual (the forecast doesn't observe).
   final AlarmLevel? level;
 
-  /// The earliest hour over the capacity for [level] (the mean's for
-  /// expected, the p90's for possible), the simulated hours from [end]
-  /// to it, and the forecast's mean and p90 then; null without a level.
+  /// The earliest hour at or above the threshold for [level] (the mean's
+  /// for expected, the p90's for possible), the simulated hours from
+  /// [end] to it, and the forecast's mean and p90 then; null without a
+  /// level.
   final DateTime? overflowAt;
   final int? leadHours;
   final double? mean;
@@ -115,26 +145,34 @@ class OccupancyReading {
   final int horizonHours;
 }
 
-/// Reads datyx's [forecast] (its steps, each `{"at", "mean", "p10",
-/// "p50", "p90"}`) against [capacity]: expected when the mean is over it
-/// (strictly) at any step, else possible when the p90 is, else none.
-OccupancyReading readForecast(List<Object?> forecast, int capacity) {
-  final steps = <ForecastStep>[];
+/// The steps of datyx's [forecast] (each `{"at", "mean", "p10", "p50",
+/// "p90"}`) that are steps, in time order, with their p10 (0 when missing).
+List<({DateTime at, double mean, double p10, double p90})> forecastSteps(List<Object?> forecast) {
+  final steps = <({DateTime at, double mean, double p10, double p90})>[];
   for (final step in forecast) {
     if (step is! Map) continue;
     final at = _hourOf(step['at']);
     final mean = step['mean'];
+    final p10 = step['p10'];
     final p90 = step['p90'];
     if (at == null || mean is! num || p90 is! num) continue;
-    steps.add((at: at, mean: mean.toDouble(), p90: p90.toDouble()));
+    steps.add((at: at, mean: mean.toDouble(), p10: p10 is num ? p10.toDouble() : 0, p90: p90.toDouble()));
   }
+  return steps..sort((a, b) => a.at.compareTo(b.at));
+}
+
+/// Reads datyx's [forecast] (its steps, each `{"at", "mean", "p10",
+/// "p50", "p90"}`) against [limit], the threshold in people (the
+/// threshold's share of the capacity): expected when the mean reaches it
+/// (at or above) at any step, else possible when the p90 does, else none.
+OccupancyReading readForecast(List<Object?> forecast, double limit) {
+  final steps = <ForecastStep>[for (final s in forecastSteps(forecast)) (at: s.at, mean: s.mean, p90: s.p90)];
   if (steps.isEmpty) return const OccupancyReading();
-  steps.sort((a, b) => a.at.compareTo(b.at));
   final stride = steps.length > 1 ? steps[1].at.difference(steps[0].at) : const Duration(hours: 1);
   final end = steps.first.at.subtract(stride);
   ForecastStep? first(double Function(ForecastStep) of) {
     for (final step in steps) {
-      if (of(step) > capacity) return step;
+      if (reaches(of(step), limit)) return step;
     }
     return null;
   }
@@ -173,7 +211,7 @@ const datyxMaxSeries = 100;
 /// How many checks in a row must read a care center lower before its
 /// level falls (a downgrade, or cleared), unless [OccupancyAlarms] is
 /// told otherwise: DeepAR draws its sample paths again at every call, so
-/// a forecast at the capacity reads over it at one check and not at the
+/// a forecast at the threshold reaches it at one check and not at the
 /// next; a rise is at once.
 const alarmLowerAfter = 3;
 
@@ -190,6 +228,7 @@ class AlarmsSnapshot {
     this.active = const [],
     this.recent = const [],
     this.signInRequired = false,
+    this.threshold = alarmThresholdDefault,
   });
 
   /// Off: in prod, or with HEALTHHUB_ALARM_EVERY_MS at 0.
@@ -199,10 +238,13 @@ class AlarmsSnapshot {
   /// on: whether they are on, nothing of datyx's forecast (as its route
   /// answers them 401), nor of datyx's words to whoever's check it was.
   factory AlarmsSnapshot.signIn(AlarmsSnapshot alarms) =>
-      AlarmsSnapshot(enabled: alarms.enabled, everyMs: alarms.everyMs, signInRequired: true);
+      AlarmsSnapshot(enabled: alarms.enabled, everyMs: alarms.everyMs, signInRequired: true, threshold: alarms.threshold);
 
   final bool enabled;
   final int everyMs;
+
+  /// The share of the capacity whose reaching is an alarm (0.9).
+  final double threshold;
 
   /// The latest check that got an answer from datyx, real time, ISO 8601.
   final String? checkedAt;
@@ -220,7 +262,8 @@ class AlarmsSnapshot {
 
   /// The care centers with a level, the worst first, then the soonest;
   /// each `stale` when it may be out of date (its own forecast missing
-  /// from the latest answer, or [stale]).
+  /// from the latest answer, or [stale] for a forecast's level; for an
+  /// actual one, no occupancy read for a while).
   final List<Map<String, Object?>> active;
 
   /// The latest events, newest first.
@@ -231,20 +274,43 @@ class AlarmsSnapshot {
   final bool signInRequired;
 }
 
-/// The alarms of the run going on, from datyx's forecast, checked when
-/// [poke]d, at most once every [every].
+/// The occupancy of a run's care centers observed at its latest hour:
+/// the hour (the series' end, null before any) and each care center's
+/// people in care then (none: nobody).
+typedef ObservedOccupancy = ({DateTime? end, Map<int, int> occupancy});
+
+/// The alarms of the run going on, from the occupancy observed and
+/// datyx's forecast of it against [threshold] of each care center's
+/// capacity, checked when [poke]d, at most once every [every].
 class OccupancyAlarms {
   OccupancyAlarms({
     required this.infer,
     required this.careCenters,
     required this.run,
     required this.clock,
+    this.observed,
     this.paused,
     this.onEvent,
+    this.onForecasts,
     this.every = alarmEveryDefault,
     this.lowerAfter = alarmLowerAfter,
+    this.threshold = alarmThresholdDefault,
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now;
+
+  /// The occupancy of [run]'s care centers at its latest hour, for the
+  /// actual level; throws when the database doesn't answer. None: no
+  /// actual level.
+  final Future<ObservedOccupancy> Function(String run)? observed;
+
+  /// Each check's forecasts, from the datyx source the alarms read: per
+  /// care center of [run], datyx's steps, and the training run that
+  /// answered. To keep what was predicted of each hour (occupancy_forecast).
+  final void Function(String run, Map<int, List<Object?>> forecasts, Object? trainingRun)? onForecasts;
+
+  /// The share of each care center's capacity whose reaching is an alarm
+  /// ([alarmThresholdDefault]).
+  final double threshold;
 
   /// datyx's inference of [series] (each `{"run_id", "hospital_id"}`, at
   /// most [datyxMaxSeries]), asked with the token given for this one
@@ -299,6 +365,9 @@ class OccupancyAlarms {
   final _centers = <int, AlarmCareCenter>{};
   DateTime? _lastStart;
   DateTime? _lastRead;
+
+  /// The latest check that read the occupancy observed.
+  DateTime? _lastObserved;
   bool _checking = false;
   int _events = 0;
   String? _checkedAt;
@@ -314,6 +383,10 @@ class OccupancyAlarms {
 
   /// Whether a check is under way.
   bool get checking => _checking;
+
+  /// Whether a forecast from datyx data source [sourceId] is the one the
+  /// alarms read: theirs, or any before they have one.
+  bool acceptsSource(Object? sourceId) => _sourceId == null || _sourceId == sourceId;
 
   /// Sets a check off in the background, with [token] for its datyx calls
   /// only, unless the alarms are off, the simulation hasn't started, one
@@ -350,6 +423,12 @@ class OccupancyAlarms {
         _status = 503;
         _note = 'the database is not answering';
         return;
+      }
+      ObservedOccupancy? seen;
+      try {
+        seen = await observed?.call(current);
+      } catch (error) {
+        stderr.writeln('occupancy alarms: occupancy observed: $error');
       }
       final ids = centers.keys.toList()..sort();
       final forecasts = <int, List<Object?>>{};
@@ -392,7 +471,16 @@ class OccupancyAlarms {
           forecasts[id] = forecast;
         }
       }
-      _apply(current, centers, forecasts, failure, source: source, trainingRun: trainingRun, answered: ids.isEmpty || forecasts.isNotEmpty || failure == null);
+      _apply(
+        current,
+        centers,
+        forecasts,
+        failure,
+        source: source,
+        trainingRun: trainingRun,
+        answered: ids.isEmpty || forecasts.isNotEmpty || failure == null,
+        observed: seen,
+      );
     } catch (error) {
       stderr.writeln('occupancy alarms: $error');
     }
@@ -406,6 +494,7 @@ class OccupancyAlarms {
     Object? source,
     Object? trainingRun,
     required bool answered,
+    ObservedOccupancy? observed,
   }) {
     // The run moved on while datyx answered: the next check reads the new one.
     if (run() != current) return;
@@ -415,28 +504,58 @@ class OccupancyAlarms {
     }
     _status = failure?.status ?? 200;
     _note = failure?.note;
-    if (!answered) return;
     final checkedAt = _now().toUtc().toIso8601String();
     _centers.addAll(centers);
-    _sourceId ??= source;
-    _read = current;
-    _lastRead = _now();
-    _checkedAt = checkedAt;
-    _trainingRun = trainingRun ?? _trainingRun;
+    if (answered) {
+      _sourceId ??= source;
+      _read = current;
+      _lastRead = _now();
+      _checkedAt = checkedAt;
+      _trainingRun = trainingRun ?? _trainingRun;
+      if (forecasts.isNotEmpty) {
+        try {
+          onForecasts?.call(current, forecasts, trainingRun);
+        } catch (error) {
+          stderr.writeln('occupancy alarms: forecasts: $error');
+        }
+      }
+    }
+    final seenAt = observed?.end;
+    if (seenAt != null) _lastObserved = _now();
     final now = clock();
-    for (final id in {...forecasts.keys, ..._active.keys}.toList()..sort()) {
+    // Without a forecast (datyx refused or didn't answer) only the occupancy observed is read.
+    final ids = {...forecasts.keys, ..._active.keys, if (seenAt != null) ...observed!.occupancy.keys};
+    for (final id in ids.toList()..sort()) {
       final center = _centers[id];
       final before = _active[id];
-      final forecast = forecasts[id];
-      // No forecast of it this time (datyx left it out, or failed): kept, marked stale, never cleared.
-      if (center == null || forecast == null) {
+      final forecast = answered ? forecasts[id] : null;
+      if (center == null) continue;
+      final capacity = simulatedCapacity(center.key, center.kind);
+      final limit = threshold * capacity.places;
+      // Nobody in care at the latest hour has no row: zero, once the hour is known.
+      final occupancy = seenAt == null ? null : observed!.occupancy[id] ?? 0;
+      final actual = occupancy != null && reaches(occupancy, limit);
+      // No forecast of it this time (datyx left it out, or failed) and not
+      // reached now: kept, marked stale, never cleared.
+      if (forecast == null && !actual) {
         if (before != null) before.json = {...before.json, 'stale': true};
         continue;
       }
-      final capacity = simulatedCapacity(center.key, center.kind);
-      final reading = readForecast(forecast, capacity.places);
-      final fields = _fieldsOf(current, id, center, capacity, reading, trainingRun, now);
-      final level = reading.level;
+      final reading = forecast == null ? const OccupancyReading() : readForecast(forecast, limit);
+      final level = actual ? AlarmLevel.actual : reading.level;
+      final fields = _fieldsOf(
+        current,
+        id,
+        center,
+        capacity,
+        reading,
+        trainingRun ?? _trainingRun,
+        now,
+        level: level,
+        threshold: threshold,
+        occupancy: occupancy,
+        observedAt: seenAt,
+      );
       if (before == null) {
         if (level != null) _raise(id, null, level, fields, checkedAt);
       } else if (level != null && level.index > before.level.index) {
@@ -487,7 +606,10 @@ class OccupancyAlarms {
     });
   }
 
-  /// What an event and an active alarm say of a care center's [reading].
+  /// What an event and an active alarm say of a care center at [level]:
+  /// the occupancy observed at [observedAt] and the forecast's [reading]
+  /// against [threshold] of its capacity. For actual, the hour reached is
+  /// the one observed, 0 hours ahead of the series' end.
   static Map<String, Object?> _fieldsOf(
     String current,
     int id,
@@ -495,25 +617,36 @@ class OccupancyAlarms {
     ({int places, String unit}) capacity,
     OccupancyReading reading,
     Object? trainingRun,
-    Map<String, Object?>? now,
-  ) {
-    final overflowAt = reading.overflowAt;
+    Map<String, Object?>? now, {
+    required AlarmLevel? level,
+    required double threshold,
+    int? occupancy,
+    DateTime? observedAt,
+  }) {
+    final actual = level == AlarmLevel.actual;
+    final overflowAt = actual ? observedAt : reading.overflowAt;
     final clockHour = _clockHour(now);
+    double? share(num? people) => people == null || capacity.places == 0 ? null : (people / capacity.places * 1000).round() / 1000;
     return {
       'run': current,
       'hospitalId': id,
       'hospitalName': center.name,
       'careCenterKind': center.kind,
-      'level': reading.level?.name,
+      'level': level?.name,
+      'threshold': threshold,
+      'thresholdPlaces': (threshold * capacity.places * 100).round() / 100,
+      'occupancy': occupancy,
+      'occupancyShare': share(occupancy),
+      'observedAt': observedAt == null ? null : _hourKey(observedAt),
       'overflowAt': overflowAt == null ? null : _hourKey(overflowAt),
       'overflowDay': overflowAt == null ? null : simDayOfHour(overflowAt),
-      'leadHours': reading.leadHours,
+      'leadHours': actual ? 0 : reading.leadHours,
       // From the simulated clock at the check, which is past the series' end.
       'leadFromNowHours': overflowAt == null || clockHour == null
           ? null
           : (overflowAt.difference(clockHour).inMinutes / 6).round() / 10,
-      'mean': reading.mean,
-      'p90': reading.p90,
+      'mean': actual ? null : reading.mean,
+      'p90': actual ? null : reading.p90,
       'peak': reading.peak == null
           ? null
           : {
@@ -524,7 +657,7 @@ class OccupancyAlarms {
             },
       'capacity': capacity.places,
       'unit': capacity.unit,
-      'end': reading.end == null ? null : _hourKey(reading.end!),
+      'end': reading.end == null ? (observedAt == null ? null : _hourKey(observedAt)) : _hourKey(reading.end!),
       'horizonHours': reading.horizonHours,
       'trainingRun': trainingRun,
       'now': now,
@@ -554,9 +687,11 @@ class OccupancyAlarms {
   /// first, then the soonest overflow, then by care center; the recent
   /// events, newest first.
   AlarmsSnapshot get snapshot {
-    if (!enabled) return AlarmsSnapshot.off;
+    if (!enabled) return AlarmsSnapshot(threshold: threshold);
     final last = _lastRead;
     final stale = _status != 200 || last == null || _now().difference(last) > staleAfter;
+    final seen = _lastObserved;
+    final unseen = seen == null || _now().difference(seen) > staleAfter;
     final active = _active.values.toList()
       ..sort((a, b) {
         final byLevel = b.level.index.compareTo(a.level.index);
@@ -573,8 +708,11 @@ class OccupancyAlarms {
       note: _note,
       stale: stale && (_status != null || last != null),
       trainingRun: _trainingRun,
+      threshold: threshold,
       active: [
-        for (final alarm in active) {...alarm.json, 'stale': alarm.json['stale'] == true || stale},
+        // An actual level is the database's, not datyx's: stale only when no occupancy was read for a while.
+        for (final alarm in active)
+          {...alarm.json, 'stale': alarm.json['stale'] == true || (alarm.level == AlarmLevel.actual ? unseen : stale)},
       ],
       recent: _recent.toList(),
     );

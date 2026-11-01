@@ -29,6 +29,25 @@ void main() {
       expect(() => alarmEveryOf('soon'), throwsFormatException);
       expect(() => alarmEveryOf('2.5'), throwsFormatException);
     });
+
+    test('the threshold: 90% unless set, a share or a percentage, above 0 and at most 2', () {
+      expect(alarmThresholdOf(null), 0.9);
+      expect(alarmThresholdOf(' '), 0.9);
+      expect(alarmThresholdOf('0.75'), 0.75);
+      expect(alarmThresholdOf('85%'), closeTo(0.85, 1e-12));
+      expect(alarmThresholdOf('1'), 1.0);
+      expect(alarmThresholdOf('2'), 2.0);
+      for (final bad in ['0', '-0.5', '2.5', '250%', 'high', 'NaN', 'Infinity', '%']) {
+        expect(() => alarmThresholdOf(bad), throwsFormatException, reason: bad);
+      }
+    });
+
+    test('reaching is at or above, give or take the rounding of a share times a capacity', () {
+      expect(reaches(9, 0.9 * 10), isTrue);
+      expect(reaches(7, 0.7 * 10), isTrue);
+      expect(reaches(8.99, 9), isFalse);
+      expect(reaches(10, 9), isTrue);
+    });
   });
 
   group('the simulated clock', () {
@@ -53,33 +72,39 @@ void main() {
   });
 
   group('the level', () {
-    test('expected when the mean is over the capacity, strictly', () {
-      final reading = readForecast(forecastOf([2, 4, 5, 9, 6], [3, 6, 8, 12, 9]), 4);
+    // A threshold of 4 people: 90% of a capacity of 4.4..., or 80% of 5.
+    test('expected when the mean reaches the threshold, at or above', () {
+      final reading = readForecast(forecastOf([2, 3.9, 4, 9, 6], [3, 6, 8, 12, 9]), 4);
       expect(reading.level, AlarmLevel.expected);
-      // 4 is the capacity, not over it: the first mean over is 5, at 03:00.
+      // 3.9 is below; 4 is at it, which reaches it: the third hour.
       expect(reading.overflowAt, DateTime.utc(2026, 1, 2, 3));
       expect(reading.leadHours, 3);
-      expect((reading.mean, reading.p90), (5.0, 8.0));
+      expect((reading.mean, reading.p90), (4.0, 8.0));
       expect(reading.end, DateTime.utc(2026, 1, 2));
       expect(reading.horizonHours, 5);
       expect(reading.peak, (at: DateTime.utc(2026, 1, 2, 4), mean: 9.0, p90: 12.0));
     });
 
-    test('possible when only the 90th percentile is over, the earliest', () {
-      final reading = readForecast(forecastOf([1, 2, 3, 3], [3, 5, 7, 6]), 4);
+    test('possible when only the 90th percentile reaches it, the earliest', () {
+      final reading = readForecast(forecastOf([1, 2, 3, 3], [3, 4, 7, 6]), 4);
       expect(reading.level, AlarmLevel.possible);
       expect(reading.overflowAt, DateTime.utc(2026, 1, 2, 2));
       expect(reading.leadHours, 2);
-      expect((reading.mean, reading.p90), (2.0, 5.0));
+      expect((reading.mean, reading.p90), (2.0, 4.0));
       // The peak of the p90 for possible.
       expect(reading.peak, (at: DateTime.utc(2026, 1, 2, 3), mean: 3.0, p90: 7.0));
     });
 
-    test('none when neither is over; at the capacity is not over', () {
-      final reading = readForecast(forecastOf([1, 4, 2], [3, 4, 4]), 4);
+    test('none when neither reaches it; a fraction below is below', () {
+      final reading = readForecast(forecastOf([1, 3.9, 2], [3, 3.99, 3.5]), 4);
       expect(reading.level, isNull);
       expect((reading.overflowAt, reading.leadHours, reading.mean, reading.p90), (null, null, null, null));
-      expect(reading.peak?.mean, 4.0);
+      expect(reading.peak?.mean, 3.9);
+    });
+
+    test('a threshold of a share of the capacity: 90% of 10 is 9, reached by 9', () {
+      expect(readForecast(forecastOf([8, 9], [8.5, 9.5]), 0.9 * 10).overflowAt, DateTime.utc(2026, 1, 2, 2));
+      expect(readForecast(forecastOf([8, 8.9], [8.5, 8.95]), 0.9 * 10).level, isNull);
     });
 
     test('reads the whole horizon, in time order, skipping a step that isn\'t one', () {
@@ -95,6 +120,12 @@ void main() {
       expect(reading.level, isNull);
       expect(reading.peak, isNull);
       expect(reading.horizonHours, 0);
+    });
+
+    test('the levels in order: actual is the worst', () {
+      expect(AlarmLevel.values, [AlarmLevel.possible, AlarmLevel.expected, AlarmLevel.actual]);
+      expect([for (final name in ['possible', 'expected', 'actual', 'over', null]) alarmLevelNamed(name)],
+          [AlarmLevel.possible, AlarmLevel.expected, AlarmLevel.actual, null, null]);
     });
   });
 
@@ -124,8 +155,11 @@ void main() {
     late String? currentRun;
     late DateTime now;
     late bool paused;
+    late ObservedOccupancy seen;
+    late List<(String, Map<int, List<Object?>>, Object?)> kept;
 
-    OccupancyAlarms make({Duration every = const Duration(seconds: 5), int lowerAfter = 1}) => OccupancyAlarms(
+    OccupancyAlarms make({Duration every = const Duration(seconds: 5), int lowerAfter = 1, double threshold = 0.9}) =>
+        OccupancyAlarms(
       infer: (token, series) async {
         tokens.add(token);
         asked.add(series);
@@ -137,10 +171,13 @@ void main() {
       },
       run: () => currentRun,
       clock: () => {'day': 2, 'simTime': '00:20', 'date': '2026-01-02'},
+      observed: (run) async => seen,
       paused: () => paused,
       onEvent: fired.add,
+      onForecasts: (run, forecasts, trainingRun) => kept.add((run, forecasts, trainingRun)),
       every: every,
       lowerAfter: lowerAfter,
+      threshold: threshold,
       now: () => now,
     );
 
@@ -153,14 +190,139 @@ void main() {
       currentRun = run;
       now = DateTime.utc(2026, 11, 1, 14);
       paused = false;
+      // No hour observed yet: no actual level.
+      seen = (end: null, occupancy: const {});
+      kept = [];
     });
 
-    // Over the capacity by the mean at the third hour, by the p90 at the first.
+
+    // The threshold is 90% of the capacity: 4.5 of the hospital's 5 beds,
+    // 2.7 of the clinic's 3 places. Reached by the mean at the third hour,
+    // by the p90 at the first.
     List<Map<String, Object?>> expected(int capacity) =>
         forecastOf([1, 2, capacity + 1, capacity + 2], [capacity + 1, capacity + 2, capacity + 3, capacity + 4]);
-    List<Map<String, Object?>> possible(int capacity) =>
-        forecastOf([1, 1, 2, 2], [capacity, capacity, capacity + 1, capacity + 1]);
-    List<Map<String, Object?>> calm(int capacity) => forecastOf([1, 1, 1, 1], [capacity, capacity, 1, 1]);
+    // By the p90 only, at the third hour.
+    List<Map<String, Object?>> possible(int capacity) => forecastOf([1, 1, 2, 2], [2, 2, capacity + 1, capacity + 1]);
+    // Below it all along.
+    List<Map<String, Object?>> calm(int capacity) => forecastOf([1, 1, 1, 1], [2, 2, 1, 1]);
+
+    // The run's latest hour, day 2 at 00:00, where the forecasts start from.
+    final latest = DateTime.utc(2026, 1, 2);
+
+    test('actual when the occupancy observed reaches the threshold: the worst level, with datyx refusing too', () async {
+      final alarms = make();
+      seen = (end: latest, occupancy: {1: 5, 2: 1});
+      answers = [(status: 404, body: {'error': 'no model of the group default of public.occupancy_hourly has been trained yet'})];
+      await alarms.check(null);
+      expect(fired, hasLength(1));
+      final event = fired.single;
+      expect(event, containsPair('kind', 'alarm'));
+      expect(event, containsPair('level', 'actual'));
+      expect(event, containsPair('hospitalId', 1));
+      expect(event, containsPair('occupancy', 5));
+      expect(event, containsPair('occupancyShare', 1.0));
+      expect(event, containsPair('threshold', 0.9));
+      expect(event, containsPair('thresholdPlaces', 4.5));
+      expect(event, containsPair('observedAt', '2026-01-02T00:00'));
+      // The hour reached is the one observed, 0 h ahead of the series' end, 20 min before the clock.
+      expect(event, containsPair('overflowAt', '2026-01-02T00:00'));
+      expect(event, containsPair('leadHours', 0));
+      expect(event, containsPair('leadFromNowHours', -0.3));
+      expect((event['mean'], event['p90'], event['peak']), (null, null, null));
+      final snapshot = alarms.snapshot;
+      expect(snapshot.status, 404);
+      expect(snapshot.stale, isTrue);
+      // Observed, not datyx's: current although datyx can't forecast.
+      expect(snapshot.active.single['level'], 'actual');
+      expect(snapshot.active.single['stale'], isFalse);
+      expect(snapshot.threshold, 0.9);
+    });
+
+    test('actual outranks a forecast; it falls to the forecast\'s level once the occupancy is below', () async {
+      final alarms = make();
+      seen = (end: latest, occupancy: {1: 5});
+      answers = [
+        ok([prediction(1, expected(beds))]),
+        ok([prediction(1, expected(beds))]),
+        ok([prediction(1, calm(beds))]),
+      ];
+      await alarms.check(null);
+      expect([for (final e in fired) (e['kind'], e['level'], e['previous'])], [('alarm', 'actual', null)]);
+      // The forecast's peak still said.
+      expect(alarms.snapshot.active.single['peak'], isNotNull);
+      seen = (end: latest.add(const Duration(hours: 1)), occupancy: {1: 4});
+      await alarms.check(null);
+      expect(fired.last, containsPair('kind', 'downgraded'));
+      expect(fired.last, containsPair('level', 'expected'));
+      expect(fired.last, containsPair('previous', 'actual'));
+      expect(fired.last, containsPair('occupancy', 4));
+      expect(fired.last, containsPair('overflowAt', '2026-01-02T03:00'));
+      // Nobody in care at the latest hour has no row: zero.
+      seen = (end: latest.add(const Duration(hours: 2)), occupancy: const {});
+      await alarms.check(null);
+      expect(fired.last, containsPair('kind', 'cleared'));
+      expect(fired.last, containsPair('occupancy', 0));
+      expect(alarms.snapshot.active, isEmpty);
+    });
+
+    test('without a forecast, an actual alarm the occupancy no longer reaches is kept, stale', () async {
+      final alarms = make();
+      seen = (end: latest, occupancy: {1: 5});
+      answers = [ok([prediction(1, expected(beds))]), null];
+      await alarms.check(null);
+      seen = (end: latest.add(const Duration(hours: 1)), occupancy: {1: 2});
+      await alarms.check(null);
+      expect(fired, hasLength(1));
+      expect(alarms.snapshot.active.single['level'], 'actual');
+      expect(alarms.snapshot.active.single['stale'], isTrue);
+    });
+
+    test('an actual alarm is stale once no occupancy was read for a while', () async {
+      final alarms = make();
+      seen = (end: latest, occupancy: {2: 3});
+      answers = [ok([prediction(2, calm(places))])];
+      await alarms.check(null);
+      expect(alarms.snapshot.active.single['level'], 'actual');
+      expect(alarms.snapshot.active.single['stale'], isFalse);
+      now = now.add(alarms.staleAfter + const Duration(seconds: 1));
+      expect(alarms.snapshot.active.single['stale'], isTrue);
+    });
+
+    test('the threshold is the alarms\' own: at 50%, 3 of 5 beds is actual, a mean of 2.5 expected', () async {
+      final half = make(threshold: 0.5);
+      seen = (end: latest, occupancy: {1: 3, 2: 1});
+      answers = [ok([prediction(1, calm(beds)), prediction(2, forecastOf([1, 1.5], [1.2, 1.6]))])];
+      await half.check(null);
+      expect([for (final e in fired) (e['hospitalId'], e['level'], e['thresholdPlaces'])], [
+        (1, 'actual', 2.5),
+        (2, 'expected', 1.5),
+      ]);
+      expect(half.snapshot.threshold, 0.5);
+    });
+
+    test('each check\'s forecasts are handed on to be kept, from the datyx source the alarms read only', () async {
+      final alarms = make();
+      DatyxAnswer from(int source, List<Map<String, Object?>> predictions) =>
+          (status: 200, body: {'runId': 4, 'sourceId': source, 'predictions': predictions});
+      answers = [
+        from(1, [prediction(1, calm(beds)), prediction(2, const [])]),
+        from(7, [prediction(1, expected(beds))]),
+        (status: 404, body: {'error': 'no model'}),
+      ];
+      expect(alarms.acceptsSource(7), isTrue);
+      await alarms.check(null);
+      expect(kept, hasLength(1));
+      expect(kept.single.$1, run);
+      // A care center without a forecast isn't handed on.
+      expect(kept.single.$2.keys, [1]);
+      expect(kept.single.$2[1], calm(beds));
+      expect(kept.single.$3, 4);
+      expect(alarms.acceptsSource(1), isTrue);
+      expect(alarms.acceptsSource(7), isFalse);
+      await alarms.check(null);
+      await alarms.check(null);
+      expect(kept, hasLength(1));
+    });
 
     test('rise, escalate, stay, downgrade and clear, each change one event', () async {
       final alarms = make();
@@ -182,6 +344,11 @@ void main() {
         'hospitalName': 'Hospital del Mar',
         'careCenterKind': 'hospital',
         'level': 'possible',
+        'threshold': 0.9,
+        'thresholdPlaces': 4.5,
+        'occupancy': null,
+        'occupancyShare': null,
+        'observedAt': null,
         'overflowAt': '2026-01-02T03:00',
         'overflowDay': 2,
         'leadHours': 3,

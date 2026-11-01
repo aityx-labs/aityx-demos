@@ -1,4 +1,5 @@
 import 'package:healthhub_api/db.dart';
+import 'package:healthhub_api/occupancy_alarms.dart' show ObservedOccupancy;
 import 'package:postgres/postgres.dart';
 import 'package:test/test.dart';
 
@@ -36,6 +37,7 @@ void main() {
     );
     const run = 'fffffff0';
     Map<String, int>? hours;
+    ObservedOccupancy? observed;
     try {
       await c.runTx((tx) async {
         Future<void> admit(String person, int hospital, String code, String visit, String time) => tx.execute(
@@ -67,6 +69,7 @@ void main() {
           parameters: {'run': run},
         );
         hours = {for (final row in rows) row[0] as String: row[1] as int};
+        observed = await Db.readObserved(tx, run);
         throw _Rollback();
       });
     } on _Rollback {
@@ -74,6 +77,9 @@ void main() {
     }
     // reus-1 from 09:10 for 3 hours or more, cut at the run's 11:00; reus-2 from 10:30 for 1 or 2 hours, into 11:00.
     expect(hours, {'09:00': 1, '10:00': 2, '11:00': 2});
+    // The occupancy alarms' actual level reads the run's latest hour, 11:00: both care centers in care then.
+    expect(observed?.end, DateTime.utc(2026, 1, 1, 11));
+    expect(observed?.occupancy, {900001: 2, 900002: 1});
     final left = await c.execute(
       Sql.named('SELECT count(*) FROM admissions WHERE event_id LIKE @run'),
       parameters: {'run': '$run-%'},

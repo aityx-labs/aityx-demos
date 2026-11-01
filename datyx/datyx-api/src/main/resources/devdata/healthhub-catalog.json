@@ -304,7 +304,7 @@
   },
   "timeSeries": [
     {"roles": {"table": "public.admissions_hourly", "group": "default", "timestamp": "hour_start", "target": "admissions", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}},
-    {"roles": {"table": "public.occupancy_hourly", "group": "default", "timestamp": "hour_start", "target": "occupancy", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}},
+    {"roles": {"table": "public.occupancy_hourly", "group": "default", "timestamp": "hour_start", "target": "occupancy", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}, "retrain": "15min"},
     {"roles": {"table": "public.admissions_hourly", "group": "acute", "timestamp": "hour_start", "target": "acute_admissions", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}},
     {"roles": {"table": "public.admissions_hourly", "group": "chronic", "timestamp": "hour_start", "target": "chronic_admissions", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}},
     {"roles": {"table": "public.patient_days", "group": "care", "timestamp": "day", "target": "stay_hours", "seriesKey": ["run_id", "person_id"], "staticCategorical": ["sex", "city", "hospital_id", "chronic_condition"], "staticReal": ["age"], "pastCovariates": ["visits", "acute_visits", "chronic_visits"], "frequency": "1D", "missing": "zero", "algorithm": "XGBoost", "horizon": "30D"}, "retrain": "1h"}

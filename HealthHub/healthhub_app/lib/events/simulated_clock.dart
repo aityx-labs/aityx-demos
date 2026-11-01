@@ -88,7 +88,7 @@ class SimClockText extends StatelessWidget {
     final now = this.now;
     if (now == null) return const SizedBox.shrink();
     return Tooltip(
-      message: 'The simulated date and time: the simulation starts on Jan 1, 2026, and a simulated hour passes about every second',
+      message: 'The simulated date and time: the simulation starts on Jan 1, 2026, and a simulated hour passes every 10 seconds unless set otherwise',
       child: Wrap(
         spacing: 8,
         crossAxisAlignment: WrapCrossAlignment.center,

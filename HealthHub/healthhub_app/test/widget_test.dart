@@ -467,19 +467,30 @@ class FakeApi implements HealthHubApi {
   final forecastAsked = <(int, String?)>[];
 
   /// Care centers 1 and 2 had 0, 1, 3, 2, 2 and 1 people in care from 07:00 to 12:00 of day 19, run 1349d576
-  /// (current); 7, nobody.
+  /// (current), the clock at 12:40, and datyx had predicted 2.8, 2.2, 1.6 and 1.2 of 09:00 to 12:00 before
+  /// them (nothing of 07:00 and 08:00); 7, nobody.
   @override
   Future<HourlyOccupancy> careCenterOccupancy(int id, {String? run, int? hours}) async {
     hourlyAsked.add((id, run, hours));
     if (id != 1 && id != 2) return HourlyOccupancy(hospitalId: id);
     const inCare = [0, 1, 3, 2, 2, 1];
+    const predicted = [null, null, 2.8, 2.2, 1.6, 1.2];
     return HourlyOccupancy.fromJson({
       'hospitalId': id,
       'run': '1349d576',
       'current': true,
       'end': '2026-01-19T12:00',
+      'threshold': 0.9,
+      'now': {'day': 19, 'simTime': '12:40', 'date': '2026-01-19'},
       'hours': [
-        for (var h = 7; h <= 12; h++) {'hour': '2026-01-19T${'$h'.padLeft(2, '0')}:00', 'occupancy': inCare[h - 7]},
+        for (var h = 7; h <= 12; h++)
+          {
+            'hour': '2026-01-19T${'$h'.padLeft(2, '0')}:00',
+            'occupancy': inCare[h - 7],
+            'predicted': predicted[h - 7] == null
+                ? null
+                : {'mean': predicted[h - 7], 'p10': 1.0, 'p90': 3.5, 'leadHours': 1},
+          },
       ],
     });
   }
@@ -1423,7 +1434,7 @@ void main() {
       ),
     );
 
-    testWidgets('the hours solid with their points, then DeepAR\'s forecast dashed after them', (tester) async {
+    testWidgets('both series, observed and predicted, the now line, the threshold and its crossings', (tester) async {
       final semantics = tester.ensureSemantics();
       final api = FakeApi();
       await tester.pumpWidget(card(api, 2));
@@ -1431,35 +1442,111 @@ void main() {
       expect(api.hourlyAsked, [(2, null, 72)]);
       expect(api.forecastAsked, [(2, null)]);
       expect(find.text('Occupancy per hour'), findsOneWidget);
-      // The series' end as a simulated date and time, never the run's id.
-      expect(find.byKey(const Key('occupancy-now')), findsOneWidget);
-      expect(tester.widget<Text>(find.byKey(const Key('occupancy-now'))).data, 'Now · Jan 19, 2026 12:00');
+      // Now, the simulated clock as a date and time, never the run's id.
+      expect(tester.widget<Text>(find.byKey(const Key('occupancy-now'))).data, 'Now · Jan 19, 2026 12:40');
       expect(find.textContaining('1349d576'), findsNothing);
-      expect(find.textContaining('1 in care at Jan 19, 2026 12:00; at most 3 of 8 beds in the last 6 hours.'), findsOneWidget);
-      expect(
-        find.textContaining("datyx's DeepAR expects 1.5 on average over the next 4 hours, 2.0 at most (model of training run 5)"),
-        findsOneWidget,
-      );
-      expect(find.text('In care'), findsOneWidget);
-      expect(find.text('DeepAR forecast (mean; the band, 10th to 90th percentile)'), findsOneWidget);
+      final status = tester.widget<Text>(find.byKey(const Key('occupancy-status'))).data!;
+      expect(status, contains('1 in care at Jan 19, 2026 12:00; at most 3 of 8 beds in the last 6 hours.'));
+      // How far off datyx was of the hours it predicted: |3-2.8|, |2-2.2|, |2-1.6|, |1-1.2|.
+      expect(status, contains('datyx predicted 4 of them before they came, off by 0.25 on average.'));
+      expect(status, contains("datyx's DeepAR expects 1.5 on average over the next 4 hours, 2.0 at most (model of training run 5)"));
+      // Of 8 beds, 90% is 7.2: nothing reaches it.
+      expect(status, isNot(contains('90% of the capacity')));
+      expect(find.text('In care (observed)'), findsOneWidget);
+      expect(find.text('Predicted by DeepAR before each hour and ahead (mean; the band, 10th to 90th percentile)'), findsOneWidget);
+      expect(find.text('Now'), findsOneWidget);
       expect(find.text('Capacity, 8 beds'), findsOneWidget);
+      expect(find.text('Alarm threshold, 90% (7.2)'), findsOneWidget);
+      expect(find.text('In care at or above it'), findsOneWidget);
+      expect(find.text('Predicted at or above it'), findsOneWidget);
       expect(
         find.bySemanticsLabel(
-          'Occupancy per hour: 1 in care now, at most 3 in the last 6 hours, of a capacity of 8; '
-          '1.5 on average forecast over the next 4',
+          'Occupancy per hour: 1 in care now (Jan 19, 2026 12:40), at most 3 in the last 6 hours, of a capacity of 8; '
+          '4 of them predicted before; 1.5 on average forecast over the next 4; '
+          'alarm threshold 90%, 7.2: 0 hours in care and 0 predicted at or above it',
         ),
         findsOneWidget,
       );
 
-      // Touching an hour shows its numbers: three in care, then a forecast hour.
+      // Touching an hour shows its numbers: three in care and what was predicted of them, then a forecast hour.
       final chart = tester.getRect(find.byType(OccupancyTimelineChart));
       double xOf(int index) => chart.left + 28 + index / 9 * (chart.width - 36);
       await tester.tapAt(Offset(xOf(2), chart.center.dy));
       await tester.pump();
-      expect(find.text('Jan 19, 2026 09:00\n3 in care of 8 beds'), findsOneWidget);
+      expect(find.text('Jan 19, 2026 09:00\n3 in care of 8 beds (38%)\npredicted 2.8, 1 h before\n1 to 3.5 (80%)'), findsOneWidget);
+      await tester.tapAt(Offset(xOf(1), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Jan 19, 2026 08:00\n1 in care of 8 beds (13%)'), findsOneWidget);
       await tester.tapAt(Offset(xOf(8), chart.center.dy));
       await tester.pump();
-      expect(find.text('Jan 19, 2026 15:00, forecast\n2.0 expected of 8 beds\n0 to 3 (80%)'), findsOneWidget);
+      expect(find.text('Jan 19, 2026 15:00, forecast\n2.0 expected of 8 beds (25%)\n0 to 3 (80%)'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('every hour at or above the threshold is marked, and the first ahead labelled', (tester) async {
+      final semantics = tester.ensureSemantics();
+      // Of 3 beds, 90% is 2.7: 3 in care at 09:00 and its 2.8 predicted reach it; ahead, the 90th percentile (3) from 13:00.
+      await tester.pumpWidget(card(FakeApi(), 2, capacity: 3));
+      await tester.pumpAndSettle();
+      expect(find.text('Alarm threshold, 90% (2.7)'), findsOneWidget);
+      final status = tester.widget<Text>(find.byKey(const Key('occupancy-status'))).data!;
+      expect(status, endsWith('90% of the capacity possible at Jan 19, 2026 13:00.'));
+      expect(
+        find.bySemanticsLabel(RegExp(
+          r'alarm threshold 90%, 2\.7: 1 hours in care and 1 predicted at or above it; 90% possible at Jan 19, 2026 13:00$',
+        )),
+        findsOneWidget,
+      );
+      final chart = tester.getRect(find.byType(OccupancyTimelineChart));
+      double xOf(int index) => chart.left + 28 + index / 9 * (chart.width - 36);
+      await tester.tapAt(Offset(xOf(2), chart.center.dy));
+      await tester.pump();
+      expect(find.textContaining('3 in care of 3 beds (100%)\npredicted 2.8, 1 h before\n1 to 3.5 (80%)\nat or above the 90% threshold'),
+          findsOneWidget);
+      await tester.tapAt(Offset(xOf(6), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Jan 19, 2026 13:00, forecast\n1.0 expected of 3 beds (33%)\n0 to 3 (80%)\n90% threshold possible'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    test('the first crossing ahead: by the mean, else by the 90th percentile', () {
+      ForecastStep step(int h, double mean, double p90) =>
+          ForecastStep(at: DateTime.utc(2026, 1, 19, h), mean: mean, p10: 0, p50: mean, p90: p90);
+      expect(firstCrossing([step(13, 5, 8), step(14, 7.2, 9), step(15, 8, 9)], 7.2), (at: DateTime.utc(2026, 1, 19, 14), expected: true, index: 1));
+      expect(firstCrossing([step(13, 5, 7.1), step(14, 6, 7.2)], 7.2), (at: DateTime.utc(2026, 1, 19, 14), expected: false, index: 1));
+      expect(firstCrossing([step(13, 5, 7.1)], 7.2), isNull);
+      // 90% of 10 is 9, reached by 9.
+      expect(reachesThreshold(9, 0.9 * 10), isTrue);
+      expect(percentText(0.9), '90%');
+      expect(simDayTime(DateTime.utc(2026, 1, 19, 16)), 'Jan 19 16:00');
+    });
+
+    testWidgets('the now line is at the clock, the series\' end without one, and the predicted line over the past', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final hours = [
+        for (var h = 7; h <= 12; h++)
+          HourOccupancy(hour: DateTime.utc(2026, 1, 19, h), occupancy: 9, predicted: h >= 10 ? PredictedHour(mean: 9.5, p10: 8, p90: 11) : null),
+      ];
+      await tester.pumpWidget(MaterialApp(
+        theme: aityxDarkTheme(),
+        home: Scaffold(body: SizedBox(width: 600, child: OccupancyTimelineChart(hours: hours, capacity: 10, unit: 'beds'))),
+      ));
+      // Without a clock, now is the last hour; without a forecast the predicted past still shows, and its marks.
+      expect(
+        find.bySemanticsLabel(RegExp(r'^Occupancy per hour: 9 in care now \(Jan 19, 2026 12:00\).*; 3 of them predicted before; '
+            r'alarm threshold 90%, 9: 6 hours in care and 3 predicted at or above it$')),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(MaterialApp(
+        theme: aityxDarkTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 600,
+            child: OccupancyTimelineChart(hours: hours, capacity: 10, unit: 'beds', threshold: 0.95, now: DateTime.utc(2026, 1, 19, 12, 30)),
+          ),
+        ),
+      ));
+      expect(find.bySemanticsLabel(RegExp(r'9 in care now \(Jan 19, 2026 12:30\).*alarm threshold 95%, 9\.5: 0 hours in care and 3 predicted')), findsOneWidget);
       semantics.dispose();
     });
 
@@ -1470,8 +1557,9 @@ void main() {
       expect(find.textContaining('No forecast: no model of the group default of public.occupancy_hourly has been trained yet'),
           findsOneWidget);
       expect(find.byType(OccupancyTimelineChart), findsOneWidget);
-      expect(find.text('In care'), findsOneWidget);
-      expect(find.textContaining('DeepAR forecast'), findsNothing);
+      expect(find.text('In care (observed)'), findsOneWidget);
+      // What datyx predicted before is still shown, and keyed.
+      expect(find.textContaining('Predicted by DeepAR'), findsOneWidget);
     });
 
     testWidgets('without a capacity there is no capacity line, nor its key', (tester) async {
@@ -1510,7 +1598,12 @@ void main() {
       'careCenterKind': 'hospital',
       'level': level,
       'previous': kind == 'cleared' ? 'possible' : null,
-      'overflowAt': kind == 'cleared' ? null : '2026-01-02T16:00',
+      'threshold': 0.9,
+      'thresholdPlaces': 7.2,
+      'occupancy': level == 'actual' ? 8 : 6,
+      'occupancyShare': level == 'actual' ? 1.0 : 0.75,
+      'observedAt': '2026-01-02T09:00',
+      'overflowAt': kind == 'cleared' ? null : (level == 'actual' ? '2026-01-02T09:00' : '2026-01-02T16:00'),
       'overflowDay': kind == 'cleared' ? null : 2,
       'leadHours': kind == 'cleared' ? null : 7,
       'mean': kind == 'cleared' ? null : (level == 'expected' ? 10.0 : 6.6),
@@ -1613,6 +1706,10 @@ void main() {
       expect((expected.leadHours, expected.mean, expected.p90, expected.capacity, expected.unit), (7.0, 10.0, 12.4, 8, 'beds'));
       expect((expected.peakAt, expected.peakMean, expected.peakP90), (DateTime.utc(2026, 1, 2, 18), 11.3, 13.0));
       expect((expected.trainingRun, expected.now!.simTime), (4, '09:00'));
+      expect((expected.threshold, expected.thresholdPlaces, expected.occupancy, expected.occupancyShare), (0.9, 7.2, 6, 0.75));
+      expect(expected.observedAt, DateTime.utc(2026, 1, 2, 9));
+      expect(AlarmLevel.named('actual'), AlarmLevel.actual);
+      expect(OccupancyAlarms.fromJson({...twoAlarms, 'threshold': 0.9}).threshold, 0.9);
       expect(alarms.recent.map((a) => (a.id, a.kind, a.level)), [
         ('e3', AlarmKind.alarm, AlarmLevel.expected),
         ('e2', AlarmKind.alarm, AlarmLevel.possible),
@@ -1643,7 +1740,7 @@ void main() {
 
       final expected = find.byKey(const Key('alarm-banner-1'));
       final possible = find.byKey(const Key('alarm-banner-2'));
-      expect(find.descendant(of: expected, matching: find.text('Over capacity expected at ')), findsOneWidget);
+      expect(find.descendant(of: expected, matching: find.text('90% occupancy expected at ')), findsOneWidget);
       expect(find.descendant(of: expected, matching: find.text('Hospital de Santa Maria')), findsOneWidget);
       // How far ahead from the clock above, Jan 2, 2026 09:40, not from the check (7 h then).
       expect(find.descendant(of: expected, matching: find.text(' in 6 h 20 min')), findsOneWidget);
@@ -1657,8 +1754,8 @@ void main() {
       expect(find.descendant(of: expected, matching: find.byIcon(Icons.crisis_alert)), findsOneWidget);
       expect(borderOf(tester, const Key('alarm-banner-1')), Aityx.red);
 
-      expect(find.descendant(of: possible, matching: find.text('Over capacity possible: ')), findsOneWidget);
-      expect(find.descendant(of: possible, matching: find.text(' may exceed its 8 beds in 3 h 20 min')), findsOneWidget);
+      expect(find.descendant(of: possible, matching: find.text('90% occupancy possible: ')), findsOneWidget);
+      expect(find.descendant(of: possible, matching: find.text(' may reach 90% of its 8 beds in 3 h 20 min')), findsOneWidget);
       expect(
         find.descendant(of: possible, matching: find.textContaining('Jan 2, 2026 13:00: 6.6 expected in care of 8 beds, 90% range up to 12.4')),
         findsOneWidget,
@@ -1674,6 +1771,36 @@ void main() {
       expect(tester.getRect(find.byKey(const Key('simulation-pause'))).bottom, lessThanOrEqualTo(tester.getRect(expected).top));
       expect(tester.getRect(expected).bottom, lessThanOrEqualTo(tester.getRect(possible).top));
       expect(tester.getRect(possible).bottom, lessThan(invite.top));
+    });
+
+    testWidgets('the occupancy now at the threshold: a red banner first, "now at 100%", current though datyx is not', (tester) async {
+      await home(tester, alarms: {
+        ...twoAlarms,
+        'stale': true,
+        'note': 'the datyx API is not answering',
+        'active': [
+          active('actual', overflowAt: '2026-01-02T09:00', lead: 0),
+          active('possible', hospital: 2, name: 'Clínica do Campo', lead: 4, overflowAt: '2026-01-02T13:00'),
+        ],
+        'recent': [event('alarm', 'actual', id: 'e4')],
+      });
+      final actual = find.byKey(const Key('alarm-banner-1'));
+      expect(find.descendant(of: actual, matching: find.text('Occupancy now at 100% at ')), findsOneWidget);
+      expect(find.descendant(of: actual, matching: find.text('Hospital de Santa Maria')), findsOneWidget);
+      expect(
+        find.descendant(of: actual, matching: find.textContaining('Jan 2, 2026 09:00: 8 in care of 8 beds (100%)')),
+        findsOneWidget,
+      );
+      expect(find.descendant(of: actual, matching: find.byIcon(Icons.emergency)), findsOneWidget);
+      expect(borderOf(tester, const Key('alarm-banner-1')), Aityx.red);
+      // The occupancy observed isn't datyx's: not out of date with it; the forecast's alarm is.
+      expect(find.descendant(of: actual, matching: find.byKey(const Key('alarm-stale'))), findsNothing);
+      expect(find.descendant(of: find.byKey(const Key('alarm-banner-2')), matching: find.byKey(const Key('alarm-stale'))), findsOneWidget);
+      expect(tester.getRect(actual).bottom, lessThanOrEqualTo(tester.getRect(find.byKey(const Key('alarm-banner-2'))).top));
+      final row = find.byKey(const Key('alarm-row-e4'));
+      expect(find.descendant(of: row, matching: find.text('Alarm: 90% reached now · ')), findsOneWidget);
+      expect(find.descendant(of: row, matching: find.textContaining('8 in care of 8 beds (100%)')), findsOneWidget);
+      expect(borderOf(tester, const Key('alarm-row-e4')), Aityx.red);
     });
 
     testWidgets("an alarm's care center opens its view", (tester) async {
@@ -1692,16 +1819,16 @@ void main() {
       final card = find.byKey(const Key('stream-events'));
       final raised = find.byKey(const Key('alarm-row-e3'));
       expect(find.descendant(of: card, matching: raised), findsOneWidget);
-      expect(find.descendant(of: raised, matching: find.text('Alarm: over capacity expected · ')), findsOneWidget);
+      expect(find.descendant(of: raised, matching: find.text('Alarm: 90% expected · ')), findsOneWidget);
       expect(find.descendant(of: raised, matching: find.text('in 7 h, Jan 2, 2026 16:00 · 10 in care of 8 beds (90% range up to 12.4)')), findsOneWidget);
       expect(find.descendant(of: raised, matching: find.text('Jan 2, 2026 09:00')), findsOneWidget);
       expect(borderOf(tester, const Key('alarm-row-e3')), Aityx.red);
-      expect(find.descendant(of: find.byKey(const Key('alarm-row-e2')), matching: find.text('Alarm: over capacity possible · ')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('alarm-row-e2')), matching: find.text('Alarm: 90% possible · ')), findsOneWidget);
 
       final cleared = find.byKey(const Key('alarm-row-e1'));
-      expect(find.descendant(of: cleared, matching: find.text('Cleared: no longer over capacity · ')), findsOneWidget);
+      expect(find.descendant(of: cleared, matching: find.text('Cleared: below 90% · ')), findsOneWidget);
       expect(find.descendant(of: cleared, matching: find.text('Centro de Saúde')), findsOneWidget);
-      expect(find.descendant(of: cleared, matching: find.text("datyx's forecast stays within 8 beds")), findsOneWidget);
+      expect(find.descendant(of: cleared, matching: find.text('In care and forecast below 90% of 8 beds')), findsOneWidget);
       expect(borderOf(tester, const Key('alarm-row-e1')), Aityx.green);
       expect(borderOf(tester, const Key('alarm-row-e0')), Aityx.amber);
 
@@ -1759,7 +1886,7 @@ void main() {
       expect(find.byKey(const Key('alarms-badge')), findsNothing);
       expect(find.byType(AlarmBanner), findsNothing);
       expect(find.byType(AlarmRow), findsNothing);
-      expect(find.textContaining("Occupancy alarms: datyx can't forecast yet (no model"), findsOneWidget);
+      expect(find.textContaining("Occupancy alarms: datyx can't forecast yet, only the occupancy now is checked (no model"), findsOneWidget);
     });
 
     // As the API gives them, its order: newest first, but the client

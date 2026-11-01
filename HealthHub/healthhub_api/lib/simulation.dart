@@ -383,11 +383,19 @@ String citySlug(String city) {
 ///   HEALTHHUB_SIM_PEOPLE            people per city at start (default
 ///                                   80; the events can change it, up to
 ///                                   [maxPeoplePerCity])
-///   HEALTHHUB_SIM_TURN_MS           real milliseconds per turn (default 1000)
+///   HEALTHHUB_SIM_TURN_MS           real milliseconds per turn (default 2500)
 ///   HEALTHHUB_SIM_MINUTES_PER_TURN  simulated minutes per turn (default
-///                                   60: a real second is a simulated hour)
+///                                   15: a simulated hour every 10 real
+///                                   seconds, so datyx's forecast, some 7 s
+///                                   a call, comes within a simulated hour,
+///                                   and its 24 hours ahead are 4 real
+///                                   minutes of warning; specs/simulation.md)
 class SimulationSettings {
-  const SimulationSettings({this.peoplePerCity = 80, this.turn = const Duration(seconds: 1), this.minutesPerTurn = 60});
+  const SimulationSettings({
+    this.peoplePerCity = 80,
+    this.turn = const Duration(milliseconds: 2500),
+    this.minutesPerTurn = 15,
+  });
 
   factory SimulationSettings.fromEnvironment([Map<String, String>? env]) {
     env ??= Platform.environment;
@@ -398,8 +406,8 @@ class SimulationSettings {
 
     return SimulationSettings(
       peoplePerCity: min(setting('HEALTHHUB_SIM_PEOPLE', 80), maxPeoplePerCity),
-      turn: Duration(milliseconds: setting('HEALTHHUB_SIM_TURN_MS', 1000)),
-      minutesPerTurn: setting('HEALTHHUB_SIM_MINUTES_PER_TURN', 60),
+      turn: Duration(milliseconds: setting('HEALTHHUB_SIM_TURN_MS', 2500)),
+      minutesPerTurn: setting('HEALTHHUB_SIM_MINUTES_PER_TURN', 15),
     );
   }
 

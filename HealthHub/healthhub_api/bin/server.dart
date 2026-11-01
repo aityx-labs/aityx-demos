@@ -89,15 +89,19 @@
 ///                       user's own token; 502 when datyx is down
 ///   GET  /api/care-centers/{id}/occupancy?run=&hours=72
 ///                       the people in care there in each hour up to its
-///                       run's end, missing hours zero; open to all; 503
-///                       without the database
+///                       run's end, missing hours zero, with what datyx
+///                       predicted of each before it was observed (signed
+///                       in, once sign-in is on), the alarms' threshold
+///                       and the simulated clock; open to all; 503 without
+///                       the database
 ///   GET  /api/care-centers/{id}/occupancy/forecast?run=
 ///                       datyx's DeepAR forecast of them, step by step, as
 ///                       the admissions' is asked
 ///   GET  /api/alarms?limit=20
 ///                       {"enabled", "now", "active", "recent", ...}: the
-///                       care centers whose occupancy datyx's forecast puts
-///                       over their capacity, and the latest alarm events
+///                       care centers whose occupancy, observed or as
+///                       datyx's forecast puts it, reaches the threshold of
+///                       their capacity, and the latest alarm events
 ///                       (lib/occupancy_alarms.dart); signed in, once
 ///                       sign-in is on, as the forecast. It and
 ///                       GET /api/events (which carries them too) set a
@@ -127,6 +131,9 @@
 ///   HEALTHHUB_SIM_*       the simulation (see lib/simulation.dart)
 ///   HEALTHHUB_ALARM_EVERY_MS  real milliseconds between two occupancy
 ///                         alarm checks at least (default 5000; 0: off)
+///   HEALTHHUB_ALARM_THRESHOLD  the share of a care center's capacity
+///                         whose reaching is an alarm (default 0.9, or
+///                         90%; above 0, at most 2)
 ///
 /// `server healthcheck` instead asks a running server's /api/health on
 /// 127.0.0.1:API_PORT and exits 0 when it answers ok: the Docker health
@@ -193,13 +200,21 @@ Future<void> main(List<String> args) async {
         : env['HEALTHHUB_KAFKA_REST_URL']!,
   ));
   final Duration alarmEvery;
+  final double alarmThreshold;
   try {
     alarmEvery = alarmEveryOf(env['HEALTHHUB_ALARM_EVERY_MS']);
+    alarmThreshold = alarmThresholdOf(env['HEALTHHUB_ALARM_THRESHOLD']);
   } on FormatException catch (error) {
     stderr.writeln('error: ${error.message}');
     exit(1);
   }
-  final live = _Live(dev: mode == 'dev', kafka: kafka, aityx: aityx, triage: triageSetting == 'on' && aityx.configured);
+  final live = _Live(
+    dev: mode == 'dev',
+    kafka: kafka,
+    aityx: aityx,
+    triage: triageSetting == 'on' && aityx.configured,
+    threshold: alarmThreshold,
+  );
   if (live.dev && alarmEvery > Duration.zero) live.alarms = _alarms(db, datyx, live, alarmEvery);
   final server = await HttpServer.bind(host, port);
   stdout.writeln(
@@ -207,7 +222,7 @@ Future<void> main(List<String> args) async {
     'database: ${db.settings}; '
     'auth: ${auth.enabled ? 'on, ${auth.issuer}' : 'off'}; datyx: $datyx; '
     'kafka: ${kafka.base}; triage: ${live.triage ? 'on' : 'off'}; '
-    'alarms: ${live.alarms == null ? 'off' : 'every ${alarmEvery.inMilliseconds} ms'})',
+    'alarms: ${live.alarms == null ? 'off' : 'every ${alarmEvery.inMilliseconds} ms'}, at ${(alarmThreshold * 100).round()}%)',
   );
   // The tables, once the database answers: retried in the background, so
   // the server is up (and /api/health says db: false) meanwhile. The
@@ -228,9 +243,37 @@ Future<void> main(List<String> args) async {
 /// Kafka and, in dev mode, the simulation writing to it and the feed
 /// reading it back.
 class _Live {
-  _Live({required this.dev, required this.kafka, required this.aityx, required this.triage});
+  _Live({required this.dev, required this.kafka, required this.aityx, required this.triage, required this.threshold});
 
   final bool dev;
+
+  /// The share of a care center's capacity whose reaching is an alarm.
+  final double threshold;
+
+  /// The writes of what datyx forecast (occupancy_forecast), one at a time.
+  Future<void> _forecastWrites = Future.value();
+  int _forecastsWaiting = 0;
+
+  /// Keeps what datyx forecast of [run]'s care centers ([Db.recordForecasts])
+  /// in the background, one write at a time; with too many waiting (the
+  /// database slow) this one is dropped, as the next check's forecast says
+  /// it again. A failure is logged.
+  void keepForecasts(Db db, String run, Map<int, List<Object?>> forecasts, Object? trainingRun) {
+    if (_forecastsWaiting >= 4) {
+      stderr.writeln('occupancy forecasts: ${forecasts.length} care centers not kept, too many writes waiting');
+      return;
+    }
+    _forecastsWaiting++;
+    _forecastWrites = _forecastWrites.then((_) async {
+      try {
+        await db.recordForecasts(run, forecasts, trainingRun: trainingRun);
+      } catch (error) {
+        stderr.writeln('occupancy forecasts: $error');
+      } finally {
+        _forecastsWaiting--;
+      }
+    });
+  }
   final KafkaRest kafka;
 
   /// aityx, which triages each admission recorded when [triage] is on.
@@ -417,13 +460,17 @@ OccupancyAlarms _alarms(Db db, Uri datyx, _Live live, Duration every) {
       return answer == null ? null : (status: answer.status, body: answer.body);
     },
     careCenters: db.alarmCareCenters,
+    observed: db.observedOccupancy,
+    onForecasts: (run, forecasts, trainingRun) => live.keepForecasts(db, run, forecasts, trainingRun),
+    threshold: live.threshold,
     run: () => live.simulation?.run,
     clock: () => simNowOf(live.feed?.people ?? const []),
     paused: () => live.simulation?.paused ?? false,
     onEvent: (event) {
       stdout.writeln(
         'occupancy alarm: ${event['kind']} ${event['level'] ?? event['previous']} at ${event['hospitalName']} '
-        '(${event['hospitalId']}), over from ${event['overflowAt'] ?? '-'}, ${event['id']}',
+        '(${event['hospitalId']}), ${event['threshold']} of ${event['capacity']} reached at ${event['overflowAt'] ?? '-'}, '
+        '${event['id']}',
       );
       store.add(event);
       publish.add(event);
@@ -528,7 +575,7 @@ Future<void> _handle(
         eventsTotal: live.feed?.counter.total ?? 0,
         eventsPerSecond: live.feed?.counter.perSecond ?? 0,
         people: live.feed?.people ?? const [],
-        alarms: live.alarms?.snapshot ?? AlarmsSnapshot.off,
+        alarms: live.alarms?.snapshot ?? AlarmsSnapshot(threshold: live.threshold),
         identity: identity,
       ),
       ('GET', '/api/alarms') => route(
@@ -540,7 +587,7 @@ Future<void> _handle(
         dev: live.dev,
         paused: live.simulation?.paused ?? false,
         people: live.feed?.people ?? const [],
-        alarms: live.alarms?.snapshot ?? AlarmsSnapshot.off,
+        alarms: live.alarms?.snapshot ?? AlarmsSnapshot(threshold: live.threshold),
       ),
       ('POST', simulationPausePath || simulationResumePath) => route(
         method,
@@ -619,13 +666,14 @@ Future<void> _handle(
         path,
         query: request.uri.queryParameters,
         auth: auth,
+        identity: identity,
         hourly: await _hourly(
           db,
           hourlyRoute.$2,
           hourlyRoute.$1,
           request.uri.queryParameters,
           request.uri.queryParameters['run'] ?? live.simulation?.run,
-          live.simulation?.run,
+          live,
         ),
       ),
       ('GET', _) when hourlyRoute != null => route(
@@ -636,7 +684,7 @@ Future<void> _handle(
         forecast: auth.enabled && identity == null
             ? null
             : await _forecast(datyx, token, db, hourlyRoute.$2, hourlyRoute.$1,
-                request.uri.queryParameters['run'] ?? live.simulation?.run),
+                request.uri.queryParameters['run'] ?? live.simulation?.run, live),
       ),
       ('GET', '/api/people') => route(
         method,
@@ -796,19 +844,39 @@ Future<CareCenterLookup?> _careCenter(Db db, int id, String? run) async {
 /// One care center's [series] per hour in [run] (the newest run with its
 /// admissions when null; none for hours that aren't a number, which the
 /// route answers 400); null when the database doesn't answer (logged).
+///
+/// The occupancy comes with what datyx predicted of those hours before
+/// they were observed (occupancy_forecast), the alarms' threshold, and
+/// the simulated clock when the run is the current one.
 Future<HourlyLookup?> _hourly(
   Db db,
   CareCenterSeries series,
   int id,
   Map<String, String> query,
   String? run,
-  String? currentRun,
+  _Live live,
 ) async {
   final hours = hoursOf(query);
   if (hours == null) return const HourlyLookup();
+  final currentRun = live.simulation?.run;
   try {
     final read = await _read(db, series, id, run: run, hours: hours);
-    return HourlyLookup(run: read.run, end: read.end, current: read.run != null && read.run == currentRun, rows: read.rows);
+    final current = read.run != null && read.run == currentRun;
+    final end = read.end;
+    if (series != CareCenterSeries.occupancy) {
+      return HourlyLookup(run: read.run, end: end, current: current, rows: read.rows);
+    }
+    return HourlyLookup(
+      run: read.run,
+      end: end,
+      current: current,
+      rows: read.rows,
+      predicted: read.run == null || end == null
+          ? const []
+          : await db.predictedOccupancy(id, read.run!, end.subtract(Duration(hours: hours)), end),
+      threshold: live.threshold,
+      now: current ? simNowOf(live.feed?.people ?? const []) : null,
+    );
   } catch (error) {
     stderr.writeln('${series.path} per hour: $error');
     return null;
@@ -829,8 +897,18 @@ Future<({String? run, DateTime? end, List<Map<String, Object?>> rows})> _read(
 /// datyx's DeepAR forecast of one care center's [series] per hour in [run]
 /// (the newest run with its admissions when null), asked with the user's
 /// own [token], as [_prediction] asks: from the end of the care center's
-/// series of the series' table, group default.
-Future<Forwarded?> _forecast(Uri datyx, String? token, Db db, CareCenterSeries series, int id, String? run) async {
+/// series of the series' table, group default. An occupancy forecast from
+/// the datyx source the alarms read is kept (occupancy_forecast), as the
+/// alarms' checks keep theirs.
+Future<Forwarded?> _forecast(
+  Uri datyx,
+  String? token,
+  Db db,
+  CareCenterSeries series,
+  int id,
+  String? run,
+  _Live live,
+) async {
   var chosen = run;
   if (chosen == null) {
     try {
@@ -840,7 +918,18 @@ Future<Forwarded?> _forecast(Uri datyx, String? token, Db db, CareCenterSeries s
     }
     if (chosen == null) return const Forwarded(404, {'error': 'nobody has been admitted there'});
   }
-  return _inference(datyx, token, db, series.table, series.group, [{'run_id': chosen, 'hospital_id': '$id'}]);
+  final answer = await _inference(datyx, token, db, series.table, series.group, [{'run_id': chosen, 'hospital_id': '$id'}]);
+  final body = answer?.body;
+  if (series == CareCenterSeries.occupancy && answer?.status == 200 && body is Map && live.dev) {
+    final accepted = live.alarms?.acceptsSource(body['sourceId']) ?? true;
+    final predictions = body['predictions'];
+    final first = predictions is List && predictions.isNotEmpty && predictions.first is Map ? predictions.first as Map : null;
+    final forecast = first?['forecast'];
+    if (accepted && forecast is List && forecast.isNotEmpty && '${(first?['series'] as Map?)?['run_id'] ?? chosen}' == chosen) {
+      live.keepForecasts(db, chosen, {id: forecast}, body['runId']);
+    }
+  }
+  return answer;
 }
 
 /// The table and group of datyx's model of HealthHub's patients: their

@@ -193,7 +193,8 @@ Answer route(
         if (hourly == null) {
           return const Answer(503, body: {'error': 'the database is not answering'});
         }
-        return Answer(200, body: hourlyAnswer(id, hourly, series: series, hours: hoursOf(query)!));
+        // What datyx predicted is its forecast: for a signed-in user only, once sign-in is on.
+        return Answer(200, body: hourlyAnswer(id, hourly, series: series, hours: hoursOf(query)!, predictions: !auth.enabled || identity != null));
       case (_, _, true):
         if (auth.enabled && identity == null) return _signIn;
         if (forecast == null) {
@@ -608,43 +609,74 @@ int? hoursOf(Map<String, String> query) {
 /// center has none), the run's latest hour at any care center ([end],
 /// where its series end, as datyx sees them), whether it is the [current]
 /// run, and the care center's rows up to [end] (`hour` and the series'
-/// fields).
+/// fields). For the occupancy, also what datyx predicted of those hours
+/// before they were observed ([predicted], from occupancy_forecast:
+/// `hour`, `mean`, `p10`, `p90`, `leadHours`), the alarms' [threshold] (a
+/// share of the capacity) and the simulated clock [now] (simNowOf).
 class HourlyLookup {
-  const HourlyLookup({this.run, this.end, this.current = false, this.rows = const []});
+  const HourlyLookup({
+    this.run,
+    this.end,
+    this.current = false,
+    this.rows = const [],
+    this.predicted,
+    this.threshold,
+    this.now,
+  });
 
   final String? run;
   final DateTime? end;
   final bool current;
   final List<Map<String, Object?>> rows;
+  final List<Map<String, Object?>>? predicted;
+  final double? threshold;
+  final Map<String, Object?>? now;
 }
 
 /// What GET /api/care-centers/{id}/admissions (or .../occupancy) answers:
 /// the care center's [series] in each of the [hours] hours up to its run's
 /// end, oldest first, an hour without a row a zero (the table has none for
 /// it), as `{"hour", "admissions", "acute", "chronic"}` (or `{"hour",
-/// "occupancy"}`), the hour as `YYYY-MM-DDTHH:MM`, simulated time.
+/// "occupancy", "predicted"}`), the hour as `YYYY-MM-DDTHH:MM`, simulated
+/// time. The occupancy's `predicted` is what datyx predicted of the hour
+/// before it was observed, `{"mean", "p10", "p90", "leadHours"}`, null
+/// when nothing was or without [predictions] (a caller who must sign in to
+/// see datyx's forecast); with the alarms' `threshold` and the clock `now`.
 Map<String, Object?> hourlyAnswer(
   int id,
   HourlyLookup hourly, {
   CareCenterSeries series = CareCenterSeries.admissions,
   int hours = hourlyHours,
+  bool predictions = true,
 }) {
   final end = hourly.end;
   final byHour = {for (final row in hourly.rows) _hourKey(row['hour'] as DateTime): row};
+  final occupancy = series == CareCenterSeries.occupancy;
+  final predicted = {
+    if (predictions)
+      for (final row in hourly.predicted ?? const <Map<String, Object?>>[]) _hourKey(row['hour'] as DateTime): row,
+  };
   return {
     'hospitalId': id,
     'run': hourly.run,
     'current': hourly.current,
     'end': end == null ? null : _hourKey(end),
+    if (occupancy) 'threshold': hourly.threshold,
+    if (occupancy) 'now': hourly.now,
     'hours': [
       if (end != null)
         for (var i = hours - 1; i >= 0; i--)
           () {
             final hour = _hourKey(end.subtract(Duration(hours: i)));
             final row = byHour[hour];
+            final guess = predicted[hour];
             return {
               'hour': hour,
               for (final field in series.fields) field: row?[field] ?? 0,
+              if (occupancy)
+                'predicted': guess == null
+                    ? null
+                    : {for (final field in const ['mean', 'p10', 'p90', 'leadHours']) field: guess[field]},
             };
           }(),
     ],
@@ -736,7 +768,7 @@ const eventsAlarmsRecent = 10;
 /// them, the [eventsAlarmsRecent] latest events.
 Map<String, Object?> _eventsAlarms(bool dev, AlarmsSnapshot alarms) {
   final answer = alarmsAnswer(dev, alarms, limit: eventsAlarmsRecent);
-  const fields = ['enabled', 'checkedAt', 'status', 'note', 'stale', 'active', 'recent'];
+  const fields = ['enabled', 'threshold', 'checkedAt', 'status', 'note', 'stale', 'active', 'recent'];
   return {
     for (final field in fields) field: answer[field],
     if (alarms.signInRequired) 'signIn': true,
@@ -773,6 +805,7 @@ Map<String, Object?> alarmsAnswer(
     'enabled': on,
     'paused': dev && paused,
     'everyMs': on ? alarms.everyMs : 0,
+    'threshold': alarms.threshold,
     'now': dev ? now : null,
     'checkedAt': on ? alarms.checkedAt : null,
     'status': on ? alarms.status : null,

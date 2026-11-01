@@ -115,9 +115,10 @@ bool keeps(EventsFilter filter, StreamRow row, BusiestCareCenter? busiest) {
 /// [simulation], a button pauses the simulation and resumes it; with
 /// [population], beside it, how many people each city has, which anyone
 /// signed in can change. Then, pinned, a banner per care center whose
-/// occupancy datyx's forecast puts over its capacity ([OccupancyAlarm]):
-/// red when the forecast mean goes over ("Over capacity expected"), amber
-/// when only its 90th percentile does ("may exceed"). Then a row of pills
+/// occupancy reaches the alarm threshold, 90% of its capacity
+/// ([OccupancyAlarm]): red when it does now ("Occupancy now at 92%") or
+/// the forecast mean does ("90% occupancy expected"), amber when only its
+/// 90th percentile does ("may reach"). Then a row of pills
 /// ([EventsFilter]), one at a time, All first, each with how many of the
 /// rows read it keeps: "Busiest: Hospital X" keeps the events at the care
 /// center with the most people in care now, which the API names. At most
@@ -359,8 +360,9 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
             // The alarms now, pinned at the top; how far ahead, from the
             // clock above.
             for (final alarm in active) AlarmBanner(alarm, clock: _events.clock, stale: alarms.stale),
-            // Out of date: when they were last read, and why.
-            if (active.isNotEmpty && alarms.enabled && (alarms.stale || alarms.note != null))
+            // Out of date: when they were last read, and why. Not of an
+            // actual alarm, the occupancy observed, which datyx doesn't say.
+            if (active.any((alarm) => !alarm.actual) && alarms.enabled && (alarms.stale || alarms.note != null))
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Row(
@@ -389,7 +391,7 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
                 child: Tooltip(
                   message: alarms.note!,
                   child: Text(
-                    "Occupancy alarms: datyx can't forecast yet (${alarms.note})",
+                    "Occupancy alarms: datyx can't forecast yet, only the occupancy now is checked (${alarms.note})",
                     key: const Key('alarms-note'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -876,13 +878,25 @@ DateTime? _lastRead(List<OccupancyAlarm> active) {
   return newest == null ? null : simEpoch.add(Duration(minutes: newest - 24 * 60));
 }
 
-/// What the forecast says at the overflow: "10 in care of 8 beds (90%
-/// range up to 12)" when expected; "7 expected in care of 8 beds, 90%
-/// range up to 12" when possible.
+/// The alarm's threshold as a share of the capacity, "90%"; "100%" from
+/// an API before the threshold, which alarmed over the capacity.
+String thresholdText(double? threshold) => '${((threshold ?? 1) * 100).round()}%';
+
+/// What the alarm says at the hour reached: "11 in care of 12 beds (92%)"
+/// when actual; "10 in care of 8 beds (90% range up to 12)" when
+/// expected; "7 expected in care of 8 beds, 90% range up to 12" when
+/// possible.
 String _forecastAt(OccupancyAlarm alarm) {
   final of = alarm.capacity == null ? '' : ' of ${alarm.capacity} ${alarm.unit ?? 'beds'}';
   final mean = alarm.mean;
   final p90 = alarm.p90;
+  if (alarm.actual) {
+    final share = alarm.occupancyShare;
+    return [
+      if (alarm.occupancy != null) '${alarm.occupancy} in care$of',
+      if (share != null) '(${(share * 100).round()}%)',
+    ].join(' ');
+  }
   if (alarm.expected) {
     return [
       if (mean != null) '${_people(mean)} in care$of',
@@ -909,9 +923,17 @@ String? _peak(OccupancyAlarm alarm) {
   ].join(' ');
 }
 
-/// The colour of an alarm's level: red when the forecast mean goes over
-/// the capacity, amber when only its 90th percentile does.
-Color _levelColor(AlarmLevel? level) => level == AlarmLevel.expected ? Aityx.red : Aityx.amber;
+/// The colour of an alarm's level: red when the occupancy or the forecast
+/// mean reaches the threshold, amber when only its 90th percentile does.
+Color _levelColor(AlarmLevel? level) => level == AlarmLevel.possible || level == null ? Aityx.amber : Aityx.red;
+
+/// The icon of an alarm's level: an emergency now, a crisis expected, a
+/// warning possible.
+IconData _levelIcon(AlarmLevel? level) => switch (level) {
+  AlarmLevel.actual => Icons.emergency,
+  AlarmLevel.expected => Icons.crisis_alert,
+  _ => Icons.warning_amber,
+};
 
 /// The header's count of the alarms now, in red: "2 alarms".
 class _AlarmsBadge extends StatelessWidget {
@@ -938,17 +960,19 @@ class _AlarmsBadge extends StatelessWidget {
   );
 }
 
-/// A care center whose occupancy datyx's forecast puts over its capacity,
-/// pinned at the top of the events, unmistakable: a banner with a strong
-/// border and glow in the level's colour, a warning, and in bold "Over
-/// capacity expected at Hospital X in 7 h" (red, the forecast mean over)
-/// or "Over capacity possible: Hospital X may exceed its 8 beds in 7 h"
-/// (amber, only the 90th percentile over), the care center a link to its
-/// view; under it, the hour and what the forecast says there, "Jun 3,
-/// 2026 16:00: 10 in care of 8 beds (90% range up to 12)", and the peak.
-/// How far ahead is from [clock], the simulation's time now ("now, since
-/// ..." once it is past); when it may be out of date ([stale], or the
-/// alarm's own), "Not current: last checked Jun 3, 2026 09:00".
+/// A care center whose occupancy reaches the alarm threshold (90% of its
+/// capacity), now or by datyx's forecast, pinned at the top of the
+/// events, unmistakable: a banner with a strong border and glow in the
+/// level's colour, an icon, and in bold "Occupancy now at 92% at Hospital
+/// X" (red, observed), "90% occupancy expected at Hospital X in 7 h" (red,
+/// the forecast mean) or "90% occupancy possible: Hospital X may reach 90%
+/// of its 8 beds in 7 h" (amber, only the 90th percentile), the care
+/// center a link to its view; under it, the hour and what was observed or
+/// forecast there, "Jun 3, 2026 16:00: 10 in care of 8 beds (90% range up
+/// to 12)", and the forecast's peak. How far ahead is from [clock], the
+/// simulation's time now ("now, since ..." once it is past); when it may
+/// be out of date ([stale], or the alarm's own), "Not current: last
+/// checked Jun 3, 2026 09:00".
 class AlarmBanner extends StatelessWidget {
   const AlarmBanner(this.alarm, {super.key, this.clock, this.stale = false});
 
@@ -959,11 +983,14 @@ class AlarmBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _levelColor(alarm.level);
-    final expected = alarm.expected;
+    final actual = alarm.actual;
     final lead = _lead(alarm, clock);
-    final outOfDate = stale || alarm.stale;
+    // An actual alarm isn't stale by datyx's answer, only by its own.
+    final outOfDate = (stale && !actual) || alarm.stale;
     const bold = TextStyle(color: Aityx.fg0, fontSize: 15, fontWeight: FontWeight.w800);
     final capacity = alarm.capacity == null ? 'its capacity' : 'its ${alarm.capacity} ${alarm.unit ?? 'beds'}';
+    final threshold = thresholdText(alarm.threshold);
+    final share = alarm.occupancyShare;
     final detail = [
       [
         if (alarm.overflowAt != null) simDateTime(alarm.overflowAt!),
@@ -972,14 +999,22 @@ class AlarmBanner extends StatelessWidget {
       ?_peak(alarm),
     ].where((part) => part.isNotEmpty).join(' · ');
     final model = [
-      "datyx's DeepAR forecast of the people in care per hour",
+      actual ? 'The people in care at the latest hour' : "datyx's DeepAR forecast of the people in care per hour",
       if (alarm.now != null) 'checked at ${simClockLabel(alarm.now!)}',
-      if (alarm.trainingRun != null) 'training run ${alarm.trainingRun}',
+      if (!actual && alarm.trainingRun != null) 'training run ${alarm.trainingRun}',
     ].join(', ');
+    final why = switch (alarm.level) {
+      AlarmLevel.actual => 'The occupancy observed reaches $threshold of the capacity',
+      AlarmLevel.expected => 'The forecast mean reaches $threshold of the capacity',
+      _ => "The forecast's 90th percentile reaches $threshold of the capacity",
+    };
+    final (before, after) = switch (alarm.level) {
+      AlarmLevel.actual => ('Occupancy now at ${share == null ? threshold : '${(share * 100).round()}%'} at ', ''),
+      AlarmLevel.expected => ('$threshold occupancy expected at ', lead.isEmpty ? '' : ' $lead'),
+      _ => ('$threshold occupancy possible: ', ' may reach $threshold of $capacity${lead.isEmpty ? '' : ' $lead'}'),
+    };
     return Tooltip(
-      message:
-          '${expected ? 'The forecast mean goes over the capacity' : "The forecast's 90th percentile goes over the capacity"}'
-          '\n$model',
+      message: '$why\n$model',
       child: Container(
         key: Key('alarm-banner-${alarm.careCenterId ?? alarm.careCenterName}'),
         margin: const EdgeInsets.only(top: 8),
@@ -993,7 +1028,7 @@ class AlarmBanner extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-              expected ? Icons.crisis_alert : Icons.warning_amber,
+              _levelIcon(alarm.level),
               key: Key('alarm-icon-${alarm.level?.name}'),
               color: color,
               size: 32,
@@ -1006,14 +1041,9 @@ class AlarmBanner extends StatelessWidget {
                   Wrap(
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Text(expected ? 'Over capacity expected at ' : 'Over capacity possible: ', style: bold),
+                      Text(before, style: bold),
                       CareCenterLink(alarm.careCenterId, alarm.careCenterName, style: bold.copyWith(color: color)),
-                      Text(
-                        expected
-                            ? (lead.isEmpty ? '' : ' $lead')
-                            : ' may exceed $capacity${lead.isEmpty ? '' : ' $lead'}',
-                        style: bold,
-                      ),
+                      if (after.isNotEmpty) Text(after, style: bold),
                     ],
                   ),
                   if (detail.isNotEmpty) ...[
@@ -1044,10 +1074,11 @@ class AlarmBanner extends StatelessWidget {
 
 /// An alarm event of the stream (`healthhub.alarms`), a row of the same
 /// shape as the others ([EventRow]): red when an alarm was raised, amber
-/// when its level fell to possible, green when it cleared. The first line
-/// says which, at which care center (a link to its view), and the
-/// simulated time of the check; the second, the hour over the capacity and
-/// what the forecast says there.
+/// when its level fell, green when it cleared. The first line says which,
+/// against the threshold ("Alarm: 90% reached now", "Alarm: 90%
+/// expected", "Downgraded: 90% possible", "Cleared: below 90%"), at which
+/// care center (a link to its view), and the simulated time of the check;
+/// the second, the hour reached and what was observed or forecast there.
 class AlarmRow extends StatelessWidget {
   const AlarmRow(this.alarm, {super.key});
 
@@ -1056,17 +1087,20 @@ class AlarmRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const muted = TextStyle(color: Aityx.muted, fontSize: 12);
+    final threshold = thresholdText(alarm.threshold);
+    final level = switch (alarm.level) {
+      AlarmLevel.actual => '$threshold reached now',
+      AlarmLevel.expected => '$threshold expected',
+      _ => '$threshold possible',
+    };
     final (color, icon, title) = switch (alarm.kind) {
-      AlarmKind.alarm => (
-        Aityx.red,
-        Icons.warning_amber,
-        'Alarm: over capacity ${alarm.expected ? 'expected' : 'possible'}',
-      ),
-      AlarmKind.downgraded => (Aityx.amber, Icons.trending_down, 'Downgraded: over capacity possible'),
-      AlarmKind.cleared => (Aityx.green, Icons.check_circle_outline, 'Cleared: no longer over capacity'),
+      AlarmKind.alarm => (Aityx.red, _levelIcon(alarm.level), 'Alarm: $level'),
+      AlarmKind.downgraded => (Aityx.amber, Icons.trending_down, 'Downgraded: $level'),
+      AlarmKind.cleared => (Aityx.green, Icons.check_circle_outline, 'Cleared: below $threshold'),
     };
     final what = alarm.kind == AlarmKind.cleared
-        ? "datyx's forecast stays within ${alarm.capacity == null ? 'the capacity' : '${alarm.capacity} ${alarm.unit ?? 'beds'}'}"
+        ? 'In care and forecast below $threshold of '
+            '${alarm.capacity == null ? 'the capacity' : '${alarm.capacity} ${alarm.unit ?? 'beds'}'}'
         : [
             // How far ahead of the check that raised it, then the hour.
             [

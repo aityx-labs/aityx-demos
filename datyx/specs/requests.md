@@ -2,6 +2,21 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-01: HealthHub's occupancy model retrained every 15 minutes
+
+Asked (HealthHub's request): make sure the occupancy forecast is
+retrained in time for the live simulation.
+
+Changed: the development catalogue (`devdata/healthhub-catalog.json`)
+sets `occupancy_hourly`'s `timeSeriesRetrain` to `15min` (it was the
+default, `1D`). Measured on the development machine: a DeepAR run of
+the group takes 106 s (30 epochs of 50 batches; `admissions_hourly`'s
+first, 182 s), so a run every 15 minutes keeps the trainer, one run at a
+time, free most of the time; a failed run (too little data at a fresh
+start) is tried again after 15 minutes rather than an hour.
+HealthHub's simulation runs a simulated hour every 10 s, so 15 minutes
+is 90 simulated hours of new data. `curation.md`.
+
 ## 2026-11-01: DeepAR trains its groups, on being switched on or retrained
 
 Asked: as for XGBoost, when a DeepAR group of tags is enabled or

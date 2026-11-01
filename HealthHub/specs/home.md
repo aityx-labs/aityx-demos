@@ -106,20 +106,24 @@ theirs; narrower, each goes under its row.
   pause the simulation." when the API wants a user).
   - **The occupancy alarms, pinned** under the header and the
     simulation's controls, above the rows: a banner per
-    care center whose occupancy datyx's DeepAR forecast puts over its
-    capacity ([Occupancy alarms](occupancy-alarms.md)), as the API orders
-    them (expected first, then the soonest over). Unmistakable: a tint, a
-    2 px border and a glow in the level's colour, a large warning icon,
-    bold text, the care center a link to its [view](care-center.md):
-    - **expected** (the forecast mean over the capacity), red, with
-      `Icons.crisis_alert`: "Over capacity expected at Hospital del Mar
+    care center whose occupancy reaches the alarm threshold, 90% of its
+    capacity, observed or by datyx's DeepAR forecast ([Occupancy
+    alarms](occupancy-alarms.md)), as the API orders them (actual first,
+    then expected, then the soonest). Unmistakable: a tint, a 2 px border
+    and a glow in the level's colour, a large icon, bold text, the care
+    center a link to its [view](care-center.md):
+    - **actual** (the occupancy now reaches it), red, with
+      `Icons.emergency`: "Occupancy now at 100% at Hospital del Mar",
+      under it "Jun 3, 2026 09:00: 8 in care of 8 beds (100%)".
+    - **expected** (the forecast mean reaches it), red, with
+      `Icons.crisis_alert`: "90% occupancy expected at Hospital del Mar
       in 7 h", under it "Jun 3, 2026 16:00: 10 in care of 8 beds (90%
       range up to 12.4) · peak 11.3 at Jun 3, 2026 18:00 (90% range up
       to 13)".
-    - **possible** (only the 90th percentile over), amber, with
-      `Icons.warning_amber`: "Over capacity possible: Clínica X may
-      exceed its 3 places in 3 h", under it "Jun 3, 2026 12:00: 2.4
-      expected in care of 3 places, 90% range up to 3.6 · peak …".
+    - **possible** (only the 90th percentile reaches it), amber, with
+      `Icons.warning_amber`: "90% occupancy possible: Clínica X may
+      reach 90% of its 3 places in 3 h", under it "Jun 3, 2026 12:00:
+      2.4 expected in care of 3 places, 90% range up to 3.6 · peak …".
 
     How far ahead ("in 7 h") is from the clock in the card's header, not
     from the check, which is hours behind it by then; "now, since Jun 3,
@@ -191,12 +195,13 @@ theirs; narrower, each goes under its row.
     - **An alarm event** (`healthhub.alarms`, the 10 latest the events
       carry, in time order among the others by the simulated time of the
       check, before the records of its own minute, which its check read): no person, the care
-      center instead, a link to its view. **Raised**, red with a warning:
-      "Alarm: over capacity expected · Hospital del Mar", then "in 7 h,
-      Jun 3, 2026 16:00 · 10 in care of 8 beds (90% range up to 12.4)". **Downgraded** (expected
-      to possible), amber: "Downgraded: over capacity possible".
-      **Cleared**, green with a check: "Cleared: no longer over capacity",
-      then "datyx's forecast stays within 8 beds". The time is the
+      center instead, a link to its view. **Raised**, red with the
+      level's icon: "Alarm: 90% expected · Hospital del Mar", then "in 7
+      h, Jun 3, 2026 16:00 · 10 in care of 8 beds (90% range up to
+      12.4)" ("Alarm: 90% reached now", "Alarm: 90% possible").
+      **Downgraded** (to a lower level), amber: "Downgraded: 90%
+      possible". **Cleared**, green with a check: "Cleared: below 90%",
+      then "In care and forecast below 90% of 8 beds". The time is the
       check's, a date as an event row's ("Jun 3, 2026 09:00"); the record's place on the topic when the API gives it,
       else `healthhub.alarms`.
 

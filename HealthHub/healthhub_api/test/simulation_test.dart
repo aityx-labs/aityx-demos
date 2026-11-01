@@ -582,8 +582,11 @@ void main() {
   test('settings fall back to the defaults', () {
     final settings = SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '0', 'HEALTHHUB_SIM_TURN_MS': 'x'});
     expect(settings.peoplePerCity, 80);
-    expect(settings.turn, const Duration(seconds: 1));
-    expect(settings.minutesPerTurn, 60);
+    // A simulated hour every 10 real seconds.
+    expect(settings.turn, const Duration(milliseconds: 2500));
+    expect(settings.minutesPerTurn, 15);
+    final custom = SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_TURN_MS': '1000', 'HEALTHHUB_SIM_MINUTES_PER_TURN': '60'});
+    expect((custom.turn, custom.minutesPerTurn), (const Duration(seconds: 1), 60));
     expect(SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '3'}).peoplePerCity, 3);
     expect(SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '5000'}).peoplePerCity, maxPeoplePerCity);
   });

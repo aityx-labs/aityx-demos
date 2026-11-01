@@ -59,10 +59,15 @@ order:
      have it as their hospital; the simulated time, as a date; and that the capacity
      is the simulation's. In prod, that nobody is there.
 3. **Occupancy per hour**: the people in care at the care center in each
-   of the last 72 simulated hours up to now, a solid line with a point
-   per hour, and datyx's DeepAR forecast of the next 24, dashed and
-   lighter with hollow points, in its band, under a faint line at its
-   capacity ([A care center's occupancy per hour](occupancy-timeline.md)).
+   of the last 72 simulated hours up to now, a solid orange line with a
+   point per hour, and what datyx's DeepAR predicted of every hour, a
+   dashed blue line with hollow points in its band: of each past hour
+   before it was observed, and of the next 24; a vertical line at now,
+   labelled with the simulated time; a faint line at its capacity and a
+   red one at the alarm threshold, 90% of it, every hour observed or
+   predicted at or above it marked in red, the first ahead labelled ("90%
+   expected at Jan 19 16:00") ([A care center's occupancy per
+   hour](occupancy-timeline.md)).
 4. **People here now**, then those on their way: a row each in their
    state's colour, the name and age (a link), the condition and what they
    do ("At the health station"). When nobody can come: the simulation

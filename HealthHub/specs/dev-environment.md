@@ -135,12 +135,29 @@ process-compose through Docker Compose comes from.
   `HEALTHHUB_KAFKA_REST_URL`
   (http://127.0.0.1:9805), `HEALTHHUB_MODE` (`dev`, which runs the
   people simulation; `prod` doesn't), `HEALTHHUB_SIM_PEOPLE` (40 per
-  city), `HEALTHHUB_SIM_TURN_MS` (1000) and
-  `HEALTHHUB_SIM_MINUTES_PER_TURN` (60, so a real second is a simulated
-  hour), `HEALTHHUB_ALARM_EVERY_MS` (5000, the least real milliseconds
+  city), `HEALTHHUB_SIM_TURN_MS` (2500) and
+  `HEALTHHUB_SIM_MINUTES_PER_TURN` (15, so a simulated hour takes 10 real
+  seconds), `HEALTHHUB_ALARM_EVERY_MS` (5000, the least real milliseconds
   between two [occupancy alarm](occupancy-alarms.md) checks; 0 turns them
-  off), every one but the key with a
-  default. `.env` is git-ignored.
+  off), `HEALTHHUB_ALARM_THRESHOLD` (0.9, the share of a care center's
+  capacity whose reaching, observed or forecast, is an alarm; `85%` works
+  too, above 0 and at most 2), every one but the key with a
+  default. `.env` is git-ignored; one copied from an older
+  `.env.example` keeps `HEALTHHUB_SIM_TURN_MS=1000` and
+  `HEALTHHUB_SIM_MINUTES_PER_TURN=60`, the old pace, until they are
+  removed.
+- **The pace and datyx** ([The simulation](simulation.md#pace)): a
+  simulated hour every 10 s, so datyx's DeepAR inference (about 7 s a
+  call for 33 care centers) comes within a simulated hour and its 24
+  hours ahead are 4 real minutes of warning. datyx trains
+  `occupancy_hourly` in about 106 s (a fresh datyx queues it after
+  `admissions_hourly`'s two DeepAR groups, so its first model comes some
+  6 minutes after datyx starts) and retrains it every 15 minutes, its
+  development catalogue's `retrain` (`15min`,
+  `datyx-api/src/main/resources/devdata/healthhub-catalog.json`, set as
+  the table's `timeSeriesRetrain` when it has none). The numbers come
+  from datyx's `training_run` table (`started_at`, `finished_at`), read
+  from its database.
 - **aityx's triage** ([Triage at the desk](triage.md)):
   [scripts/model-test.sh](../scripts/model-test.sh) runs the triage
   decision on aityx at each rule and threshold, and

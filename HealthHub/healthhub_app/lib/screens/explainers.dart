@@ -24,7 +24,7 @@ class SimulationExplainer extends StatelessWidget {
             'condition; now and then anyone falls ill.',
       ),
       (
-        'An hour a second',
+        'An hour in ten seconds',
         'When a condition calls for it, a person travels to the nearest care center the visit needs: a health '
             'station for a check-up, urgent care for a sprain, a general hospital for an emergency. They say what '
             'is wrong at the desk, stay, and go home.',

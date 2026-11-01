@@ -152,6 +152,29 @@ reload).
   the tab says to sign in. An error answer shows the API's own words
   (`{"error":...}`).
 
+  Every part of the tab says what it is on hover (a tooltip, also on a
+  long press): a section title, which sources it holds; a source's icon,
+  its kind (`Database source`, `Kafka source`); its name, the source's
+  description; its address, where datyx connects; **Read schema** and
+  **Read topics**, what they read (no rows, no values) and what stays.
+  A table's icon, its kind (`tableKind`: table, view, materialized view,
+  partitioned table); its name, the kind, its description (or that the
+  source has none) and its OpenMetadata FQN; its column count; its
+  badge, ready or how many groups need work, and how many are disabled. A column's name, whether it
+  is in the primary key, never empty, or untagged; the key icon; its
+  type, as OpenMetadata names it. A TimeSeries tag, what the role means,
+  its group, what each of the group's algorithms takes it as and the
+  tag's FQN; an algorithm's tag, that datyx trains the group with it; a
+  Disabled tag, that the group isn't trained; any other tag, its
+  classification (`tagHelp`: `PII.None` is the None tag of PII). A
+  group's box: its dot, its algorithms and group (what they train on and
+  forecast), ready icon, input lines and **Edit**; **Tag for training**
+  and **Add a group**. A topic's icon, name (with its FQN),
+  field count, cleanup policies (`cleanupHelp`: delete removes records
+  past the retention, compact keeps the latest per key) and settings
+  line; a field's name and type, as the sampled values fit it. The
+  words are the dashboard's; the facts in them are the API's.
+
 - **Training** (`TrainingTab`, `?tab=training`): the models datyx
   trains, from `GET /api/training`. A card says what datyx does (each
   group tagged on the Catalog tab trained with its algorithm, XGBoost or
@@ -395,10 +418,15 @@ through the dialog sends its servers trimmed and plain text, shows as
 `kafka://`, sits in Streams below Databases with room between the
 cards, and its topics are read and opened on their settings, fields,
 a nested field indented and a tag, an empty topic saying it has no
-fields; a database source's schema is read and
+fields, with tooltips on the source, the topic (its FQN), a cleanup
+policy, a tag and a nested field; a database source's schema is read,
+its source, Read schema, table (kind, description and FQN, shown on a
+long press), columns, key icons and types having tooltips, and
 its hourly table tagged for DeepAR, the dialog showing the API's problem
 until a target is picked, then sending the roles, frequency and missing
-rows in the default group; a tagged table gets a second group, named
+rows in the default group, its tags, group, badge and ready icon then
+saying what they are; a table's kind, a tag's classification and a
+cleanup policy are named; a tagged table gets a second group, named
 `acute`, from the default's roles but its target, a second group of the
 same name is refused, its box and tags take a color other than the
 default's, and removing it sends it with no roles; a group tagged for

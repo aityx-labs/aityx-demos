@@ -2,7 +2,8 @@ import 'dart:convert';
 
 import 'package:datyx_dashboard/api/datyx_api.dart';
 import 'package:datyx_dashboard/auth/auth_controller.dart';
-import 'package:datyx_dashboard/dashboard/catalog_tab.dart' show groupColors, groupPalette, otherGroupColor;
+import 'package:datyx_dashboard/dashboard/catalog_tab.dart'
+    show cleanupHelp, groupColors, groupPalette, otherGroupColor, tableKind, tagHelp;
 import 'package:datyx_dashboard/dashboard/dashboard_screen.dart';
 import 'package:datyx_dashboard/dashboard/inference_tab.dart' show ms;
 import 'package:datyx_dashboard/dashboard/training_tab.dart' show FeatureWeights;
@@ -333,6 +334,9 @@ class FakeDatyxApi implements DatyxApi {
   }
 }
 
+/// The tooltips whose message contains [text].
+Finder tip(String text) => find.byWidgetPredicate((w) => w is Tooltip && (w.message ?? '').contains(text));
+
 void main() {
   testWidgets('shows the health, with the version', (tester) async {
     tester.view.physicalSize = const Size(1400, 900);
@@ -537,6 +541,11 @@ void main() {
       tester.getTopLeft(find.text('city')).dx,
       greaterThan(tester.getTopLeft(find.text('hour_start')).dx),
     );
+    expect(find.byTooltip('Kafka source'), findsOneWidget);
+    expect(tip('Kafka topic healthhub.admissions.hourly\nIn OpenMetadata: datyx-ds-2."healthhub.admissions.hourly"'), findsOneWidget);
+    expect(tip('Cleanup policy compact'), findsOneWidget);
+    expect(tip('Tag None of the PII classification'), findsOneWidget);
+    expect(tip('Field where of the records, holding the fields under it'), findsOneWidget);
     await tester.tap(find.text('quiet'));
     await tester.pumpAndSettle();
     expect(find.textContaining('No record to learn the fields from'), findsOneWidget);
@@ -566,6 +575,22 @@ void main() {
     await tester.tap(find.text('public.admissions_hourly'));
     await tester.pumpAndSettle();
     expect(find.text('hour_start'), findsOneWidget);
+    // Each part says what it is on hover: the source, the table, its columns.
+    expect(find.byTooltip('Database source'), findsOneWidget);
+    expect(tip('No rows are read'), findsOneWidget);
+    expect(
+      tip('Table public.admissions_hourly, with no description in the source\n'
+          'In OpenMetadata: datyx-ds-1.healthhub.public.admissions_hourly'),
+      findsOneWidget,
+    );
+    expect(tip('Column run_id: part of the primary key, not tagged'), findsOneWidget);
+    expect(tip('Primary key'), findsNWidgets(3));
+    expect(tip('as OpenMetadata names it: TIMESTAMP'), findsOneWidget);
+    await tester.longPress(find.text('public.admissions_hourly'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('In OpenMetadata: datyx-ds-1.healthhub.public.admissions_hourly'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Tag for training'));
     await tester.pumpAndSettle();
@@ -599,6 +624,11 @@ void main() {
     expect(find.text('DeepAR · default'), findsOneWidget);
     expect(find.text('default: DeepAR'), findsOneWidget);
     expect(find.text('time series: ready'), findsOneWidget);
+    // The roles' tags, the group and its readiness say what they are too.
+    expect(tip('The time index: a date or timestamp, one per table, in the default group.\nDeepAR takes it as start. Tag TimeSeries.Timestamp in OpenMetadata'), findsOneWidget);
+    expect(tip('forecasting admissions'), findsOneWidget);
+    expect(tip('datyx can train it as tagged'), findsOneWidget);
+    expect(tip('Ready to train'), findsOneWidget);
   });
 
   testWidgets('tags a group for XGBoost, with its horizon, and shows what XGBoost makes of it', (tester) async {
@@ -1462,6 +1492,20 @@ void main() {
     expect(colors.keys, ['default', 'acute', 'chronic', 'zeta']);
     expect(colors.values, [...groupPalette, otherGroupColor]);
     expect(groupColors(['chronic', 'acute']).values, groupPalette.take(2));
+  });
+
+  test('names a table\'s kind, a tag\'s classification and a cleanup policy', () {
+    expect(tableKind('Regular'), 'Table');
+    expect(tableKind('View'), 'View');
+    expect(tableKind('MaterializedView'), 'Materialized view');
+    expect(tableKind('Partitioned'), 'Partitioned table');
+    expect(tableKind(null), 'Table');
+    expect(tagHelp('PII.Sensitive'), startsWith('Tag Sensitive of the PII classification'));
+    expect(tagHelp('Tier.Tier1'), startsWith('Tag Tier1 of the Tier classification'));
+    expect(tagHelp('loose'), 'Tag loose in OpenMetadata');
+    expect(cleanupHelp('delete'), contains('older than the retention'));
+    expect(cleanupHelp('compact'), contains('latest record of each key'));
+    expect(cleanupHelp('other'), startsWith('Cleanup policy other'));
   });
 
   testWidgets('opens the tab the address names', (tester) async {

@@ -92,6 +92,25 @@ when it's next due, **Train now**, and its latest success's stat tiles
 highest scores; then the activity, every run newest first; asked again
 every 3 s while a run is on. The API client gained the four training
 calls. Tests; `dashboard.md`.
+## 2026-11-01: tooltips on the Catalog
+
+Asked: on the Catalog, add tooltips to the elements, so the user knows
+what each thing is and what it's about, such as whether it is a table.
+
+Changed: every icon, name, count, chip, badge and button of the Catalog
+tab has a tooltip ([dashboard.md](dashboard.md)): the kind of a source,
+a table (table, view, materialized view, partitioned) or a topic, with
+its description and OpenMetadata FQN; what a column's key, constraint
+and type are; what a TimeSeries role means and the DeepAR field it
+becomes; which classification a tag is from; what a cleanup policy
+does; what Read schema and Read topics read. `tableKind`, `tagHelp` and
+`cleanupHelp` name them; tests. Column descriptions aren't in the API's
+catalogue answer yet, so a column's tooltip can't show one.
+
+Merged with groups of several algorithms, switched on and off: the
+tooltips name what each of a group's algorithms takes a role as, say
+what an algorithm's tag and a Disabled tag mean, count the disabled
+groups on the table's badge, and the button reads **Tag for training**.
 
 ## 2026-11-01: Kafka sources, a Streams section, and cards apart
 

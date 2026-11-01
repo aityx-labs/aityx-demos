@@ -4,6 +4,17 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: the Audit tab without the count
+
+Asked: the Audit tab's label read *Audit (100)*; remove the number, and
+say where it came from.
+
+Changed: the label is *Audit*. The number was the calls in the log:
+the dashboard asks the API for the health, the sources and the profile
+every 15 seconds, and the log keeps the latest 100 (`CallLog.keep`)
+across reloads, so it soon read 100 and stayed there. The panel still
+says how many it keeps. The widget test no longer looks for the count.
+
 ## 2026-10-31: the catalogue and DeepAR tags on the Catalog tab
 
 Asked: see HealthHub's schema in the dashboard (in dev) and tag it for

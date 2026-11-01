@@ -67,7 +67,8 @@ reload).
   in. An error answer shows the API's own words (`{"error":...}`).
 
 - **Audit** (`CallsPanel`): every call made, newest first, up to 100
-  (the tab's label counts them): method, path with its query, status (or
+  (the panel says how many it keeps; the tab's label is just *Audit*,
+  since the refresh every 15 s soon fills it to 100): method, path with its query, status (or
   pending, or error), time of day and duration; expanded, the request and
   the response bodies pretty-printed. A button clears it. The calls are
   kept across a reload of the page.

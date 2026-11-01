@@ -204,24 +204,14 @@ class _DashboardScreenState extends State<DashboardScreen>
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(kTextTabBarHeight),
-          // The Audit tab counts the calls as they happen.
-          child: ListenableBuilder(
-            listenable: log,
-            builder: (context, _) => TabBar(
-              controller: _tabs,
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              padding: const EdgeInsets.only(left: 4),
-              tabs: [
-                for (final tab in DashboardTab.values)
-                  Tab(
-                    key: Key('tab-${tab.name}'),
-                    text: tab == DashboardTab.audit
-                        ? '${tab.label} (${log.calls.length})'
-                        : tab.label,
-                  ),
-              ],
-            ),
+          child: TabBar(
+            controller: _tabs,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            padding: const EdgeInsets.only(left: 4),
+            tabs: [
+              for (final tab in DashboardTab.values) Tab(key: Key('tab-${tab.name}'), text: tab.label),
+            ],
           ),
         ),
       ),

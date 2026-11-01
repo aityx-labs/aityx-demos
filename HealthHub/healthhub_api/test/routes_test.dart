@@ -1,4 +1,5 @@
 import 'package:healthhub_api/auth.dart';
+import 'package:healthhub_api/occupancy_alarms.dart' show AlarmsSnapshot;
 import 'package:healthhub_api/routes.dart';
 import 'package:test/test.dart';
 
@@ -494,6 +495,100 @@ void main() {
       expect((route('GET', '/api/events', dev: true).body as Map)['paused'], false);
       expect((route('GET', '/api/events', dev: true, paused: true).body as Map)['paused'], true);
       expect((route('GET', '/api/events', paused: true).body as Map)['paused'], false);
+    });
+  });
+
+  group('occupancy alarms', () {
+    Map<String, Object?> eventOf(int n) => {'kind': 'alarm', 'id': 'abcd1234-1-$n', 'hospitalId': 1, 'level': 'possible'};
+    final active = {'hospitalId': 1, 'level': 'expected', 'overflowAt': '2026-01-02T03:00'};
+    final alarms = AlarmsSnapshot(
+      enabled: true,
+      everyMs: 5000,
+      checkedAt: '2026-11-01T14:00:00.000Z',
+      status: 200,
+      trainingRun: 4,
+      active: [active],
+      recent: [for (var n = 30; n > 0; n--) eventOf(n)],
+    );
+    final moves = [moveOf('reus-1', 13, '08:10'), {...moveOf('reus-2', 14, '08:20'), 'day': 154}];
+
+    test('/api/alarms answers the active and the latest events, and the clock', () {
+      final answer = route('GET', '/api/alarms', dev: true, alarms: alarms, people: moves);
+      expect(answer.status, 200);
+      final body = answer.body as Map;
+      expect(body['enabled'], true);
+      expect(body['paused'], false);
+      expect(body['everyMs'], 5000);
+      expect(body['now'], {'day': 154, 'simTime': '08:20', 'date': '2026-06-03'});
+      expect(body['checkedAt'], '2026-11-01T14:00:00.000Z');
+      expect((body['status'], body['note'], body['trainingRun']), (200, null, 4));
+      expect(body['active'], [active]);
+      expect(body['recent'], hasLength(alarmsLimit));
+      expect((body['recent'] as List).first, eventOf(30));
+      final five = route('GET', '/api/alarms', dev: true, alarms: alarms, query: {'limit': '5'}).body as Map;
+      expect(five['recent'], hasLength(5));
+      final many = route('GET', '/api/alarms', dev: true, alarms: alarms, query: {'limit': '500'}).body as Map;
+      expect(many['recent'], hasLength(30));
+      expect(route('GET', '/api/alarms', dev: true, query: {'limit': '0'}).status, 400);
+      expect(route('GET', '/api/alarms', dev: true, query: {'limit': 'x'}).status, 400);
+      expect((route('GET', '/api/alarms', dev: true, paused: true).body as Map)['paused'], true);
+    });
+
+    test("with sign-in on, datyx's forecast only for a signed-in user, as the forecast route", () {
+      const auth = AuthSettings(issuer: 'https://accounts.google.com', clientId: 'healthhub');
+      final failed = AlarmsSnapshot(
+        enabled: true, everyMs: 5000, status: 403, note: 'user ana@example.com may not read source 3',
+        trainingRun: 4, active: [active], recent: [eventOf(1)],
+      );
+      expect(route('GET', '/api/alarms', dev: true, auth: auth, alarms: failed).status, 401);
+      const ana = Identity(subject: 'ana', email: 'ana@example.com');
+      expect(route('GET', '/api/alarms', dev: true, auth: auth, identity: ana, alarms: failed).status, 200);
+      // The events stay open, the clock too; of the alarms, only that they are on.
+      final events = route('GET', '/api/events', dev: true, auth: auth, alarms: failed, people: moves);
+      expect(events.status, 200);
+      final body = events.body as Map;
+      expect(body['now'], {'day': 154, 'simTime': '08:20', 'date': '2026-06-03'});
+      expect(body['alarms'], {
+        'enabled': true, 'checkedAt': null, 'status': null, 'note': null, 'stale': false, 'active': [], 'recent': [],
+        'signIn': true,
+      });
+      final signedIn = route('GET', '/api/events', dev: true, auth: auth, identity: ana, alarms: failed).body as Map;
+      expect((signedIn['alarms'] as Map)['active'], [active]);
+      expect((signedIn['alarms'] as Map).containsKey('signIn'), isFalse);
+    });
+
+    test('/api/alarms says nothing in prod or with the alarms off; the clock still in dev', () {
+      const empty = {
+        'enabled': false, 'paused': false, 'everyMs': 0, 'now': null, 'checkedAt': null, 'status': null,
+        'note': null, 'stale': false, 'trainingRun': null, 'active': [], 'recent': [],
+      };
+      expect(route('GET', '/api/alarms', alarms: alarms, people: moves, paused: true).body, empty);
+      final off = route('GET', '/api/alarms', dev: true, people: moves).body as Map;
+      expect({...off, 'now': null}, empty);
+      expect(off['now'], {'day': 154, 'simTime': '08:20', 'date': '2026-06-03'});
+      expect((route('GET', '/api/alarms', dev: true).body as Map)['now'], isNull);
+    });
+
+    test('/api/events carries the clock and the alarms, the 10 latest events', () {
+      final body = route('GET', '/api/events', dev: true, alarms: alarms, people: moves).body as Map;
+      expect(body['now'], {'day': 154, 'simTime': '08:20', 'date': '2026-06-03'});
+      final carried = body['alarms'] as Map;
+      expect(carried.keys, ['enabled', 'checkedAt', 'status', 'note', 'stale', 'active', 'recent']);
+      expect(carried['enabled'], true);
+      expect(carried['active'], [active]);
+      expect(carried['recent'], hasLength(eventsAlarmsRecent));
+      expect((carried['recent'] as List).first, eventOf(30));
+      // Whatever the type asked for.
+      final admissions = route('GET', '/api/events', dev: true, alarms: alarms, query: {'type': 'admission'}).body as Map;
+      expect((admissions['alarms'] as Map)['active'], [active]);
+      // In prod: no clock, no alarms.
+      final prod = route('GET', '/api/events', alarms: alarms, people: moves).body as Map;
+      expect(prod['now'], isNull);
+      expect(prod['alarms'], {
+        'enabled': false, 'checkedAt': null, 'status': null, 'note': null, 'stale': false, 'active': [], 'recent': [],
+      });
+      // Before the first move, no clock.
+      expect((route('GET', '/api/events', dev: true).body as Map)['now'], isNull);
     });
   });
 

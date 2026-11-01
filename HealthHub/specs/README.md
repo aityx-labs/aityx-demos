@@ -64,6 +64,12 @@ does in HealthHub is described feature by feature in
   care center view's time series, the people in care up to now as a
   solid line with its points and datyx's DeepAR forecast of the next 24
   dashed and lighter, in its band, under the capacity.
+- [Occupancy alarms](occupancy-alarms.md): when datyx's DeepAR forecast
+  puts a care center's occupancy over its capacity (by its mean,
+  expected; by its 90th percentile, possible), an alarm as early as the
+  forecast allows: an event stored in `occupancy_alarm` and streamed on
+  `healthhub.alarms`, `GET /api/alarms`, and a banner pinned at the top
+  of home's events.
 - [Triage at the desk](triage.md): each admission triaged by aityx from
   what the patient said and their age (Jev reads the danger signs, a
   decision gives the level, the wait, the area and a nurse's check, with

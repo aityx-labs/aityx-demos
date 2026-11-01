@@ -100,15 +100,16 @@ services:
       - "127.0.0.1:${HEALTHHUB_KAFKA_PORT:-9804}:9092"
     healthcheck:
       # Healthy once the broker answers a client and the topics exist:
-      # healthhub.people.moves, healthhub.admissions, and healthhub.test for
-      # the API's live test, so a test never writes into the moves. The check makes them when
+      # healthhub.people.moves, healthhub.admissions, healthhub.alarms (the
+      # occupancy alarms), and healthhub.test for the API's live test, so a
+      # test never writes into the moves. The check makes them when
       # missing, since kafka-rest answers 404 to a record for an unknown
       # topic instead of letting the broker create it; --if-not-exists
       # makes it a no-op afterwards. healthhub.admissions.hourly, the Flink
       # job's upserts, is compacted as well as kept a day: a reader from
       # the start gets each hour's latest count. The tool is a JVM of its
       # own: a small heap, not the broker's.
-      test: ["CMD-SHELL", "for t in healthhub.people.moves healthhub.admissions healthhub.test; do KAFKA_HEAP_OPTS=-Xmx64m /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic $$t > /dev/null 2>&1 || exit 1; done && KAFKA_HEAP_OPTS=-Xmx64m /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic healthhub.admissions.hourly --config cleanup.policy=compact,delete > /dev/null 2>&1"]
+      test: ["CMD-SHELL", "for t in healthhub.people.moves healthhub.admissions healthhub.alarms healthhub.test; do KAFKA_HEAP_OPTS=-Xmx64m /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic $$t > /dev/null 2>&1 || exit 1; done && KAFKA_HEAP_OPTS=-Xmx64m /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic healthhub.admissions.hourly --config cleanup.policy=compact,delete > /dev/null 2>&1"]
       interval: 10s
       timeout: 10s
       start_period: 60s
@@ -259,6 +260,7 @@ services:
       HEALTHHUB_SIM_PEOPLE: ${HEALTHHUB_SIM_PEOPLE:-40}
       HEALTHHUB_SIM_TURN_MS: ${HEALTHHUB_SIM_TURN_MS:-1000}
       HEALTHHUB_SIM_MINUTES_PER_TURN: ${HEALTHHUB_SIM_MINUTES_PER_TURN:-60}
+      HEALTHHUB_ALARM_EVERY_MS: ${HEALTHHUB_ALARM_EVERY_MS:-5000}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

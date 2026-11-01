@@ -188,6 +188,38 @@ const schemaComments = <String, TableComments>{
       'occupancy': 'The people in care at the care center at any minute of the hour, at least 1.',
     },
   ),
+  'occupancy_alarm': (
+    table:
+        'Each occupancy alarm event: a care center\'s level rising, falling or clearing, from datyx\'s DeepAR '
+        'forecast of its occupancy per hour (occupancy_hourly) against its capacity in the simulation. '
+        'expected: the forecast\'s mean over the capacity at some hour ahead; possible: its 90th percentile. '
+        'Written by the API once per event, also published to the healthhub.alarms topic.',
+    columns: {
+      'id': 'The event\'s id: the run, the care center and the API\'s counter.',
+      'kind': 'alarm (the level rose), downgraded (expected to possible) or cleared (back to none).',
+      'run_id': 'The run, as occupancy_hourly names it.',
+      'hospital_id': 'The care center (care_centers.id).',
+      'hospital_name': 'The care center\'s name.',
+      'care_center_kind': 'hospital, clinic or health_station.',
+      'level': 'The level after the event: possible or expected; null when cleared.',
+      'previous_level': 'The level before the event; null for a new alarm.',
+      'overflow_at': 'The earliest simulated hour over the capacity for the level (day 1 is 2026-01-01); null when cleared.',
+      'lead_hours': 'The simulated hours from the series\' end to overflow_at.',
+      'mean': 'The forecast\'s mean at overflow_at, in people.',
+      'p90': 'The forecast\'s 90th percentile at overflow_at, in people.',
+      'peak_at': 'The hour of the horizon with the highest mean (the highest p90 for possible).',
+      'peak_mean': 'The forecast\'s mean at peak_at.',
+      'peak_p90': 'The forecast\'s 90th percentile at peak_at.',
+      'capacity': 'The care center\'s capacity in the simulation, in beds or places.',
+      'unit': 'beds (a hospital) or places (a clinic, a health station).',
+      'series_end': 'The series\' end, the run\'s latest hour, where the forecast starts from.',
+      'horizon_hours': 'How many hours the forecast covers.',
+      'training_run': 'datyx\'s training run whose model answered.',
+      'sim_day': 'The simulated day of the check, from 1.',
+      'sim_time': 'The simulated time of the check, HH:MM.',
+      'raised_at': 'When the check found it, real time.',
+    },
+  ),
 };
 
 /// The relations of [schemaComments] that are views, commented as such.

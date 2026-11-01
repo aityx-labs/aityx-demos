@@ -7,6 +7,7 @@ import 'dart:math';
 import 'auth.dart';
 import 'care_centers.dart' show simulatedCapacity;
 import 'conditions.dart' show CareSetting;
+import 'occupancy_alarms.dart' show AlarmsSnapshot, simNowOf;
 import 'simulation.dart' show LatLon, Place, admissionsTopic, movesTopic;
 
 /// An answer: a status, and a JSON body or a redirect.
@@ -87,6 +88,9 @@ class Forwarded {
 /// [forecast]: for GET /api/care-centers/{id}/admissions/forecast and
 /// .../occupancy/forecast, datyx's answer to the inference the server
 /// asked for with the user's token (null: datyx didn't answer, 502).
+/// [alarms]: the occupancy alarms (lib/occupancy_alarms.dart), for GET
+/// /api/alarms and GET /api/events, which also say the simulated clock,
+/// the newest of [people].
 Answer route(
   String method,
   String path, {
@@ -117,6 +121,7 @@ Answer route(
   CareCenterLookup? careCenter,
   HourlyLookup? hourly,
   Forwarded? forecast,
+  AlarmsSnapshot alarms = AlarmsSnapshot.off,
 }) {
   if (method == 'OPTIONS') return const Answer(204);
   if (method == 'POST') {
@@ -257,7 +262,17 @@ Answer route(
             paused: paused,
             total: eventsTotal,
             perSecond: eventsPerSecond,
+            now: simNowOf(people),
+            // datyx's forecast, as the forecast route: for a signed-in user only.
+            alarms: auth.enabled && identity == null ? AlarmsSnapshot.signIn(alarms) : alarms,
           ));
+      // datyx's forecast of every care center: as the forecast route, for a
+      // signed-in user only once sign-in is on.
+      case '/api/alarms':
+        if (auth.enabled && identity == null) return _signIn;
+        final limit = alarmsLimitOf(query);
+        if (limit == null) return const Answer(400, body: {'error': 'limit is a positive number'});
+        return Answer(200, body: alarmsAnswer(dev, alarms, now: simNowOf(people), paused: paused, limit: limit));
       // Open to everyone, like the events: the people are simulated. Read
       // from the database, so in prod too, whatever an earlier dev run
       // recorded.
@@ -651,11 +666,14 @@ Map<String, Object?> eventsAnswer(
   bool paused = false,
   int total = 0,
   double perSecond = 0,
+  Map<String, Object?>? now,
+  AlarmsSnapshot alarms = AlarmsSnapshot.off,
 }) {
   const topics = [movesTopic, admissionsTopic];
   if (!dev) {
-    return const {
+    return {
       'enabled': false, 'paused': false, 'topic': movesTopic, 'topics': topics, 'total': 0, 'perSecond': 0, 'events': [],
+      'now': null, 'alarms': _eventsAlarms(false, alarms),
     };
   }
   return {
@@ -665,6 +683,8 @@ Map<String, Object?> eventsAnswer(
     'perSecond': (perSecond * 10).round() / 10,
     'topic': movesTopic,
     'topics': topics,
+    'now': now,
+    'alarms': _eventsAlarms(true, alarms),
     'events': [
       for (final event in events.where((e) => type == null || _typeOf(e) == type).take(limit.clamp(1, eventsMax)))
         if (_typeOf(event) == 'admission')
@@ -673,6 +693,61 @@ Map<String, Object?> eventsAnswer(
         else
           {for (final field in _moveEventFields) field: event[field], 'type': 'move'},
     ],
+  };
+}
+
+/// How many alarm events GET /api/events carries.
+const eventsAlarmsRecent = 10;
+
+/// The alarms as GET /api/events carries them: as GET /api/alarms has
+/// them, the [eventsAlarmsRecent] latest events.
+Map<String, Object?> _eventsAlarms(bool dev, AlarmsSnapshot alarms) {
+  final answer = alarmsAnswer(dev, alarms, limit: eventsAlarmsRecent);
+  const fields = ['enabled', 'checkedAt', 'status', 'note', 'stale', 'active', 'recent'];
+  return {
+    for (final field in fields) field: answer[field],
+    if (alarms.signInRequired) 'signIn': true,
+  };
+}
+
+/// How many alarm events GET /api/alarms answers unless asked, and at
+/// most.
+const alarmsLimit = 20;
+const alarmsMax = 100;
+
+/// The number of alarm events [query] asks for, at most [alarmsMax]; null
+/// when its limit isn't a positive number.
+int? alarmsLimitOf(Map<String, String> query) {
+  final limit = query.containsKey('limit') ? int.tryParse(query['limit']!) : alarmsLimit;
+  return limit == null || limit < 1 ? null : min(limit, alarmsMax);
+}
+
+/// What GET /api/alarms answers (specs/occupancy-alarms.md): in dev mode
+/// with the alarms on, the care centers with a level now and the latest
+/// [limit] events, newest first, with when datyx was last asked and what
+/// it said, and whether the active may be out of date (`stale`); the
+/// simulated clock [now] in dev mode; in prod, or with the alarms off,
+/// nothing.
+Map<String, Object?> alarmsAnswer(
+  bool dev,
+  AlarmsSnapshot alarms, {
+  Map<String, Object?>? now,
+  bool paused = false,
+  int limit = alarmsLimit,
+}) {
+  final on = dev && alarms.enabled;
+  return {
+    'enabled': on,
+    'paused': dev && paused,
+    'everyMs': on ? alarms.everyMs : 0,
+    'now': dev ? now : null,
+    'checkedAt': on ? alarms.checkedAt : null,
+    'status': on ? alarms.status : null,
+    'note': on ? alarms.note : null,
+    'stale': on && alarms.stale,
+    'trainingRun': on ? alarms.trainingRun : null,
+    'active': on ? alarms.active : const [],
+    'recent': on ? alarms.recent.take(limit).toList() : const [],
   };
 }
 

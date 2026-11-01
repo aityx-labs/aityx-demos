@@ -513,3 +513,53 @@ The feature files hold the current specification; see the
    hour](occupancy-hourly.md), [A care center's occupancy per
    hour](occupancy-timeline.md), [The care center view](care-center.md),
    [API](api.md) and [Database](database.md).
+1. **The simulation date and time on the top of the simulation, and on
+   the top of the event panel.** Home's map tile shows, beside its title
+   "Where you are", the simulated date and time, large and bold with a
+   clock, "Day 154 · Wed 3 Jun 2026, 16:00" (day 1 being 1 Jan 2026), and
+   **Paused** in amber while the simulation is paused; the events card
+   has the same at its top, and the index under its welcome. It updates
+   with each read (every 5 seconds): the events' `now` and `paused`, the
+   map's people's `day` and `simTime`, the newest of them. The events
+   card also now keeps the API's `paused` across its two reads (it was
+   dropped when the moves and admissions were merged, so a pause made
+   elsewhere didn't show). The app part of the occupancy alarms (the
+   banners pinned at the top of the events, the badge, the alarm rows)
+   is in [Occupancy alarms](occupancy-alarms.md#the-app). See
+   [Home](home.md#the-simulated-clock) and [Index](index.md).
+1. **Now that we have predictions on occupancy, fire an alarm, an event,
+   and highlight it pretty evidently in the events panel, when the
+   expected occupancy in the future surpasses the limit for the care
+   center, which is a pretty bad thing to happen, so warn as much as
+   possible in advance.** The API keeps an alarm per care center of the
+   run going on from datyx's DeepAR forecast of `occupancy_hourly`
+   against its capacity in the simulation: `expected` when the forecast's
+   mean is over it at some hour of the horizon, `possible` (the early
+   warning) when only its 90th percentile is, with the earliest hour over
+   it, how many hours ahead, the forecast there and the peak. datyx's
+   inference scores the run's care centers, named, 100 a call, asked
+   with the token of the request that set the check off (`GET
+   /api/events`, the events panel's poll, or `GET /api/alarms`), at most
+   every `HEALTHHUB_ALARM_EVERY_MS` (5000; 0 turns them off), in the
+   background; the token is used for that call and kept nowhere. A level
+   rising fires an `alarm` event, falling a `downgraded` one, back to
+   none a `cleared` one: each stored in the new table `occupancy_alarm`
+   and published to the new topic `healthhub.alarms` (the `kafka`
+   health check makes it), both retried until they succeed. `GET
+   /api/alarms` answers the active alarms, worst and soonest first, and
+   the latest events; `GET /api/events` carries them too, with `now`,
+   the simulated day, time and date, for the clock. The events panel pins
+   the active alarms at its top. After review: the run's care centers are
+   asked for by name, 100 a call (datyx without series scores only the
+   series ending latest in the whole table, an older, longer run's, and
+   the highest 100); a fall waits three checks lower (DeepAR's samples
+   change every call, so a forecast at the capacity flapped); a care
+   center left out of an answer is kept, marked stale, never cleared; no
+   check while paused once one has read the run; the first datyx source
+   that answered is kept, another's answers ignored; the answer says when
+   the alarms may be out of date (`stale`), and the panel says so, with
+   the lead counted from its own clock ("now, since …" once past); with
+   sign-in on, `/api/alarms` and the alarms of `/api/events` are for a
+   signed-in user only, as the forecast is. See [Occupancy
+   alarms](occupancy-alarms.md), [API](api.md), [Database](database.md),
+   [Home](home.md) and [Development environment](dev-environment.md).

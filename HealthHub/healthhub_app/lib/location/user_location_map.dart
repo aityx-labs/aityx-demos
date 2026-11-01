@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../api/health_hub_api.dart';
 import '../care_centers/care_center_screen.dart' show CareCenterOpener;
+import '../events/simulated_clock.dart';
 import '../people/person_screen.dart';
 import '../theme.dart';
 import 'location_controller.dart';
@@ -52,6 +53,7 @@ class UserLocationMap extends StatefulWidget {
     this.careCenters,
     this.nearest,
     this.people,
+    this.clock,
     this.showTiles = true,
     this.zoom = 14,
   });
@@ -69,6 +71,10 @@ class UserLocationMap extends StatefulWidget {
   /// Where the simulated people come from; none are shown without it, or
   /// while it says the simulation is off.
   final PeopleLoader? people;
+
+  /// Where the simulated time the people come with is reported, for the
+  /// page's header.
+  final SimClock? clock;
 
   /// Off in tests, which have no network for the tiles.
   final bool showTiles;
@@ -160,6 +166,7 @@ class _UserLocationMapState extends State<UserLocationMap> {
       final area = _area(_map.camera.visibleBounds);
       final people = await load(west: area.west, south: area.south, east: area.east, north: area.north);
       if (mounted && !_pollAgain) setState(() => _people = people);
+      if (people.enabled) widget.clock?.report(SimNow.at(people.day, people.simTime), paused: people.paused);
     } catch (_) {
       // The API or Kafka may be down for a moment: keep what the map shows.
     } finally {

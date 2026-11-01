@@ -5,6 +5,7 @@ import '../auth/auth_controller.dart';
 import '../auth/user_menu.dart';
 import '../care_centers/occupancy_timeline.dart';
 import '../care_centers/care_center_screen.dart';
+import '../events/simulated_clock.dart';
 import '../events/stream_events.dart';
 import '../location/location_controller.dart';
 import '../location/user_location_map.dart';
@@ -17,7 +18,9 @@ import 'explainers.dart';
 /// map with the user's position highlighted, and beside it what the data
 /// and the simulation are ([SimulationExplainer]); aityx's triage at the
 /// desk, and beside it what aityx does ([AityxExplainer]); the latest
-/// events. Below [wideFrom] wide, each explainer goes under its row.
+/// events. Below [wideFrom] wide, each explainer goes under its row. The
+/// map's header and the events' top show the simulated date and time
+/// ([SimClock]), as the map and the events read it.
 /// With [person] and [prediction], every person it names (on the map, in
 /// the events and the triage) opens their view ([PersonOpener]); with
 /// [careCenter], every care center (a pin on the map, a hospital in the
@@ -111,7 +114,9 @@ class HomeScreen extends StatelessWidget {
         )
       : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [main, const SizedBox(height: 16), side]);
 
-  Widget _scaffold(BuildContext context) => Scaffold(
+  Widget _scaffold(BuildContext context) => SimClockScope(builder: (context, clock) => _page(context, clock));
+
+  Widget _page(BuildContext context, SimClock clock) => Scaffold(
     appBar: AppBar(
       title: const Text(AppVersion.title),
       actions: [UserMenu(auth: auth), const SizedBox(width: 12)],
@@ -132,6 +137,8 @@ class HomeScreen extends StatelessWidget {
                   key: const Key('location-tile'),
                   icon: Icons.my_location,
                   title: 'Where you are',
+                  // The simulation's date and time, on top of it.
+                  clock: SimClockText.following(clock, key: const Key('map-clock')),
                   subtitle: ListenableBuilder(
                     listenable: location,
                     builder: (context, _) => Text(
@@ -148,6 +155,7 @@ class HomeScreen extends StatelessWidget {
                     careCenters: careCenters,
                     nearest: nearest,
                     people: people,
+                    clock: clock,
                     showTiles: showTiles,
                   ),
                 ),
@@ -166,7 +174,9 @@ class HomeScreen extends StatelessWidget {
         if (events != null)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            sliver: SliverToBoxAdapter(child: StreamEventsCard(events: events!, simulation: simulation)),
+            sliver: SliverToBoxAdapter(
+              child: StreamEventsCard(events: events!, simulation: simulation, clock: clock),
+            ),
           ),
         if (AppVersion.version.isNotEmpty)
           const SliverToBoxAdapter(
@@ -186,7 +196,8 @@ class HomeScreen extends StatelessWidget {
 }
 
 /// A dashboard tile: a header with an icon, a title and a status line,
-/// and its content filling the rest.
+/// and its content filling the rest; with [clock], the clock beside the
+/// title (under it when narrow).
 class _Tile extends StatelessWidget {
   const _Tile({
     super.key,
@@ -194,12 +205,14 @@ class _Tile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.child,
+    this.clock,
   });
 
   final IconData icon;
   final String title;
   final Widget subtitle;
   final Widget child;
+  final Widget? clock;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -217,7 +230,12 @@ class _Tile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w700)), ?clock],
+                    ),
                     subtitle,
                   ],
                 ),

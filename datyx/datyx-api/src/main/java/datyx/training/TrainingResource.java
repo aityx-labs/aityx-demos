@@ -54,13 +54,13 @@ public class TrainingResource {
 
     /** A run at a glance: what, why, when, how it went, and its test metrics once it succeeded. */
     public record RunView(long id, long sourceId, String source, String table, String name, String group,
-            String algorithm, String trigger, String status, Instant queuedAt, Instant startedAt, Instant finishedAt,
+            String algorithm, String trigger, String triggerNote, String status, Instant queuedAt, Instant startedAt, Instant finishedAt,
             Double seconds, String error, Integer examples, XgbTrainer.Metrics test) {
     }
 
-    /** A group tagged for XGBoost, as GET /api/training answers it. */
+    /** A group tagged for XGBoost, as GET /api/training answers it: switched on or off, and when it is next trained (none when off). */
     public record ModelView(long sourceId, String source, String table, String schema, String name, String group,
-            String algorithm, String target, List<String> seriesKey, boolean ready, List<String> problems, String frequency,
+            String algorithm, boolean enabled, String target, List<String> seriesKey, boolean ready, List<String> problems, String frequency,
             String horizon, String retrain,
             String retrainEvery, Instant nextAt, RunView latest, RunView lastSucceeded) {
     }
@@ -98,9 +98,9 @@ public class TrainingResource {
                 TimeSeries.Spec spec = g.getValue();
                 TrainingRun latest = TrainingRun.latest(source, spec.table(), spec.group()).orElse(null);
                 TrainingRun succeeded = TrainingRun.latestSucceeded(source, spec.table(), spec.group()).orElse(null);
-                Instant next = spec.ready() ? Training.nextAt(latest, spec.retrain()).orElse(null) : null;
+                Instant next = spec.ready() && spec.enabled() ? Training.nextAt(latest, spec.retrain()).orElse(null) : null;
                 models.add(new ModelView(source.id, source.name, spec.table(), spec.schema(), spec.name(), spec.group(),
-                    spec.algorithm(), spec.target(), spec.seriesKey(), spec.ready(), spec.problems(), spec.frequency(), spec.horizon(), spec.retrain(),
+                    spec.algorithm(), spec.enabled(), spec.target(), spec.seriesKey(), spec.ready(), spec.problems(), spec.frequency(), spec.horizon(), spec.retrain(),
                     spec.retrain() == null ? TimeSeries.DEFAULT_RETRAIN : spec.retrain(),
                     Instant.EPOCH.equals(next) ? Instant.now() : next, view(latest), view(succeeded)));
             }
@@ -153,7 +153,7 @@ public class TrainingResource {
         }
         String fqn = run.tableFqn;
         return new RunView(run.id, run.dataSource.id, run.dataSource.name, fqn, fqn.substring(fqn.lastIndexOf('.') + 1),
-            run.groupName, run.algorithm, run.trigger.name().toLowerCase(), run.status.name().toLowerCase(), run.queuedAt,
+            run.groupName, run.algorithm, run.trigger.name().toLowerCase(), run.triggerNote, run.status.name().toLowerCase(), run.queuedAt,
             run.startedAt, run.finishedAt, seconds, run.error, examples, test);
     }
 

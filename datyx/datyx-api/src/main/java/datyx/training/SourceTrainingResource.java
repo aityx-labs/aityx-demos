@@ -75,7 +75,8 @@ public class SourceTrainingResource {
         }
         if (!Training.trainable(spec)) {
             return TrainingResource.error(Response.Status.CONFLICT, "the group " + spec.group() + " of " + spec.name() + " can't be trained: "
-                + (TimeSeries.Algorithm.XGBOOST.tag.equals(spec.algorithm()) ? String.join("; ", spec.problems())
+                + (!spec.enabled() ? "it is switched off (" + TimeSeries.disabledFqn(spec.group()) + "); switch it on, which trains it"
+                    : TimeSeries.Algorithm.XGBOOST.tag.equals(spec.algorithm()) ? String.join("; ", spec.problems())
                     : "it isn't tagged for XGBoost"));
         }
         Optional<TrainingResource.RunView> queued = QuarkusTransaction.requiringNew().call(

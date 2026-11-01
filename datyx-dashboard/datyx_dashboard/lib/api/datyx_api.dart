@@ -502,9 +502,24 @@ class AlgorithmTag {
   }
 }
 
+/// The table tag that disables a group, so that datyx doesn't train it:
+/// `TimeSeries.Disabled` for the default group, `TimeSeries.chronic.Disabled`
+/// for chronic. Removing it enables the group again.
+String disabledTag(String group) =>
+    group == defaultGroup ? 'TimeSeries.Disabled' : 'TimeSeries.$group.Disabled';
+
+/// The group a table's Disabled tag disables, or null for another tag.
+String? disabledGroup(String fqn) {
+  final parts = fqn.split('.');
+  if (parts.length < 2 || parts.length > 3 || parts.first != 'TimeSeries' || parts.last != 'Disabled') return null;
+  return parts.length == 2 ? defaultGroup : parts[1];
+}
+
 /// One group of a table read as a time series by the API:
-/// `GET .../timeseries`, and the answer of `PUT .../timeseries`. [ready]
-/// when there are no [problems].
+/// `GET .../timeseries`, and the answer of `PUT .../timeseries` and of
+/// `PUT .../timeseries/enabled`. [ready] when there are no [problems];
+/// [enabled] unless the table carries the group's [disabledTag] (an API
+/// that doesn't say: enabled).
 class TimeSeriesSpec {
   const TimeSeriesSpec({
     required this.table,
@@ -518,6 +533,7 @@ class TimeSeriesSpec {
     this.missing,
     this.ready = false,
     this.problems = const [],
+    this.enabled = true,
   });
 
   factory TimeSeriesSpec.fromJson(Map<String, Object?> json) {
@@ -539,6 +555,7 @@ class TimeSeriesSpec {
       missing: json['missing'] as String?,
       ready: json['ready'] as bool? ?? false,
       problems: list(json['problems']),
+      enabled: json['enabled'] as bool? ?? true,
     );
   }
 
@@ -557,6 +574,12 @@ class TimeSeriesSpec {
   final String? missing;
   final bool ready;
   final List<String> problems;
+
+  /// Whether datyx trains the group: false while the table has its [disabledTag].
+  final bool enabled;
+
+  /// The tag in OpenMetadata that disables the group.
+  String get disabledTagFqn => disabledTag(group);
 
   List<String> of(TimeSeriesRole role) => columns[role] ?? const [];
 
@@ -643,8 +666,10 @@ class TestMetrics {
 DateTime? _time(Object? value) => value is String ? DateTime.tryParse(value) : null;
 
 /// A training run at a glance: why it ran ([trigger]: initial, schedule,
-/// manual), how it went ([status]: queued, running, succeeded, failed) and,
-/// once it succeeded, its [test] metrics.
+/// manual, or enabled, when the group's Disabled tag was removed in
+/// OpenMetadata, with [triggerNote] saying which version of the table, by
+/// whom and when), how it went ([status]: queued, running, succeeded,
+/// failed) and, once it succeeded, its [test] metrics.
 class TrainingRunInfo {
   const TrainingRunInfo({
     required this.id,
@@ -655,6 +680,7 @@ class TrainingRunInfo {
     this.source = '',
     this.algorithm = xgBoostAlgorithm,
     this.trigger = 'manual',
+    this.triggerNote,
     this.status = 'queued',
     this.queuedAt,
     this.startedAt,
@@ -674,6 +700,7 @@ class TrainingRunInfo {
     group: json['group'] as String? ?? defaultGroup,
     algorithm: json['algorithm'] as String? ?? xgBoostAlgorithm,
     trigger: json['trigger'] as String? ?? '',
+    triggerNote: json['triggerNote'] as String?,
     status: json['status'] as String? ?? '',
     queuedAt: _time(json['queuedAt']),
     startedAt: _time(json['startedAt']),
@@ -692,6 +719,9 @@ class TrainingRunInfo {
   final String group;
   final String algorithm;
   final String trigger;
+
+  /// More on why it ran, when the API says: for `enabled`, the tag removed and the table's version.
+  final String? triggerNote;
   final String status;
   final DateTime? queuedAt;
   final DateTime? startedAt;
@@ -708,8 +738,9 @@ class TrainingRunInfo {
 /// A group tagged for XGBoost, as `GET /api/training` answers it: what it
 /// scores, how often it is trained again ([retrainEvery], the table's
 /// timeSeriesRetrain or 1D; [retrain] as set, null when not), when next
-/// ([nextAt], null when never or while a run is on), its latest run and its
-/// latest success.
+/// ([nextAt], null when never, while a run is on or while not [enabled]),
+/// its latest run and its latest success. A group not [enabled] has its
+/// Disabled tag in OpenMetadata, and isn't trained.
 class TrainingModel {
   const TrainingModel({
     required this.sourceId,
@@ -728,6 +759,7 @@ class TrainingModel {
     this.retrain,
     this.retrainEvery = '1D',
     this.nextAt,
+    this.enabled = true,
     this.latest,
     this.lastSucceeded,
   });
@@ -749,6 +781,7 @@ class TrainingModel {
     retrain: json['retrain'] as String?,
     retrainEvery: json['retrainEvery'] as String? ?? '1D',
     nextAt: _time(json['nextAt']),
+    enabled: json['enabled'] as bool? ?? true,
     latest: json['latest'] is Map ? TrainingRunInfo.fromJson((json['latest'] as Map).cast()) : null,
     lastSucceeded: json['lastSucceeded'] is Map
         ? TrainingRunInfo.fromJson((json['lastSucceeded'] as Map).cast())
@@ -771,6 +804,7 @@ class TrainingModel {
   final String? retrain;
   final String retrainEvery;
   final DateTime? nextAt;
+  final bool enabled;
   final TrainingRunInfo? latest;
   final TrainingRunInfo? lastSucceeded;
 
@@ -1284,6 +1318,10 @@ abstract class DatyxApi {
   Future<List<CatalogTopic>> topics(int sourceId);
   Future<List<TimeSeriesSpec>> timeSeries(int sourceId);
   Future<TimeSeriesSpec> setTimeSeries(int sourceId, TimeSeriesRoles roles);
+
+  /// Enables or disables a group of [table]: removes or adds its [disabledTag]
+  /// in OpenMetadata. Enabling has datyx queue a training run of it.
+  Future<TimeSeriesSpec> setGroupEnabled(int sourceId, String table, String group, bool enabled);
   Future<TrainingOverview> training();
   Future<TrainingRunDetail> trainingRun(int id);
   Future<TrainingRunInfo> trainNow(int sourceId, String table, String group);
@@ -1469,6 +1507,18 @@ class HttpDatyxApi implements DatyxApi {
   Future<TimeSeriesSpec> setTimeSeries(int sourceId, TimeSeriesRoles roles) async =>
       TimeSeriesSpec.fromJson(
         (await _send('PUT', '/api/datasources/$sourceId/timeseries', body: roles.toJson()) as Map).cast(),
+      );
+
+  @override
+  Future<TimeSeriesSpec> setGroupEnabled(int sourceId, String table, String group, bool enabled) async =>
+      TimeSeriesSpec.fromJson(
+        (await _send(
+                  'PUT',
+                  '/api/datasources/$sourceId/timeseries/enabled',
+                  body: {'table': table, 'group': group, 'enabled': enabled},
+                )
+                as Map)
+            .cast(),
       );
 
   @override

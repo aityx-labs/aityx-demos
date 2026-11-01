@@ -201,6 +201,31 @@ that can't be a group's, is a 400, a table the catalogue doesn't have a
 changes. It answers the group read as a time series (below). This is
 the call a tool that suggests the roles will make.
 
+### Switching a group off
+
+A group can be switched off with a tag on its table, as its algorithm is
+named: `TimeSeries.Disabled` for the `default` group,
+`TimeSeries.chronic.Disabled` for `chronic` (a child tag of the group's,
+made with its roles and algorithms; `Disabled` can't name a group). datyx
+doesn't train a group switched off ([training.md](training.md)), whose
+spec says `"enabled": false`; removing the tag switches it on, and that
+removal is what trains it: in OpenMetadata's UI (the table's tags, where
+the change is in the table's version history: who, when, which version)
+or through datyx:
+
+`PUT /api/datasources/{id}/timeseries/enabled` with
+`{"table":"public.admissions_hourly","group":"chronic","enabled":false}`
+(the table as `PUT .../timeseries` takes it; the `default` group when
+none) adds the group's Disabled tag to the table, or removes it, the
+table's other tags kept, nothing patched when it already is, and answers
+the group read as a time series. Switched on, the trainer looks at the
+source at once; switched off, it notes it, so a switch off and on again
+within minutes counts even when OpenMetadata merges one user's quick
+changes into one version. A table or group the catalogue doesn't have
+is a 404, a name that can't be a group's or no `enabled` a 400. The
+dashboard's switch on each group is this call. A group with no roles
+left loses its Disabled tag with its algorithm's.
+
 ## Time series
 
 `GET /api/datasources/{id}/timeseries` answers every group of every
@@ -214,11 +239,11 @@ algorithm there isn't is a 400.
 ```json
 {"service":"datyx-ds-1","series":[{
   "table":"datyx-ds-1.healthhub.public.admissions_hourly","schema":"public","name":"admissions_hourly",
-  "group":"default","algorithm":"DeepAR","timestamp":"hour_start","target":"admissions","seriesKey":["run_id","hospital_id"],
+  "group":"default","algorithm":"DeepAR","enabled":true,"timestamp":"hour_start","target":"admissions","seriesKey":["run_id","hospital_id"],
   "staticCategorical":["hospital_id"],"staticReal":[],"knownCovariates":[],"pastCovariates":[],
   "frequency":"1h","horizon":null,"missing":"zero","ready":true,"problems":[]},
  {"table":"datyx-ds-1.healthhub.public.patient_days","schema":"public","name":"patient_days",
-  "group":"care","algorithm":"XGBoost","timestamp":"day","target":"stay_hours","seriesKey":["run_id","person_id"],
+  "group":"care","algorithm":"XGBoost","enabled":true,"timestamp":"day","target":"stay_hours","seriesKey":["run_id","person_id"],
   "staticCategorical":["sex","city","hospital_id","chronic_condition"],"staticReal":["age"],"knownCovariates":[],
   "pastCovariates":["visits","acute_visits","chronic_visits"],"frequency":"1D","horizon":"30D","missing":"zero",
   "ready":true,"problems":[]}]}
@@ -249,7 +274,10 @@ the simulated calendar from day 1. Three groups can train on it:
 `default` forecasting `admissions`, `acute` forecasting
 `acute_admissions` and `chronic` forecasting `chronic_admissions`, each
 with the same `hour_start`, series key and static category, all three
-DeepAR's.
+DeepAR's. `chronic` is switched off by default
+(`TimeSeries.chronic.Disabled` on the table, set through datyx's switch
+in development's OpenMetadata): switching it on queues its run, which
+fails until datyx has a DeepAR trainer.
 
 HealthHub's view `patient_days` (in its folder) is a series per patient:
 a row per run, person and simulated day with a visit, the day's visits
@@ -284,9 +312,13 @@ listed), algorithms' names, the roles' patch (the group's tags
 replaced, other tags and other groups' kept, unchanged columns left
 alone whatever the order of their tags, the group's algorithm tag set,
 replaced and removed beside the table's other tags, the properties set
-and removed, nothing patched when nothing changes) and a column the
+and removed, nothing patched when nothing changes, a group's Disabled
+tag kept by new roles and gone with its last role) and a column the
 table lacks or an algorithm there isn't refused, the type mapping,
-quoted FQNs.
+quoted FQNs; a group switched off by its Disabled tag (no group of its
+own, `Disabled` no group's name), the switch's patch (added, removed,
+another group's kept, a group the table hasn't refused), and the table's
+history in OpenMetadata read for the version that removed it.
 `CatalogResourceTest`, against the Dev Services Postgres standing in for
 a source: `SchemaReader` reads a schema's table, view, column order,
 types, comments and composite key, and no system schema; an S3 source is

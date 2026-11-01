@@ -12,7 +12,8 @@ const retrainChoices = ['1h', '6h', '1D', '1W', 'never'];
 
 /// The Training tab: each group tagged for XGBoost (`GET /api/training`),
 /// how often it is trained again (its table's timeSeriesRetrain, set here
-/// or in OpenMetadata), when next, **Train now**, and what its latest
+/// or in OpenMetadata), when next (a disabled group: never, until it is
+/// enabled on the Catalog tab), **Train now**, and what its latest
 /// success found: its test metrics against the naive forecast, the
 /// features that weighed most, and the highest scores; then the runs of
 /// them all, newest first. While a run is queued or running it asks again
@@ -102,8 +103,10 @@ class _TrainingTabState extends State<TrainingTab> {
                   'datyx trains each group tagged for XGBoost on the Catalog tab: '
                   'when the API starts, if it never was, then again as often as '
                   'its table says (timeSeriesRetrain in OpenMetadata, 1D when '
-                  'not set), and when asked. Each model scores its series: the '
-                  'Target summed over the horizon ahead.',
+                  'not set), when asked, and when the group is enabled (its '
+                  'Disabled tag removed in OpenMetadata). A disabled group isn\'t '
+                  'trained. Each model scores its series: the Target summed over '
+                  'the horizon ahead.',
                   style: TextStyle(color: Aityx.muted),
                 ),
                 if (widget.locked) ...[
@@ -248,6 +251,12 @@ class _ModelCardState extends State<ModelCard> {
                 ),
                 if (latest != null) StatusChip(latest.status),
                 if (!m.ready) const StatusChip('not ready'),
+                if (!m.enabled)
+                  Tooltip(
+                    message: 'The table has ${disabledTag(m.group)} in OpenMetadata: datyx doesn\'t train the group. '
+                        'Enable it on the Catalog tab.',
+                    child: const StatusChip('disabled'),
+                  ),
               ],
             ),
             const SizedBox(height: 6),
@@ -290,7 +299,7 @@ class _ModelCardState extends State<ModelCard> {
                 const SizedBox(width: 8),
                 FilledButton.icon(
                   key: ValueKey('train-now-${m.table}-${m.group}'),
-                  onPressed: _busy || active || !m.ready ? null : _trainNow,
+                  onPressed: _busy || active || !m.ready || !m.enabled ? null : _trainNow,
                   icon: const Icon(Icons.play_arrow, size: 18),
                   label: const Text('Train now'),
                 ),
@@ -309,6 +318,13 @@ class _ModelCardState extends State<ModelCard> {
             if (_error != null) ...[
               const SizedBox(height: 6),
               Text(_error!, style: const TextStyle(color: Aityx.red, fontSize: 12)),
+            ],
+            if (latest != null && latest.triggerNote != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                'The latest run (${latest.trigger}): ${latest.triggerNote}',
+                style: const TextStyle(color: Aityx.muted, fontSize: 12),
+              ),
             ],
             if (latest != null && latest.status == 'failed' && latest.error != null) ...[
               const SizedBox(height: 8),
@@ -331,6 +347,9 @@ class _ModelCardState extends State<ModelCard> {
   String _next() {
     final latest = m.latest;
     if (latest != null && latest.active) return 'A run is ${latest.status}.';
+    if (!m.enabled) {
+      return 'Disabled: not trained until enabled on the Catalog tab, which removes its ${disabledTag(m.group)} tag.';
+    }
     final next = m.nextAt;
     if (next == null) return m.ready ? 'Not trained again (never).' : 'Not trained until the group is ready.';
     final wait = next.difference(DateTime.now());
@@ -581,7 +600,7 @@ class TopScores extends StatelessWidget {
 
 /// A run's or a call's status as an icon and a word, in a status color:
 /// succeeded and ok green, queued and running amber, failed red, not ready
-/// amber.
+/// amber; a disabled group's in gray.
 class StatusChip extends StatelessWidget {
   const StatusChip(this.status, {super.key});
   final String status;
@@ -593,6 +612,7 @@ class StatusChip extends StatelessWidget {
       'failed' => (Aityx.red, Icons.error_outline),
       'running' => (Aityx.amber, Icons.sync),
       'queued' => (Aityx.amber, Icons.schedule),
+      'disabled' => (Aityx.muted, Icons.pause_circle_outline),
       _ => (Aityx.amber, Icons.warning_amber),
     };
     return Container(
@@ -610,7 +630,9 @@ class StatusChip extends StatelessWidget {
   }
 }
 
-/// Every model's runs, the newest first: when, which, why, how it went, how long, and its error against the naive one's.
+/// Every model's runs, the newest first: when, which, why (with the API's
+/// note, for a group enabled), how it went, how long, and its error against
+/// the naive one's.
 class _Activity extends StatelessWidget {
   const _Activity({required this.runs});
   final List<TrainingRunInfo> runs;
@@ -660,6 +682,12 @@ class _Activity extends StatelessWidget {
                         ),
                     ],
                   ),
+                  if (r.triggerNote != null)
+                    Padding(
+                      key: ValueKey('run-note-${r.id}'),
+                      padding: const EdgeInsets.only(left: 260, top: 2),
+                      child: Text(r.triggerNote!, style: const TextStyle(color: Aityx.muted, fontSize: 12)),
+                    ),
                   if (r.error != null)
                     Padding(
                       padding: const EdgeInsets.only(left: 260, top: 2),

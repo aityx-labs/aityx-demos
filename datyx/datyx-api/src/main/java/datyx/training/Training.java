@@ -4,8 +4,12 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -44,6 +48,14 @@ import org.jboss.logging.Logger;
  * ready, too little data, XGBoost's native library missing) fails the run
  * with the reason. Runs a stopped API left queued or running are failed
  * at start. Off with {@code datyx.training.enabled=false} (tests).
+ *
+ * A group switched off (TimeSeries.Disabled, TimeSeries.acute.Disabled on
+ * its table) isn't trained. Switching it on is the trigger: when its
+ * Disabled tag is gone, and the trainer saw it there at its last look, or
+ * OpenMetadata's history of the table shows it removed after the group's
+ * latest run, the group is queued at once, an ENABLED run, whatever its
+ * algorithm, its note naming the change in OpenMetadata. A DeepAR group's
+ * run fails: datyx has no DeepAR trainer yet.
  */
 @ApplicationScoped
 public class Training {
@@ -51,6 +63,8 @@ public class Training {
     private static final Logger LOG = Logger.getLogger(Training.class);
 
     static final Duration RETRY_AFTER_FAILURE = Duration.ofHours(1);
+
+    private static final DateTimeFormatter UTC = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm 'UTC'").withZone(ZoneOffset.UTC);
 
     @Inject
     Catalog catalog;
@@ -63,6 +77,15 @@ public class Training {
 
     @ConfigProperty(name = "datyx.training.enabled", defaultValue = "true")
     boolean enabled;
+
+    /** The groups switched off at the trainer's last look, "sourceId|table|group", and since when it knows. */
+    private final Map<String, Instant> seenDisabled = new ConcurrentHashMap<>();
+
+    private final ExecutorService checker = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "datyx-training-check");
+        t.setDaemon(true);
+        return t;
+    });
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "datyx-training");
@@ -82,6 +105,7 @@ public class Training {
 
     @PreDestroy
     void stop() {
+        checker.shutdownNow();
         worker.shutdownNow();
     }
 
@@ -113,9 +137,9 @@ public class Training {
         return Optional.of(latest.queuedAt.plus(interval));
     }
 
-    /** Whether a group can be trained: tagged for XGBoost, and ready. */
+    /** Whether a group can be trained, by schedule or on request: switched on, tagged for XGBoost, and ready. */
     static boolean trainable(TimeSeries.Spec spec) {
-        return TimeSeries.Algorithm.XGBOOST.tag.equals(spec.algorithm()) && spec.ready();
+        return spec.enabled() && TimeSeries.Algorithm.XGBOOST.tag.equals(spec.algorithm()) && spec.ready();
     }
 
     @Scheduled(every = "${datyx.training.check-every:60s}", delayed = "${datyx.training.first-check:5s}",
@@ -127,21 +151,102 @@ public class Training {
         List<Long> sources = QuarkusTransaction.requiringNew().call(() -> DataSource.<DataSource>list("type",
             DataSource.Type.DATABASE).stream().map(s -> s.id).toList());
         for (long sourceId : sources) {
-            List<JsonNode> tables;
-            try {
-                tables = catalog.tables(sourceId);
-            } catch (WebApplicationException | ProcessingException | IllegalStateException e) {
-                LOG.debugf("training: the catalogue of data source %d can't be read: %s", sourceId, e.getMessage());
-                continue;
-            }
-            for (JsonNode table : tables) {
-                for (TimeSeries.Spec spec : TimeSeries.specs(table)) {
-                    if (trainable(spec)) {
-                        queueIfDue(sourceId, spec);
+            checkSource(sourceId);
+        }
+    }
+
+    /**
+     * Looks at the source's groups soon, on a thread of the trainer's own:
+     * after a group is switched on through datyx, so its run doesn't wait
+     * for the next minute's check.
+     */
+    public void checkSoon(long sourceId) {
+        if (enabled) {
+            checker.submit(() -> checkSource(sourceId));
+        }
+    }
+
+    /**
+     * Notes that a group was just switched off through datyx, as if the
+     * trainer had seen it: OpenMetadata merges one user's quick changes into
+     * one version, so a switch off and on again within minutes may leave no
+     * trace in the table's history, and the switch on would go unnoticed.
+     */
+    public void switchedOff(long sourceId, TimeSeries.Spec spec) {
+        seenDisabled.putIfAbsent(sourceId + "|" + spec.table() + "|" + spec.group(), Instant.now());
+    }
+
+    /** One source's groups: switched-on groups queued, the rest when due. One look at a time. */
+    synchronized void checkSource(long sourceId) {
+        List<JsonNode> tables;
+        try {
+            tables = catalog.tables(sourceId);
+        } catch (WebApplicationException | ProcessingException | IllegalStateException e) {
+            LOG.debugf("training: the catalogue of data source %d can't be read: %s", sourceId, e.getMessage());
+            return;
+        }
+        for (JsonNode table : tables) {
+            for (TimeSeries.Spec spec : TimeSeries.specs(table)) {
+                String key = sourceId + "|" + spec.table() + "|" + spec.group();
+                if (!spec.enabled()) {
+                    seenDisabled.putIfAbsent(key, Instant.now());
+                    continue;
+                }
+                Instant offSince = seenDisabled.remove(key);
+                try {
+                    if (queueIfEnabled(sourceId, table, spec, offSince)) {
+                        continue;
                     }
+                } catch (WebApplicationException | ProcessingException | IllegalStateException e) {
+                    LOG.debugf("training: the history of %s can't be read: %s", spec.table(), e.getMessage());
+                }
+                if (trainable(spec)) {
+                    queueIfDue(sourceId, spec);
                 }
             }
         }
+    }
+
+    /**
+     * Queues an ENABLED run of a group switched on since its latest run:
+     * the trainer saw its Disabled tag at its last look ({@code offSince}, when),
+     * or OpenMetadata's history of the table shows the tag removed after
+     * that run (or ever, when it never ran). Whatever its algorithm. False
+     * when it wasn't switched on, or a run of it is queued or running.
+     */
+    private boolean queueIfEnabled(long sourceId, JsonNode table, TimeSeries.Spec spec, Instant offSince) {
+        Instant after = QuarkusTransaction.requiringNew().call(() -> {
+            DataSource source = DataSource.findById(sourceId);
+            TrainingRun latest = source == null ? null : TrainingRun.latest(source, spec.table(), spec.group()).orElse(null);
+            return latest == null ? Instant.EPOCH : latest.queuedAt;
+        });
+        Optional<Catalog.Change> change = offSince != null ? Optional.of(Catalog.latestChange(table))
+            : catalog.enabledAfter(table, spec.group(), after);
+        if (change.isEmpty()) {
+            return false;
+        }
+        String note = TimeSeries.disabledFqn(spec.group()) + " removed in OpenMetadata ("
+            + (offSince == null || change.get().at().isAfter(offSince) ? change.get().describe()
+                : "seen by datyx at " + UTC.format(Instant.now()) + "; OpenMetadata merged it into table version "
+                    + change.get().version() + ", as it does one user's changes within minutes")
+            + ")";
+        Long runId = QuarkusTransaction.requiringNew().call(() -> {
+            DataSource source = DataSource.findById(sourceId);
+            if (source == null) {
+                return null;
+            }
+            TrainingRun latest = TrainingRun.latest(source, spec.table(), spec.group()).orElse(null);
+            if (latest != null && (!latest.status.done() || latest.queuedAt.isAfter(after))) {
+                return null;
+            }
+            TrainingRun run = create(source, spec, TrainingRun.Trigger.ENABLED);
+            run.triggerNote = note.length() > 500 ? note.substring(0, 500) : note;
+            return run.id;
+        });
+        if (runId != null) {
+            submit(runId);
+        }
+        return true;
     }
 
     private void queueIfDue(long sourceId, TimeSeries.Spec spec) {
@@ -215,8 +320,13 @@ public class Training {
         }
         try {
             TimeSeries.Spec spec = TimeSeries.spec(catalog.table(job.tableFqn()), job.group());
+            if (!spec.enabled()) {
+                throw new IllegalArgumentException("the group is switched off (" + TimeSeries.disabledFqn(job.group()) + ") now");
+            }
             if (!TimeSeries.Algorithm.XGBOOST.tag.equals(spec.algorithm())) {
-                throw new IllegalArgumentException("the group is tagged for " + spec.algorithm() + ", not XGBoost, now");
+                throw new IllegalArgumentException("datyx has no " + spec.algorithm()
+                    + " trainer yet: only XGBoost groups train (tag the table " + TimeSeries.Algorithm.XGBOOST.fqn(job.group())
+                    + " and set its timeSeriesHorizon to train this group with XGBoost)");
             }
             if (!spec.ready()) {
                 throw new IllegalArgumentException("the group isn't ready: " + String.join("; ", spec.problems()));

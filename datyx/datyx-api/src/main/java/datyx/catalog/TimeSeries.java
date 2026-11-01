@@ -34,6 +34,11 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
  * far ahead to predict is the table's timeSeriesHorizon, which its groups
  * share, required for XGBoost. What trains a group finds it by its
  * algorithm's tag.
+ *
+ * A group can be switched off, with TimeSeries.Disabled (the default
+ * group's) or TimeSeries.acute.Disabled on the table: datyx doesn't train
+ * it, and removing the tag, in OpenMetadata or through datyx, is what
+ * trains it again (datyx.training.Training).
  */
 public final class TimeSeries {
 
@@ -45,7 +50,8 @@ public final class TimeSeries {
         For more than one dataset in a table, tag a group's columns with the roles under the group's own \
         tag (TimeSeries.acute.Target): each group is a dataset of its own. A tag on the table names the \
         algorithm that trains a group (TimeSeries.XGBoost, TimeSeries.acute.XGBoost; DeepAR when none), \
-        and the table's timeSeriesHorizon how far ahead it predicts.""";
+        and the table's timeSeriesHorizon how far ahead it predicts. TimeSeries.acute.Disabled on the \
+        table switches the group off: datyx doesn't train it until the tag is removed, which trains it.""";
 
     /** The group of the roles tagged without one (TimeSeries.Target). */
     public static final String DEFAULT_GROUP = "default";
@@ -74,6 +80,31 @@ public final class TimeSeries {
 
     /** The value of {@link #RETRAIN} that trains a group once only. */
     public static final String NEVER = "never";
+
+    /** The tag, under the classification or a group, that switches a group off. */
+    public static final String DISABLED = "Disabled";
+
+    public static final String DISABLED_DESCRIPTION = """
+        This group of the table is switched off: datyx doesn't train it. Remove the tag (here, or with \
+        the group's switch on datyx's dashboard) to switch it on: datyx then trains it at once with its \
+        algorithm, a run whose trigger is 'enabled'.""";
+
+    /** The tag on a table that switches a group off: TimeSeries.Disabled for the default group, TimeSeries.acute.Disabled for acute. */
+    public static String disabledFqn(String group) {
+        return DEFAULT_GROUP.equals(group) ? CLASSIFICATION + "." + DISABLED : CLASSIFICATION + "." + group + "." + DISABLED;
+    }
+
+    /** The group a table's tag FQN switches off, or null for a tag that isn't a TimeSeries Disabled tag. */
+    static String disabledGroupOf(String fqn) {
+        String[] parts = fqn.split("\\.", -1);
+        if (parts.length < 2 || parts.length > 3 || !CLASSIFICATION.equals(parts[0]) || !DISABLED.equals(parts[parts.length - 1])) {
+            return null;
+        }
+        if (parts.length == 2) {
+            return DEFAULT_GROUP;
+        }
+        return GROUP_PATTERN.matcher(parts[1]).matches() && !isReserved(parts[1]) ? parts[1] : null;
+    }
 
     private static final Pattern FREQUENCY_PATTERN = Pattern.compile("\\d*(s|min|h|D|B|W|W-[A-Z]{3}|MS|ME|M|QS|QE|Q|YS|YE|Y)");
 
@@ -242,13 +273,16 @@ public final class TimeSeries {
             throw new IllegalArgumentException("a group's name is letters, digits, _ and -, up to 64: not '" + group + "'");
         }
         if (isReserved(group)) {
-            throw new IllegalArgumentException("'" + group + "' is a role or an algorithm, so it can't name a group");
+            throw new IllegalArgumentException("'" + group + "' is a role, an algorithm or Disabled, so it can't name a group");
         }
         return group;
     }
 
-    /** A role's or an algorithm's name, in any case: tags under the classification or a group, never a group. */
+    /** A role's or an algorithm's name, or Disabled, in any case: tags under the classification or a group, never a group. */
     private static boolean isReserved(String name) {
+        if (DISABLED.equalsIgnoreCase(name)) {
+            return true;
+        }
         for (Role role : Role.values()) {
             if (role.tag.equalsIgnoreCase(name)) {
                 return true;
@@ -267,12 +301,13 @@ public final class TimeSeries {
 
     /**
      * A table read as a time series dataset: the algorithm that trains on
-     * the group, the columns of each role, the frequency, the horizon and
-     * the meaning of a missing row, and what keeps it from being one
-     * ({@code problems}; ready when there are none).
+     * the group, whether it is switched on ({@code enabled}: the table has
+     * no Disabled tag for it), the columns of each role, the frequency, the
+     * horizon and the meaning of a missing row, and what keeps it from
+     * being one ({@code problems}; ready when there are none).
      */
     @RegisterForReflection
-    public record Spec(String table, String schema, String name, String group, String algorithm, String timestamp, String target,
+    public record Spec(String table, String schema, String name, String group, String algorithm, boolean enabled, String timestamp, String target,
             List<String> seriesKey, List<String> staticCategorical, List<String> staticReal, List<String> knownCovariates,
             List<String> pastCovariates, String frequency, String horizon, String missing, String retrain, boolean ready,
             List<String> problems) {
@@ -339,6 +374,12 @@ public final class TimeSeries {
             }
         }
         Algorithm algorithm = algorithms.isEmpty() ? Algorithm.DEFAULT : algorithms.get(0);
+        boolean enabled = true;
+        for (JsonNode tag : table.path("tags")) {
+            if (group.equals(disabledGroupOf(tag.path("tagFQN").asText()))) {
+                enabled = false;
+            }
+        }
         if (algorithms.size() > 1) {
             problems.add("the table is tagged " + String.join(" and ", algorithms.stream().map(a -> a.fqn(group)).toList())
                 + "; one algorithm trains a group (tag another group for the other)");
@@ -391,7 +432,7 @@ public final class TimeSeries {
             problems.add(MISSING + " '" + missing + "' is neither zero (a missing row counts nothing) nor unknown");
         }
         return new Spec(table.path("fullyQualifiedName").asText(), table.path("databaseSchema").path("name").asText(null),
-            table.path("name").asText(), group, algorithm.tag, timestamp, target, columns.get(Role.SERIES_KEY),
+            table.path("name").asText(), group, algorithm.tag, enabled, timestamp, target, columns.get(Role.SERIES_KEY),
             columns.get(Role.STATIC_CATEGORICAL), columns.get(Role.STATIC_REAL), columns.get(Role.KNOWN_COVARIATE),
             columns.get(Role.PAST_COVARIATE), frequency, horizon, missing, retrain, problems.isEmpty(), problems);
     }

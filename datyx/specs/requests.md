@@ -2,6 +2,30 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-01: groups switched off by a tag, and switching one on trains it
+
+Asked: on the Catalog's view of a table's tag groups, let a group be
+disabled; HealthHub's chronic admissions group disabled by default; when
+a group is enabled, that event triggers its training, whatever its
+algorithm; the tagging as the trigger, viewable in OpenMetadata. (The
+switch on the Catalog and Training tabs is the dashboard's change.)
+
+Changed: a group is switched off by a tag on its table,
+`TimeSeries.{group}.Disabled` (`TimeSeries.Disabled` for the default
+group), made with the group's roles and algorithms; `Disabled` can't
+name a group. Specs say `enabled`. `PUT /api/datasources/{id}/timeseries/enabled`
+adds or removes the tag. The trainer never trains a group switched off
+(nor on request, a 409), and queues an `ENABLED` run of any group
+switched on: seen off at its last look, or, from OpenMetadata's version
+history of the table (GET /tables/{id}/versions), its tag removed after
+its latest run; the run's `trigger_note` (V7) names the change (table
+version, who, when). A switch on through datyx is checked at once, and a
+switch off is noted at once, as OpenMetadata merges one user's quick
+changes into one version. Runs go to the group's algorithm: XGBoost
+trains, DeepAR fails saying datyx has no DeepAR trainer yet. HealthHub's
+`chronic` group of `admissions_hourly` is switched off in development's
+OpenMetadata. Tests; `catalog.md`, `training.md`.
+
 ## 2026-11-01: inference on the trained models, and its account
 
 Asked: an Inference panel on the dashboard, to account for inference

@@ -34,6 +34,24 @@ each group of its catalogue tagged `TimeSeries.XGBoost` (or
 - never while one of its runs is queued or running: one run of a group at
   a time.
 
+A group **switched off** (its table tagged `TimeSeries.Disabled` or
+`TimeSeries.{group}.Disabled`, [catalog.md](catalog.md)) is never queued,
+nor trained on request (a 409 saying so). **Switching it on is the
+trigger**: when the tag is gone and the trainer saw it at its last look,
+or OpenMetadata's version history of the table shows it removed after the
+group's latest run (or ever, when it never ran: a change made in
+OpenMetadata's UI, or while datyx was stopped), the group is queued at
+once, an **enabled** run, whatever its algorithm, its `triggerNote`
+naming the change: `TimeSeries.chronic.Disabled removed in OpenMetadata
+(table version 0.9, by admin, 2026-11-01 12:00 UTC)`, or, when
+OpenMetadata merged one user's quick off-and-on into one version, when
+datyx saw it. Through datyx's switch (`PUT .../timeseries/enabled`) the
+trainer looks at once, so the run is queued within a second; in
+OpenMetadata's UI, at the next minute's check. One enabled run per
+switching on; the schedule takes over after it. A DeepAR group's run
+fails, `datyx has no DeepAR trainer yet: only XGBoost groups train`,
+saying how to train it with XGBoost instead.
+
 And whenever someone asks: `POST /api/datasources/{id}/training`, a
 **manual** run. Runs go one at a time to the trainer's own thread
 (`datyx-training`). Runs a stopped API left queued or running are failed
@@ -107,9 +125,11 @@ the frequency and the horizon.
 
 `TrainingRun`, table `training_run` (migration `V5__training_runs.sql`):
 the source (removing it removes its runs), the table's FQN, the group,
-the algorithm, `trigger` (`INITIAL`, `SCHEDULE`, `MANUAL`), `status`
-(`QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`), when it was queued, started
-and finished, the error, the results and the model.
+the algorithm, `trigger` (`INITIAL`, `SCHEDULE`, `MANUAL`, `ENABLED`)
+and `trigger_note` (V7: for `ENABLED`, the change in OpenMetadata that
+switched the group on), `status` (`QUEUED`, `RUNNING`, `SUCCEEDED`,
+`FAILED`), when it was queued, started and finished, the error, the
+results and the model.
 
 ## Endpoints
 

@@ -195,10 +195,13 @@ class FakeDatyxApi implements DatyxApi {
         type: t.type,
         primaryKey: t.primaryKey,
         properties: properties,
-        // Each group's algorithm as a tag on the table, as the API answers it.
+        // Each group's algorithm as a tag on the table, and a disabled
+        // group's Disabled tag, as the API answers them.
         tags: [
           for (final g in groups.values)
             g.group == defaultGroup ? 'TimeSeries.${g.algorithm}' : 'TimeSeries.${g.group}.${g.algorithm}',
+          for (final g in groups.values)
+            if (!g.enabled) disabledTag(g.group),
         ],
         columns: [
           // Each group's roles as OpenMetadata's tags, as the API answers them.
@@ -247,6 +250,29 @@ class FakeDatyxApi implements DatyxApi {
       groups[roles.group] = spec;
     }
     return spec;
+  }
+
+  /// The groups enabled or disabled, as `table group enabled`.
+  final List<String> enabledCalls = [];
+
+  @override
+  Future<TimeSeriesSpec> setGroupEnabled(int sourceId, String table, String group, bool enabled) async {
+    enabledCalls.add('$table $group $enabled');
+    final g = groups[group];
+    if (g == null) throw ApiException('PUT /api/datasources/$sourceId/timeseries/enabled answered 404', status: 404);
+    return groups[group] = TimeSeriesSpec(
+      table: g.table,
+      name: g.name,
+      group: g.group,
+      algorithm: g.algorithm,
+      columns: g.columns,
+      frequency: g.frequency,
+      horizon: g.horizon,
+      missing: g.missing,
+      ready: g.ready,
+      problems: g.problems,
+      enabled: enabled,
+    );
   }
 
   @override
@@ -683,6 +709,104 @@ void main() {
     expect(find.text('time series: ready'), findsOneWidget);
   });
 
+  testWidgets('disables and enables a group, its Disabled tag in OpenMetadata', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    const fqn = 'datyx-ds-1.healthhub.public.admissions_hourly';
+    final api = FakeDatyxApi();
+    await api.addDataSource(
+      const NewDataSource(
+        name: 'HealthHub',
+        type: DataSourceType.database,
+        details: {'engine': 'postgresql', 'host': 'localhost', 'port': 9803, 'database': 'healthhub'},
+      ),
+    );
+    await api.syncCatalog(1);
+    for (final (group, target) in [(defaultGroup, 'admissions'), ('chronic', 'acute_admissions')]) {
+      await api.setTimeSeries(
+        1,
+        TimeSeriesRoles(
+          table: fqn,
+          group: group,
+          columns: {
+            TimeSeriesRole.timestamp: const ['hour_start'],
+            TimeSeriesRole.target: [target],
+            TimeSeriesRole.seriesKey: const ['run_id', 'hospital_id'],
+          },
+          frequency: '1h',
+          missing: 'zero',
+        ),
+      );
+    }
+    // chronic comes disabled, as the API answers it.
+    await api.setGroupEnabled(1, fqn, 'chronic', false);
+    api.enabledCalls.clear();
+    // An API that doesn't say is read as enabled.
+    expect(TimeSeriesSpec.fromJson(const {'table': fqn, 'group': 'acute'}).enabled, isTrue);
+    expect(TimeSeriesSpec.fromJson(const {'table': fqn, 'group': 'acute', 'enabled': false}).enabled, isFalse);
+
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tab-catalog')));
+    await tester.pumpAndSettle();
+    expect(find.text('2 time series: all ready, 1 disabled'), findsOneWidget);
+    expect(find.text('chronic: DeepAR, disabled'), findsOneWidget);
+    await tester.tap(find.text('public.admissions_hourly'));
+    await tester.pumpAndSettle();
+
+    // Disabled: switched off, muted, its tag shown on the box and on the table.
+    Switch toggle(String group) => tester.widget<Switch>(find.byKey(ValueKey('enabled-$fqn-$group')));
+    expect(toggle('chronic').value, isFalse);
+    expect(toggle('default').value, isTrue);
+    expect(find.text('Disabled'), findsOneWidget);
+    expect(find.text('Enabled'), findsOneWidget);
+    expect(find.byKey(const ValueKey('disabled-chip-chronic')), findsOneWidget);
+    expect(find.text('TimeSeries.chronic.Disabled'), findsOneWidget);
+    expect(find.text('chronic: disabled, not trained'), findsOneWidget);
+    expect(find.byKey(const ValueKey('disabled-chip-default')), findsNothing);
+    expect(
+      find.byTooltip(
+        'Disabled: datyx doesn\'t train this group. Enabling removes its TimeSeries.chronic.Disabled tag in '
+        'OpenMetadata, which triggers a training run with its algorithm (DeepAR).',
+      ),
+      findsOneWidget,
+    );
+    // Still editable.
+    await tester.tap(find.byKey(const ValueKey('edit-group-$fqn-chronic')));
+    await tester.pumpAndSettle();
+    expect(find.text('Save tags'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Enabling removes the tag, and datyx queues a training run.
+    await tester.tap(find.byKey(ValueKey('enabled-$fqn-chronic')));
+    await tester.pumpAndSettle();
+    expect(api.enabledCalls, ['$fqn chronic true']);
+    expect(find.text('chronic enabled: datyx queues a training run of it (DeepAR); see the Training tab.'), findsOneWidget);
+    expect(toggle('chronic').value, isTrue);
+    expect(find.text('Disabled'), findsNothing);
+    expect(find.text('TimeSeries.chronic.Disabled'), findsNothing);
+    expect(find.text('chronic: disabled, not trained'), findsNothing);
+    expect(find.text('chronic: DeepAR'), findsOneWidget);
+    expect(find.text('2 time series: all ready'), findsOneWidget);
+
+    // Disabling the default group tags the table TimeSeries.Disabled.
+    await tester.tap(find.byKey(ValueKey('enabled-$fqn-default')));
+    await tester.pumpAndSettle();
+    expect(api.enabledCalls.last, '$fqn default false');
+    expect(toggle('default').value, isFalse);
+    expect(find.text('TimeSeries.Disabled'), findsOneWidget);
+    expect(find.text('disabled, not trained'), findsOneWidget);
+
+    // An error shows the API's words, and the group stays as it was.
+    api.groups.remove('chronic');
+    await tester.tap(find.byKey(ValueKey('enabled-$fqn-chronic')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('timeseries/enabled answered 404'), findsOneWidget);
+    expect(toggle('chronic').value, isTrue);
+  });
+
   testWidgets('shows the models datyx trains, what they found and their runs, and trains one now', (tester) async {
     tester.view.physicalSize = const Size(1600, 2400);
     tester.view.devicePixelRatio = 1;
@@ -781,6 +905,77 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.retrainCalls, ['never']);
     expect(find.text('Saved in OpenMetadata: retrain never.'), findsOneWidget);
+  });
+
+  testWidgets('shows a run triggered by enabling a group, with its note, and a disabled group', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    const fqn = 'datyx-ds-1.healthhub.public.admissions_hourly';
+    const note = 'TimeSeries.chronic.Disabled removed in OpenMetadata (table version 0.9, by admin, 2026-11-01 12:00 UTC)';
+    final run = TrainingRunInfo.fromJson(const {
+      'id': 12,
+      'sourceId': 1,
+      'table': fqn,
+      'name': 'admissions_hourly',
+      'group': 'chronic',
+      'algorithm': 'DeepAR',
+      'trigger': 'enabled',
+      'triggerNote': note,
+      'status': 'failed',
+      'error': 'datyx has no DeepAR trainer yet: only XGBoost groups train',
+    });
+    expect(run.triggerNote, note);
+    final api = FakeDatyxApi()
+      ..trainingOverview = TrainingOverview(
+        models: [
+          TrainingModel(
+            sourceId: 1,
+            source: 'HealthHub',
+            table: fqn,
+            schema: 'public',
+            name: 'admissions_hourly',
+            group: 'chronic',
+            algorithm: deepArAlgorithm,
+            ready: true,
+            latest: run,
+          ),
+          TrainingModel.fromJson(const {
+            'sourceId': 1,
+            'source': 'HealthHub',
+            'table': fqn,
+            'schema': 'public',
+            'name': 'admissions_hourly',
+            'group': 'acute',
+            'algorithm': 'DeepAR',
+            'ready': true,
+            'enabled': false,
+            'nextAt': null,
+          }),
+        ],
+        runs: [run],
+      );
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tab-training')));
+    await tester.pumpAndSettle();
+
+    // The run says why it ran: the tag removed, in which version of the table.
+    expect(find.descendant(of: find.byKey(const ValueKey('run-12')), matching: find.text('enabled')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('run-note-12')), matching: find.text(note)), findsOneWidget);
+    expect(find.text('The latest run (enabled): $note'), findsOneWidget);
+    // A disabled group: never next, and not trained now.
+    expect(find.text('disabled'), findsOneWidget);
+    expect(find.textContaining('Disabled: not trained until enabled on the Catalog tab'), findsOneWidget);
+    expect(find.textContaining('TimeSeries.acute.Disabled tag'), findsOneWidget);
+    expect(
+      tester.widget<FilledButton>(find.byKey(const ValueKey('train-now-$fqn-acute'))).onPressed,
+      isNull,
+    );
+    expect(
+      tester.widget<FilledButton>(find.byKey(const ValueKey('train-now-$fqn-chronic'))).onPressed,
+      isNotNull,
+    );
   });
 
   testWidgets('accounts for inference calls, and scores a series by its key or all still observed', (tester) async {

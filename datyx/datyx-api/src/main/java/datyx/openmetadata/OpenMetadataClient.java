@@ -101,6 +101,15 @@ public interface OpenMetadataClient {
     JsonNode table(@HeaderParam("Authorization") String authorization, @PathParam("fqn") String fqn,
             @QueryParam("fields") String fields);
 
+    /**
+     * A table's versions, newest first: {"versions": [...]}, each the
+     * entity as it was, as a JSON string, with its version, updatedBy,
+     * updatedAt and changeDescription.
+     */
+    @GET
+    @Path("/tables/{id}/versions")
+    JsonNode tableVersions(@HeaderParam("Authorization") String authorization, @PathParam("id") String id);
+
     /** A JSON Patch (RFC 6902) of a table: its columns' tags, its custom properties. */
     @PATCH
     @Path("/tables/{id}")

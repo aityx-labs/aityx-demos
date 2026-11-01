@@ -13,11 +13,14 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import datyx.catalog.Catalog;
 import datyx.catalog.TimeSeries;
 import datyx.datasource.DataSource;
 import io.agroal.api.AgroalDataSource;
 import io.quarkus.narayana.jta.QuarkusTransaction;
+import io.quarkus.test.junit.QuarkusMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import jakarta.inject.Inject;
@@ -141,8 +144,139 @@ class TrainingTest {
         given().when().get("/api/training/runs/" + runId).then().statusCode(404);
     }
 
+    /**
+     * The catalogue as OpenMetadata would answer it, without OpenMetadata:
+     * admissions_hourly with its chronic group (DeepAR) switched off or on,
+     * at table version 0.9 by admin; and what the table's history says.
+     */
+    static class FakeCatalog extends Catalog {
+
+        boolean chronicOff = true;
+
+        Catalog.Change acuteEnabled;
+
+        JsonNode hourly() {
+            try {
+                return new ObjectMapper().readTree("""
+                    {"id":"t-9","name":"admissions_hourly","fullyQualifiedName":"datyx-ds-9.healthhub.public.admissions_hourly",
+                     "databaseSchema":{"name":"public"},"version":0.9,"updatedBy":"admin","updatedAt":1793534400000,
+                     "tags":%s,
+                     "columns":[
+                      {"name":"hospital_id","dataType":"INT","tags":[{"tagFQN":"TimeSeries.acute.SeriesKey"},{"tagFQN":"TimeSeries.chronic.SeriesKey"}]},
+                      {"name":"hour_start","dataType":"TIMESTAMP","tags":[{"tagFQN":"TimeSeries.acute.Timestamp"},{"tagFQN":"TimeSeries.chronic.Timestamp"}]},
+                      {"name":"acute_admissions","dataType":"INT","tags":[{"tagFQN":"TimeSeries.acute.Target"}]},
+                      {"name":"chronic_admissions","dataType":"INT","tags":[{"tagFQN":"TimeSeries.chronic.Target"}]}],
+                     "extension":{"timeSeriesFrequency":"1h","timeSeriesMissing":"zero"}}
+                    """.formatted(chronicOff ? "[{\"tagFQN\":\"TimeSeries.chronic.Disabled\"}]" : "[]"));
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        @Override
+        public List<JsonNode> tables(long sourceId) {
+            return List.of(hourly());
+        }
+
+        @Override
+        public JsonNode table(String fqn) {
+            return hourly();
+        }
+
+        @Override
+        public void forget(long sourceId, DataSource.Type type) {
+        }
+
+        @Override
+        public Optional<Catalog.Change> enabledAfter(JsonNode table, String group, Instant after) {
+            return "acute".equals(group) && acuteEnabled != null && acuteEnabled.at().isAfter(after)
+                ? Optional.of(acuteEnabled) : Optional.empty();
+        }
+    }
+
+    private List<TrainingRun> runsOf(long sourceId) {
+        return QuarkusTransaction.requiringNew().call(() -> TrainingRun.<TrainingRun>list("dataSource.id = ?1 order by id", sourceId));
+    }
+
+    private TrainingRun waitDone(long runId) throws InterruptedException {
+        for (int i = 0; i < 100; i++) {
+            TrainingRun run = QuarkusTransaction.requiringNew().call(() -> TrainingRun.findById(runId));
+            if (run.status.done()) {
+                return run;
+            }
+            Thread.sleep(100);
+        }
+        throw new AssertionError("run " + runId + " didn't finish");
+    }
+
+    @Test
+    void switchingAGroupOnIsWhatTrainsIt() throws Exception {
+        FakeCatalog catalog = new FakeCatalog();
+        QuarkusMock.installMockForType(catalog, Catalog.class);
+        int id = given().contentType(ContentType.JSON)
+            .body("""
+                {"name":"switched clinic","type":"database",
+                 "database":{"engine":"postgresql","host":"localhost","port":5432,"database":"clinic","username":"u","password":"p"}}""")
+            .when().post("/api/datasources").then().statusCode(201).extract().path("id");
+        try {
+            // Off: not trained, though never trained; acute is DeepAR's, so nothing schedules it either.
+            training.checkSource(id);
+            assertTrue(runsOf(id).isEmpty());
+
+            // Switched on (its Disabled tag removed): one run, ENABLED, whatever the algorithm.
+            catalog.chronicOff = false;
+            training.checkSource(id);
+            List<TrainingRun> runs = runsOf(id);
+            assertEquals(1, runs.size());
+            TrainingRun run = runs.get(0);
+            assertEquals(TrainingRun.Trigger.ENABLED, run.trigger);
+            assertEquals("chronic", run.groupName);
+            assertEquals("DeepAR", run.algorithm);
+            assertEquals("TimeSeries.chronic.Disabled removed in OpenMetadata (table version 0.9, by admin, 2026-11-01 12:00 UTC)",
+                run.triggerNote);
+            TrainingRun done = waitDone(run.id);
+            assertEquals(TrainingRun.Status.FAILED, done.status);
+            assertTrue(done.error.startsWith("datyx has no DeepAR trainer yet: only XGBoost groups train"), done.error);
+
+            // Once: the next look trains it no more.
+            training.checkSource(id);
+            assertEquals(1, runsOf(id).size());
+
+            // OpenMetadata's history says acute was switched on (in its UI, while datyx wasn't looking).
+            catalog.acuteEnabled = new Catalog.Change("0.8", "julio", Instant.parse("2026-11-01T11:00:00Z"));
+            training.checkSource(id);
+            runs = runsOf(id);
+            assertEquals(2, runs.size());
+            assertEquals("acute", runs.get(1).groupName);
+            assertEquals("TimeSeries.acute.Disabled removed in OpenMetadata (table version 0.8, by julio, 2026-11-01 11:00 UTC)",
+                runs.get(1).triggerNote);
+            waitDone(runs.get(1).id);
+            given().when().get("/api/training/runs/" + runs.get(1).id).then().statusCode(200)
+                .body("run.trigger", is("enabled")).body("run.triggerNote", is(runs.get(1).triggerNote));
+        } finally {
+            given().when().delete("/api/datasources/" + id).then().statusCode(204);
+        }
+    }
+
+    @Test
+    void aSwitchedOffGroupIsNotTrainable() throws Exception {
+        TimeSeries.Spec on = spec();
+        assertTrue(Training.trainable(on));
+        TimeSeries.Spec off = TimeSeries.spec(json.readTree(new ObjectMapper().writeValueAsString(
+            json.readTree("""
+                {"name":"patient_days","fullyQualifiedName":"f","databaseSchema":{"name":"clinic"},
+                 "tags":[{"tagFQN":"TimeSeries.care.XGBoost"},{"tagFQN":"TimeSeries.care.Disabled"}],
+                 "columns":[{"name":"day","dataType":"DATE","tags":[{"tagFQN":"TimeSeries.care.Timestamp"}]},
+                  {"name":"h","dataType":"INT","tags":[{"tagFQN":"TimeSeries.care.Target"}]}],
+                 "extension":{"timeSeriesFrequency":"1D","timeSeriesHorizon":"14D"}}"""))), "care");
+        assertTrue(off.ready());
+        assertTrue(!off.enabled() && !Training.trainable(off));
+    }
+
     @Test
     void saysWhatItCantDo() {
+        given().contentType(ContentType.JSON).body("{\"table\":\"t\",\"group\":\"care\",\"enabled\":true}")
+            .when().put("/api/datasources/987654/timeseries/enabled").then().statusCode(404);
         given().contentType(ContentType.JSON).body("{\"table\":\"t\",\"group\":\"care\"}")
             .when().post("/api/datasources/987654/training").then().statusCode(404);
         given().contentType(ContentType.JSON).body("{}")

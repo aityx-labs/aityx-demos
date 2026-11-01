@@ -34,7 +34,9 @@ public class TrainingRun extends PanacheEntity {
         /** Its table's timeSeriesRetrain said it was time. */
         SCHEDULE,
         /** Someone asked (POST .../training). */
-        MANUAL
+        MANUAL,
+        /** The group was switched on: its Disabled tag removed from the table in OpenMetadata. */
+        ENABLED
     }
 
     public enum Status {
@@ -61,6 +63,10 @@ public class TrainingRun extends PanacheEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     public Trigger trigger;
+
+    /** The trigger in words, when it says more than its name: the change in OpenMetadata that switched the group on. */
+    @Column(name = "trigger_note", length = 500)
+    public String triggerNote;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)

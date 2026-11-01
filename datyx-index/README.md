@@ -3,7 +3,7 @@
 The index of the datyx group: one page, in the aityx palette, with a
 card per system (what it is, its technology, **Open** for it on its port
 here or, in a codespace, its forwarded URL, more links on that port where
-a card has them (the dashboard's **Training** tab), **Source** on GitHub, and
+a card has them (the dashboard's **Training** and **Inference** tabs), **Source** on GitHub, and
 **Codespace** for the datyx group's dev container): the datyx dashboard, the datyx API
 (whose health check covers OpenMetadata) and HealthHub. The six aityx demos have their own index,
 [../Index/](../Index/).

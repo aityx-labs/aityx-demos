@@ -130,15 +130,18 @@
       {
         folder: 'datyx-dashboard', port: 9906, name: 'datyx dashboard',
         what: 'The views of datyx: an app that calls the datyx API',
-        desc: 'A web app, like every demo\'s, that invokes the datyx API and shows what it answers: the data sources on record, the catalogue and its tags for DeepAR and XGBoost, the models datyx trains with their results and every run, an audit of every request and response, the health of the API, PostgreSQL and OpenMetadata, and your profile. Views only; the data and the logic are the API\'s. Sign in with Google.',
-        chips: ['Dashboard', 'calls the datyx API', 'Training', 'Google sign-in'],
+        desc: 'A web app, like every demo\'s, that invokes the datyx API and shows what it answers: the data sources on record, the catalogue and its tags for DeepAR and XGBoost, the models datyx trains with their results and every run, the account of the calls to them (inference), an audit of every request and response, the health of the API, PostgreSQL and OpenMetadata, and your profile. Views only; the data and the logic are the API\'s. Sign in with Google.',
+        chips: ['Dashboard', 'calls the datyx API', 'Training', 'Inference', 'Google sign-in'],
         icon: 'data',
-        links: [{ label: 'Training', path: '/app/?tab=training' }],
+        links: [
+          { label: 'Training', path: '/app/?tab=training' },
+          { label: 'Inference', path: '/app/?tab=inference' },
+        ],
       },
       {
         folder: 'datyx', port: 9900, path: '/q/swagger-ui', name: 'datyx API',
         what: 'A Quarkus API with PostgreSQL and OpenMetadata',
-        desc: 'REST on Quarkus and GraalVM with Hibernate and Panache over PostgreSQL: the data sources users add, each in the profile of whoever added it, with its access details encrypted with that profile\'s key; users signed in with Google through OpenID Connect. Its health check, /api/health, covers PostgreSQL and OpenMetadata, the catalogue it registers data in (its own UI on 9902: admin@open-metadata.org, password admin). It trains the groups tagged for XGBoost there itself, with XGBoost4J, at start and as often as their table says. API only: Open shows its Swagger UI. Ports 9900 to 9905.',
+        desc: 'REST on Quarkus and GraalVM with Hibernate and Panache over PostgreSQL: the data sources users add, each in the profile of whoever added it, with its access details encrypted with that profile\'s key; users signed in with Google through OpenID Connect. Its health check, /api/health, covers PostgreSQL and OpenMetadata, the catalogue it registers data in (its own UI on 9902: admin@open-metadata.org, password admin). It trains the groups tagged for XGBoost there itself, with XGBoost4J, at start and as often as their table says, and scores series with them on demand, accounting for every call. API only: Open shows its Swagger UI. Ports 9900 to 9905.',
         chips: ['Quarkus API', 'PostgreSQL', 'OpenMetadata', 'XGBoost', 'OpenID Connect'],
         icon: 'api',
       },

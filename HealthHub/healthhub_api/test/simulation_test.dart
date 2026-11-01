@@ -66,16 +66,20 @@ void main() {
     expect(stepMeters(TravelMode.walk, 10), closeTo(833.3, 0.1));
   });
 
-  test('a visit starts on the hour in the daytime, never in the past', () {
+  test('a visit starts on the hour, never in the past', () {
     final random = Random(9);
-    for (var i = 0; i < 200; i++) {
+    final hours = <int>{};
+    for (var i = 0; i < 500; i++) {
       final start = nextVisitStart(3, dayStart(3) + 12 * 60, random);
       final ofDay = start % minutesPerDay;
       expect(ofDay % 60, 0);
-      expect(ofDay ~/ 60, inInclusiveRange(visitFirstHour, visitLastHour));
+      hours.add(ofDay ~/ 60);
       expect(start, greaterThan(dayStart(3) + 12 * 60));
       expect(simDay(start), inInclusiveRange(3, 4));
     }
+    // From the daily profile: never at 01:00, its trough.
+    expect(hours, isNot(contains(1)));
+    expect(hours, contains(13));
   });
 
   test('the nearest hospital is searched among all of them', () {
@@ -269,7 +273,7 @@ void main() {
         expect(simDay(chronic.dueAt!), inInclusiveRange(1, chronicOnsetDays));
       }
       expect(person.acute, isNull);
-      expect(person.acuteOnsetAt, greaterThanOrEqualTo(simStartMinutes + minutesPerDay));
+      expect(person.acuteOnsetAt, greaterThanOrEqualTo(dayStart(2)));
     }
     final cornudella = people.firstWhere((p) => p.city == 'Cornudella de Montsant');
     expect(cornudella.hospital.city, 'Reus');
@@ -289,8 +293,9 @@ void main() {
     expect(value.keys, [
       'id', 'name', 'age', 'city', 'lat', 'lon', 'homeLat', 'homeLon', 'hospitalId', 'hospitalName',
       'careCenterKind', 'state', 'mode', 'monitored', 'monitoredFor', 'conditionName', 'conditionType', 'simTime', 'day',
-      'turn',
+      'at', 'turn',
     ]);
+    expect(value['at'], simAt(simMinutes(13, 10)));
     expect(value['monitored'], person.monitored);
     expect(value['monitoredFor'], person.monitoredFor);
     expect(value['name'], person.profile.name);
@@ -534,10 +539,76 @@ void main() {
 
   test('settings fall back to the defaults', () {
     final settings = SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '0', 'HEALTHHUB_SIM_TURN_MS': 'x'});
-    expect(settings.peoplePerCity, 40);
+    expect(settings.peoplePerCity, 80);
     expect(settings.turn, const Duration(seconds: 1));
     expect(settings.minutesPerTurn, 60);
     expect(SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '3'}).peoplePerCity, 3);
+    expect(SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '5000'}).peoplePerCity, maxPeoplePerCity);
+  });
+
+  test('a simulated moment is a date and time on the calendar from 2026-01-01', () {
+    expect(simAt(0), '2026-01-01T00:00');
+    expect(simAt(simStartMinutes), '2026-01-01T06:00');
+    expect(simAt(18 * minutesPerDay + 9 * 60 + 40), '2026-01-19T09:40');
+    expect(simAt(553 * minutesPerDay + 18 * 60 + 17), '2027-07-08T18:17');
+  });
+
+  test('the people a city change while it runs: newcomers from now, the last to join leave first', () {
+    final places = [
+      place(1, 'Reus', 'hospital', const LatLon(41.15, 1.1)),
+      place(2, 'Lisboa', 'hospital', const LatLon(38.72, -9.14)),
+    ];
+    final simulation = Simulation(
+      populate(places, 3, 60, Random(1), conditions: [cold, diabetes]),
+      const SimulationSettings(peoplePerCity: 3),
+      throwingKafka,
+      conditions: [cold, diabetes],
+      places: places,
+      random: Random(2),
+    );
+    expect(simulation.peoplePerCity, 3);
+    var changed = simulation.setPeoplePerCity(5);
+    expect(changed.joined, ['reus-4', 'reus-5', 'lisboa-4', 'lisboa-5']);
+    expect(changed.left, isEmpty);
+    expect(simulation.people, hasLength(10));
+    changed = simulation.setPeoplePerCity(2);
+    expect(changed.left..sort(), ['lisboa-3', 'lisboa-4', 'lisboa-5', 'reus-3', 'reus-4', 'reus-5']);
+    expect(simulation.people.map((p) => p.id), ['reus-1', 'reus-2', 'lisboa-1', 'lisboa-2']);
+    // Numbers aren't given twice: a newcomer is never someone who left.
+    expect(simulation.setPeoplePerCity(3).joined, ['reus-6', 'lisboa-6']);
+    expect(simulation.setPeoplePerCity(5000).joined, hasLength(2 * (maxPeoplePerCity - 3)));
+    expect(simulation.peoplePerCity, maxPeoplePerCity);
+  });
+
+  test('someone joining a run late has their visits from then on', () {
+    final places = [place(1, 'Reus', 'hospital', const LatLon(41.15, 1.1))];
+    final from = simMinutes(2000, 60);
+    for (var seed = 0; seed < 20; seed++) {
+      final person = newPerson('Reus', 1, places, places, 60, Random(seed), conditions: [cold, diabetes], from: from)!;
+      expect(person.acuteOnsetAt, greaterThan(from));
+      final due = person.chronic?.dueAt;
+      if (due != null) expect(due, greaterThan(from), reason: 'seed $seed');
+    }
+  });
+
+  test('the feed follows who joins and who leaves', () {
+    final feed = PeopleFeed(throwingKafka, people: ['reus-1']);
+    Map<String, Object?> move(String id) => {
+      'id': id, 'city': 'Reus', 'lat': 41.1, 'lon': 1.1, 'homeLat': 41.2, 'homeLon': 1.2, 'hospitalId': 1,
+      'hospitalName': 'Hospital Sant Joan', 'state': 'to_hospital', 'simTime': '09:10', 'day': 1, 'turn': 1,
+    };
+    feed.add(move('reus-2'));
+    expect(feed.people, isEmpty);
+    feed
+      ..join(['reus-2'])
+      ..add(move('reus-1'))
+      ..add(move('reus-2'));
+    expect(feed.people.map((p) => p['id']), ['reus-1', 'reus-2']);
+    feed.leave(['reus-1']);
+    expect(feed.people.map((p) => p['id']), ['reus-2']);
+    // A move of theirs still on its way is skipped.
+    feed.add(move('reus-1'));
+    expect(feed.people.map((p) => p['id']), ['reus-2']);
   });
 }
 

@@ -136,7 +136,9 @@ process-compose through Docker Compose comes from.
   people simulation; `prod` doesn't), `HEALTHHUB_SIM_PEOPLE` (40 per
   city), `HEALTHHUB_SIM_TURN_MS` (1000) and
   `HEALTHHUB_SIM_MINUTES_PER_TURN` (60, so a real second is a simulated
-  hour), every one but the key with a
+  hour), `HEALTHHUB_HISTORY_DAYS` (90, the days of admissions history the
+  API writes at start in dev mode; 0 for none: [The
+  history](admissions-hourly.md#the-history)), every one but the key with a
   default. `.env` is git-ignored.
 - **aityx's triage** ([Triage at the desk](triage.md)):
   [scripts/model-test.sh](../scripts/model-test.sh) runs the triage
@@ -162,6 +164,9 @@ process-compose through Docker Compose comes from.
   `kafka` first); `devbox run flink` the Flink job (`infra.sh up
   flink-sql`, which starts the JobManager, the TaskManager, Kafka and
   PostgreSQL first; the API must have made `admissions_hourly`).
+- `dart run bin/history.dart [--days N] [--dry-run]` in `healthhub_api/`
+  writes the admissions history to the database `HEALTHHUB_DB_*` names
+  without starting the API ([The history](admissions-hourly.md#the-history)).
 - The web app calls the API at `API_BASE_URL` (a dart-define). The
   services leave it empty, in both modes: the app calls `/api/` on its own
   origin, which the web server (or the dev server) proxies to the API.
@@ -244,7 +249,7 @@ process-compose through Docker Compose comes from.
   devbox services have run end to end (PostgreSQL, the API and the app,
   with `/api/hello` answering from the database).
 - `kafka` and `kafka-rest` have run from process-compose (both ready,
-  the health monitor's 📨 Kafka ✅, the API in dev mode moving 280 people
+  the health monitor's 📨 Kafka ✅, the API in dev mode moving 560 people
   through the topic and `/api/people` reading them back) and with `docker
   compose up kafka kafka-rest`; the whole Compose stack hasn't run with
   them. The host listener (9804) has only been checked to accept

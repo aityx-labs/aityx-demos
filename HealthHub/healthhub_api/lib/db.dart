@@ -12,6 +12,7 @@ import 'care_centers.dart';
 import 'care_centers_seed.dart';
 import 'conditions.dart';
 import 'conditions_seed.dart';
+import 'history.dart';
 import 'routes.dart' show Bbox;
 import 'schema_comments.dart';
 import 'simulation.dart' show LatLon, Place;
@@ -282,6 +283,15 @@ class Db {
     // Added after the table was first made: which complaint template the
     // admission was said from, null for those recorded before.
     await c.execute('ALTER TABLE admissions ADD COLUMN IF NOT EXISTS template INT');
+    // The admission's simulated date and time, from its day and time (day 1
+    // being 2026-01-01): a column the database keeps, for a reader that
+    // wants a timestamp rather than a day number.
+    await c.execute('''
+      ALTER TABLE admissions ADD COLUMN IF NOT EXISTS admitted_at TIMESTAMP GENERATED ALWAYS AS (
+        TIMESTAMP '2026-01-01' + make_interval(days => sim_day - 1,
+          hours => split_part(sim_time, ':', 1)::int, mins => split_part(sim_time, ':', 2)::int)
+      ) STORED
+    ''');
     // One person's admissions, for GET /api/people/{id}.
     await c.execute('CREATE INDEX IF NOT EXISTS admissions_person_idx ON admissions (person_id)');
     // One care center's admissions, the latest first, for GET /api/care-centers/{id}.
@@ -318,9 +328,10 @@ class Db {
     await c.execute(
       "ALTER TABLE admission_triage ADD COLUMN IF NOT EXISTS via TEXT CHECK (via IN ('datyx', 'aityx'))",
     );
-    // The admissions per run, hospital and simulated hour. The API only
-    // makes it: the Flink job (flink/admissions-hourly.sql) writes it,
-    // upserting by the key; an hour without admissions has no row.
+    // The admissions per run, hospital and simulated hour. The Flink job
+    // (flink/admissions-hourly.sql) writes the live runs', upserting by
+    // the key; the API the history run's ([writeHistory]). An hour
+    // without admissions has no row.
     await c.execute('''
       CREATE TABLE IF NOT EXISTS admissions_hourly (
         run_id TEXT NOT NULL,
@@ -1099,6 +1110,11 @@ class Db {
         ),
     ];
   });
+
+  /// Makes admissions_hourly hold [days] days of the admissions history
+  /// for [centers] (lib/history.dart's [writeAdmissionsHistory]).
+  Future<HistoryWritten> writeHistory(List<Place> centers, int days) =>
+      _run((c) => writeAdmissionsHistory(c, centers, days));
 
   Future<void> close() async {
     await _connection?.close();

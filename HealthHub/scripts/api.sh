@@ -23,7 +23,7 @@ export OIDC_ISSUER OIDC_CLIENT_ID DATYX_API_URL
 # Kafka's REST proxy, published on the host, and the people simulation
 # (dev mode only).
 export HEALTHHUB_MODE HEALTHHUB_KAFKA_REST_URL HEALTHHUB_SIM_PEOPLE \
-  HEALTHHUB_SIM_TURN_MS HEALTHHUB_SIM_MINUTES_PER_TURN
+  HEALTHHUB_SIM_TURN_MS HEALTHHUB_SIM_MINUTES_PER_TURN HEALTHHUB_HISTORY_DAYS
 # Triage at the desk: on with the key unless off (docs/aityx.md); its
 # calls through datyx's aityx gateway with datyx's service token (a
 # secret, exported to the server only), on in dev mode unless off.

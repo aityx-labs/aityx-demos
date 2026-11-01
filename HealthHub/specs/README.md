@@ -45,7 +45,8 @@ does in HealthHub is described feature by feature in
 - [Admissions per hour](admissions-hourly.md): an Apache Flink job that
   counts the admissions per run, hospital and simulated hour from the
   stream into the `healthhub.admissions.hourly` topic and the
-  `admissions_hourly` table, a time series per hospital.
+  `admissions_hourly` table, a time series per hospital, beside a
+  generated history of 90 days for a forecast to learn from.
 - [Patient days](patient-days.md): the view `patient_days`, each
   person's visits and hours of hospital care per run and simulated day,
   with their facts, a time series per person.
@@ -63,7 +64,8 @@ does in HealthHub is described feature by feature in
 - [A care center's occupancy per hour](occupancy-timeline.md): the
   care center view's time series, the people in care up to now as a
   solid line with its points and datyx's DeepAR forecast of the next 24
-  dashed and lighter, in its band, under the capacity.
+  dashed and lighter, in its band, under the capacity, kept over the
+  hours as they pass to compare with what happened.
 - [Triage at the desk](triage.md): each admission triaged by aityx from
   what the patient said and their age (Jev reads the danger signs, a
   decision gives the level, the wait, the area and a nurse's check, with

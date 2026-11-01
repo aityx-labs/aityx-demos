@@ -489,11 +489,13 @@ class StreamEvents {
     this.events = const [],
     this.total,
     this.perSecond,
+    this.peoplePerCity,
   });
 
   factory StreamEvents.fromJson(Map<String, Object?> json) => StreamEvents(
     enabled: json['enabled'] == true,
     paused: json['paused'] == true,
+    peoplePerCity: _int(json['peoplePerCity']),
     total: _int(json['total']),
     perSecond: json['perSecond'] is num ? (json['perSecond'] as num).toDouble() : null,
     topics: [
@@ -519,6 +521,10 @@ class StreamEvents {
   /// minute, a moving average; null from an API that doesn't count.
   final int? total;
   final double? perSecond;
+
+  /// The people each city of the simulation has now; null from an API
+  /// that doesn't say.
+  final int? peoplePerCity;
 }
 
 
@@ -1421,6 +1427,10 @@ abstract class HealthHubApi {
   /// Pauses the simulation, or resumes it: `POST /api/simulation/pause`
   /// or `/resume`. Whether it is paused now.
   Future<bool> pauseSimulation(bool pause);
+
+  /// Sets the people each city of the simulation has, and says how many it
+  /// is now: `POST /api/simulation/people`.
+  Future<int> setPeoplePerCity(int perCity);
 }
 
 /// Thrown when the API answers an error, with its message.
@@ -1531,6 +1541,10 @@ class HttpHealthHubApi implements HealthHubApi {
       (await _send('POST', '/api/simulation/${pause ? 'pause' : 'resume'}') as Map?)?['paused'] == true;
 
   @override
+  Future<int> setPeoplePerCity(int perCity) async =>
+      _int((await _send('POST', '/api/simulation/people', body: {'perCity': perCity}) as Map?)?['perCity']) ?? perCity;
+
+  @override
   Future<CareCenter?> nearestCareCenter({required double lat, required double lon}) async {
     final json = await _getMap('/api/care-centers/nearest?lat=${lat.toStringAsFixed(6)}&lon=${lon.toStringAsFixed(6)}');
     return json['center'] is Map ? CareCenter.fromJson((json['center'] as Map).cast()) : null;
@@ -1558,13 +1572,16 @@ class HttpHealthHubApi implements HealthHubApi {
 
   /// [method] [path] with the user's token, refreshed once on a 401: the
   /// JSON answer, or an [ApiException] with the API's error.
-  Future<Object?> _send(String method, String path) async {
+  Future<Object?> _send(String method, String path, {Object? body}) async {
     var bearer = await token?.call();
     var retried = false;
     while (true) {
-      final headers = {if (bearer != null && bearer.isNotEmpty) 'authorization': 'Bearer $bearer'};
+      final headers = {
+        if (bearer != null && bearer.isNotEmpty) 'authorization': 'Bearer $bearer',
+        if (body != null) 'content-type': 'application/json',
+      };
       final response = await (method == 'POST'
-              ? _client.post(_uri(path), headers: headers)
+              ? _client.post(_uri(path), headers: headers, body: body == null ? null : jsonEncode(body))
               : _client.get(_uri(path), headers: headers))
           .timeout(const Duration(seconds: 15));
       if (response.statusCode == 401 && bearer != null && !retried && refreshToken != null) {

@@ -29,3 +29,9 @@ class CardTitle extends StatelessWidget {
     ],
   );
 }
+
+/// [cards] with a 16 px gap between each and the next, as the tabs'
+/// padding: the theme's cards have no margin of their own.
+List<Widget> spaced(List<Widget> cards) => [
+  for (final (i, card) in cards.indexed) ...[if (i > 0) const SizedBox(height: 16), card],
+];

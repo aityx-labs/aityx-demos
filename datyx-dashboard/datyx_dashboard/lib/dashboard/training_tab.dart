@@ -123,7 +123,7 @@ class _TrainingTabState extends State<TrainingTab> {
     return ListView(
       controller: _scroll,
       padding: const EdgeInsets.all(16),
-      children: [
+      children: spaced([
         if (widget.statusError != null) ApiDownLine(widget.statusError!),
         Card(
           child: Padding(
@@ -199,10 +199,11 @@ class _TrainingTabState extends State<TrainingTab> {
             keyOf: (id) => _eventKeys.putIfAbsent(id, GlobalKey.new),
           ),
         ],
-      ],
+      ]),
     );
   }
 }
+
 
 /// One group tagged as a time series: its schedule, Train now, and its latest success.
 class ModelCard extends StatefulWidget {

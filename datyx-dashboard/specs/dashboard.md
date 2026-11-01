@@ -78,8 +78,11 @@ reload).
   closed, what trains each group, in the group's color (`care: XGBoost,
   30D ahead`, `acute: DeepAR`, `chronic: DeepAR, disabled`, `care:
   XGBoost + DeepAR, 30D ahead`); and a box per group named by its
-  algorithms (`DeepAR · acute`, `XGBoost · care`, `XGBoost + DeepAR ·
-  care`, the default's first)
+  algorithms in full (`DeepAR Forecasting · acute`, `XGBoost Classification · care`, `XGBoost Classification + DeepAR Forecasting ·
+  care`, the default's first; only these boxes name them in full, the
+  rest of the dashboard says `DeepAR` and `XGBoost`), its switch and
+  **Edit** always at its top right, whatever its left side holds (its tag
+  chip when disabled)
   with what its tags give the algorithm (`item_id = run_id +
   hospital_id`; for XGBoost first what it scores, `scores stay_hours
   summed over the next 30D, per run_id + person_id`), `freq`, `horizon`
@@ -339,7 +342,12 @@ reload).
   (the `datyx` check: name and version, its profile, launch mode and
   `jvm` or `native`, as `dev profile, development, jvm`, uptime, started
   at), PostgreSQL (ok, or the error), OpenMetadata (version and URL, or
-  the error), Sign-in (off, with no `OIDC_CLIENT_ID` on the API; on and
+  the error, and where datyx's tagging is seen there: **TimeSeries tags,
+  and the tables that carry them**, the classification's page in
+  OpenMetadata (`/tags/TimeSeries`), each tag leading to its tables and
+  columns, and **Alerts: datyx-catalog-events tells datyx of tag
+  changes**, OpenMetadata's notification alerts (`/settings/notifications/alerts`),
+  where datyx's event subscription is listed), Sign-in (off, with no `OIDC_CLIENT_ID` on the API; on and
   nobody signed in; or the issuer, whom the API sees and their profile
   id, from `GET /api/me`), and Dashboard: this build's version, when built by the scripts
   (`dash 0.1.202610291200`; a bare `flutter run` or a test has none), and

@@ -34,7 +34,13 @@ HealthHub passes on unchanged.
   TimeSeries tags and table properties that say what its columns are to
   a forecast, the algorithms that train each group (DeepAR, XGBoost) and
   how far ahead, the time series datyx finds in them, and the groups
-  switched on and off, which OpenMetadata's webhook tells datyx of.
+  switched on and off, which OpenMetadata's webhook tells datyx of; every
+  column's and field's PII classification, in the GDPR's terms; and each
+  table's profile and data quality checks with their results.
+- [Curation](curation.md): owners, domain, data product, glossary,
+  tiers, descriptions, checks, lineage, data contracts and the
+  certifications earned, written to OpenMetadata from a document; in
+  development, HealthHub's, as soon as its data initialization is done.
 - [Training](training.md): the trainer started with the API, which
   trains the groups tagged for XGBoost when they never were and again as
   often as their table says, queues a run of every algorithm of a group

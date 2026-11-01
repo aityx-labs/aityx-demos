@@ -40,9 +40,12 @@ a folder of its own) only calls it.
   `openmetadata`, URL from `DATYX_OPENMETADATA_URL`): its public
   `/api/v1/system/version`, and the database services, databases,
   schemas, tables, messaging services, topics, classifications, tags and
-  custom properties the catalogue writes and reads, and the event
-subscription that posts tables' changes back to datyx (its webhook),
-signed in by `OpenMetadataSession` ([catalog.md](catalog.md)).
+  custom properties the catalogue writes and reads, the profiles, test
+  cases and results of its checks, the teams, domains, data products,
+  glossaries, pipelines, lineage and data contracts a curation writes,
+  and the event subscription that posts tables' changes back to datyx
+  (its webhook), signed in by `OpenMetadataSession` ([catalog.md](catalog.md),
+  [curation.md](curation.md)).
 - JDBC's `DatabaseMetaData`, on the PostgreSQL driver, to read a database
   source's tables (`SchemaReader`, [catalog.md](catalog.md)).
 - Kafka's client (`quarkus-kafka-client`, its Dev Services off: datyx
@@ -127,7 +130,8 @@ Services and Keycloak Dev Services are off.
 `test` profile and launch mode, `jvm`, a version and a start time),
 `DataSourceResourceTest` ([data-sources.md](data-sources.md)),
 `AuthOffTest` and `AuthOnTest` ([auth.md](auth.md)), `CatalogResourceTest`,
-`CatalogEventsTest`, `StreamReaderTest` and `TimeSeriesTest` ([catalog.md](catalog.md)), `XgbTrainerTest` and
+`CatalogEventsTest`, `StreamReaderTest`, `TimeSeriesTest`, `PiiTest` and `QualityTest` ([catalog.md](catalog.md)),
+`CurationTest` ([curation.md](curation.md)), `XgbTrainerTest` and
 `TrainingTest` ([training.md](training.md)), `InferenceTest`
 ([inference.md](inference.md)), `ProfileTest` and
 `CryptoTest` ([profiles.md](profiles.md)), and `DevDataTest`, which adds

@@ -48,7 +48,13 @@ Widget withOpeners(BuildContext from, Widget child) {
   final careCenter = CareCenterOpener.of(from);
   var wrapped = child;
   if (careCenter != null) {
-    wrapped = CareCenterOpener(load: careCenter.load, showTiles: careCenter.showTiles, child: wrapped);
+    wrapped = CareCenterOpener(
+      load: careCenter.load,
+      admissions: careCenter.admissions,
+      forecast: careCenter.forecast,
+      showTiles: careCenter.showTiles,
+      child: wrapped,
+    );
   }
   if (person != null) {
     wrapped = PersonOpener(person: person.person, prediction: person.prediction, child: wrapped);

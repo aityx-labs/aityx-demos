@@ -146,6 +146,12 @@ public interface OpenMetadataClient {
     JsonNode topics(@HeaderParam("Authorization") String authorization, @QueryParam("service") String service,
             @QueryParam("fields") String fields, @QueryParam("limit") int limit, @QueryParam("after") String after);
 
+    /** A JSON Patch (RFC 6902) of a topic: its message schema's fields' tags. */
+    @PATCH
+    @Path("/topics/{id}")
+    @Consumes("application/json-patch+json")
+    JsonNode patchTopic(@HeaderParam("Authorization") String authorization, @PathParam("id") String id, JsonNode patch);
+
     /** Soft-deletes a topic the cluster no longer has; a PUT of the same name brings it back. */
     @DELETE
     @Path("/topics/{id}")
@@ -184,4 +190,145 @@ public interface OpenMetadataClient {
     @Path("/metadata/types/{id}")
     JsonNode putCustomProperty(@HeaderParam("Authorization") String authorization, @PathParam("id") String typeId,
             JsonNode property);
+
+    @GET
+    @Path("/databases/name/{fqn}")
+    JsonNode database(@HeaderParam("Authorization") String authorization, @PathParam("fqn") String fqn,
+            @QueryParam("fields") String fields);
+
+    @GET
+    @Path("/databaseSchemas/name/{fqn}")
+    JsonNode databaseSchema(@HeaderParam("Authorization") String authorization, @PathParam("fqn") String fqn,
+            @QueryParam("fields") String fields);
+
+    @GET
+    @Path("/topics/name/{fqn}")
+    JsonNode topic(@HeaderParam("Authorization") String authorization, @PathParam("fqn") String fqn,
+            @QueryParam("fields") String fields);
+
+    /** A JSON Patch of a database service: its owners. */
+    @PATCH
+    @Path("/services/databaseServices/{id}")
+    @Consumes("application/json-patch+json")
+    JsonNode patchDatabaseService(@HeaderParam("Authorization") String authorization, @PathParam("id") String id,
+            JsonNode patch);
+
+    /** A JSON Patch of a messaging service: its owners. */
+    @PATCH
+    @Path("/services/messagingServices/{id}")
+    @Consumes("application/json-patch+json")
+    JsonNode patchMessagingService(@HeaderParam("Authorization") String authorization, @PathParam("id") String id,
+            JsonNode patch);
+
+    /** A JSON Patch of a database: its description, owners, tags. */
+    @PATCH
+    @Path("/databases/{id}")
+    @Consumes("application/json-patch+json")
+    JsonNode patchDatabase(@HeaderParam("Authorization") String authorization, @PathParam("id") String id, JsonNode patch);
+
+    /** A JSON Patch of a database schema: its description, owners, tags. */
+    @PATCH
+    @Path("/databaseSchemas/{id}")
+    @Consumes("application/json-patch+json")
+    JsonNode patchDatabaseSchema(@HeaderParam("Authorization") String authorization, @PathParam("id") String id,
+            JsonNode patch);
+
+    /** A JSON Patch of a pipeline: its owners, tags. */
+    @PATCH
+    @Path("/pipelines/{id}")
+    @Consumes("application/json-patch+json")
+    JsonNode patchPipeline(@HeaderParam("Authorization") String authorization, @PathParam("id") String id, JsonNode patch);
+
+    /** A team: {"name","displayName","description","teamType":"Group"}. */
+    @PUT
+    @Path("/teams")
+    JsonNode putTeam(@HeaderParam("Authorization") String authorization, JsonNode team);
+
+    /** A domain: {"name","displayName","description","domainType"}. */
+    @PUT
+    @Path("/domains")
+    JsonNode putDomain(@HeaderParam("Authorization") String authorization, JsonNode domain);
+
+    /** Puts assets in a domain: {"assets":[{"id","type"}]}. */
+    @PUT
+    @Path("/domains/{name}/assets/add")
+    JsonNode addDomainAssets(@HeaderParam("Authorization") String authorization, @PathParam("name") String name,
+            JsonNode assets);
+
+    /** A data product of a domain: {"name","displayName","description","domains":[...]}. */
+    @PUT
+    @Path("/dataProducts")
+    JsonNode putDataProduct(@HeaderParam("Authorization") String authorization, JsonNode product);
+
+    /** Puts assets in a data product: {"assets":[{"id","type"}]}. */
+    @PUT
+    @Path("/dataProducts/{name}/assets/add")
+    JsonNode addDataProductAssets(@HeaderParam("Authorization") String authorization, @PathParam("name") String name,
+            JsonNode assets);
+
+    @PUT
+    @Path("/glossaries")
+    JsonNode putGlossary(@HeaderParam("Authorization") String authorization, JsonNode glossary);
+
+    @PUT
+    @Path("/glossaryTerms")
+    JsonNode putGlossaryTerm(@HeaderParam("Authorization") String authorization, JsonNode term);
+
+    @PUT
+    @Path("/services/pipelineServices")
+    JsonNode putPipelineService(@HeaderParam("Authorization") String authorization, JsonNode service);
+
+    @PUT
+    @Path("/pipelines")
+    JsonNode putPipeline(@HeaderParam("Authorization") String authorization, JsonNode pipeline);
+
+    /** A lineage edge: {"edge":{"fromEntity":{"id","type"},"toEntity":{...},"lineageDetails":{...}}}. */
+    @PUT
+    @Path("/lineage")
+    void putLineage(@HeaderParam("Authorization") String authorization, JsonNode lineage);
+
+    /** A data quality test case of a table or column, by name within it: {"name","entityLink","testDefinition",...}. */
+    @PUT
+    @Path("/dataQuality/testCases")
+    JsonNode putTestCase(@HeaderParam("Authorization") String authorization, JsonNode testCase);
+
+    /** A test case's result: {"timestamp","testCaseStatus","result","testResultValue":[...]}. */
+    @POST
+    @Path("/dataQuality/testCases/testCaseResults/{fqn}")
+    JsonNode addTestCaseResult(@HeaderParam("Authorization") String authorization, @PathParam("fqn") String fqn,
+            JsonNode result);
+
+    /** A table's profile: {"tableProfile":{"timestamp","rowCount","columnCount"},"columnProfile":[...]}. */
+    @PUT
+    @Path("/tables/{id}/tableProfile")
+    JsonNode putTableProfile(@HeaderParam("Authorization") String authorization, @PathParam("id") String id,
+            JsonNode profile);
+
+    /** A table's test cases with their latest results: {"data":[...]}. */
+    @GET
+    @Path("/dataQuality/testCases")
+    JsonNode testCases(@HeaderParam("Authorization") String authorization, @QueryParam("entityLink") String entityLink,
+            @QueryParam("includeAllTests") boolean includeAllTests, @QueryParam("fields") String fields,
+            @QueryParam("limit") int limit);
+
+    /** An entity's data contract; 404 when it has none. */
+    @GET
+    @Path("/dataContracts/entity")
+    JsonNode dataContractOf(@HeaderParam("Authorization") String authorization, @QueryParam("entityId") String entityId,
+            @QueryParam("entityType") String entityType, @QueryParam("fields") String fields);
+
+    @PUT
+    @Path("/dataContracts")
+    JsonNode putDataContract(@HeaderParam("Authorization") String authorization, JsonNode contract);
+
+    /** A data contract's validation result: {"dataContractFQN","timestamp","contractExecutionStatus",...}. */
+    @PUT
+    @Path("/dataContracts/{id}/results")
+    JsonNode putDataContractResult(@HeaderParam("Authorization") String authorization, @PathParam("id") String id,
+            JsonNode result);
+
+    /** Runs one of OpenMetadata's applications now (DataInsightsApplication). */
+    @POST
+    @Path("/apps/trigger/{name}")
+    void triggerApp(@HeaderParam("Authorization") String authorization, @PathParam("name") String name, JsonNode config);
 }

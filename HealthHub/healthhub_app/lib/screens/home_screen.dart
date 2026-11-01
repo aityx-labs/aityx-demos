@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_version.dart';
 import '../auth/auth_controller.dart';
 import '../auth/user_menu.dart';
+import '../care_centers/admissions_timeline.dart';
 import '../care_centers/care_center_screen.dart';
 import '../events/stream_events.dart';
 import '../location/location_controller.dart';
@@ -20,13 +21,16 @@ import 'explainers.dart';
 /// With [person] and [prediction], every person it names (on the map, in
 /// the events and the triage) opens their view ([PersonOpener]); with
 /// [careCenter], every care center (a pin on the map, a hospital in the
-/// events and the triage) opens its view ([CareCenterOpener]).
+/// events and the triage) opens its view ([CareCenterOpener]), which plots
+/// its admissions per hour with [careCenterAdmissions] and
+/// [admissionsForecast].
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
     required this.auth,
     required this.location,
     this.careCenters,
+    this.nearest,
     this.people,
     this.events,
     this.triage,
@@ -34,6 +38,8 @@ class HomeScreen extends StatelessWidget {
     this.person,
     this.prediction,
     this.careCenter,
+    this.careCenterAdmissions,
+    this.admissionsForecast,
     this.simulation,
     this.showTiles = true,
   });
@@ -47,6 +53,10 @@ class HomeScreen extends StatelessWidget {
 
   /// Where the map's care centers come from: the API.
   final CareCentersLoader? careCenters;
+
+  /// Where the care center nearest the user comes from, which the map
+  /// centres on: the API.
+  final NearestCareCenterLoader? nearest;
 
   /// Where the map's simulated people come from: the API.
   final PeopleLoader? people;
@@ -62,8 +72,11 @@ class HomeScreen extends StatelessWidget {
   final PersonLoader? person;
   final PredictionLoader? prediction;
 
-  /// Where a care center's view comes from: the API.
+  /// Where a care center's view comes from: the API, and its admissions
+  /// per hour, with datyx's forecast of them through it.
   final CareCenterLoader? careCenter;
+  final HourlyAdmissionsLoader? careCenterAdmissions;
+  final AdmissionsForecastLoader? admissionsForecast;
 
   /// Pauses or resumes the simulation, from the events.
   final SimulationControl? simulation;
@@ -72,7 +85,15 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     var home = _scaffold(context);
-    if (careCenter != null) home = CareCenterOpener(load: careCenter!, showTiles: showTiles, child: home);
+    if (careCenter != null) {
+      home = CareCenterOpener(
+        load: careCenter!,
+        admissions: careCenterAdmissions,
+        forecast: admissionsForecast,
+        showTiles: showTiles,
+        child: home,
+      );
+    }
     if (person == null || prediction == null) return home;
     return PersonOpener(person: person!, prediction: prediction!, child: home);
   }
@@ -125,6 +146,7 @@ class HomeScreen extends StatelessWidget {
                   child: UserLocationMap(
                     location: location,
                     careCenters: careCenters,
+                    nearest: nearest,
                     people: people,
                     showTiles: showTiles,
                   ),

@@ -4,6 +4,7 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.URI;
@@ -11,7 +12,9 @@ import java.sql.Connection;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.List;
+import java.util.Map;
 
+import datyx.catalog.Quality;
 import datyx.catalog.SchemaReader;
 import io.agroal.api.AgroalDataSource;
 import io.quarkus.test.junit.QuarkusTest;
@@ -22,7 +25,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The catalogue against the Dev Services Postgres, which stands in for a
- * source: SchemaReader reads its tables, and the endpoints answer what
+ * source: SchemaReader reads its tables, Quality profiles and checks one,
+ * and the endpoints answer what
  * they can without OpenMetadata, which the tests don't start (a 502).
  */
 @QuarkusTest
@@ -125,6 +129,45 @@ class CatalogResourceTest {
         given().when().get("/api/datasources/" + id + "/catalog")
             .then().statusCode(502).body("error", startsWith("OpenMetadata "));
         given().when().delete("/api/datasources/" + id).then().statusCode(204);
+    }
+
+    @Test
+    void profilesAndChecksATable() throws Exception {
+        try (Connection c = dataSource.getConnection(); Statement s = c.createStatement()) {
+            s.execute("create schema if not exists clinic");
+            s.execute("drop table if exists clinic.visits");
+            s.execute("""
+                create table clinic.visits (run text not null, visit int not null, age int, sex text, notes jsonb,
+                  primary key (run, visit))""");
+            s.execute("""
+                insert into clinic.visits values ('a', 1, 30, 'woman', '{}'), ('a', 2, 95, 'man', null),
+                  ('b', 1, null, 'other', null)""");
+        }
+        try (Connection c = dataSource.getConnection()) {
+            SchemaReader.Table visits = SchemaReader.read(c).stream().filter(t -> t.name().equals("visits")).findFirst().orElseThrow();
+            Quality.Profile profile = Quality.profile(c, visits);
+            assertEquals(3, profile.rows());
+            Quality.ColumnProfile age = profile.columns().get(2);
+            assertEquals(1, age.nulls());
+            assertEquals(95.0, age.max());
+            assertEquals(5, profile.columns().get(3).maxLength(), "woman and other are the longest");
+            for (Quality.Check check : Quality.fromSchema(visits)) {
+                assertTrue(Quality.evaluate(c, visits, check).passed(), check.name());
+            }
+            Quality.Result between = Quality.evaluate(c, visits, new Quality.Check("columnValuesToBeBetween", "age",
+                Map.of("minValue", 18, "maxValue", 90), "Adults."));
+            assertFalse(between.passed());
+            assertEquals(1L, between.failedRows());
+            Quality.Result inSet = Quality.evaluate(c, visits, new Quality.Check("columnValuesToBeInSet", "sex",
+                Map.of("allowedValues", List.of("woman", "man")), "Woman or man."));
+            assertEquals(1L, inSet.failedRows());
+            assertFalse(Quality.evaluate(c, visits, new Quality.Check("columnValuesToBeNotNull", "age", Map.of(), "Ages."))
+                .passed());
+            assertTrue(Quality.evaluate(c, visits, new Quality.Check("columnValuesToMatchRegex", "run",
+                Map.of("regex", "^[a-z]$"), "Runs.")).passed());
+            assertFalse(Quality.evaluate(c, visits, new Quality.Check("tableRowCountToBeBetween", null,
+                Map.of("minValue", 1, "maxValue", 2), "Rows.")).passed());
+        }
     }
 
     @Test

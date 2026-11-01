@@ -1,6 +1,7 @@
 package datyx.catalog;
 
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -14,6 +15,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.quarkus.runtime.annotations.RegisterForReflection;
@@ -42,8 +44,12 @@ import org.jboss.logging.Logger;
  * source, OpenMetadata only keeps what it read. A sync again updates
  * the same entities and keeps what people added in OpenMetadata (tags,
  * descriptions, owners); a table or topic the source no longer has is
- * soft-deleted. The TimeSeries vocabulary (TimeSeries) is made with the
- * first sync, then read back from the tags to find the time series.
+ * soft-deleted. Every column and every field of a record, nested ones
+ * too, gets a PII tag, and a PersonalData one when it holds personal
+ * data in the GDPR's terms (Pii), from the names alone; a person's own
+ * tags in those classifications win. The TimeSeries vocabulary
+ * (TimeSeries) is made with the first sync, then read back from the
+ * tags to find the time series.
  */
 @ApplicationScoped
 public class Catalog {
@@ -78,10 +84,14 @@ public class Catalog {
 
     @RegisterForReflection
     public record Synced(String service, String database, List<String> schemas, int tables, int columns,
-            List<String> removed) {
+            int personal, int special, int tests, int failed, List<String> failing, List<String> removed) {
     }
 
-    /** Reads the source and writes what it holds to OpenMetadata. */
+    /**
+     * Reads the source and writes what it holds to OpenMetadata, then each
+     * table's profile and the checks its schema implies, with their results
+     * (Quality).
+     */
     public Synced sync(long sourceId, String name, String description, DatabaseAccess access) throws SQLException {
         List<SchemaReader.Table> tables = SchemaReader.read(access);
         ensureVocabulary();
@@ -95,34 +105,61 @@ public class Catalog {
             serviceBody.put("description", description);
         }
         session.call(auth -> client.putDatabaseService(auth, serviceBody));
-        session.call(auth -> client.putDatabase(auth, json.createObjectNode()
+        ObjectNode databaseBody = json.createObjectNode()
             .put("name", access.database())
-            .put("service", service)));
+            .put("service", service);
+        keep(databaseBody, find(auth -> client.database(auth, database, KEPT)));
+        session.call(auth -> client.putDatabase(auth, databaseBody));
         Set<String> schemas = new LinkedHashSet<>();
         for (SchemaReader.Table table : tables) {
             if (schemas.add(table.schema())) {
-                session.call(auth -> client.putDatabaseSchema(auth, json.createObjectNode()
+                ObjectNode schemaBody = json.createObjectNode()
                     .put("name", table.schema())
-                    .put("database", database)));
+                    .put("database", database);
+                keep(schemaBody, find(auth -> client.databaseSchema(auth, fqn(service, access.database(), table.schema()), KEPT)));
+                session.call(auth -> client.putDatabaseSchema(auth, schemaBody));
             }
         }
         // What OpenMetadata has already: a PUT without a description clears
         // one, so the descriptions people wrote there are sent back where
-        // the source has no comment.
+        // the source has no comment; it clears data products and the
+        // certification too, which go back as they were.
         Map<String, JsonNode> known = new LinkedHashMap<>();
         for (JsonNode schema : schemasOf(database)) {
-            for (JsonNode table : tablesOf(schema.path("fullyQualifiedName").asText(), "columns")) {
+            for (JsonNode table : tablesOf(schema.path("fullyQualifiedName").asText(), "columns," + KEPT)) {
                 known.put(table.path("fullyQualifiedName").asText(), table);
             }
         }
         int columns = 0;
+        int personal = 0;
+        int special = 0;
+        int tests = 0;
+        int failed = 0;
+        List<String> failing = new ArrayList<>();
         Set<String> present = new HashSet<>();
-        for (SchemaReader.Table table : tables) {
-            String schemaFqn = fqn(service, access.database(), table.schema());
-            ObjectNode body = tableBody(schemaFqn, table, known.get(fqn(service, access.database(), table.schema(), table.name())));
-            JsonNode put = session.call(auth -> client.putTable(auth, body));
-            present.add(put.path("fullyQualifiedName").asText());
-            columns += table.columns().size();
+        try (Connection c = SchemaReader.connect(access)) {
+            for (SchemaReader.Table table : tables) {
+                String schemaFqn = fqn(service, access.database(), table.schema());
+                JsonNode before = known.get(fqn(service, access.database(), table.schema(), table.name()));
+                ObjectNode body = tableBody(schemaFqn, table, before);
+                JsonNode put = session.call(auth -> client.putTable(auth, body));
+                present.add(put.path("fullyQualifiedName").asText());
+                columns += table.columns().size();
+                // A PUT merges tags, and PII's are mutually exclusive: a patch replaces them.
+                Classified pii = classify(table.name(), put.path("columns"), "/columns/");
+                restoreCertification(pii.patch(), before);
+                if (!pii.patch().isEmpty()) {
+                    session.call(auth -> client.patchTable(auth, put.path("id").asText(), pii.patch()));
+                }
+                personal += pii.personal();
+                special += pii.special();
+                Measured measured = measure(c, put, table, Quality.fromSchema(table));
+                tests += measured.tests();
+                failed += measured.failed();
+                if (measured.failed() > 0) {
+                    failing.add(put.path("fullyQualifiedName").asText());
+                }
+            }
         }
         List<String> removed = new ArrayList<>();
         for (JsonNode table : known.values()) {
@@ -132,8 +169,92 @@ public class Catalog {
                 removed.add(tableFqn);
             }
         }
-        LOG.infof("catalogue: %s synced, %d tables, %d columns, %d removed", service, tables.size(), columns, removed.size());
-        return new Synced(service, database, List.copyOf(schemas), tables.size(), columns, removed);
+        LOG.infof("catalogue: %s synced, %d tables, %d columns (%d personal, %d special category), %d checks (%d failed), %d removed",
+            service, tables.size(), columns, personal, special, tests, failed, removed.size());
+        return new Synced(service, database, List.copyOf(schemas), tables.size(), columns, personal, special, tests,
+            failed, failing, removed);
+    }
+
+    /** The fields of an entity a PUT would lose, read before it to be sent back. */
+    static final String KEPT = "certification,dataProducts,domains";
+
+    /** How many checks ran on a table, and how many of them failed. */
+    public record Measured(int tests, int failed) {
+    }
+
+    /**
+     * Profiles a table ({@code table}, as OpenMetadata answered its PUT)
+     * and runs {@code checks} on it, writing the profile, each check as a
+     * test case and its result to OpenMetadata.
+     */
+    public Measured measure(Connection c, JsonNode table, SchemaReader.Table source, List<Quality.Check> checks)
+            throws SQLException {
+        Quality.Profile profile = Quality.profile(c, source);
+        session.call(auth -> client.putTableProfile(auth, table.path("id").asText(),
+            Quality.profileBody(profile, System.currentTimeMillis())));
+        return check(c, table, source, checks);
+    }
+
+    /** Runs {@code checks} on a table, writing each as a test case and its result to OpenMetadata. */
+    public Measured check(Connection c, JsonNode table, SchemaReader.Table source, List<Quality.Check> checks)
+            throws SQLException {
+        long now = System.currentTimeMillis();
+        String tableFqn = table.path("fullyQualifiedName").asText();
+        int failed = 0;
+        for (Quality.Check check : checks) {
+            Quality.Result result = Quality.evaluate(c, source, check);
+            session.call(auth -> client.putTestCase(auth, Quality.testCase(tableFqn, check)));
+            session.call(auth -> client.addTestCaseResult(auth, Quality.testCaseFqn(tableFqn, check),
+                Quality.testResult(result, now)));
+            if (!result.passed()) {
+                failed++;
+                LOG.infof("catalogue: %s failed %s: %s", tableFqn, check.name(), result.result());
+            }
+        }
+        return new Measured(checks.size(), failed);
+    }
+
+    /** An entity OpenMetadata has, or null when it has none of the name (404). */
+    JsonNode find(Function<String, JsonNode> get) {
+        try {
+            return session.call(get);
+        } catch (WebApplicationException e) {
+            if (e.getResponse().getStatus() == 404) {
+                return null;
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Sends back in a create request what OpenMetadata has ({@code known},
+     * null for a new entity) and the request doesn't say: the description
+     * and the data products, which a PUT would clear, with the domains
+     * they must match.
+     */
+    static void keep(ObjectNode body, JsonNode known) {
+        if (known == null) {
+            return;
+        }
+        String description = known.path("description").asText(null);
+        if (!body.hasNonNull("description") && description != null && !description.isBlank()) {
+            body.put("description", description);
+        }
+        if (known.path("dataProducts").isArray() && !known.path("dataProducts").isEmpty()) {
+            ArrayNode products = body.putArray("dataProducts");
+            known.path("dataProducts").forEach(p -> products.add(p.path("fullyQualifiedName").asText()));
+        }
+        if (known.path("domains").isArray() && !known.path("domains").isEmpty()) {
+            ArrayNode domains = body.putArray("domains");
+            known.path("domains").forEach(d -> domains.add(d.path("fullyQualifiedName").asText()));
+        }
+    }
+
+    /** Adds to {@code patch} the certification {@code known} had, which a PUT clears. */
+    static void restoreCertification(ArrayNode patch, JsonNode known) {
+        if (known != null && known.path("certification").path("tagLabel").isObject()) {
+            patch.addObject().put("op", "add").put("path", "/certification").set("value", known.path("certification"));
+        }
     }
 
     /**
@@ -159,6 +280,7 @@ public class Catalog {
         if (description != null) {
             body.put("description", description);
         }
+        keep(body, known);
         ArrayNode columns = body.putArray("columns");
         for (SchemaReader.Column column : table.columns()) {
             String type = ColumnTypes.of(column.jdbcType(), column.typeName());
@@ -193,6 +315,35 @@ public class Catalog {
         return body;
     }
 
+    /**
+     * A classification of a table's columns or a topic's fields (Pii): the
+     * JSON Patch that gives each its PII and PersonalData tags, nothing for
+     * those whose tags say so already, and how many of the top-level ones
+     * hold personal data, and special category data, once patched.
+     */
+    record Classified(ArrayNode patch, int personal, int special) {
+    }
+
+    /** Classifies {@code items}, a table's columns or a topic's schemaFields as OpenMetadata answers them, found at {@code path}. */
+    Classified classify(String entity, JsonNode items, String path) {
+        ArrayNode patch = json.createArrayNode();
+        int personal = 0;
+        int special = 0;
+        for (Map.Entry<String, Pii.Label> label : Pii.labels(entity, items).entrySet()) {
+            JsonNode current = items.at("/" + label.getKey()).path("tags");
+            ArrayNode tags = Pii.tags(current, label.getValue());
+            if (!Pii.same(tags, current)) {
+                patch.addObject().put("op", "add").put("path", path + label.getKey() + "/tags").set("value", tags);
+            }
+            if (!label.getKey().contains("/")) {
+                Set<String> names = tagNames(tags);
+                personal += names.stream().anyMatch(n -> n.startsWith(Pii.PERSONAL_DATA + ".")) ? 1 : 0;
+                special += names.contains(Pii.Category.SPECIAL.personalData) ? 1 : 0;
+            }
+        }
+        return new Classified(patch, personal, special);
+    }
+
     private static String described(String comment, String known) {
         if (comment != null && !comment.isBlank()) {
             return comment;
@@ -201,7 +352,8 @@ public class Catalog {
     }
 
     @RegisterForReflection
-    public record StreamSynced(String service, int topics, int fields, int sampled, List<String> removed) {
+    public record StreamSynced(String service, int topics, int fields, int sampled, int personal, int special,
+            List<String> removed) {
     }
 
     /** Reads a Kafka cluster and writes its topics to OpenMetadata. */
@@ -220,18 +372,28 @@ public class Catalog {
         // What OpenMetadata has already, to send back what people wrote
         // there (descriptions, field tags) and what no record says now.
         Map<String, JsonNode> known = new LinkedHashMap<>();
-        for (JsonNode topic : topicsOf(service)) {
+        for (JsonNode topic : topicsOf(service, "messageSchema,tags," + KEPT)) {
             known.put(topic.path("fullyQualifiedName").asText(), topic);
         }
         int fields = 0;
         int sampled = 0;
+        int personal = 0;
+        int special = 0;
         Set<String> present = new HashSet<>();
         for (StreamReader.Topic topic : topics) {
-            ObjectNode body = topicBody(service, topic, known.get(fqn(service, topic.name())));
+            JsonNode before = known.get(fqn(service, topic.name()));
+            ObjectNode body = topicBody(service, topic, before);
             JsonNode put = session.call(auth -> client.putTopic(auth, body));
             present.add(put.path("fullyQualifiedName").asText());
             fields += topic.fields() == null ? 0 : topic.fields().size();
             sampled += topic.sampled() ? 1 : 0;
+            Classified pii = classify(topic.name(), put.path("messageSchema").path("schemaFields"), "/messageSchema/schemaFields/");
+            restoreCertification(pii.patch(), before);
+            if (!pii.patch().isEmpty()) {
+                session.call(auth -> client.patchTopic(auth, put.path("id").asText(), pii.patch()));
+            }
+            personal += pii.personal();
+            special += pii.special();
         }
         List<String> removed = new ArrayList<>();
         for (JsonNode topic : known.values()) {
@@ -241,8 +403,9 @@ public class Catalog {
                 removed.add(topicFqn);
             }
         }
-        LOG.infof("catalogue: %s synced, %d topics, %d fields, %d removed", service, topics.size(), fields, removed.size());
-        return new StreamSynced(service, topics.size(), fields, sampled, removed);
+        LOG.infof("catalogue: %s synced, %d topics, %d fields (%d personal, %d special category), %d removed",
+            service, topics.size(), fields, personal, special, removed.size());
+        return new StreamSynced(service, topics.size(), fields, sampled, personal, special, removed);
     }
 
     /**
@@ -274,10 +437,7 @@ public class Catalog {
         }
         ObjectNode config = body.putObject("topicConfig");
         topic.config().forEach(config::put);
-        String description = known == null ? null : known.path("description").asText(null);
-        if (description != null && !description.isBlank()) {
-            body.put("description", description);
-        }
+        keep(body, known);
         if (topic.fields() != null) {
             Map<String, JsonNode> knownFields = new LinkedHashMap<>();
             if (known != null) {
@@ -372,15 +532,29 @@ public class Catalog {
             }
             throw e;
         }
-        return topicsOf(service);
+        return topicsOf(service, "messageSchema,tags");
     }
 
-    private List<JsonNode> topicsOf(String serviceFqn) {
+    /** A messaging service's topics with the fields asked for (messageSchema, tags, owners...). */
+    public List<JsonNode> topics(String serviceFqn, String fields) {
+        return topicsOf(serviceFqn, fields);
+    }
+
+    /** A synced database's tables, with their columns, tags, owners and certification. */
+    public List<JsonNode> tablesOf(Synced synced) {
+        List<JsonNode> tables = new ArrayList<>();
+        for (String schema : synced.schemas()) {
+            tables.addAll(tablesOf(synced.database() + "." + fqn(schema), "columns,tags,owners,certification"));
+        }
+        return tables;
+    }
+
+    private List<JsonNode> topicsOf(String serviceFqn, String fields) {
         List<JsonNode> topics = new ArrayList<>();
         String after = null;
         do {
             String cursor = after;
-            JsonNode page = session.call(auth -> client.topics(auth, serviceFqn, "messageSchema,tags", PAGE, cursor));
+            JsonNode page = session.call(auth -> client.topics(auth, serviceFqn, fields, PAGE, cursor));
             page.path("data").forEach(topics::add);
             after = page.path("paging").path("after").asText(null);
         } while (after != null);
@@ -749,6 +923,11 @@ public class Catalog {
             patch.addObject().put("op", "add").put("path", "/extension").set("value", extension);
             session.call(auth -> client.patchTable(auth, table.path("id").asText(), patch));
         }
+    }
+
+    /** Runs OpenMetadata's Data Insights now, so its reports (descriptions, owners, tiers covered) count the latest changes. */
+    public void runInsights() {
+        session.run(auth -> client.triggerApp(auth, "DataInsightsApplication", json.createObjectNode()));
     }
 
     /** Removes the source's service and everything under it from OpenMetadata; nothing when there is none. */

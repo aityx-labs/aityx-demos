@@ -225,6 +225,76 @@ in prod, and before the simulation has started, both calls answer 409.
 Restarting the API starts a new run, not paused. `Simulation.stop` ends
 the loops of a paused simulation too.
 
+## The flow at a care center
+
+Anyone signed in (anyone while authentication is off) can double or
+halve the flow of people to a care center, from its view ([The care
+center view](care-center.md#the-flow)): `POST
+/api/care-centers/{id}/flow` with `{"action": "double"}`, `"halve"` or
+`"reset"` ([API](api.md)). Each care center has a flow factor for the
+run, 1 (the normal flow) unless changed, doubled or halved at each press
+from 1/8 to 8 (`flowMin`, `flowMax`; a press past them leaves it there),
+and set back to 1 by a reset. The factor scales the arrivals there: the
+visits headed to that care center come that many times as often, made
+by the same people (nobody joins, nobody is sent elsewhere), so its
+admissions per hour are about the factor times what they would have
+been, and the other care centers keep about theirs. How, by the kind of
+visit (`Simulation.changeFlow`, `retime`, `Person.acuteRate`):
+
+- **Chronic visits** come at intervals: the wait before a visit whose
+  care center has factor f (the interval after the last visit, or a
+  course's gap), counted from when the person is home again, is divided
+  by f, and the visit is put at a daytime slot (`visitSlotFrom`): the
+  next hour from 08:00 to 17:00 that day when it falls between them,
+  else a random one of those hours, that day before 08:00, the next day
+  after 17:00. Twice as often at ×2, half as often at ×1/2.
+- **Acute episodes** start as a Poisson process (a gap with a mean of 90
+  days), the condition, and with it the care center of the first visit,
+  drawn at the onset. Under the factors a person's onsets come at F times
+  the rate, F the highest factor among the care centers their visits may
+  go to (their hospital and the nearest of each setting), and an episode
+  whose first visit goes to a care center of factor f is kept with
+  probability f / F; one not kept starts nothing, and the next gap
+  begins. That is Poisson thinning: the episodes that start at each care
+  center come at its factor times their normal rate, exactly, and those
+  of the others as before. An episode's visits after the first are as
+  usual.
+- **The hours** don't change: an emergency is made at once, at any hour,
+  and a planned visit in the daytime, so the daily profile of the
+  admissions there stays the same, only taller or flatter.
+
+A press shows at once, not only after the visits already planned: the
+people whose next chronic visit goes to that care center have it brought
+forward or put off, the time left until it times the old factor over the
+new (at a daytime slot; an emergency's time as it comes), and those whose
+F changed have their next acute onset drawn again from now at the new
+rate (the gaps are exponential, so drawing again from now is the same
+process). A visit under way is left as it is. Newcomers
+([People](#people)) join under the factors as they are. At the normal
+flow nothing changes, not even the random draws, so a run nobody touched
+is the run it was. The API logs every change, with the care center, the
+factor and the one before, the run, the turn and how many people were
+retimed (`simulation: flow at care center 13 (CAP Llibertat) ×2, was
+×1, run 3f9c0a7e at turn 412, 96 people retimed`). The factors are the
+run's: a new run (an API restart) starts at the normal flow everywhere.
+`GET /api/care-centers/{id}` says the care center's factor (`flow`).
+
+How close to the factor, in a seeded run of 400 people of Reus over 120
+days (`test/flow_test.dart`), whose primary care and mental health visits
+go to a health station and the rest to a hospital, the factor set from
+the start: at the hospital, ×2 made 1.75 times its admissions, ×1/2 0.48
+and ×8 6.6; at the health station, ×2 1.94 and ×1/2 0.62. Short of the
+factor because an acute episode that started elsewhere still has its
+follow-ups there as before (a pneumonia admitted at the hospital and
+checked at the health station), and a planned visit keeps to the
+daytime, so one due every day or two (dialysis) comes at most about once
+a day whatever the factor. The other care center kept about its own,
+but the follow-ups move with the episodes (the health station had 12%
+more with the hospital at ×2, 50% more at ×8), and a person has one
+acute episode at a time, so more of them at one care center leaves a
+little less time for the others' (the hospital had a fifth fewer with
+the health station at ×2).
+
 ## Visits
 
 A condition's visits come in courses of `count` visits, `interval_days`
@@ -396,7 +466,9 @@ whether the proxy answered its last ping (every 5 s).
   sea. The speeds are door-to-door averages, with no traffic or timetable.
 - Everyone goes to the nearest care center of the visit's setting and is
   admitted on arrival, whatever its queue or capacity; nothing routes
-  them by load yet. The settings a care center serves, and the
+  them by load yet. A care center's flow factor changes how often its
+  visits come, not where people go: halving it doesn't send anyone
+  elsewhere, and doubling it doesn't bring anyone from elsewhere. The settings a care center serves, and the
   specialised hospitals, are told apart by keywords in their subtype and
   name, which a new data source may word differently. Only Florida lists
   dialysis centers; elsewhere dialysis is at the hospital.

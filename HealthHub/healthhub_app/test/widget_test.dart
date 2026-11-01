@@ -67,6 +67,25 @@ class FakeApi implements HealthHubApi {
     return this.perCity = perCity;
   }
 
+  /// The hospital's flow factor, every change asked, and, while set, what
+  /// holds the answer back; with [flowRefused], the API's refusal.
+  double flow = 1;
+  final flowAsked = <(int, FlowAction)>[];
+  Completer<void>? flowGate;
+  ApiException? flowRefused;
+
+  @override
+  Future<double> changeFlow(int id, FlowAction action) async {
+    flowAsked.add((id, action));
+    await flowGate?.future;
+    if (flowRefused case final refused?) throw refused;
+    return flow = switch (action) {
+      FlowAction.doubled => flow * 2,
+      FlowAction.halved => flow / 2,
+      FlowAction.reset => 1.0,
+    }.clamp(flowMin, flowMax).toDouble();
+  }
+
   static const _signs = {
     'life_threat': 0.04,
     'breathing': 0.86,
@@ -397,7 +416,7 @@ class FakeApi implements HealthHubApi {
     if (id == 2) {
       return CareCenterDetail.fromJson({
         'id': 2, 'name': 'Clínica do Campo', 'kind': 'clinic', 'subtype': 'Policlínica', 'city': 'Lisboa',
-        'country': 'PT', 'lat': 38.722, 'lon': -9.141, 'capacity': {'places': 3, 'unit': 'places'},
+        'country': 'PT', 'lat': 38.722, 'lon': -9.141, 'capacity': {'places': 3, 'unit': 'places'}, 'flow': 1,
         'now': {'enabled': true, 'inUse': 0, 'usage': 0, 'assigned': 0, 'here': [], 'onTheWay': []},
         'admissions': {'thisRun': 0, 'total': 0, 'latest': []},
       });
@@ -418,6 +437,8 @@ class FakeApi implements HealthHubApi {
       'ownership': 'public',
       'source': 'sns',
       'capacity': {'places': 8, 'unit': 'beds', 'simulated': true},
+      'serves': ['hospital', 'urgent_care', 'dialysis'],
+      'flow': flow,
       'now': {
         'enabled': true,
         'run': 'cafe0001',
@@ -1161,19 +1182,123 @@ void main() {
     expect(find.byType(PersonScreen), findsOneWidget);
   });
 
+  testWidgets("a care center's view doubles and halves the flow of people there, beside what it is", (tester) async {
+    tester.view.physicalSize = const Size(1200, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeApi(auth: false, simulation: true);
+    await tester.pumpWidget(MaterialApp(
+      home: CareCenterScreen(id: 1, load: api.careCenter, flow: api.changeFlow, showTiles: false),
+    ));
+    await tester.pumpAndSettle();
+    String factor() => tester.widget<Text>(find.byKey(const Key('flow-factor'))).data!;
+    bool enabled(String key) => tester.widget<ButtonStyleButton>(find.byKey(Key(key))).onPressed != null;
+
+    // Beside the header, on its right, at the normal flow.
+    final card = find.byKey(const Key('flow-card'));
+    expect(card, findsOneWidget);
+    final header = find.ancestor(of: find.text('Hospital · Hospital Central'), matching: find.byType(Card));
+    expect(tester.getTopLeft(card).dy, tester.getTopLeft(header).dy);
+    expect(tester.getTopLeft(card).dx, greaterThan(tester.getTopRight(header).dx));
+    expect(factor(), 'Flow ×1');
+    final height = tester.getSize(card).height;
+    expect(find.text('Double the flow'), findsOneWidget);
+    expect(find.text('Halve the flow'), findsOneWidget);
+    expect(find.byKey(const Key('flow-reset')), findsNothing);
+    expect(find.byTooltip('Twice as many arrivals here: the visits headed here come twice as often (up to ×8)'),
+        findsOneWidget);
+
+    // A press asks the API, both buttons disabled until it answers, then says the factor.
+    api.flowGate = Completer<void>();
+    await tester.tap(find.byKey(const Key('flow-double')));
+    await tester.pump();
+    expect(api.flowAsked, [(1, FlowAction.doubled)]);
+    expect(enabled('flow-double'), isFalse);
+    expect(enabled('flow-halve'), isFalse);
+    api.flowGate!.complete();
+    api.flowGate = null;
+    await tester.pumpAndSettle();
+    expect(factor(), 'Flow ×2');
+    expect(find.text('The visits headed here come twice as often.'), findsOneWidget);
+    expect(enabled('flow-double'), isTrue);
+    // The reset shows, and the card keeps its height.
+    expect(find.byKey(const Key('flow-reset')), findsOneWidget);
+    expect(tester.getSize(card).height, height);
+
+    // Up to ×8, where doubling stops; halved, and back to normal.
+    await tester.tap(find.byKey(const Key('flow-double')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('flow-double')));
+    await tester.pumpAndSettle();
+    expect(factor(), 'Flow ×8');
+    expect(enabled('flow-double'), isFalse);
+    for (var i = 0; i < 5; i++) {
+      await tester.tap(find.byKey(const Key('flow-halve')));
+      await tester.pumpAndSettle();
+    }
+    expect(factor(), 'Flow ×1/4');
+    expect(find.text('The visits headed here come a quarter as often.'), findsOneWidget);
+    // A read of the care center says the same.
+    await tester.pump(CareCenterScreen.refresh);
+    await tester.pumpAndSettle();
+    expect(factor(), 'Flow ×1/4');
+    await tester.tap(find.byKey(const Key('flow-reset')));
+    await tester.pumpAndSettle();
+    expect(factor(), 'Flow ×1');
+    expect(api.flowAsked.last, (1, FlowAction.reset));
+
+    // Refused: the reason in a snack bar, the factor as it was.
+    api.flowRefused = const ApiException(401, 'sign in first');
+    await tester.tap(find.byKey(const Key('flow-halve')));
+    await tester.pumpAndSettle();
+    expect(find.text('Sign in to change the flow.'), findsOneWidget);
+    expect(factor(), 'Flow ×1');
+
+    // Without the control, or a flow (prod, no simulation), no buttons.
+    await tester.pumpWidget(MaterialApp(home: CareCenterScreen(key: const Key('no-flow'), id: 1, load: api.careCenter, showTiles: false)));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('flow-card')), findsNothing);
+  });
+
+  testWidgets("on a narrow window the flow's buttons are under what it is", (tester) async {
+    tester.view.physicalSize = const Size(400, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeApi(auth: false, simulation: true);
+    await tester.pumpWidget(MaterialApp(
+      home: CareCenterScreen(id: 1, load: api.careCenter, flow: api.changeFlow, showTiles: false),
+    ));
+    await tester.pumpAndSettle();
+    final header = find.ancestor(of: find.text('Hospital · Hospital Central'), matching: find.byType(Card));
+    expect(tester.getTopLeft(find.byKey(const Key('flow-card'))).dy, greaterThan(tester.getBottomLeft(header).dy));
+    expect(find.text('Double the flow'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('a care center says its flow factor in the simulation, none in prod', () {
+    expect(CareCenterDetail.fromJson({'id': 1, 'flow': 2}).flow, 2);
+    expect(CareCenterDetail.fromJson({'id': 1, 'flow': 0.125}).flow, 0.125);
+    expect(CareCenterDetail.fromJson({'id': 1, 'flow': null}).flow, isNull);
+    expect(flowLabel(1), '×1');
+    expect(flowLabel(0.5), '×1/2');
+    expect(flowLabel(8), '×8');
+  });
+
   testWidgets("a clinic's view says the simulation sends nobody there; none is a 404", (tester) async {
     tester.view.physicalSize = const Size(1200, 2600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     final api = FakeApi();
     await tester.pumpWidget(
-      MaterialApp(home: CareCenterScreen(id: 2, load: api.careCenter, showTiles: false)),
+      MaterialApp(home: CareCenterScreen(id: 2, load: api.careCenter, flow: api.changeFlow, showTiles: false)),
     );
     await tester.pumpAndSettle();
     expect(find.text('Clinic · Policlínica'), findsOneWidget);
     expect(tester.widget<Text>(find.byKey(const Key('usage-capacity'))).data, 'of 3 places');
     // A kind of clinic the simulation routes nobody to.
     expect(find.textContaining('The simulation sends nobody to a Policlínica'), findsOneWidget);
+    // Nor buttons for its flow.
+    expect(find.byKey(const Key('flow-card')), findsNothing);
     expect(find.text('No admissions recorded here.'), findsOneWidget);
 
     await tester.pumpWidget(

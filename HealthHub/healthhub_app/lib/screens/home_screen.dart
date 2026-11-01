@@ -43,6 +43,7 @@ class HomeScreen extends StatelessWidget {
     this.careCenter,
     this.careCenterOccupancy,
     this.occupancyForecast,
+    this.careCenterFlow,
     this.simulation,
     this.population,
     this.showTiles = true,
@@ -82,6 +83,9 @@ class HomeScreen extends StatelessWidget {
   final HourlyOccupancyLoader? careCenterOccupancy;
   final OccupancyForecastLoader? occupancyForecast;
 
+  /// Doubles and halves the flow of people to a care center, from its view.
+  final FlowControl? careCenterFlow;
+
   /// Pauses or resumes the simulation, from the events.
   final SimulationControl? simulation;
 
@@ -97,6 +101,7 @@ class HomeScreen extends StatelessWidget {
         load: careCenter!,
         occupancy: careCenterOccupancy,
         forecast: occupancyForecast,
+        flow: careCenterFlow,
         showTiles: showTiles,
         child: home,
       );

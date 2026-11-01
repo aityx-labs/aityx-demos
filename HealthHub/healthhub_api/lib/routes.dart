@@ -8,7 +8,7 @@ import 'auth.dart';
 import 'care_centers.dart' show simulatedCapacity;
 import 'conditions.dart' show CareSetting;
 import 'occupancy_alarms.dart' show AlarmsSnapshot, simNowOf;
-import 'simulation.dart' show LatLon, Place, admissionsTopic, maxPeoplePerCity, movesTopic;
+import 'simulation.dart' show LatLon, Place, admissionsTopic, flowActions, maxPeoplePerCity, movesTopic;
 
 /// An answer: a status, and a JSON body or a redirect.
 class Answer {
@@ -61,6 +61,11 @@ class Forwarded {
 /// to the request's [body] `perCity` and says how many it is now; called
 /// as [control] is, and only for a whole number from 1 to
 /// [maxPeoplePerCity] (else 400).
+/// [flow]: for POST /api/care-centers/{id}/flow, doubles, halves or
+/// resets (the request's [body] `action`, one of lib/simulation.dart's
+/// flowActions) the flow at that care center and says its factor now,
+/// null when the simulation sends nobody there (404); called as [control]
+/// is, and only for one of those actions (else 400).
 /// [peoplePerCity]: the people a city now, reported by GET /api/events.
 /// [people]: the latest move of each simulated person, as read back from
 /// Kafka by the server (lib/simulation.dart's PeopleFeed).
@@ -120,6 +125,7 @@ Answer route(
   bool paused = false,
   bool Function(bool pause)? control,
   int Function(int perCity)? population,
+  double? Function(int id, String action)? flow,
   Object? body,
   int? peoplePerCity,
   List<Map<String, Object?>> people = const [],
@@ -156,6 +162,22 @@ Answer route(
           return const Answer(400, body: {'error': 'perCity is a whole number from 1 to $maxPeoplePerCity'});
         }
         return Answer(200, body: {'perCity': population(perCity)});
+    }
+    // Anyone signed in may change it, as they may pause the simulation.
+    if (careCenterFlowIdOf(path) case final id?) {
+      if (auth.enabled && identity == null) return _signIn;
+      if (!dev || !simulation || flow == null) {
+        return const Answer(409, body: {'error': 'the simulation does not run'});
+      }
+      final action = body is Map ? body['action'] : null;
+      if (action is! String || !flowActions.contains(action)) {
+        return Answer(400, body: {'error': 'action is one of ${flowActions.join(', ')}'});
+      }
+      final factor = flow(id, action);
+      if (factor == null) {
+        return const Answer(404, body: {'error': 'the simulation sends nobody to a care center with that id'});
+      }
+      return Answer(200, body: {'id': id, 'factor': factor});
     }
   }
   if (method == 'GET') {
@@ -459,13 +481,22 @@ Map<String, Object?>? personAnswer(
 
 /// What the server read of a care center for GET /api/care-centers/{id}:
 /// [history], the database's (Db.careCenterHistory: the center, its
-/// admissions counted and the latest), and [currentRun], the simulation's
-/// run (null when it doesn't run).
+/// admissions counted and the latest), [currentRun], the simulation's
+/// run, and [flow], its flow factor in it (lib/simulation.dart's
+/// Simulation.flowOf); both null when it doesn't run.
 class CareCenterLookup {
-  const CareCenterLookup(this.history, {this.currentRun});
+  const CareCenterLookup(this.history, {this.currentRun, this.flow});
 
   final Map<String, Object?> history;
   final String? currentRun;
+  final double? flow;
+}
+
+/// The id in /api/care-centers/{id}/flow, a positive number; null for any
+/// other path.
+int? careCenterFlowIdOf(String path) {
+  const suffix = '/flow';
+  return path.endsWith(suffix) ? careCenterIdOf(path.substring(0, path.length - suffix.length)) : null;
 }
 
 /// The id in /api/care-centers/{id}, a positive number; null for any other
@@ -484,9 +515,10 @@ int? careCenterIdOf(String path) {
 /// Place.serves), its capacity in the simulation
 /// (lib/care_centers.dart's simulatedCapacity), who is
 /// there now and who is on the way (their latest [moves], in dev mode),
-/// how many have it as their hospital, and its admissions: counted in the
-/// current run and in all, and the latest; null when there is no such
-/// care center (404).
+/// how many have it as their hospital, its flow factor this run (`flow`,
+/// 1 the normal flow; null in prod or while the simulation doesn't run),
+/// and its admissions: counted in the current run and in all, and the
+/// latest; null when there is no such care center (404).
 Map<String, Object?>? careCenterAnswer(bool dev, CareCenterLookup lookup, List<Map<String, Object?>> moves) {
   final center = lookup.history['center'] as Map<String, Object?>?;
   if (center == null) return null;
@@ -519,6 +551,7 @@ Map<String, Object?>? careCenterAnswer(bool dev, CareCenterLookup lookup, List<M
       if (key != 'key') key: value,
     'serves': [for (final setting in CareSetting.values) if (place.serves(setting)) setting.json],
     'capacity': {'places': capacity.places, 'unit': capacity.unit, 'simulated': true},
+    'flow': dev ? lookup.flow : null,
     'now': {
       'enabled': dev,
       'run': dev ? lookup.currentRun : null,

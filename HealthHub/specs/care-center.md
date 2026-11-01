@@ -2,9 +2,11 @@
 
 Every care center HealthHub names on home, of any kind (hospital, clinic,
 health station), is a link to its view: where it is on a map, with the
-people there and on their way; what it is; its capacity in the simulation
-and how much of it is in use now; its occupancy per hour with datyx's
-forecast of the next 24; who is there; its admissions. App in
+people there and on their way; what it is, with buttons beside it to
+double and halve the flow of people there in the simulation; its
+capacity in the simulation and how much of it is in use now; its
+occupancy per hour with datyx's forecast of the next 24; who is there;
+its admissions. App in
 [care_center_screen.dart](../healthhub_app/lib/care_centers/care_center_screen.dart),
 API in [routes.dart](../healthhub_api/lib/routes.dart),
 [db.dart](../healthhub_api/lib/db.dart) and
@@ -43,7 +45,9 @@ order:
    name large, the kind and the registry's type ("Hospital · Hospitales
    Generales"), the address with postal code, city, region and country,
    the phone and website, the id, who runs it and the registry it comes
-   from.
+   from. Beside it, from 720 px wide (under it when narrower), as tall,
+   **Flow of people** ([below](#the-flow)), while the simulation runs
+   and sends people there.
 2. **The map** and, beside it from 720 px wide (under it when narrower),
    **Capacity in use now**:
    - The map: OpenStreetMap's darkened tiles around the care center at
@@ -80,6 +84,33 @@ order:
    person of that admission's run), the visit, aityx's triage and what
    they said, as in the person view (`AdmissionRow`).
 
+## The flow
+
+The card beside what the care center is (`FlowCard`, 320 px wide, as
+the capacity card under it) doubles or halves the flow of people to it
+in the simulation ([The flow at a care
+center](simulation.md#the-flow-at-a-care-center)): its factor now, large
+("Flow ×2", "Flow ×1/4"; orange above normal, blue below), what it means
+("The visits headed here come twice as often.", "... a quarter as
+often."; "People come here as usual." at ×1), and two buttons:
+
+- **Double the flow** (a double arrow up; its tooltip "Twice as many
+  arrivals here: the visits headed here come twice as often (up to
+  ×8)"), disabled at ×8;
+- **Halve the flow** (a double arrow down; "Half as many arrivals here:
+  the visits headed here come half as often (down to ×1/8)"), disabled
+  at ×1/8;
+
+and, away from ×1, a reset icon ("Back to the normal flow"). A press
+calls `POST /api/care-centers/{id}/flow` and shows the factor it answers;
+all are disabled, with a spinner, while a press is under way, and the
+view's reads every 5 seconds keep the factor in step with other users'
+presses (a read that started before a press doesn't undo it). A refusal
+is a snack bar: "Sign in to change the flow." for a 401, else "The flow
+can't be changed:" and why. The card isn't shown in prod or while the
+simulation doesn't run (`flow` null), nor for a care center it sends
+nobody to (`serves` empty).
+
 ## Capacity
 
 The registries don't say how big a facility is, and the simulation's
@@ -97,7 +128,9 @@ stream last saw at it (`at_hospital`, at a care center of any kind).
   "phone", "website", "ownership", "source", "serves" (the settings the
   simulation sends people to it for: `hospital`, `primary`,
   `urgent_care`, `mental_health`, `dialysis`), "capacity": {"places",
-  "unit" ("beds" or "places"), "simulated": true}, "now": {"enabled",
+  "unit" ("beds" or "places"), "simulated": true}, "flow" (its flow
+  factor this run, 1/8 to 8, 1 the normal flow; null in prod or while
+  the simulation doesn't run), "now": {"enabled",
   "run", "simTime", "day", "inUse", "usage" (in use over places),
   "assigned", "here": [...], "onTheWay": [...]}, "admissions": {"run",
   "thisRun", "thisRunAcute", "thisRunChronic", "total", "acute",
@@ -113,6 +146,15 @@ stream last saw at it (`at_hospital`, at a care center of any kind).
   `area`, `nurseCheck`, `error`), null before aityx triaged it. 404 for
   an id that is not a care center (or not a positive number), 503 without
   the database; open to everyone.
+- `POST /api/care-centers/{id}/flow`, `{"action": "double" | "halve" |
+  "reset"}`: changes the care center's flow factor for the rest of the
+  run ([The flow at a care
+  center](simulation.md#the-flow-at-a-care-center)) and answers `{"id",
+  "factor"}`, the factor now. Anyone signed in (anyone while
+  authentication is off), as for pausing the simulation: 401 without a
+  user once it is on, 409 when the simulation doesn't run, 400 for
+  another action, 404 for a care center the simulation sends nobody to
+  (one without a location).
 - `GET /api/care-centers/{id}/occupancy` and `.../occupancy/forecast`:
   its people in care per hour and datyx's forecast of them; the same for
   its admissions, `.../admissions` and `.../admissions/forecast`
@@ -127,14 +169,28 @@ stream last saw at it (`at_hospital`, at a care center of any kind).
 `care_centers_test.dart`: a care center path's id; the capacity by kind,
 within its range and the same for a key every time; a care center's
 answer with its capacity, who is there and on the way, how many have it
-as their hospital, the admissions; in prod nobody now; 404 and 503.
+as their hospital, the admissions; in prod nobody now; 404 and 503; its
+flow factor in dev only; the flow's route: 401, 409, 400 for another
+action, 404, and the factor after each action. `flow_test.dart`: the
+factor's steps and bounds; a moved visit's daytime slot; nothing changes
+at the normal flow; in a seeded run the admissions at the hospital and at
+the health station scale with their factor (×2, ×1/2, ×8) and the daily
+profile stays; a change brings a planned visit forward or puts it off by
+the time left, draws the next acute onset again at the new pace, and
+thins the episodes headed to a care center slowed down; the simulation
+keeps a factor per care center, a new run at the normal flow.
 `widget_test.dart`: a pin on home opens the view (its tooltip says so):
 the header, the map with the person on the way and the badge, the
 capacity in use, the occupancy per hour with the forecast (under the
 capacity, above the people), the people, the admissions with who and
 their triage, a read every 5 seconds, a person opened from it and their hospital back to
 it; a hospital in the events opens it, and the person in a triage's
-detail opens theirs; a clinic's view says nobody comes; a 404.
+detail opens theirs; a clinic's view says nobody comes, without the
+flow's buttons; a 404. The flow: beside the header on its right, ×1,
+both buttons; a press disables them until the API answers, then says
+"Flow ×2"; up to ×8, where doubling stops, halved to ×1/4, which a read
+keeps, and reset; a 401 in a snack bar; no card without the control; on
+a narrow window the card under the header.
 
 ## Known limitations
 

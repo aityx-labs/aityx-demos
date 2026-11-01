@@ -73,8 +73,16 @@
 ///   GET  /api/care-centers/{id}
 ///                       one care center: where it is, its capacity in
 ///                       the simulation, who is there and on the way now,
+///                       its flow factor this run ("flow", 1 normally),
 ///                       its admissions counted and the latest; open to
 ///                       all; 404 for none, 503 without the database
+///   POST /api/care-centers/{id}/flow {"action": "double"|"halve"|"reset"}
+///                       {"id", "factor"}: the flow at that care center
+///                       after the call (1/8 to 8, 1 normal): the visits
+///                       headed there come that many times as often, for
+///                       the rest of the run; signed in and running as
+///                       for pause, 400 for another action, 404 for a
+///                       care center the simulation sends nobody to
 ///   GET  /api/people/{id}/prediction
 ///                       datyx's XGBoost prediction of their hours of
 ///                       care over the next 30 days, asked with the
@@ -623,6 +631,16 @@ Future<void> _handle(
           return simulation.peoplePerCity;
         },
       ),
+      ('POST', _) when careCenterFlowIdOf(path) != null => route(
+        method,
+        path,
+        auth: auth,
+        identity: identity,
+        dev: live.dev,
+        simulation: live.simulation?.running ?? false,
+        body: await _jsonBody(request),
+        flow: (id, action) => live.simulation?.changeFlow(id, action),
+      ),
       ('GET', '/api/admissions') => route(
         method,
         path,
@@ -659,7 +677,7 @@ Future<void> _handle(
         auth: auth,
         dev: live.dev,
         people: live.feed?.people ?? const [],
-        careCenter: await _careCenter(db, careCenterIdOf(path)!, live.simulation?.run),
+        careCenter: await _careCenter(db, careCenterIdOf(path)!, live.simulation),
       ),
       ('GET', _) when hourlyRoute != null && !hourlyRoute.$3 => route(
         method,
@@ -830,11 +848,18 @@ Future<PersonLookup?> _person(Db db, String id, String? run, String? currentRun)
   }
 }
 
-/// One care center, with its admissions of [run] (the current one) and
-/// of all runs; null when the database doesn't answer (logged).
-Future<CareCenterLookup?> _careCenter(Db db, int id, String? run) async {
+/// One care center, with its admissions of [simulation]'s run and of all
+/// runs, and its flow factor in that run (the run and the factor null when
+/// the simulation doesn't run); null when the database doesn't answer
+/// (logged).
+Future<CareCenterLookup?> _careCenter(Db db, int id, Simulation? simulation) async {
+  final run = simulation?.run;
   try {
-    return CareCenterLookup(await db.careCenterHistory(id, run: run), currentRun: run);
+    return CareCenterLookup(
+      await db.careCenterHistory(id, run: run),
+      currentRun: run,
+      flow: simulation != null && simulation.running ? simulation.flowOf(id) : null,
+    );
   } catch (error) {
     stderr.writeln('care centers: $error');
     return null;

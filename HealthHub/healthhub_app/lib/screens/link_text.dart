@@ -52,6 +52,7 @@ Widget withOpeners(BuildContext from, Widget child) {
       load: careCenter.load,
       occupancy: careCenter.occupancy,
       forecast: careCenter.forecast,
+      flow: careCenter.flow,
       showTiles: careCenter.showTiles,
       child: wrapped,
     );

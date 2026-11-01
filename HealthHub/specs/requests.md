@@ -697,3 +697,26 @@ The feature files hold the current specification; see the
      occupancy expected at ...", "Alarm: 90% reached now", "Cleared:
      below 90%"). See [Occupancy alarms](occupancy-alarms.md),
      [Database](database.md), [Home](home.md) and [API](api.md).
+1. **On the care unit view, beside the top card, add a button to double
+   population flow and to halve the population flow in a given care
+   unit.** Each care center has a flow factor for the simulation's run,
+   1 unless changed, doubled or halved at each press from 1/8 to 8, and
+   reset on a new run: the visits headed there come that many times as
+   often. A chronic visit's wait (its interval, a course's gap) is
+   divided by the factor of its care center, still in the daytime; acute
+   onsets come at the highest factor among a person's care centers and
+   an episode is kept with its first visit's factor over it (Poisson
+   thinning); a press brings the planned visits forward or puts them
+   off, and draws the next onsets again, so it shows at once. In a
+   seeded run the admissions there went ×1.75 to ×1.94 at ×2, ×0.48 to
+   ×0.62 at ×1/2, ×6.6 at ×8, the daily profile kept. The API takes
+   `POST /api/care-centers/{id}/flow` (`{"action": "double" | "halve" |
+   "reset"}`, answering the factor; sign-in as for pausing, 409 when the
+   simulation doesn't run), says the factor in `GET
+   /api/care-centers/{id}` (`flow`) and logs every change. The care
+   center view has a **Flow of people** card beside its header, "Flow
+   ×2", with **Double the flow** and **Halve the flow** (icons,
+   tooltips; disabled at the bounds and while a press is under way) and a
+   reset, refusals in a snack bar ("Sign in to change the flow."). See
+   [The simulation](simulation.md#the-flow-at-a-care-center), [The care
+   center view](care-center.md#the-flow) and [API](api.md).

@@ -104,6 +104,7 @@ class _HealthHubAppState extends State<HealthHubApp> {
               careCenter: _api.careCenter,
               careCenterOccupancy: _api.careCenterOccupancy,
               occupancyForecast: _api.occupancyForecast,
+              careCenterFlow: _api.changeFlow,
               simulation: _api.pauseSimulation,
               population: _api.setPeoplePerCity,
               showTiles: widget.showTiles,

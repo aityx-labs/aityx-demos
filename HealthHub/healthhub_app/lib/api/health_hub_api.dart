@@ -1438,6 +1438,7 @@ class CareCenterDetail {
     this.serves = const [],
     this.capacity = 0,
     this.unit = 'places',
+    this.flow,
     this.now = const CareCenterNow(),
     this.admissions = const CareCenterAdmissions(),
   });
@@ -1463,6 +1464,7 @@ class CareCenterDetail {
       serves: [for (final s in json['serves'] as List? ?? const []) if (s is String) s],
       capacity: _int(capacity['places']) ?? 0,
       unit: _string(capacity['unit']) ?? 'places',
+      flow: (json['flow'] as num?)?.toDouble(),
       now: CareCenterNow.fromJson((json['now'] as Map?)?.cast() ?? const {}),
       admissions: CareCenterAdmissions.fromJson((json['admissions'] as Map?)?.cast() ?? const {}),
     );
@@ -1502,9 +1504,34 @@ class CareCenterDetail {
   /// the building.
   final int capacity;
   final String unit;
+
+  /// Its flow factor in the simulation's run, 1/8 to 8, 1 the normal flow:
+  /// the visits headed here come that many times as often. Null in prod,
+  /// or while the simulation doesn't run.
+  final double? flow;
   final CareCenterNow now;
   final CareCenterAdmissions admissions;
 }
+
+/// What a press on the care center view does to its flow: doubles it,
+/// halves it, or sets it back to normal; [apiName] as
+/// `POST /api/care-centers/{id}/flow` takes it.
+enum FlowAction {
+  doubled('double'),
+  halved('halve'),
+  reset('reset');
+
+  const FlowAction(this.apiName);
+
+  final String apiName;
+}
+
+/// The smallest and largest flow factors the API keeps.
+const flowMin = 0.125;
+const flowMax = 8.0;
+
+/// [factor] as the view says it: ×2, ×1, ×1/4.
+String flowLabel(double factor) => factor >= 1 ? '×${factor.round()}' : '×1/${(1 / factor).round()}';
 
 /// Who is at a care center now and who is on the way, in dev mode.
 class CareCenterNow {
@@ -1858,6 +1885,10 @@ abstract class HealthHubApi {
   /// Sets the people each city of the simulation has, and says how many it
   /// is now: `POST /api/simulation/people`.
   Future<int> setPeoplePerCity(int perCity);
+
+  /// Doubles, halves or resets the flow at care center [id] in the
+  /// simulation, and says its factor now: `POST /api/care-centers/{id}/flow`.
+  Future<double> changeFlow(int id, FlowAction action);
 }
 
 /// Thrown when the API answers an error, with its message.
@@ -1970,6 +2001,14 @@ class HttpHealthHubApi implements HealthHubApi {
   @override
   Future<int> setPeoplePerCity(int perCity) async =>
       _int((await _send('POST', '/api/simulation/people', body: {'perCity': perCity}) as Map?)?['perCity']) ?? perCity;
+
+  @override
+  Future<double> changeFlow(int id, FlowAction action) async {
+    final json = await _send('POST', '/api/care-centers/$id/flow', body: {'action': action.apiName});
+    final factor = json is Map ? json['factor'] : null;
+    if (factor is! num) throw const ApiException(200, 'unexpected answer');
+    return factor.toDouble();
+  }
 
   @override
   Future<CareCenter?> nearestCareCenter({required double lat, required double lon}) async {

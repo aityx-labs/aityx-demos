@@ -15,16 +15,22 @@ import 'occupancy_timeline.dart';
 /// How the care center view asks the API: `GET /api/care-centers/{id}`.
 typedef CareCenterLoader = Future<CareCenterDetail> Function(int id);
 
+/// How it changes the flow at a care center, and learns its factor now:
+/// `POST /api/care-centers/{id}/flow`.
+typedef FlowControl = Future<double> Function(int id, FlowAction action);
+
 /// Makes the care centers named under it links to their view: home puts it
 /// over its tiles. Without one (the index), a [CareCenterLink] is plain
 /// text and a pin on the map shows its tooltip. With [admissions] and
-/// [forecast], the view plots its people in care per hour.
+/// [forecast], the view plots its people in care per hour; with [flow],
+/// it doubles and halves the flow of people there.
 class CareCenterOpener extends InheritedWidget {
   const CareCenterOpener({
     super.key,
     required this.load,
     this.occupancy,
     this.forecast,
+    this.flow,
     this.showTiles = true,
     required super.child,
   });
@@ -32,6 +38,7 @@ class CareCenterOpener extends InheritedWidget {
   final CareCenterLoader load;
   final HourlyOccupancyLoader? occupancy;
   final OccupancyForecastLoader? forecast;
+  final FlowControl? flow;
 
   /// The view's map tiles; off in tests, which have no network.
   final bool showTiles;
@@ -44,7 +51,7 @@ class CareCenterOpener extends InheritedWidget {
     MaterialPageRoute<void>(
       builder: (_) => withOpeners(
         context,
-        CareCenterScreen(id: id, load: load, occupancy: occupancy, forecast: forecast, showTiles: showTiles),
+        CareCenterScreen(id: id, load: load, occupancy: occupancy, forecast: forecast, flow: flow, showTiles: showTiles),
       ),
     ),
   );
@@ -54,6 +61,7 @@ class CareCenterOpener extends InheritedWidget {
       load != oldWidget.load ||
       occupancy != oldWidget.occupancy ||
       forecast != oldWidget.forecast ||
+      flow != oldWidget.flow ||
       showTiles != oldWidget.showTiles;
 }
 
@@ -86,8 +94,9 @@ class CareCenterLink extends StatelessWidget {
 /// there and on their way; what it is; its capacity in the simulation and
 /// how much of it is in use now; its admissions per hour and datyx's
 /// forecast of the next ones (with [admissions] and [forecast]); who is
-/// there; its admissions. Read again every 5 seconds while shown, as
-/// people come and go.
+/// there; its admissions. Beside what it is, with [flow] while the
+/// simulation runs, buttons to double and halve the flow of people there.
+/// Read again every 5 seconds while shown, as people come and go.
 class CareCenterScreen extends StatefulWidget {
   const CareCenterScreen({
     super.key,
@@ -95,6 +104,7 @@ class CareCenterScreen extends StatefulWidget {
     required this.load,
     this.occupancy,
     this.forecast,
+    this.flow,
     this.showTiles = true,
   });
 
@@ -102,6 +112,7 @@ class CareCenterScreen extends StatefulWidget {
   final CareCenterLoader load;
   final HourlyOccupancyLoader? occupancy;
   final OccupancyForecastLoader? forecast;
+  final FlowControl? flow;
   final bool showTiles;
 
   /// How often the view reads the care center again.
@@ -116,6 +127,12 @@ class _CareCenterScreenState extends State<CareCenterScreen> {
   Object? _error;
   Timer? _poll;
   bool _loading = false;
+
+  /// The flow factor the last press answered, until a read that started
+  /// after it says it; whether a press is under way; how many there were.
+  double? _flowNow;
+  bool _changingFlow = false;
+  int _presses = 0;
 
   @override
   void initState() {
@@ -135,12 +152,14 @@ class _CareCenterScreenState extends State<CareCenterScreen> {
   Future<void> _load() async {
     if (_loading) return;
     _loading = true;
+    final presses = _presses;
     try {
       final center = await widget.load(widget.id);
       if (mounted) {
         setState(() {
           _center = center;
           _error = null;
+          if (presses == _presses && !_changingFlow) _flowNow = null;
         });
       }
     } catch (error) {
@@ -148,6 +167,52 @@ class _CareCenterScreenState extends State<CareCenterScreen> {
     } finally {
       _loading = false;
     }
+  }
+
+  /// Doubles, halves or resets the flow, one press at a time; a refusal
+  /// in a snack bar.
+  Future<void> _changeFlow(FlowAction action) async {
+    final control = widget.flow;
+    if (control == null || _changingFlow) return;
+    setState(() {
+      _changingFlow = true;
+      _presses++;
+    });
+    try {
+      final factor = await control(widget.id, action);
+      if (mounted) setState(() => _flowNow = factor);
+    } catch (error) {
+      if (!mounted) return;
+      final message = error is ApiException && error.status == 401
+          ? 'Sign in to change the flow.'
+          : 'The flow can\'t be changed: ${error is ApiException ? error.message : error}';
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) setState(() => _changingFlow = false);
+    }
+  }
+
+  /// What it is, and beside it, while the simulation sends people there,
+  /// the buttons of its flow: to the right when the view is wide, under it
+  /// when it isn't.
+  Widget _top(CareCenterDetail center) {
+    final factor = _flowNow ?? center.flow;
+    if (widget.flow == null || factor == null || center.serves.isEmpty) return _Header(center);
+    final flow = FlowCard(factor: factor, busy: _changingFlow, onChange: _changeFlow);
+    return LayoutBuilder(
+      builder: (context, constraints) => constraints.maxWidth < 720
+          ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [_Header(center), const SizedBox(height: 16), flow])
+          : IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: _Header(center)),
+                  const SizedBox(width: 16),
+                  SizedBox(width: 320, child: flow),
+                ],
+              ),
+            ),
+    );
   }
 
   @override
@@ -174,7 +239,7 @@ class _CareCenterScreenState extends State<CareCenterScreen> {
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    _Header(center),
+                    _top(center),
                     const SizedBox(height: 16),
                     LayoutBuilder(
                       builder: (context, constraints) {
@@ -326,6 +391,99 @@ class _Header extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The flow of people to a care center in the simulation: its factor
+/// now ("Flow ×2") and buttons to double and halve it (1/8 to 8), and to
+/// set it back to normal; all disabled while a press is under way
+/// ([busy]).
+class FlowCard extends StatelessWidget {
+  const FlowCard({super.key, required this.factor, required this.busy, required this.onChange});
+
+  final double factor;
+  final bool busy;
+  final ValueChanged<FlowAction> onChange;
+
+  @override
+  Widget build(BuildContext context) {
+    final normal = factor == 1;
+    final color = normal ? Aityx.muted : (factor > 1 ? Aityx.orange : Aityx.blue);
+    final times = factor > 1
+        ? (factor == 2 ? 'twice' : '${factor.round()} times')
+        : switch ((1 / factor).round()) {
+            2 => 'half',
+            4 => 'a quarter',
+            8 => 'an eighth',
+            final n => '1/$n',
+          };
+    final says = normal ? 'People come here as usual.' : 'The visits headed here come $times as often.';
+    return Card(
+      key: const Key('flow-card'),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // As tall with the reset as without, so the card doesn't jump.
+            SizedBox(
+              height: 32,
+              child: Row(
+              children: [
+                const Icon(Icons.groups_outlined, color: Aityx.orange, size: 20),
+                const SizedBox(width: 10),
+                const Expanded(child: Text('Flow of people', style: TextStyle(fontWeight: FontWeight.w700))),
+                if (busy)
+                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                else if (!normal)
+                  IconButton(
+                    key: const Key('flow-reset'),
+                    tooltip: 'Back to the normal flow',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+                    onPressed: () => onChange(FlowAction.reset),
+                    icon: const Icon(Icons.restart_alt, size: 20),
+                  ),
+              ],
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Flow ${flowLabel(factor)}',
+              key: const Key('flow-factor'),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: normal ? Aityx.fg0 : color),
+            ),
+            Text(says, style: const TextStyle(color: Aityx.muted, fontSize: 12)),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Tooltip(
+                  message: 'Twice as many arrivals here: the visits headed here come twice as often (up to ×8)',
+                  child: FilledButton.tonalIcon(
+                    key: const Key('flow-double'),
+                    onPressed: busy || factor >= flowMax ? null : () => onChange(FlowAction.doubled),
+                    icon: const Icon(Icons.keyboard_double_arrow_up),
+                    label: const Text('Double the flow'),
+                  ),
+                ),
+                Tooltip(
+                  message: 'Half as many arrivals here: the visits headed here come half as often (down to ×1/8)',
+                  child: OutlinedButton.icon(
+                    key: const Key('flow-halve'),
+                    onPressed: busy || factor <= flowMin ? null : () => onChange(FlowAction.halved),
+                    icon: const Icon(Icons.keyboard_double_arrow_down),
+                    label: const Text('Halve the flow'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

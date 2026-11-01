@@ -30,7 +30,8 @@ account corner.
   with the longest wait ("Very urgent · within 10 min"), the area, "a
   nurse checks" when the rules ask for it, how it compares with the
   reference ("✓ the reference level", "one level more urgent than the
-  reference"), who and at which hospital, what they said (two lines), and
+  reference"), who (a link to their view, [The person view](person.md))
+  and at which hospital, what they said (two lines), and
   the level rule's why, or the error of a triage that failed.
   - **A tap** opens why (`TriageDetailDialog`, from
     `GET /api/triage/{eventId}`): the level and wait, who, the area and
@@ -56,12 +57,13 @@ account corner.
   an admission before the moves of its own hour. The header names the
   topics and counts what is shown, "3 admissions · 12 moves".
   - **A move** is one compact row: a dot in the person's state colour
-    (the map's), the simulated time and day, the person's id, what they
+    (the map's), the simulated time and day, the person's id (a link to
+    their view, [The person view](person.md)), what they
     are doing (and the hospital, on the way there or in it), and the
     record's partition and offset.
   - **An admission** stands out: an orange bar on its left and an orange
     tint, a hospital icon (`Icons.local_hospital`), the person's name and
-    age, the condition and whether it is acute or chronic, the visit
+    age (a link to the person of that admission's run), the condition and whether it is acute or chronic, the visit
     ("First visit", "Return visit, the 2nd", "Last visit, the 3rd") and
     the hospital, the simulated time and the record's partition and
     offset, and below, in full, wrapped, in italics and quotes, what the

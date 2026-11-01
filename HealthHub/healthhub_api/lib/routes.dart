@@ -59,6 +59,12 @@ class Forwarded {
 /// [triageDetail]: for GET /api/triage/{eventId}, the triage the server
 /// read (its row null when there is none, 404; null itself when the
 /// database didn't answer, 503).
+/// [person]: for GET /api/people/{id}, what the server read of that
+/// person in the database (null: it didn't answer, 503), with [people]
+/// for where they are now.
+/// [prediction]: for GET /api/people/{id}/prediction, datyx's answer to
+/// the inference the server asked for with the user's token (null: datyx
+/// didn't answer, 502).
 Answer route(
   String method,
   String path, {
@@ -79,9 +85,26 @@ Answer route(
   bool triageEnabled = false,
   Map<String, Object?>? triage,
   TriageLookup? triageDetail,
+  PersonLookup? person,
+  Forwarded? prediction,
 }) {
   if (method == 'OPTIONS') return const Answer(204);
   if (method == 'GET') {
+    switch (personPath(path)) {
+      case (final id, false):
+        if (person == null) {
+          return const Answer(503, body: {'error': 'the database is not answering'});
+        }
+        final answer = personAnswer(dev, id, people, person);
+        return answer == null ? const Answer(404, body: {'error': 'nobody with that id'}) : Answer(200, body: answer);
+      case (_, true):
+        if (auth.enabled && identity == null) return _signIn;
+        if (prediction == null) {
+          return const Answer(502, body: {'error': 'the datyx API is not answering'});
+        }
+        return predictionAnswer(prediction);
+      case null:
+    }
     switch (path) {
       // The site root, which the web server proxies here
       // (scripts/flutter-web.sh), so a forwarded port's bare URL opens the
@@ -219,6 +242,120 @@ Map<String, Object?> peopleAnswer(bool dev, List<Map<String, Object?>> moves, {B
           {for (final field in fields) field: move[field]},
     ],
   };
+}
+
+/// What the server read of a person for GET /api/people/{id}: [history],
+/// the database's (Db.personHistory: the run, the admissions, the days),
+/// and [currentRun], the simulation's run (null when it doesn't run), so
+/// the answer says whether this is the person moving now.
+class PersonLookup {
+  const PersonLookup(this.history, {this.currentRun});
+
+  final Map<String, Object?> history;
+  final String? currentRun;
+}
+
+/// The person id in /api/people/{id}, and whether the path asks for their
+/// prediction (/api/people/{id}/prediction); null for any other path.
+(String, bool)? personPath(String path) {
+  const prefix = '/api/people/';
+  if (!path.startsWith(prefix)) return null;
+  var rest = path.substring(prefix.length);
+  final prediction = rest.endsWith('/prediction');
+  if (prediction) rest = rest.substring(0, rest.length - '/prediction'.length);
+  final String id;
+  try {
+    id = Uri.decodeComponent(rest);
+  } on ArgumentError {
+    return null;
+  } on FormatException {
+    // Not UTF-8 once decoded.
+    return null;
+  }
+  return id.isEmpty || id.contains('/') || id.length > 200 ? null : (id, prediction);
+}
+
+/// What GET /api/people/{id} answers: one person of one run, their facts
+/// (from their latest move and admission: a move has no sex or
+/// occupation), where they are now when it is the current run (their
+/// latest move, in dev mode), their admissions with each one's triage,
+/// their days of care, and those counted; null when nothing is known of
+/// them (404).
+Map<String, Object?>? personAnswer(
+  bool dev,
+  String id,
+  List<Map<String, Object?>> moves,
+  PersonLookup person,
+) {
+  final history = person.history;
+  final run = history['run'] as String?;
+  final admissions = [for (final a in history['admissions'] as List? ?? const []) a as Map<String, Object?>];
+  final days = [for (final d in history['days'] as List? ?? const []) d as Map<String, Object?>];
+  // The latest move is this run's person only when the run is the current one.
+  final current = person.currentRun != null && (run == null || run == person.currentRun);
+  Map<String, Object?>? move;
+  if (dev && current) {
+    for (final m in moves) {
+      if (m['id'] == id) move = m;
+    }
+  }
+  if (move == null && admissions.isEmpty) return null;
+  final latest = admissions.isEmpty ? null : admissions.first;
+  const nowFields = [
+    'state', 'mode', 'lat', 'lon', 'homeLat', 'homeLon', 'hospitalName', 'conditionName', 'conditionType',
+    'simTime', 'day',
+  ];
+  return {
+    'id': id,
+    'run': run ?? (move == null ? null : person.currentRun),
+    'current': current,
+    'name': move?['name'] ?? latest?['name'],
+    'age': move?['age'] ?? latest?['age'],
+    'sex': latest?['sex'],
+    'occupation': latest?['occupation'],
+    'city': move?['city'] ?? latest?['city'],
+    'now': move == null ? null : {for (final field in nowFields) field: move[field]},
+    'summary': {
+      'admissions': admissions.length,
+      'acute': admissions.where((a) => a['conditionType'] == 'acute').length,
+      'chronic': admissions.where((a) => a['conditionType'] == 'chronic').length,
+      'triaged': admissions.where((a) => a['triage'] != null).length,
+      'days': days.length,
+      'stayHours': days.fold<num>(0, (sum, d) => sum + ((d['stayHours'] as num?) ?? 0)),
+    },
+    'admissions': admissions,
+    'days': days,
+  };
+}
+
+/// What GET /api/people/{id}/prediction answers from datyx's inference
+/// ([prediction], POST /api/datasources/{id}/inference for the person's
+/// series of patient_days): the person's prediction and what the model
+/// is (`predicted`, the Target summed over the horizon ahead, null with a
+/// `note` when it can't say; `last`, the same over the horizon just
+/// gone; `target`, `horizon`, `group`, `table`, the training run and when
+/// it was trained); datyx's own status and error otherwise, as it said.
+Answer predictionAnswer(Forwarded prediction) {
+  final body = prediction.body;
+  if (prediction.status != 200 || body is! Map) return Answer(prediction.status, body: body);
+  final predictions = body['predictions'];
+  final first = predictions is List && predictions.isNotEmpty && predictions.first is Map
+      ? predictions.first as Map
+      : const {};
+  return Answer(200, body: {
+    'predicted': first['predicted'],
+    'last': first['last'],
+    'note': first['note'],
+    'series': first['series'],
+    'target': body['target'],
+    'horizon': body['horizon'],
+    'group': body['group'],
+    'table': body['table'],
+    'trainingRunId': body['runId'],
+    'trainedAt': body['trainedAt'],
+    'sourceId': body['sourceId'],
+    'millis': body['millis'],
+  });
 }
 
 /// How many events GET /api/events answers unless asked, and at most.

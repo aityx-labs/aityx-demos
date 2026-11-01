@@ -527,6 +527,7 @@ const triageDoubt = 0.35;
 class Triaged {
   const Triaged({
     required this.eventId,
+    this.personId,
     this.name,
     this.age,
     this.complaint,
@@ -560,6 +561,7 @@ class Triaged {
     final rules = json['rules'];
     return Triaged(
       eventId: json['eventId'] as String,
+      personId: _string(json['personId']),
       name: _string(json['name']),
       age: _int(json['age']),
       complaint: _string(json['complaint']),
@@ -602,6 +604,9 @@ class Triaged {
   }
 
   final String eventId;
+
+  /// Who arrived: the simulated person's id.
+  final String? personId;
   final String? name;
   final int? age;
   final String? complaint;
@@ -715,6 +720,262 @@ class Triages {
   final List<Triaged> triaged;
 }
 
+/// The run an event id belongs to: its first part, eight hex digits
+/// before the person's id (`df0837e4-reus-5-d141-t3369`); null when it has
+/// none (the ids recorded before runs).
+String? runOf(String? eventId) => _runPrefix.firstMatch(eventId ?? '')?.group(1);
+
+final _runPrefix = RegExp(r'^([0-9a-f]{8})-');
+
+/// One person of one run: `GET /api/people/{id}`. A person's id comes
+/// back in every run, a new person each time.
+class PersonDetail {
+  const PersonDetail({
+    required this.id,
+    this.run,
+    this.current = false,
+    this.name,
+    this.age,
+    this.sex,
+    this.occupation,
+    this.city,
+    this.now,
+    this.summary = const PersonSummary(),
+    this.admissions = const [],
+    this.days = const [],
+  });
+
+  factory PersonDetail.fromJson(Map<String, Object?> json) => PersonDetail(
+    id: json['id'] as String? ?? '',
+    run: _string(json['run']),
+    current: json['current'] == true,
+    name: _string(json['name']),
+    age: _int(json['age']),
+    sex: _string(json['sex']),
+    occupation: _string(json['occupation']),
+    city: _string(json['city']),
+    now: json['now'] is Map ? PersonNow.fromJson((json['now'] as Map).cast()) : null,
+    summary: PersonSummary.fromJson((json['summary'] as Map?)?.cast() ?? const {}),
+    admissions: [
+      for (final a in json['admissions'] as List? ?? const [])
+        if (a is Map && a['eventId'] is String) PersonAdmission.fromJson(a.cast()),
+    ],
+    days: [
+      for (final d in json['days'] as List? ?? const [])
+        if (d is Map) PersonDay.fromJson(d.cast()),
+    ],
+  );
+
+  final String id;
+  final String? run;
+
+  /// Whether this is the run going on now, the person moving on the map.
+  final bool current;
+  final String? name;
+  final int? age;
+  final String? sex;
+  final String? occupation;
+  final String? city;
+
+  /// Where they are and what they do now: the current run, in dev mode.
+  final PersonNow? now;
+  final PersonSummary summary;
+
+  /// Newest first.
+  final List<PersonAdmission> admissions;
+
+  /// Their days of care, the latest first.
+  final List<PersonDay> days;
+}
+
+/// What a person does now: their latest move.
+class PersonNow {
+  const PersonNow({
+    this.state = PersonState.home,
+    this.mode,
+    this.hospitalName,
+    this.conditionName,
+    this.conditionType,
+    this.simTime,
+    this.day,
+  });
+
+  factory PersonNow.fromJson(Map<String, Object?> json) => PersonNow(
+    state: PersonState.named(json['state'] as String?),
+    mode: _string(json['mode']),
+    hospitalName: _string(json['hospitalName']),
+    conditionName: _string(json['conditionName']),
+    conditionType: ConditionType.named(json['conditionType']),
+    simTime: _string(json['simTime']),
+    day: _int(json['day']),
+  );
+
+  final PersonState state;
+  final String? mode;
+  final String? hospitalName;
+  final String? conditionName;
+  final ConditionType? conditionType;
+  final String? simTime;
+  final int? day;
+}
+
+/// A person's admissions and days, counted by the API.
+class PersonSummary {
+  const PersonSummary({
+    this.admissions = 0,
+    this.acute = 0,
+    this.chronic = 0,
+    this.triaged = 0,
+    this.days = 0,
+    this.stayHours = 0,
+  });
+
+  factory PersonSummary.fromJson(Map<String, Object?> json) => PersonSummary(
+    admissions: _int(json['admissions']) ?? 0,
+    acute: _int(json['acute']) ?? 0,
+    chronic: _int(json['chronic']) ?? 0,
+    triaged: _int(json['triaged']) ?? 0,
+    days: _int(json['days']) ?? 0,
+    stayHours: (json['stayHours'] as num?) ?? 0,
+  );
+
+  final int admissions;
+  final int acute;
+  final int chronic;
+  final int triaged;
+  final int days;
+
+  /// The hours of care of all their days.
+  final num stayHours;
+}
+
+/// One admission of a person, with its triage when it has one.
+class PersonAdmission {
+  const PersonAdmission({
+    required this.eventId,
+    this.conditionName,
+    this.conditionType,
+    this.visit,
+    this.visitNumber,
+    this.complaint,
+    this.hospitalName,
+    this.day,
+    this.simTime,
+    this.triaged = false,
+    this.level,
+    this.waitMinutes,
+    this.area,
+    this.nurseCheck = false,
+    this.reference,
+    this.error,
+  });
+
+  factory PersonAdmission.fromJson(Map<String, Object?> json) {
+    final triage = json['triage'];
+    final t = triage is Map ? triage.cast<String, Object?>() : const <String, Object?>{};
+    return PersonAdmission(
+      eventId: json['eventId'] as String,
+      conditionName: _string(json['conditionName']),
+      conditionType: ConditionType.named(json['conditionType']),
+      visit: VisitKind.named(json['visit']),
+      visitNumber: _int(json['visitNumber']),
+      complaint: _string(json['complaint']),
+      hospitalName: _string(json['hospitalName']),
+      day: _int(json['day']),
+      simTime: _string(json['simTime']),
+      triaged: triage is Map,
+      level: TriageLevel.parse(t['level']),
+      waitMinutes: _int(t['waitMinutes']),
+      area: _string(t['area']),
+      nurseCheck: t['nurseCheck'] == true,
+      reference: TriageLevel.parse(t['reference']),
+      error: _string(t['error']),
+    );
+  }
+
+  final String eventId;
+  final String? conditionName;
+  final ConditionType? conditionType;
+  final VisitKind? visit;
+  final int? visitNumber;
+  final String? complaint;
+  final String? hospitalName;
+  final int? day;
+  final String? simTime;
+
+  /// Whether aityx triaged it: [level] then, or the [error].
+  final bool triaged;
+  final TriageLevel? level;
+  final int? waitMinutes;
+  final String? area;
+  final bool nurseCheck;
+  final TriageLevel? reference;
+  final String? error;
+}
+
+/// One day of a person's care: patient_days.
+class PersonDay {
+  const PersonDay({required this.day, this.visits = 0, this.acuteVisits = 0, this.chronicVisits = 0, this.stayHours = 0});
+
+  factory PersonDay.fromJson(Map<String, Object?> json) => PersonDay(
+    day: json['day'] as String? ?? '',
+    visits: _int(json['visits']) ?? 0,
+    acuteVisits: _int(json['acuteVisits']) ?? 0,
+    chronicVisits: _int(json['chronicVisits']) ?? 0,
+    stayHours: _int(json['stayHours']) ?? 0,
+  );
+
+  /// The date, 2026-05-21.
+  final String day;
+  final int visits;
+  final int acuteVisits;
+  final int chronicVisits;
+  final int stayHours;
+}
+
+/// datyx's prediction for a person: `GET /api/people/{id}/prediction`,
+/// the hours of care ([target]) summed over the [horizon] ahead
+/// ([predicted]), and over the one just gone ([last]); [note] says why
+/// there is no prediction when [predicted] is null.
+class Prediction {
+  const Prediction({
+    this.predicted,
+    this.last,
+    this.note,
+    this.target,
+    this.horizon,
+    this.group,
+    this.table,
+    this.trainingRunId,
+    this.trainedAt,
+    this.millis,
+  });
+
+  factory Prediction.fromJson(Map<String, Object?> json) => Prediction(
+    predicted: json['predicted'] as num?,
+    last: json['last'] as num?,
+    note: _string(json['note']),
+    target: _string(json['target']),
+    horizon: _string(json['horizon']),
+    group: _string(json['group']),
+    table: _string(json['table']),
+    trainingRunId: _int(json['trainingRunId']),
+    trainedAt: DateTime.tryParse(json['trainedAt'] as String? ?? ''),
+    millis: _int(json['millis']),
+  );
+
+  final num? predicted;
+  final num? last;
+  final String? note;
+  final String? target;
+  final String? horizon;
+  final String? group;
+  final String? table;
+  final int? trainingRunId;
+  final DateTime? trainedAt;
+  final int? millis;
+}
+
 /// The API, as the app sees it.
 abstract class HealthHubApi {
   Future<Health> health();
@@ -754,6 +1015,13 @@ abstract class HealthHubApi {
 
   /// One admission's triage with aityx's receipt: `GET /api/triage/{eventId}`.
   Future<Triaged> triageOf(String eventId);
+
+  /// One person of [run] (the current one unless given): `GET /api/people/{id}?run=`.
+  Future<PersonDetail> person(String id, {String? run});
+
+  /// datyx's prediction of a person's hours of care over the next 30
+  /// days: `GET /api/people/{id}/prediction?run=`.
+  Future<Prediction> prediction(String id, {String? run});
 }
 
 /// Thrown when the API answers an error, with its message.
@@ -829,6 +1097,17 @@ class HttpHealthHubApi implements HealthHubApi {
   @override
   Future<Triaged> triageOf(String eventId) async =>
       Triaged.fromJson(await _getMap('/api/triage/${Uri.encodeComponent(eventId)}'));
+
+  @override
+  Future<PersonDetail> person(String id, {String? run}) async =>
+      PersonDetail.fromJson(await _getMap(_personPath(id, '', run)));
+
+  @override
+  Future<Prediction> prediction(String id, {String? run}) async =>
+      Prediction.fromJson(await _getMap(_personPath(id, '/prediction', run)));
+
+  static String _personPath(String id, String suffix, String? run) =>
+      '/api/people/${Uri.encodeComponent(id)}$suffix${run == null ? '' : '?run=${Uri.encodeQueryComponent(run)}'}';
 
   /// An area as the API's `bbox` takes it: west,south,east,north.
   static String _bbox(double west, double south, double east, double north) =>

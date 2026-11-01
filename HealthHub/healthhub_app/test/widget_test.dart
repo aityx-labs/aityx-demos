@@ -7,6 +7,7 @@ import 'package:healthhub_app/api/health_hub_api.dart';
 import 'package:healthhub_app/auth/auth_controller.dart';
 import 'package:healthhub_app/location/location_controller.dart';
 import 'package:healthhub_app/main.dart';
+import 'package:healthhub_app/people/person_screen.dart';
 import 'package:healthhub_app/persist/session_store.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -43,6 +44,7 @@ class FakeApi implements HealthHubApi {
   static final _triaged = <Map<String, Object?>>[
     {
       'eventId': 'r1-lisboa-1-d2-t40',
+      'personId': 'lisboa-1',
       'name': 'Rui Matos',
       'age': 71,
       'complaint': "Hi, I'm Rui Matos, 71, I have COPD. For four days I've been much more breathless.",
@@ -158,7 +160,7 @@ class FakeApi implements HealthHubApi {
         day: 2,
         partition: 0,
         offset: 9,
-        eventId: 'lisboa-3-d2-t32',
+        eventId: 'a1b2c3d4-lisboa-3-d2-t32',
       ),
       const StreamEvent(id: 'lisboa-1', state: PersonState.toHospital, hospitalName: 'Hospital de Santa Maria', simTime: '09:40', day: 2, partition: 0, offset: 42),
       const StreamEvent(id: 'lisboa-2', state: PersonState.home, simTime: '09:40', day: 2, partition: 0, offset: 41),
@@ -253,6 +255,78 @@ class FakeApi implements HealthHubApi {
 
   @override
   Future<Greeting> hello() async => Greeting(message: 'Hello, world', since: null, postgres: 'PostgreSQL 17.6');
+  /// The people and predictions asked for: (id, run).
+  final personAsked = <(String, String?)>[];
+  final predictionAsked = <(String, String?)>[];
+
+  /// Whether datyx has a model to predict with.
+  bool model = true;
+
+  @override
+  Future<PersonDetail> person(String id, {String? run}) async {
+    personAsked.add((id, run));
+    if (id == 'nobody') throw const ApiException(404, 'nobody with that id');
+    return PersonDetail.fromJson({
+      'id': id,
+      'run': run ?? 'cafe0001',
+      'current': run == null,
+      'name': 'Inês Carvalho',
+      'age': 67,
+      'sex': 'woman',
+      'occupation': 'retired teacher',
+      'city': 'Lisboa',
+      'now': run == null
+          ? {'state': 'at_hospital', 'hospitalName': 'Hospital de Santa Maria', 'conditionName': 'Type 2 diabetes',
+              'conditionType': 'chronic', 'simTime': '09:40', 'day': 2}
+          : null,
+      'summary': {'admissions': 2, 'acute': 0, 'chronic': 2, 'triaged': 1, 'days': 2, 'stayHours': 6},
+      'admissions': [
+        {
+          'eventId': 'a1b2c3d4-lisboa-3-d2-t32',
+          'conditionName': 'Type 2 diabetes',
+          'conditionType': 'chronic',
+          'visit': 'repeat',
+          'visitNumber': 2,
+          'complaint': 'Back for my sugar check.',
+          'hospitalName': 'Hospital de Santa Maria',
+          'day': 2,
+          'simTime': '08:00',
+          'triage': {'level': 'green', 'waitMinutes': 120, 'area': 'outpatients', 'nurseCheck': false, 'reference': 'green'},
+        },
+        {
+          'eventId': 'a1b2c3d4-lisboa-3-d1-t10',
+          'conditionName': 'Type 2 diabetes',
+          'conditionType': 'chronic',
+          'visit': 'first',
+          'visitNumber': 1,
+          'hospitalName': 'Hospital de Santa Maria',
+          'day': 1,
+          'simTime': '10:30',
+          'triage': null,
+        },
+      ],
+      'days': [
+        {'day': '2026-01-02', 'visits': 1, 'acuteVisits': 0, 'chronicVisits': 1, 'stayHours': 2},
+        {'day': '2026-01-01', 'visits': 1, 'acuteVisits': 0, 'chronicVisits': 1, 'stayHours': 4},
+      ],
+    });
+  }
+
+  @override
+  Future<Prediction> prediction(String id, {String? run}) async {
+    predictionAsked.add((id, run));
+    if (!model) throw const ApiException(404, 'no model of the group care of public.patient_days has been trained yet');
+    return Prediction.fromJson({
+      'predicted': 9.022,
+      'last': 4.0,
+      'target': 'stay_hours',
+      'horizon': '30D',
+      'group': 'care',
+      'trainingRunId': 1,
+      'trainedAt': '2026-11-01T09:42:05Z',
+      'millis': 63,
+    });
+  }
 }
 
 /// A sign-in that is on and says who is signed in, without Google.
@@ -406,6 +480,7 @@ void main() {
     expect(find.byKey(const Key('home-lisboa-1')), findsOneWidget);
     expect(find.byKey(const Key('home-lisboa-2')), findsOneWidget);
     expect(find.byIcon(Icons.home), findsNWidgets(3)); // two homes and the legend
+    // On the index there is no person view to open: a tap shows who.
     expect(find.byTooltip('lisboa-1\nGoing to the hospital · Hospital de Santa Maria · 09:40'), findsOneWidget);
     // With a profile, the tooltip also says who they are and their condition.
     expect(
@@ -468,11 +543,14 @@ void main() {
     expect(api.eventTypes, containsAll([StreamEventType.move, StreamEventType.admission]));
     expect(find.text('1 admission · 2 moves'), findsOneWidget);
 
-    final row = find.byKey(const Key('admission-lisboa-3-d2-t32'));
+    final row = find.byKey(const Key('admission-a1b2c3d4-lisboa-3-d2-t32'));
     expect(row, findsOneWidget);
     Finder inRow(Finder finder) => find.descendant(of: row, matching: finder);
     expect(inRow(find.byIcon(Icons.local_hospital)), findsOneWidget);
-    expect(inRow(find.text('Inês Carvalho, 67  Type 2 diabetes (chronic)', findRichText: true)), findsOneWidget);
+    // The name is a link to her view, of the admission's run.
+    expect(inRow(find.byKey(const Key('person-link-lisboa-3'))), findsOneWidget);
+    expect(inRow(find.text('Inês Carvalho, 67')), findsOneWidget);
+    expect(inRow(find.textContaining('Type 2 diabetes (chronic)', findRichText: true)), findsOneWidget);
     expect(inRow(find.text('Return visit, the 2nd · Hospital de Santa Maria')), findsOneWidget);
     expect(inRow(find.text('08:00, day 2')), findsOneWidget);
     expect(inRow(find.text('p0 · #9')), findsOneWidget);
@@ -486,6 +564,126 @@ void main() {
     expect((box.border! as Border).left.color, const Color(0xFFE36742));
     // It sorts by simulated time: 08:00 is older than the moves at 09:40.
     expect(tester.getTopLeft(row).dy, greaterThan(tester.getTopLeft(find.text('lisboa-1')).dy));
+  });
+
+  testWidgets("a person's id opens their view, datyx's 30-day prediction highlighted", (tester) async {
+    tester.view.physicalSize = const Size(1200, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeApi(auth: false, simulation: true);
+    await tester.pumpWidget(app(api: api));
+    await tester.pumpAndSettle();
+
+    // A move's id: the person of the run going on now.
+    await tester.tap(
+      find.descendant(of: find.byKey(const Key('stream-events')), matching: find.byKey(const Key('person-link-lisboa-1'))),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(PersonScreen), findsOneWidget);
+    expect(api.personAsked, [('lisboa-1', null)]);
+    expect(api.predictionAsked, [('lisboa-1', null)]);
+    expect(find.text('Inês Carvalho'), findsNWidgets(2)); // the title and the header
+    expect(find.text('67 · woman · retired teacher · Lisboa'), findsOneWidget);
+    expect(find.text('At the hospital · Hospital de Santa Maria'), findsOneWidget);
+
+    // The prediction, set apart: the hours ahead large, the 30 days gone, the model.
+    final card = find.byKey(const Key('prediction-card'));
+    expect(card, findsOneWidget);
+    expect(find.descendant(of: card, matching: find.text('Return in the next 30 days')), findsOneWidget);
+    expect(tester.widget<Text>(find.byKey(const Key('prediction-value'))).data, '9.0 h');
+    expect(find.text('4 h in the last 30 days'), findsOneWidget);
+    expect(find.byIcon(Icons.trending_up), findsOneWidget);
+    expect(find.textContaining('group care · stay_hours over 30D · training run 1'), findsOneWidget);
+    final border = (tester.widget<Container>(card).decoration! as BoxDecoration).border! as Border;
+    expect(border.top.color, const Color(0xFFE36742));
+    // Right under who they are, above their admissions and days.
+    expect(tester.getTopLeft(card).dy, lessThan(tester.getTopLeft(find.text('Admissions')).dy));
+
+    // Their admissions with aityx's triage, newest first, and their days.
+    final first = find.byKey(const Key('person-admission-a1b2c3d4-lisboa-3-d2-t32'));
+    expect(find.descendant(of: first, matching: find.textContaining('Standard · 2 h')), findsOneWidget);
+    expect(
+      find.descendant(of: first, matching: find.text('Return visit, the 2nd · Hospital de Santa Maria')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: find.byKey(const Key('person-admission-a1b2c3d4-lisboa-3-d1-t10')), matching: find.text('Not triaged yet')),
+      findsOneWidget,
+    );
+    expect(find.text('2026-01-02'), findsOneWidget);
+    expect(find.text('6'), findsOneWidget); // hours of care, counted
+
+    // Back home.
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.byType(PersonScreen), findsNothing);
+  });
+
+  testWidgets("an admission's name opens the person of that admission's run", (tester) async {
+    tester.view.physicalSize = const Size(1200, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeApi(auth: false, simulation: true);
+    await tester.pumpWidget(app(api: api));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('person-link-lisboa-3')));
+    await tester.pumpAndSettle();
+    expect(api.personAsked, [('lisboa-3', 'a1b2c3d4')]);
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
+    expect(find.text('lisboa-3 · run a1b2c3d4 · a past run'), findsOneWidget);
+  });
+
+  testWidgets("a triage's name, and a person on the map, open their view", (tester) async {
+    tester.view.physicalSize = const Size(1200, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeApi(auth: false, simulation: true);
+    final locations = FakeLocations();
+    await tester.pumpWidget(app(api: api, locations: locations));
+    locations.move(38.72, -9.14);
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+
+    // The triage of Rui Matos, a link to him; the rest of the row opens the triage.
+    final triage = find.byKey(const Key('triage-r1-lisboa-1-d2-t40'));
+    await tester.tap(find.descendant(of: triage, matching: find.byKey(const Key('person-link-lisboa-1'))));
+    await tester.pumpAndSettle();
+    expect(api.personAsked, [('lisboa-1', null)]);
+    expect(api.triageDetailsAsked, isEmpty);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('person-lisboa-2')));
+    await tester.pumpAndSettle();
+    expect(api.personAsked.last, ('lisboa-2', null));
+    expect(find.byType(PersonScreen), findsOneWidget);
+  });
+
+  testWidgets('without a model, the prediction card says why', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeApi(auth: false, simulation: true)..model = false;
+    await tester.pumpWidget(app(api: api));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.descendant(of: find.byKey(const Key('stream-events')), matching: find.byKey(const Key('person-link-lisboa-1'))),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('prediction-card')), findsOneWidget);
+    expect(find.text('no model of the group care of public.patient_days has been trained yet'), findsOneWidget);
+    expect(find.byKey(const Key('prediction-value')), findsNothing);
+    // The rest of the person is there all the same.
+    expect(find.text('Admissions'), findsOneWidget);
+  });
+
+  test('a run is the event id up to the person, eight hex digits', () {
+    expect(runOf('df0837e4-reus-5-d141-t3369'), 'df0837e4');
+    expect(runOf('lisboa-3-d2-t32'), isNull);
+    expect(runOf(null), isNull);
   });
 
   test('stream events read admissions and moves from the API', () {

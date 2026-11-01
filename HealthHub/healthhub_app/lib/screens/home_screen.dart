@@ -6,11 +6,14 @@ import '../auth/user_menu.dart';
 import '../events/stream_events.dart';
 import '../location/location_controller.dart';
 import '../location/user_location_map.dart';
+import '../people/person_screen.dart';
 import '../theme.dart';
 import '../triage/triage_card.dart';
 
 /// Home: where the user lands after signing in. A dashboard of tiles; for
 /// now one, the map with the user's position highlighted, full width.
+/// With [person] and [prediction], every person it names (on the map, in
+/// the events and the triage) opens their view ([PersonOpener]).
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
@@ -21,6 +24,8 @@ class HomeScreen extends StatelessWidget {
     this.events,
     this.triage,
     this.triageDetail,
+    this.person,
+    this.prediction,
     this.showTiles = true,
   });
 
@@ -39,10 +44,20 @@ class HomeScreen extends StatelessWidget {
   /// Where aityx's triage of the admissions comes from, under the map.
   final TriageLoader? triage;
   final TriageDetailLoader? triageDetail;
+
+  /// Where a person's view comes from: the API, and datyx through it.
+  final PersonLoader? person;
+  final PredictionLoader? prediction;
   final bool showTiles;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    final scaffold = _scaffold(context);
+    if (person == null || prediction == null) return scaffold;
+    return PersonOpener(person: person!, prediction: prediction!, child: scaffold);
+  }
+
+  Widget _scaffold(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text(AppVersion.title),
       actions: [UserMenu(auth: auth), const SizedBox(width: 12)],

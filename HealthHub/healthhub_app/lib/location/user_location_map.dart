@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../api/health_hub_api.dart';
+import '../people/person_screen.dart';
 import '../theme.dart';
 import 'location_controller.dart';
 
@@ -442,11 +443,40 @@ class HomePin extends StatelessWidget {
   final Person person;
 
   @override
-  Widget build(BuildContext context) => Tooltip(
+  Widget build(BuildContext context) => _OpensPerson(
+    person.id,
     message: 'Home of ${person.id}',
-    triggerMode: TooltipTriggerMode.tap,
     child: Icon(Icons.home, size: 14, color: Aityx.muted.withValues(alpha: 0.85), semanticLabel: 'Home'),
   );
+}
+
+/// A pin of [id]'s: its tooltip on a tap, or, where there is a person view
+/// to open ([PersonOpener], home), on hover or a long press, the tap
+/// opening the view.
+class _OpensPerson extends StatelessWidget {
+  const _OpensPerson(this.id, {required this.message, required this.child});
+
+  final String id;
+  final String message;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final opener = PersonOpener.of(context);
+    if (opener == null) return Tooltip(message: message, triggerMode: TooltipTriggerMode.tap, child: child);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => opener.open(context, id),
+        child: Tooltip(
+          message: '$message\nClick to open',
+          triggerMode: TooltipTriggerMode.longPress,
+          child: child,
+        ),
+      ),
+    );
+  }
 }
 
 /// A simulated person: a small dot in their state's colour, in a dark ring
@@ -472,9 +502,9 @@ class PersonPin extends StatelessWidget {
     final condition = person.conditionName == null
         ? null
         : [person.conditionName!, if (person.conditionType != null) '(${person.conditionType!.label})'].join(' ');
-    return Tooltip(
+    return _OpensPerson(
+      person.id,
       message: [who, ?condition, details].join('\n'),
-      triggerMode: TooltipTriggerMode.tap,
       child: Semantics(
         label: 'Person, ${person.state.label}',
         child: Container(

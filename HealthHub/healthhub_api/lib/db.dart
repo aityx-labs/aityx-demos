@@ -277,6 +277,8 @@ class Db {
     // Added after the table was first made: which complaint template the
     // admission was said from, null for those recorded before.
     await c.execute('ALTER TABLE admissions ADD COLUMN IF NOT EXISTS template INT');
+    // One person's admissions, for GET /api/people/{id}.
+    await c.execute('CREATE INDEX IF NOT EXISTS admissions_person_idx ON admissions (person_id)');
     // Each admission's triage by aityx (lib/triage.dart): the level, the
     // wait, the area, the rules behind them, what Jev read, aityx's
     // receipt and the template's reference level; or why it failed.
@@ -547,8 +549,8 @@ class Db {
     t.event_id, a.person_name, a.age, a.sex, a.city, a.complaint, a.condition_name, a.condition_type,
     a.visit, a.visit_number, a.hospital_name, a.sim_day, a.sim_time, t.level, t.wait_minutes, t.area,
     t.nurse_check, t.level_rule, t.level_why, t.area_rule, t.area_why, t.signs, t.choices,
-    t.reference, t.error, t.input_tokens, t.millis, t.triaged_at''';
-  static const _triageColumnCount = 28;
+    t.reference, t.error, t.input_tokens, t.millis, t.triaged_at, a.person_id''';
+  static const _triageColumnCount = 29;
 
   static Map<String, Object?> _triageRow(ResultRow row) => {
     'eventId': row[0],
@@ -579,6 +581,7 @@ class Db {
     'inputTokens': row[25],
     'millis': row[26],
     'triagedAt': (row[27] as DateTime).toUtc().toIso8601String(),
+    'personId': row[28],
   };
 
   static const _admissionFields = [
@@ -586,6 +589,97 @@ class Db {
     'conditionName', 'conditionType', 'visit', 'visitNumber', 'complaint', 'hospitalId',
     'hospitalName', 'day', 'simTime',
   ];
+
+  /// How many of a person's admissions, and of their days,
+  /// [personHistory] answers at most.
+  static const personLimit = 200;
+
+  /// One person of one run, as the database has them: their admissions,
+  /// newest first, each with its triage when it has one (level, wait,
+  /// area, nurse check, reference, error), and their days of care from
+  /// patient_days, the latest first; at most [personLimit] of each. A
+  /// person's id comes back in every run, a new person each time, so
+  /// [run] says which: the newest run with an admission of theirs when
+  /// null (none: no admissions, no days, run null).
+  Future<Map<String, Object?>> personHistory(String personId, {String? run}) => _run((c) async {
+    var chosen = run;
+    if (chosen == null) {
+      final newest = await c.execute(
+        Sql.named(
+          "SELECT split_part(event_id, '-', 1) FROM admissions WHERE person_id = @id ORDER BY id DESC LIMIT 1",
+        ),
+        parameters: {'id': personId},
+      );
+      if (newest.isEmpty) return {'run': null, 'admissions': const [], 'days': const []};
+      chosen = newest.first[0] as String;
+    }
+    final admissions = await c.execute(
+      Sql.named('''
+        SELECT a.event_id, a.person_name, a.age, a.sex, a.occupation, a.city, a.condition_code,
+               a.condition_name, a.condition_type, a.visit, a.visit_number, a.complaint,
+               a.hospital_id, a.hospital_name, a.sim_day, a.sim_time, a.recorded_at,
+               t.level, t.wait_minutes, t.area, t.nurse_check, t.reference, t.error, t.event_id IS NOT NULL
+        FROM admissions a LEFT JOIN admission_triage t USING (event_id)
+        WHERE a.person_id = @id AND split_part(a.event_id, '-', 1) = @run
+        ORDER BY a.id DESC LIMIT @limit
+      '''),
+      parameters: {'id': personId, 'run': chosen, 'limit': personLimit},
+    );
+    final days = await c.execute(
+      Sql.named('''
+        SELECT day, visits, acute_visits, chronic_visits, stay_hours, chronic_condition
+        FROM patient_days WHERE run_id = @run AND person_id = @id
+        ORDER BY day DESC LIMIT @limit
+      '''),
+      parameters: {'id': personId, 'run': chosen, 'limit': personLimit},
+    );
+    return {
+      'run': chosen,
+      'admissions': [
+        for (final row in admissions)
+          {
+            'eventId': row[0],
+            'name': row[1],
+            'age': row[2],
+            'sex': row[3],
+            'occupation': row[4],
+            'city': row[5],
+            'conditionCode': row[6],
+            'conditionName': row[7],
+            'conditionType': row[8],
+            'visit': row[9],
+            'visitNumber': row[10],
+            'complaint': row[11],
+            'hospitalId': row[12],
+            'hospitalName': row[13],
+            'day': row[14],
+            'simTime': row[15],
+            'recordedAt': (row[16] as DateTime).toUtc().toIso8601String(),
+            'triage': row[23] == true
+                ? {
+                    'level': row[17],
+                    'waitMinutes': row[18],
+                    'area': row[19],
+                    'nurseCheck': row[20],
+                    'reference': row[21],
+                    'error': row[22],
+                  }
+                : null,
+          },
+      ],
+      'days': [
+        for (final row in days)
+          {
+            'day': (row[0] as DateTime).toIso8601String().substring(0, 10),
+            'visits': row[1],
+            'acuteVisits': row[2],
+            'chronicVisits': row[3],
+            'stayHours': row[4],
+            'chronicCondition': row[5],
+          },
+      ],
+    };
+  });
 
   /// The latest [limit] admissions recorded, newest first: what GET
   /// /api/admissions answers.

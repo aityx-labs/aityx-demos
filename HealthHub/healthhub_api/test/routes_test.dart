@@ -198,6 +198,119 @@ void main() {
     expect(refused.status, 401);
   });
 
+  test('a person path names the id, and whether it asks for the prediction', () {
+    expect(personPath('/api/people/reus-5'), ('reus-5', false));
+    expect(personPath('/api/people/reus-5/prediction'), ('reus-5', true));
+    expect(personPath('/api/people/s%C3%A3o-paulo-2'), ('são-paulo-2', false));
+    expect(personPath('/api/people/'), isNull);
+    expect(personPath('/api/people/a/b'), isNull);
+    expect(personPath('/api/people/%E0'), isNull);
+    expect(personPath('/api/people'), isNull);
+  });
+
+  group('a person', () {
+    final history = {
+      'run': 'df0837e4',
+      'admissions': [
+        {
+          'eventId': 'df0837e4-reus-5-d141-t3369',
+          'name': 'Cristina Roca Navarro',
+          'age': 23,
+          'sex': 'woman',
+          'occupation': 'university student',
+          'city': 'Reus',
+          'conditionType': 'chronic',
+          'triage': {'level': 'blue'},
+        },
+        {'eventId': 'df0837e4-reus-5-d30-t700', 'conditionType': 'acute', 'triage': null},
+      ],
+      'days': [
+        {'day': '2026-05-21', 'stayHours': 4},
+        {'day': '2026-01-30', 'stayHours': 6},
+      ],
+    };
+    final move = {
+      'id': 'reus-5', 'name': 'Cristina Roca Navarro', 'age': 23, 'city': 'Reus', 'state': 'at_hospital',
+      'hospitalName': 'Hospital Sant Joan', 'simTime': '15:15', 'day': 141, 'lat': 41.1, 'lon': 1.1,
+    };
+
+    test('answers their facts, where they are now, their admissions and days, counted', () {
+      final answer = route('GET', '/api/people/reus-5',
+          dev: true, people: [move], person: PersonLookup(history, currentRun: 'df0837e4'));
+      expect(answer.status, 200);
+      final body = answer.body as Map;
+      expect(body['run'], 'df0837e4');
+      expect(body['current'], isTrue);
+      expect(body['sex'], 'woman'); // from the admission: a move has none
+      expect(body['occupation'], 'university student');
+      expect((body['now'] as Map)['state'], 'at_hospital');
+      expect((body['now'] as Map)['hospitalName'], 'Hospital Sant Joan');
+      expect(body['summary'], {'admissions': 2, 'acute': 1, 'chronic': 1, 'triaged': 1, 'days': 2, 'stayHours': 10});
+      expect(body['admissions'], hasLength(2));
+      expect(body['days'], hasLength(2));
+    });
+
+    test('of a past run: no now, even though someone of that id moves', () {
+      final body = route('GET', '/api/people/reus-5',
+          dev: true, people: [move], person: PersonLookup(history, currentRun: 'a1b2c3d4')).body as Map;
+      expect(body['current'], isFalse);
+      expect(body['now'], isNull);
+      expect(body['name'], 'Cristina Roca Navarro');
+    });
+
+    test('moving this run without admissions yet: their move alone', () {
+      final body = route('GET', '/api/people/reus-5',
+              dev: true,
+              people: [move],
+              person: const PersonLookup({'run': null, 'admissions': [], 'days': []}, currentRun: 'df0837e4'))
+          .body as Map;
+      expect(body['run'], 'df0837e4');
+      expect(body['current'], isTrue);
+      expect(body['sex'], isNull);
+      expect((body['summary'] as Map)['admissions'], 0);
+    });
+
+    test('nobody known is a 404, no database a 503', () {
+      expect(
+        route('GET', '/api/people/nobody', dev: true, person: const PersonLookup({'run': null})).status,
+        404,
+      );
+      expect(route('GET', '/api/people/reus-5').status, 503);
+    });
+  });
+
+  test("a prediction is datyx's for the person, trimmed; datyx's errors pass through", () {
+    const scored = Forwarded(200, {
+      'callId': 7, 'runId': 1, 'trainedAt': '2026-11-01T09:42:05Z', 'table': 'datyx-ds-1.healthhub.public.patient_days',
+      'group': 'care', 'target': 'stay_hours', 'horizon': '30D', 'requested': 1, 'scored': 1, 'millis': 63, 'sourceId': 1,
+      'predictions': [
+        {'series': {'run_id': 'df0837e4', 'person_id': 'reus-5'}, 'predicted': 9.022, 'last': 4.0, 'note': null},
+      ],
+    });
+    final answer = route('GET', '/api/people/reus-5/prediction', prediction: scored);
+    expect(answer.status, 200);
+    expect(answer.body, {
+      'predicted': 9.022,
+      'last': 4.0,
+      'note': null,
+      'series': {'run_id': 'df0837e4', 'person_id': 'reus-5'},
+      'target': 'stay_hours',
+      'horizon': '30D',
+      'group': 'care',
+      'table': 'datyx-ds-1.healthhub.public.patient_days',
+      'trainingRunId': 1,
+      'trainedAt': '2026-11-01T09:42:05Z',
+      'sourceId': 1,
+      'millis': 63,
+    });
+    final noModel = route('GET', '/api/people/reus-5/prediction',
+        prediction: const Forwarded(404, {'error': 'no model of the group care has been trained yet'}));
+    expect(noModel.status, 404);
+    expect(noModel.body, {'error': 'no model of the group care has been trained yet'});
+    expect(route('GET', '/api/people/reus-5/prediction').status, 502);
+    expect(route('GET', '/api/people/reus-5/prediction', auth: on).status, 401);
+  });
+
   test('a preflight answers 204', () {
     expect(route('OPTIONS', '/api/hello').status, 204);
   });

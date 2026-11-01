@@ -291,3 +291,22 @@ The feature files hold the current specification; see the
    [Triage at the desk](triage.md), [Medical conditions](conditions.md),
    [Simulation](simulation.md), [Database](database.md), [API](api.md),
    [Home](home.md) and [Development environment](dev-environment.md).
+
+1. **In HealthHub, let each person's id or name be clickable, opening a
+   view of the person with what the system knows of them; in it, show
+   datyx's XGBoost inference of the 30-day return, highlighted in a
+   card.** Every person named on home is now a link: a move's id, an
+   admission's name, a triage's name (in the row and its detail), and a
+   person or home on the map (a click opens; the tooltip shows on hover).
+   The person view shows who they are, what they do now, a highlighted
+   card with datyx's prediction of their hours of hospital care over the
+   next 30 days against the last 30, their admissions with aityx's
+   triage, and their days of care. A person's id comes back in every run
+   as someone new, so a view is of one run: an admission's own, else the
+   current one. The API gains `GET /api/people/{id}` (from the database
+   and the latest move) and `GET /api/people/{id}/prediction` (datyx's
+   inference of `patient_days`, group `care`, asked with the user's token
+   from their datyx source for HealthHub's database), an index on
+   `admissions.person_id`, and `personId` on the triage rows. See
+   [The person view](person.md), [Home](home.md), [The map](map.md),
+   [API](api.md) and [Database](database.md).

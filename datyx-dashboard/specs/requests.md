@@ -4,6 +4,22 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: an Inference tab, the account of the calls to the models
+
+Asked: an Inference panel on the dashboard, to account for inference
+calls and their statistics. (Inference itself, and its account, are the
+API's change, in its folder.)
+
+Changed: an Inference tab after Training (`InferenceTab`,
+`?tab=inference`): the last 7 days' totals as stat tiles (calls, the
+last hour's, failures, series scored, median and 95th-percentile
+latency), the calls per hour of the last 24 as columns, a card per model
+with its own account and **Try it** (score a series by its key, or all
+still observed, through the accounted endpoint, showing the
+predictions), and the latest calls. The API client gained `inference()`
+and `score(...)`; the status chip says ok in green. Tests;
+`dashboard.md`.
+
 ## 2026-11-01: a Training tab, the models datyx trains and their runs
 
 Asked: present the training's activity and results in a view of its

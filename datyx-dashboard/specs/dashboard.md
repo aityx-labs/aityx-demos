@@ -9,9 +9,9 @@ doesn't have, the API gets it first.
 
 ## What it shows
 
-One screen, `DashboardScreen`, with an app bar and six tabs under it
+One screen, `DashboardScreen`, with an app bar and seven tabs under it
 (a `TabBar`, as the demos' apps have), in the order of `DashboardTab`:
-Data sources, Catalog, Training, Audit, Health, Profile. Data sources opens at
+Data sources, Catalog, Training, Inference, Audit, Health, Profile. Data sources opens at
 start, unless the page's address names another (see Kept across a
 reload).
 
@@ -152,6 +152,29 @@ reload).
   manual), how long, its test MAE against the naive one and its
   examples, and a failure's error. While a run is queued or running the
   tab asks again every 3 s.
+- **Inference** (`InferenceTab`, `?tab=inference`): the account of the
+  calls to the trained models, from `GET /api/inference` (the last 7
+  days), with a reload button. Six stat tiles: calls, the last hour's,
+  failed (a status icon, green with none, red with some, and the share),
+  series scored, median and 95th-percentile latency; then **Calls per
+  hour** (`CallsPerHour`): a column per hour of the last 24 on one
+  baseline in the brand orange (one series, no legend), scaled to the
+  tallest, which the subtitle names, the first hour and *now* under it,
+  and a tooltip per column with the hour, its calls and its failures. A
+  card per model (`InferenceModelCard`): `XGBoost · care`, its table and
+  source, which run answers and when it was trained, what it predicts
+  and per what key; its own tiles (calls and when last, failed, series
+  scored, median latency with the mean, 95th percentile); and **Try it**:
+  a field per key column and **Score** (on once the whole key is typed),
+  or **Score all still observed**, each a real call to
+  `POST /api/datasources/{id}/inference`, accounted for like any other;
+  the answer shows the call's id, how many it scored, how long and which
+  run, and a table of the predictions (the key, the prediction, the last
+  horizon's actual, or why a series wasn't scored), and the account is
+  asked again. Then **Calls**: the latest, newest first: when, the status
+  chip (ok green, failed red), the model, the run, how many asked and
+  scored (*all still observed* for none named), the milliseconds, who
+  asked, and a failure's error.
 - **Audit** (`CallsPanel`): every call made, newest first, up to 100,
   under the title *API calls* and on a tab labelled *Audit*, neither
   with a count (the refresh every 15 s soon fills it to 100): method,
@@ -238,8 +261,9 @@ tokens live an hour. Signing in or out refreshes the screen.
 tables), `topics(id)` (a Kafka source's topics, `CatalogTopic` and
 `CatalogField`), `timeSeries(id)`, `setTimeSeries(id, roles)`,
 `training()`, `trainingRun(id)`, `trainNow(source, table, group)` and
-`setRetrain(source, table, retrain)`, and the `CallLog` the Audit tab
-listens to.
+`setRetrain(source, table, retrain)`, `inference()` and
+`score(source, table, group, series, limit)`, and the `CallLog` the
+Audit tab listens to.
 `HttpDatyxApi` is the real one, over `package:http`, with a token
 provider for the bearer and one for a refresh after a 401, a 20 s timeout
 on every call, and request bodies logged with their secrets (`password`,
@@ -314,3 +338,7 @@ Training tab shows a model's scope, its next run, its latest run's
 failure, its latest success's tiles (3.10 against 5.20, 40% better),
 its features' bars in proportion with their shares, its scores and
 every run newest first; **Train now** and saving *never* call the API.
+The Inference tab shows the totals' tiles, the hours' columns in
+proportion with the tallest, a model's account and calls with their
+failure; **Score** waits for the whole key, then sends it and shows the
+answer, and scoring all sends no series.

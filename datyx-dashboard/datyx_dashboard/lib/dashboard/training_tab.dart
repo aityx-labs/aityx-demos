@@ -579,8 +579,9 @@ class TopScores extends StatelessWidget {
   }
 }
 
-/// A run's status as an icon and a word, in a status color: succeeded
-/// green, queued and running amber, failed red, not ready amber.
+/// A run's or a call's status as an icon and a word, in a status color:
+/// succeeded and ok green, queued and running amber, failed red, not ready
+/// amber.
 class StatusChip extends StatelessWidget {
   const StatusChip(this.status, {super.key});
   final String status;
@@ -588,7 +589,7 @@ class StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (color, icon) = switch (status) {
-      'succeeded' => (Aityx.green, Icons.check_circle_outline),
+      'succeeded' || 'ok' => (Aityx.green, Icons.check_circle_outline),
       'failed' => (Aityx.red, Icons.error_outline),
       'running' => (Aityx.amber, Icons.sync),
       'queued' => (Aityx.amber, Icons.schedule),

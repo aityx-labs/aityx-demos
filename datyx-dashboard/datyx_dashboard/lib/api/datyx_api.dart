@@ -861,6 +861,220 @@ class TrainingRunDetail {
   final int? bestIteration;
 }
 
+/// Inference calls' account: how many, how many failed, series scored,
+/// and latency in milliseconds (mean, median, 95th percentile).
+class InferenceStats {
+  const InferenceStats({
+    this.calls = 0,
+    this.failed = 0,
+    this.scored = 0,
+    this.avgMillis,
+    this.p50Millis,
+    this.p95Millis,
+    this.lastCalledAt,
+  });
+
+  factory InferenceStats.fromJson(Map<String, Object?> json) => InferenceStats(
+    calls: (json['calls'] as num?)?.toInt() ?? 0,
+    failed: (json['failed'] as num?)?.toInt() ?? 0,
+    scored: (json['scored'] as num?)?.toInt() ?? 0,
+    avgMillis: (json['avgMillis'] as num?)?.toDouble(),
+    p50Millis: (json['p50Millis'] as num?)?.toInt(),
+    p95Millis: (json['p95Millis'] as num?)?.toInt(),
+    lastCalledAt: _time(json['lastCalledAt']),
+  );
+
+  final int calls;
+  final int failed;
+  final int scored;
+  final double? avgMillis;
+  final int? p50Millis;
+  final int? p95Millis;
+  final DateTime? lastCalledAt;
+}
+
+/// A model that answers inference (a group with a trained model) and its calls' account.
+class InferenceModel {
+  const InferenceModel({
+    required this.sourceId,
+    required this.table,
+    required this.name,
+    required this.group,
+    this.source = '',
+    this.runId,
+    this.trainedAt,
+    this.target,
+    this.horizon,
+    this.seriesKey = const [],
+    this.stats = const InferenceStats(),
+  });
+
+  factory InferenceModel.fromJson(Map<String, Object?> json) => InferenceModel(
+    sourceId: (json['sourceId'] as num?)?.toInt() ?? 0,
+    source: json['source'] as String? ?? '',
+    table: json['table'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    group: json['group'] as String? ?? defaultGroup,
+    runId: (json['runId'] as num?)?.toInt(),
+    trainedAt: _time(json['trainedAt']),
+    target: json['target'] as String?,
+    horizon: json['horizon'] as String?,
+    seriesKey: [for (final k in (json['seriesKey'] as List?) ?? const []) '$k'],
+    stats: json['stats'] is Map ? InferenceStats.fromJson((json['stats'] as Map).cast()) : const InferenceStats(),
+  );
+
+  final int sourceId;
+  final String source;
+  final String table;
+  final String name;
+  final String group;
+  final int? runId;
+  final DateTime? trainedAt;
+  final String? target;
+  final String? horizon;
+  final List<String> seriesKey;
+  final InferenceStats stats;
+}
+
+/// One inference call, as accounted: which model, how many series asked
+/// ([requested], 0 for all those still observed) and scored, how long,
+/// whether it failed, and who asked.
+class InferenceCallInfo {
+  const InferenceCallInfo({
+    required this.id,
+    required this.name,
+    required this.group,
+    this.runId = 0,
+    this.calledAt,
+    this.millis = 0,
+    this.requested = 0,
+    this.scored = 0,
+    this.status = 'ok',
+    this.error,
+    this.caller,
+  });
+
+  factory InferenceCallInfo.fromJson(Map<String, Object?> json) => InferenceCallInfo(
+    id: (json['id'] as num).toInt(),
+    name: json['name'] as String? ?? '',
+    group: json['group'] as String? ?? defaultGroup,
+    runId: (json['runId'] as num?)?.toInt() ?? 0,
+    calledAt: _time(json['calledAt']),
+    millis: (json['millis'] as num?)?.toInt() ?? 0,
+    requested: (json['requested'] as num?)?.toInt() ?? 0,
+    scored: (json['scored'] as num?)?.toInt() ?? 0,
+    status: json['status'] as String? ?? '',
+    error: json['error'] as String?,
+    caller: json['caller'] as String?,
+  );
+
+  final int id;
+  final String name;
+  final String group;
+  final int runId;
+  final DateTime? calledAt;
+  final int millis;
+  final int requested;
+  final int scored;
+  final String status;
+  final String? error;
+  final String? caller;
+}
+
+/// One hour's calls.
+class InferenceHour {
+  const InferenceHour(this.hour, this.calls, this.failed);
+  final DateTime hour;
+  final int calls;
+  final int failed;
+}
+
+/// `GET /api/inference`: the account of the last 7 days' calls: totals,
+/// the last hour's, each model's, the last 24 hours hour by hour, and the
+/// latest calls.
+class InferenceAccount {
+  const InferenceAccount({
+    this.totals = const InferenceStats(),
+    this.lastHour = 0,
+    this.models = const [],
+    this.perHour = const [],
+    this.calls = const [],
+  });
+
+  factory InferenceAccount.fromJson(Map<String, Object?> json) => InferenceAccount(
+    totals: json['totals'] is Map ? InferenceStats.fromJson((json['totals'] as Map).cast()) : const InferenceStats(),
+    lastHour: (json['lastHour'] as num?)?.toInt() ?? 0,
+    models: [
+      for (final m in (json['models'] as List?) ?? const [])
+        InferenceModel.fromJson((m as Map).cast()),
+    ],
+    perHour: [
+      for (final h in (json['perHour'] as List?) ?? const [])
+        InferenceHour(
+          _time((h as Map)['hour']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+          (h['calls'] as num?)?.toInt() ?? 0,
+          (h['failed'] as num?)?.toInt() ?? 0,
+        ),
+    ],
+    calls: [
+      for (final c in (json['calls'] as List?) ?? const [])
+        InferenceCallInfo.fromJson((c as Map).cast()),
+    ],
+  );
+
+  final InferenceStats totals;
+  final int lastHour;
+  final List<InferenceModel> models;
+  final List<InferenceHour> perHour;
+  final List<InferenceCallInfo> calls;
+}
+
+/// A series scored by a call: its key, the prediction and its Target over
+/// the last horizon; or, with neither, why ([note]).
+class Prediction {
+  const Prediction(this.series, this.predicted, this.last, this.note);
+  final Map<String, String> series;
+  final double? predicted;
+  final double? last;
+  final String? note;
+}
+
+/// What `POST /api/datasources/{id}/inference` answers.
+class InferenceAnswer {
+  const InferenceAnswer({
+    required this.callId,
+    required this.runId,
+    this.requested = 0,
+    this.scored = 0,
+    this.millis = 0,
+    this.predictions = const [],
+  });
+
+  factory InferenceAnswer.fromJson(Map<String, Object?> json) => InferenceAnswer(
+    callId: (json['callId'] as num).toInt(),
+    runId: (json['runId'] as num).toInt(),
+    requested: (json['requested'] as num?)?.toInt() ?? 0,
+    scored: (json['scored'] as num?)?.toInt() ?? 0,
+    millis: (json['millis'] as num?)?.toInt() ?? 0,
+    predictions: [
+      for (final p in (json['predictions'] as List?) ?? const [])
+        Prediction(
+          {for (final e in (((p as Map)['series'] as Map?) ?? const {}).entries) '${e.key}': '${e.value}'},
+          (p['predicted'] as num?)?.toDouble(),
+          (p['last'] as num?)?.toDouble(),
+          p['note'] as String?,
+        ),
+    ],
+  );
+
+  final int callId;
+  final int runId;
+  final int requested;
+  final int scored;
+  final int millis;
+  final List<Prediction> predictions;
+}
+
 /// What `POST /api/datasources/{id}/catalog` answers: what it wrote. A
 /// database's tables and columns, or a Kafka cluster's topics, their
 /// top-level fields and how many had a record to learn them from.
@@ -1076,6 +1290,17 @@ abstract class DatyxApi {
 
   /// Sets how often a table's groups are trained again: a span, `never`, or null for the default (1D).
   Future<void> setRetrain(int sourceId, String table, String? retrain);
+  Future<InferenceAccount> inference();
+
+  /// Scores [series] (each its key's values by column) with a group's latest
+  /// model; none: every series still observed, the highest [limit].
+  Future<InferenceAnswer> score(
+    int sourceId,
+    String table,
+    String group, {
+    List<Map<String, String>>? series,
+    int limit = 25,
+  });
 }
 
 /// Gives the bearer token for a call, or null for none.
@@ -1263,6 +1488,27 @@ class HttpDatyxApi implements DatyxApi {
   Future<void> setRetrain(int sourceId, String table, String? retrain) async {
     await _send('PUT', '/api/datasources/$sourceId/training', body: {'table': table, 'retrain': retrain});
   }
+
+  @override
+  Future<InferenceAccount> inference() async =>
+      InferenceAccount.fromJson((await _send('GET', '/api/inference') as Map).cast());
+
+  @override
+  Future<InferenceAnswer> score(
+    int sourceId,
+    String table,
+    String group, {
+    List<Map<String, String>>? series,
+    int limit = 25,
+  }) async => InferenceAnswer.fromJson(
+    (await _send(
+              'POST',
+              '/api/datasources/$sourceId/inference',
+              body: {'table': table, 'group': group, 'series': ?series, 'limit': limit},
+            )
+            as Map)
+        .cast(),
+  );
 
   @override
   Future<AuthConfig> authConfig() async => AuthConfig.fromJson(

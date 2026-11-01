@@ -11,6 +11,7 @@ import 'catalog_tab.dart';
 import 'data_sources_card.dart';
 import 'health_tab.dart';
 import 'profile_tab.dart';
+import 'inference_tab.dart';
 import 'training_tab.dart';
 import 'user_menu.dart';
 
@@ -20,6 +21,7 @@ enum DashboardTab {
   sources('Data sources'),
   catalog('Catalog'),
   training('Training'),
+  inference('Inference'),
   audit('Audit'),
   health('Health'),
   profile('Profile');
@@ -33,9 +35,10 @@ enum DashboardTab {
       values.firstWhere((t) => t.name == name, orElse: () => sources);
 }
 
-/// The dashboard, in six tabs ([DashboardTab]): Data sources, the ones on
+/// The dashboard, in seven tabs ([DashboardTab]): Data sources, the ones on
 /// record; Catalog, what datyx makes of their data; Training, the models
-/// datyx trains on it, their runs and results; Audit, every call made
+/// datyx trains on it, their runs and results; Inference, the account of
+/// the calls to those models, and a place to try one; Audit, every call made
 /// to the API; Health, the system's status as the API reports it and this
 /// build's version; Profile, the caller's profile and its identities. The
 /// open tab is kept in the page's address, so a reload opens it again.
@@ -241,6 +244,11 @@ class _DashboardScreenState extends State<DashboardScreen>
             statusError: _statusError,
           ),
           TrainingTab(
+            api: widget.api,
+            locked: _locked,
+            statusError: _statusError,
+          ),
+          InferenceTab(
             api: widget.api,
             locked: _locked,
             statusError: _statusError,

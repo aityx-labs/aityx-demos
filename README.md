@@ -210,6 +210,7 @@ From the root of this repository, with [Devbox](https://www.jetify.com/devbox):
 ./start-all.sh              # every demo, the datyx group too
 ./start-aityx.sh ContactHub # only the ones named (and the index)
 ./stop-aityx.sh             # stops them; ./stop-all.sh stops everything
+./restart-all.sh            # syncs git (fast-forwards only), then restarts every demo
 ```
 
 Then open http://localhost:8800/, set your key in **Your aityx key**,

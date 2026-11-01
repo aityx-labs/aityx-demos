@@ -61,6 +61,21 @@ down); the hours counted short are information
 (`tableCustomSQLQuery_hours_counted_short`). A triage call's `millis`
 may reach 180 s, its client's three timeouts.
 
+## 2026-11-01: the inference account hour by hour, by model, with latency
+
+Asked (of the dashboard): the Inference view should be a dashboard, not
+so repeated, more like the time series of inferences and statistics; its
+charts need what the API didn't answer.
+
+Changed: `GET /api/inference` takes `?hours=` (24 by default, up to the
+window's 168), and answers `hours`; each hour of `perHour` now also has
+its series `scored`, `p50Millis` and `p95Millis` (null without a call),
+and `byModel`, each model's (a group's algorithm) calls, failures and
+series in it; `models` has a model per group's algorithm (its latest
+run, its calls those that algorithm answered), as `byModel`, and
+`models` and `calls` name their `algorithm`. The hours are bucketed
+once over the window's calls. Tests; `inference.md`, README.
+
 ## 2026-11-01: DeepAR trains its groups, on being switched on or retrained
 
 Asked: as for XGBoost, when a DeepAR group of tags is enabled or

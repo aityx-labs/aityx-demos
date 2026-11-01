@@ -5,7 +5,8 @@ import 'package:datyx_dashboard/auth/auth_controller.dart';
 import 'package:datyx_dashboard/dashboard/catalog_tab.dart'
     show cleanupHelp, groupColors, groupPalette, otherGroupColor, tableKind, tagHelp;
 import 'package:datyx_dashboard/dashboard/dashboard_screen.dart';
-import 'package:datyx_dashboard/dashboard/inference_tab.dart' show ms;
+import 'package:datyx_dashboard/dashboard/hour_charts.dart';
+import 'package:datyx_dashboard/dashboard/inference_tab.dart' show ago, compact, failureRate, ms;
 import 'package:datyx_dashboard/dashboard/training_tab.dart' show FeatureWeights;
 import 'package:datyx_dashboard/main.dart';
 import 'package:datyx_dashboard/persist/address.dart';
@@ -13,6 +14,8 @@ import 'package:datyx_dashboard/persist/address_memory.dart' as address;
 import 'package:datyx_dashboard/persist/session_store.dart';
 import 'package:datyx_dashboard/dashboard/card_title.dart' show spaced;
 import 'package:datyx_dashboard/dashboard/health_tab.dart' show openMetadataLinks;
+import 'package:datyx_dashboard/theme.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -129,19 +132,28 @@ class FakeDatyxApi implements DatyxApi {
   /// Inference, as the API answers it, and the calls made.
   InferenceAccount inferenceAccount = const InferenceAccount();
   final List<List<Map<String, String>>?> scoreCalls = [];
+  final List<String?> scoreAlgorithms = [];
 
   @override
-  Future<InferenceAccount> inference() async => inferenceAccount;
+  Future<InferenceAccount> inference({int hours = 24}) async {
+    inferenceHours.add(hours);
+    return inferenceAccount;
+  }
+
+  /// The hours each `GET /api/inference` asked for.
+  final List<int> inferenceHours = [];
 
   @override
   Future<InferenceAnswer> score(
     int sourceId,
     String table,
     String group, {
+    String? algorithm,
     List<Map<String, String>>? series,
     int limit = 25,
   }) async {
     scoreCalls.add(series);
+    scoreAlgorithms.add(algorithm);
     return InferenceAnswer(
       callId: 40 + scoreCalls.length,
       runId: 7,
@@ -1425,88 +1437,385 @@ void main() {
     expect(find.text('no run queued'), findsOneWidget);
   });
 
-  testWidgets('accounts for inference calls, and scores a series by its key or all still observed', (tester) async {
+  /// An account of two models, XGBoost's of patient_days (care) and
+  /// DeepAR's of admissions_hourly, over the last 24 hours: 10 calls three
+  /// hours ago (one failed), 5 this hour.
+  InferenceAccount twoModels(DateTime now, DateTime top) {
+    const fqn = 'datyx-ds-1.healthhub.public.patient_days';
+    const hourly = 'datyx-ds-1.healthhub.public.admissions_hourly';
+    return InferenceAccount(
+      totals: InferenceStats(calls: 12, failed: 1, scored: 40, avgMillis: 18.5, p50Millis: 14, p95Millis: 61, lastCalledAt: now),
+      lastHour: 5,
+      models: [
+        InferenceModel(
+          sourceId: 1,
+          source: 'HealthHub',
+          table: fqn,
+          name: 'patient_days',
+          group: 'care',
+          runId: 7,
+          trainedAt: now,
+          target: 'stay_hours',
+          horizon: '30D',
+          seriesKey: const ['run_id', 'person_id'],
+          stats: InferenceStats(calls: 12, failed: 1, scored: 40, avgMillis: 18.5, p50Millis: 14, p95Millis: 61, lastCalledAt: now),
+        ),
+        InferenceModel(
+          sourceId: 1,
+          source: 'HealthHub',
+          table: hourly,
+          name: 'admissions_hourly',
+          group: 'default',
+          algorithm: 'DeepAR',
+          runId: 9,
+          trainedAt: now,
+          target: 'admissions',
+          horizon: '1D',
+          seriesKey: const ['run_id', 'hospital_id'],
+        ),
+      ],
+      perHour: [
+        for (var h = 23; h >= 0; h--)
+          switch (h) {
+            3 => InferenceHour(
+              top.subtract(const Duration(hours: 3)),
+              10,
+              1,
+              scored: 30,
+              p50Millis: 12,
+              p95Millis: 61,
+              byModel: const [
+                InferenceHourModel(table: fqn, name: 'patient_days', group: 'care', calls: 7, failed: 1, scored: 10),
+                InferenceHourModel(table: hourly, name: 'admissions_hourly', group: 'default', algorithm: 'DeepAR', calls: 3, scored: 20),
+              ],
+            ),
+            0 => InferenceHour(
+              top,
+              5,
+              0,
+              scored: 10,
+              p50Millis: 14,
+              p95Millis: 40,
+              byModel: const [InferenceHourModel(table: fqn, name: 'patient_days', group: 'care', calls: 5, scored: 10)],
+            ),
+            _ => InferenceHour(top.subtract(Duration(hours: h)), 0, 0),
+          },
+      ],
+      calls: [
+        InferenceCallInfo(
+          id: 31,
+          name: 'patient_days',
+          group: 'care',
+          table: fqn,
+          runId: 7,
+          calledAt: now,
+          millis: 14,
+          requested: 2,
+          scored: 1,
+          caller: 'ana@example.com',
+        ),
+        InferenceCallInfo(
+          id: 30,
+          name: 'patient_days',
+          group: 'care',
+          table: fqn,
+          runId: 7,
+          calledAt: now,
+          millis: 3,
+          requested: 1,
+          status: 'failed',
+          error: 'a series names its key: run_id, person_id',
+        ),
+      ],
+    );
+  }
+
+  testWidgets('a dashboard of the inference: tiles, the hours as charts, one table of the models and one of the calls', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1600, 2400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     const fqn = 'datyx-ds-1.healthhub.public.patient_days';
+    const hourly = 'datyx-ds-1.healthhub.public.admissions_hourly';
     final now = DateTime.now().toUtc();
     final top = DateTime.utc(now.year, now.month, now.day, now.hour);
-    final api = FakeDatyxApi()
-      ..inferenceAccount = InferenceAccount(
-        totals: const InferenceStats(calls: 12, failed: 1, scored: 40, avgMillis: 18.5, p50Millis: 14, p95Millis: 61),
-        lastHour: 5,
-        models: [
-          InferenceModel(
-            sourceId: 1,
-            source: 'HealthHub',
-            table: fqn,
-            name: 'patient_days',
-            group: 'care',
-            runId: 7,
-            trainedAt: now,
-            target: 'stay_hours',
-            horizon: '30D',
-            seriesKey: const ['run_id', 'person_id'],
-            stats: InferenceStats(calls: 12, failed: 1, scored: 40, avgMillis: 18.5, p50Millis: 14, p95Millis: 61, lastCalledAt: now),
-          ),
-        ],
-        perHour: [
-          for (var h = 23; h >= 0; h--) InferenceHour(top.subtract(Duration(hours: h)), h == 0 ? 5 : (h == 3 ? 10 : 0), h == 3 ? 1 : 0),
-        ],
-        calls: [
-          InferenceCallInfo(id: 31, name: 'patient_days', group: 'care', runId: 7, calledAt: now, millis: 14, requested: 2, scored: 1, caller: 'ana@example.com'),
-          InferenceCallInfo(
-            id: 30,
-            name: 'patient_days',
-            group: 'care',
-            runId: 7,
-            calledAt: now,
-            millis: 3,
-            requested: 1,
-            status: 'failed',
-            error: 'a series names its key: run_id, person_id',
-          ),
-        ],
-      );
+    final api = FakeDatyxApi()..inferenceAccount = twoModels(now, top);
     await tester.pumpWidget(DatyxDashApp(api: api));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('tab-inference')));
     await tester.pumpAndSettle();
+    expect(api.inferenceHours, [24]);
 
-    expect(find.descendant(of: find.byKey(const ValueKey('total-calls')), matching: find.text('12')), findsOneWidget);
-    expect(find.descendant(of: find.byKey(const ValueKey('total-last-hour')), matching: find.text('5')), findsOneWidget);
-    expect(find.descendant(of: find.byKey(const ValueKey('total-p95')), matching: find.text('61 ms')), findsOneWidget);
-    expect(find.text('the last 24 hours; the tallest is 10'), findsOneWidget);
-    double column(int hoursAgo) => tester
-        .getSize(find.byKey(ValueKey('hour-${top.subtract(Duration(hours: hoursAgo)).toIso8601String()}')))
-        .height;
-    expect(column(3), 90);
-    expect(column(0), 45, reason: 'half the tallest');
-    expect(column(1), 0);
-    expect(find.text('XGBoost · care'), findsOneWidget);
+    // The headline tiles, once each.
+    String tile(String key) => tester
+        .widgetList<Text>(find.descendant(of: find.byKey(ValueKey(key)), matching: find.byType(Text)))
+        .map((t) => t.data)
+        .join(' | ');
+    expect(tile('total-calls'), 'calls | 12 | in 7 days');
+    expect(tile('total-last-hour'), 'last hour | 5 | calls');
+    expect(tile('total-scored'), 'series scored | 40 | in 7 days');
+    expect(tile('total-p50'), 'latency p50 | 14 ms | median, per call');
+    expect(tile('total-p95'), 'latency p95 | 61 ms | 95th percentile');
+    expect(tile('total-failure-rate'), 'failure rate | 8.3% | 1 of 12 calls');
+    expect(
+      find.descendant(of: find.byKey(const ValueKey('total-failure-rate')), matching: find.byIcon(Icons.error_outline)),
+      findsOneWidget,
+    );
+    expect(tile('total-models'), 'models in use | 1 | of 2 trained');
+    expect(tile('total-last-call'), startsWith('last call | just now | '));
+    // No card per model any more: each model is a row.
+    expect(find.text('Try it'), findsNothing);
+
+    // The calls per hour, stacked by model (by name: admissions_hourly first), the failures as dots.
+    final calls = tester.widget<CustomPaint>(find.byKey(const ValueKey('plot-calls'))).painter! as HourColumnsPainter;
+    expect(calls.hours.length, 24);
+    expect(calls.series.map((s) => s.label), ['admissions_hourly · default · DeepAR', 'patient_days · care · XGBoost']);
+    expect(calls.series.map((s) => s.color), modelPalette.take(2));
+    expect(calls.series[0].values[20], 3);
+    expect(calls.series[1].values[20], 7);
+    expect(calls.series[1].values[23], 5);
+    expect(calls.failed![20], 1);
+    expect(calls.top, 10);
+    for (final label in ['admissions_hourly · default · DeepAR', 'patient_days · care · XGBoost', 'failed']) {
+      expect(find.byKey(ValueKey('legend-calls-$label')), findsOneWidget);
+    }
+    // Latency: the hours' p95 and p50, a gap where an hour had no call.
+    final latency = tester.widget<CustomPaint>(find.byKey(const ValueKey('plot-latency'))).painter! as HourLinesPainter;
+    expect(latency.series.map((s) => s.label), ['p95', 'p50']);
+    expect(latency.series[0].values[20], 61);
+    expect(latency.series[1].values[23], 14);
+    expect(latency.series[1].values[10], isNull);
+    expect(latency.top, 80);
+    // Series scored, stacked by model as the calls are.
+    final scored = tester.widget<CustomPaint>(find.byKey(const ValueKey('plot-scored'))).painter! as HourColumnsPainter;
+    expect(scored.series.map((s) => s.values[20]), [20, 10]);
+    expect(scored.failed, isNull);
+
+    // Pointing at an hour reads out every series in it.
+    final box = tester.getRect(find.byKey(const ValueKey('chart-calls')));
+    final plotWidth = box.width - calls.left - calls.right;
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(box.topLeft + Offset(calls.left + 20.5 * plotWidth / 24, 100));
+    await tester.pump();
+    final readout = find.byKey(const ValueKey('readout-calls'));
+    expect(readout, findsOneWidget);
+    for (final text in ['10', 'calls', '3', 'admissions_hourly · default · DeepAR', '7', '1', 'failed']) {
+      expect(find.descendant(of: readout, matching: find.text(text)), findsOneWidget, reason: text);
+    }
+    await mouse.moveTo(Offset.zero);
+    await tester.pump();
+    expect(readout, findsNothing);
+
+    // The hours as a table: those with a call, newest first.
+    await tester.tap(find.byKey(const ValueKey('hours-table')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('plot-calls')), findsNothing);
+    expect(find.byKey(ValueKey('hour-row-${top.toIso8601String()}')), findsOneWidget);
+    expect(find.text('patient_days · care · XGBoost: 7, admissions_hourly · default · DeepAR: 3'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('hours-table')));
+    await tester.pumpAndSettle();
+
+    // The last 7 days, hour by hour, asked of the API.
+    await tester.tap(find.text('7 d'));
+    await tester.pumpAndSettle();
+    expect(api.inferenceHours.last, 168);
+
+    // One table of the models: a row each, with its algorithm, run, calls and Try it.
+    String row(Key key) => tester
+        .widgetList<Text>(find.descendant(of: find.byKey(key), matching: find.byType(Text)))
+        .map((t) => t.data)
+        .join(' | ');
+    expect(row(const ValueKey('model-$fqn-care-XGBoost')), contains('patient_days · care | HealthHub · $fqn | XGBoost | run 7 · '));
+    expect(row(const ValueKey('model-$fqn-care-XGBoost')), contains('| 12 | 1 | 14 ms / 61 ms | just now'));
+    expect(row(const ValueKey('model-$hourly-default-DeepAR')), contains('| DeepAR | run 9 · '));
+    expect(row(const ValueKey('model-$hourly-default-DeepAR')), contains('| 0 | 0 | – / – | never'));
+
+    // The latest calls, a failed one tinted red with its error.
+    expect(row(const ValueKey('call-31')), contains('ok | patient_days · care · XGBoost · run 7 | 2 asked, 1 scored | 14 | ana@example.com'));
+    expect(row(const ValueKey('call-30')), contains('a series names its key: run_id, person_id'));
+    final failed = tester.widget<Container>(find.byKey(const ValueKey('call-30'))).decoration! as BoxDecoration;
+    expect(failed.color, Aityx.red.withValues(alpha: 0.08));
+    expect((tester.widget<Container>(find.byKey(const ValueKey('call-31'))).decoration! as BoxDecoration).color, isNull);
+
+    // Try it, from the model's row: Score is on once the whole key is typed.
+    await tester.tap(find.byKey(const ValueKey('try-$fqn-care-XGBoost')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('try-dialog')), findsOneWidget);
     expect(find.textContaining('Predicts stay_hours over the next 30D, per run_id + person_id.'), findsOneWidget);
-    expect(find.text('2 asked, 1 scored'), findsOneWidget);
-    expect(find.text('a series names its key: run_id, person_id'), findsOneWidget);
-
-    // Score is on once the whole key is typed.
     final score = find.byKey(const ValueKey('score-$fqn-care'));
     expect(tester.widget<FilledButton>(score).onPressed, isNull);
     await tester.enterText(find.byKey(const ValueKey('key-run_id')), 'adf5309c');
     await tester.enterText(find.byKey(const ValueKey('key-person_id')), 'reus-3');
     await tester.pump();
+    final asked = api.inferenceHours.length;
     await tester.tap(score);
     await tester.pumpAndSettle();
     expect(api.scoreCalls.last, [
       {'run_id': 'adf5309c', 'person_id': 'reus-3'},
     ]);
+    expect(api.scoreAlgorithms.last, 'XGBoost', reason: 'the row\'s model, by its algorithm');
     expect(find.text('Call 41: 1 scored in 12 ms by run 7'), findsOneWidget);
     expect(find.text('3.3'), findsOneWidget);
+    expect(api.inferenceHours.length, asked + 1, reason: 'the account asked again, the range kept');
+    expect(api.inferenceHours.last, 168);
 
     await tester.tap(find.byKey(const ValueKey('score-all-$fqn-care')));
     await tester.pumpAndSettle();
     expect(api.scoreCalls.last, isNull, reason: 'none named: all still observed');
     expect(find.text('reus-4'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('try-close')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('try-dialog')), findsNothing);
+  });
+
+  testWidgets('keeps Try it in sight on a narrow card, and asks the model of its row\'s algorithm', (tester) async {
+    tester.view.physicalSize = const Size(400, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    const hourly = 'datyx-ds-1.healthhub.public.admissions_hourly';
+    final now = DateTime.now().toUtc();
+    final top = DateTime.utc(now.year, now.month, now.day, now.hour);
+    final api = FakeDatyxApi()..inferenceAccount = twoModels(now, top);
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('tab-inference')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tab-inference')));
+    await tester.pumpAndSettle();
+    final tryIt = find.byKey(const ValueKey('try-$hourly-default-DeepAR'));
+    await tester.scrollUntilVisible(tryIt, 200, scrollable: find.byType(Scrollable).first);
+    expect(tester.getRect(tryIt).right, lessThan(400), reason: 'the table scrolls sideways, Try it first');
+    await tester.tap(tryIt);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('score-all-$hourly-default')));
+    await tester.pumpAndSettle();
+    expect(api.scoreAlgorithms.last, 'DeepAR');
+  });
+
+  testWidgets('says when the inference has no model and no call yet', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final now = DateTime.now().toUtc();
+    final top = DateTime.utc(now.year, now.month, now.day, now.hour);
+    final api = FakeDatyxApi()
+      ..inferenceAccount = InferenceAccount(
+        perHour: [for (var h = 23; h >= 0; h--) InferenceHour(top.subtract(Duration(hours: h)), 0, 0)],
+      );
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tab-inference')));
+    await tester.pumpAndSettle();
+    expect(find.text('No call in the last 24 hours'), findsNWidgets(3));
+    expect(find.text('No model yet: the Training tab trains the groups tagged for XGBoost or DeepAR.'), findsOneWidget);
+    expect(find.text('No call yet: try a model above.'), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('total-failure-rate')), matching: find.text('–')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('total-last-call')), matching: find.text('never')), findsOneWidget);
+    expect(find.byKey(const ValueKey('legend-calls-failed')), findsNothing);
+  });
+
+  test('reads an hour of inference by model, and folds models past the palette into other', () {
+    final account = InferenceAccount.fromJson(const {
+      'hours': 168,
+      'perHour': [
+        {
+          'hour': '2026-11-01T10:00:00Z',
+          'calls': 4,
+          'failed': 1,
+          'scored': 27,
+          'p50Millis': 7,
+          'p95Millis': 40,
+          'byModel': [
+            {'sourceId': 1, 'table': 'ds.h.public.b', 'name': 'b', 'group': 'care', 'algorithm': 'DeepAR', 'calls': 1, 'failed': 0, 'scored': 24},
+            {'sourceId': 1, 'table': 'ds.h.public.a', 'name': 'a', 'group': 'care', 'algorithm': 'XGBoost', 'calls': 1, 'failed': 1, 'scored': 0},
+            {'sourceId': 1, 'table': 'ds.h.public.c', 'name': 'c', 'group': 'x', 'algorithm': 'XGBoost', 'calls': 1, 'failed': 0, 'scored': 2},
+            {'sourceId': 1, 'table': 'ds.h.public.d', 'name': 'd', 'group': 'x', 'algorithm': 'XGBoost', 'calls': 1, 'failed': 0, 'scored': 1},
+          ],
+        },
+        {'hour': '2026-11-01T11:00:00Z', 'calls': 0, 'failed': 0, 'scored': 0, 'p50Millis': null, 'p95Millis': null, 'byModel': []},
+      ],
+      'models': [
+        {'sourceId': 1, 'table': 'ds.h.public.b', 'name': 'b', 'group': 'care', 'algorithm': 'DeepAR', 'runId': 3},
+      ],
+      'calls': [
+        {'id': 5, 'table': 'ds.h.public.b', 'name': 'b', 'group': 'care', 'algorithm': 'DeepAR', 'runId': 3, 'status': 'ok'},
+      ],
+    });
+    expect(account.hours, 168);
+    final h = account.perHour.first;
+    expect([h.calls, h.failed, h.scored, h.p50Millis, h.p95Millis], [4, 1, 27, 7, 40]);
+    expect(account.perHour.last.p50Millis, isNull);
+    expect(h.byModel.first.algorithm, 'DeepAR');
+    expect(account.models.single.algorithm, 'DeepAR');
+    expect(account.calls.single.algorithm, 'DeepAR');
+    final models = chartModels(account);
+    expect(models.map((m) => m.name), ['a', 'b', 'c', 'd']);
+    final calls = modelSeries(models, account.perHour, (b) => b.calls);
+    expect(calls.map((s) => s.label), ['a · care · XGBoost', 'b · care · DeepAR', 'c · x · XGBoost', 'other models']);
+    expect(calls.map((s) => s.color), [...modelPalette, otherModelColor]);
+    expect(calls.last.values, [1, 0]);
+    expect(modelColors(models, account.perHour), {
+      for (final (i, m) in models.take(3).indexed) m.key: modelPalette[i],
+      models.last.key: otherModelColor,
+    });
+    // A model with nothing in the hours has no series, and the others keep their colors.
+    expect(modelSeries(models, account.perHour, (b) => b.failed).map((s) => (s.label, s.color)), [('a · care · XGBoost', modelPalette[0])]);
+  });
+
+  test('gives the palette to the models called, the busiest, in name order; none to one not called', () {
+    InferenceHourModel called(String name, int calls) =>
+        InferenceHourModel(table: 'ds.h.public.$name', name: name, group: 'g', calls: calls, scored: calls);
+    InferenceModel trained(String name) => InferenceModel(sourceId: 1, table: 'ds.h.public.$name', name: name, group: 'g');
+    final hour = DateTime.utc(2026, 11, 1, 10);
+    // a, b and c trained but not called; d, sorting after them, the only one called.
+    var account = InferenceAccount(
+      models: [for (final n in ['a', 'b', 'c', 'd']) trained(n)],
+      perHour: [InferenceHour(hour, 4, 0, scored: 4, byModel: [called('d', 4)])],
+    );
+    var models = chartModels(account);
+    final calls = modelSeries(models, account.perHour, (b) => b.calls);
+    expect(calls.map((s) => (s.label, s.color)), [('d · g · XGBoost', modelPalette[0])]);
+    expect(modelColors(models, account.perHour), {'ds.h.public.d|g|XGBoost': modelPalette[0]});
+    // A model trained since, sorting first, takes no color while not called.
+    account = InferenceAccount(models: [trained('0'), ...account.models], perHour: account.perHour);
+    expect(modelColors(chartModels(account), account.perHour), {'ds.h.public.d|g|XGBoost': modelPalette[0]});
+    // Four called: the three busiest in name order, the least called "other models".
+    account = InferenceAccount(
+      models: account.models,
+      perHour: [InferenceHour(hour, 14, 0, byModel: [called('a', 1), called('b', 2), called('c', 5), called('d', 6)])],
+    );
+    models = chartModels(account);
+    expect(paletteModels(models, account.perHour).map((m) => m.name), ['b', 'c', 'd']);
+    expect(modelColors(models, account.perHour), {
+      'ds.h.public.a|g|XGBoost': otherModelColor,
+      'ds.h.public.b|g|XGBoost': modelPalette[0],
+      'ds.h.public.c|g|XGBoost': modelPalette[1],
+      'ds.h.public.d|g|XGBoost': modelPalette[2],
+    });
+    expect(modelSeries(models, account.perHour, (b) => b.calls).last.label, otherModelsLabel);
+  });
+
+  test('says the headline numbers compactly, and how long ago', () {
+    expect(compact(12), '12');
+    expect(compact(1284), '1,284');
+    expect(compact(12900), '12.9K');
+    expect(compact(4200000), '4.2M');
+    expect(failureRate(1, 12), '8.3%');
+    expect(failureRate(0, 12), '0%');
+    expect(failureRate(3, 12), '25%');
+    expect(failureRate(0, 0), '–');
+    final now = DateTime(2026, 11, 1, 12);
+    expect(ago(now.subtract(const Duration(seconds: 20)), now: now), 'just now');
+    expect(ago(now.subtract(const Duration(minutes: 5)), now: now), '5 min ago');
+    expect(ago(now.subtract(const Duration(hours: 3)), now: now), '3 h ago');
+    expect(ago(now.subtract(const Duration(days: 2)), now: now), '2 d ago');
+    expect(niceScale(10), (step: 5.0, top: 10.0));
+    expect(niceScale(61), (step: 20.0, top: 80.0));
+    expect(niceScale(0), (step: 1.0, top: 4.0));
+    expect(compactCount(1500), '1.5K');
   });
 
   test('says milliseconds without a decimal when they are whole', () {

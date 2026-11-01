@@ -83,23 +83,42 @@ authentication is off). Removing the source or the run removes its
 calls.
 
 `GET /api/inference` answers the caller's account over the last 7 days
-(at most 10,000 calls):
+(at most 10,000 calls), `?hours=` of them hour by hour (24 by default,
+1 to 168, the window's; out of range, the nearest):
 
 - `totals`: `calls`, `failed`, `scored` (series), `avgMillis`,
   `p50Millis` and `p95Millis` (nearest rank), `lastCalledAt`;
 - `lastHour`: the calls of the last hour;
-- `models`: each group with a trained model, and any a call named, with
-  its latest model (XGBoost's when it has both: the one a call without
-  an `algorithm` gets; `runId`, `trainedAt`), what it predicts (`target`,
-  `horizon`, `seriesKey`, from the run) and its calls' `stats`, as the
-  totals;
-- `perHour`: the last 24 hours, each `hour` with its `calls` and
-  `failed`, the current hour last;
-- `calls`: the latest 50, newest first: the source, table, group, run,
-  when, `millis`, `requested`, `scored`, `status` (`ok`, `failed`), the
-  error and the caller.
+- `models`: each algorithm a group has a trained model of (a group
+  trained with both has two), and any a call named, newest run first,
+  with its latest model (`algorithm`, `runId`, `trainedAt`), what it
+  predicts (`target`, `horizon`, `seriesKey`, from the run) and its
+  calls' `stats`, as the totals: the calls that algorithm answered
+  (a call naming none gets XGBoost's, when the group has both);
+- `hours`: the hours `perHour` covers;
+- `perHour`: the last `hours` hours, the current hour last, each `hour`
+  (its start) with its `calls`, `failed`, `scored` (series),
+  `p50Millis` and `p95Millis` (nearest rank; null without a call), and
+  `byModel`: each model's calls in it (a group's algorithm: the run that
+  answered), `sourceId`, `table`, `name`, `group`, `algorithm`, `calls`,
+  `failed`, `scored`, in the order of their latest call in the hour;
+- `calls`: the latest 50, newest first: the source, table, group,
+  `algorithm`, run, when, `millis`, `requested`, `scored`, `status`
+  (`ok`, `failed`), the error and the caller.
 
 Both within the caller's profile, secured like the data sources.
+
+```json
+{"since":"...","hours":24,"totals":{"calls":12,"failed":1,"scored":40,"avgMillis":18.5,"p50Millis":14,"p95Millis":61,"lastCalledAt":"..."},
+ "lastHour":5,"models":[{"sourceId":1,"source":"HealthHub","table":"datyx-ds-1.healthhub.public.patient_days","name":"patient_days",
+   "group":"care","algorithm":"XGBoost","runId":7,"trainedAt":"...","target":"stay_hours","horizon":"30D",
+   "seriesKey":["run_id","person_id"],"stats":{"calls":12,"failed":1,...}}],
+ "perHour":[...,{"hour":"2026-11-01T10:00:00Z","calls":10,"failed":1,"scored":30,"p50Millis":12,"p95Millis":61,
+   "byModel":[{"sourceId":1,"table":"datyx-ds-1.healthhub.public.patient_days","name":"patient_days","group":"care",
+     "algorithm":"XGBoost","calls":7,"failed":1,"scored":10},...]}],
+ "calls":[{"id":31,"sourceId":1,"source":"HealthHub","table":"...","name":"patient_days","group":"care","algorithm":"XGBoost",
+   "runId":7,"calledAt":"...","millis":14,"requested":2,"scored":1,"status":"ok","error":null,"caller":"ana@example.com"}]}
+```
 
 ## Tests
 
@@ -109,8 +128,12 @@ column) scores a person named by key as training scored them, and a
 person without rows says so; with none named, the series still observed
 as training's scores; a series missing a key column is a 400; no model
 yet a 404; the account counts the calls, the failure, the series, the
-hour, the model's calls and key, newest first, and forgets them with
-the source; percentiles by nearest rank. A DeepAR model trained on an
+hour (its calls, failure, series, latency and its model's, an hour
+without a call empty), the model's calls, algorithm and key, newest
+first, a model of each of the group's algorithms (DeepAR's call its
+own, in the models as in the hour), 168 hours when asked (at most 168, at least 1), and forgets them
+with the source; an hour counts each model's calls apart (XGBoost's and
+DeepAR's of a group); percentiles by nearest rank. A DeepAR model trained on an
 hourly table of two runs and four hospitals forecasts a hospital named by
 key over the next 24 hours from its run's end, step by step, its
 percentiles in order and whole, its mean summing to `predicted`; a

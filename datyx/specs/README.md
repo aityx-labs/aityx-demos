@@ -32,8 +32,9 @@ HealthHub passes on unchanged.
 - [Catalogue and time series](catalog.md): a database source or a Kafka
   cluster read into OpenMetadata without the source changing, the
   TimeSeries tags and table properties that say what its columns are to
-  a forecast, the algorithm that trains each group (DeepAR, XGBoost) and
-  how far ahead, and the time series datyx finds in them; every
+  a forecast, the algorithms that train each group (DeepAR, XGBoost) and
+  how far ahead, the time series datyx finds in them, and the groups
+  switched on and off, which OpenMetadata's webhook tells datyx of; every
   column's and field's PII classification, in the GDPR's terms; and each
   table's profile and data quality checks with their results.
 - [Curation](curation.md): owners, domain, data product, glossary,
@@ -42,8 +43,9 @@ HealthHub passes on unchanged.
   development, HealthHub's, as soon as its data initialization is done.
 - [Training](training.md): the trainer started with the API, which
   trains the groups tagged for XGBoost when they never were and again as
-  often as their table says, and keeps each run, its test metrics, the
-  features that weighed most and the highest scores.
+  often as their table says, queues a run of every algorithm of a group
+  switched on, and keeps each run, its test metrics, the features that
+  weighed most and the highest scores.
 - [Inference](inference.md): the trained models scoring series on
   demand, as their training did, and the account of every call: who,
   which model, how many series, how long, failures, per hour.

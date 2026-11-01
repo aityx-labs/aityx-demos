@@ -4,11 +4,13 @@ datyx learns a customer's data without the customer changing anything
 for it: it reads what a database or a Kafka cluster says about itself
 into OpenMetadata, the catalogue, and people (later, a tool that suggests) say there what
 the columns are to a forecast, with tags. datyx reads the tags back to
-know which tables are time series, which algorithm trains on each
-(DeepAR or XGBoost) and how. Every column and every field of a record
-also gets a PII classification, in the GDPR's terms, from its name
-([Personal data](#personal-data-gdpr)). Code in `datyx-api/src/main/java/datyx/catalog/`, the
-OpenMetadata client in `datyx/openmetadata/`.
+know which tables are time series, which algorithms train on each
+(DeepAR, XGBoost, or both) and how, and OpenMetadata tells datyx, through
+a webhook, when a group is switched on. Every column and every field of
+a record also gets a PII classification, in the GDPR's terms, from its
+name ([Personal data](#personal-data-gdpr)). Code in
+`datyx-api/src/main/java/datyx/catalog/`, the OpenMetadata client in
+`datyx/openmetadata/`.
 
 ```
 customer's database ──JDBC metadata──▶ datyx ──PUT──▶ OpenMetadata
@@ -16,6 +18,9 @@ customer's Kafka ─topics, latest records─┘
                                                  ▲         │ tags, properties
                      people (OpenMetadata's UI) ─┘         ▼
                      PUT .../timeseries ───────────▶ GET .../timeseries ──▶ training
+
+  OpenMetadata ──webhook: a table's tags changed──▶ POST /api/catalog/openmetadata-events
+                                                    ──▶ group_event ──▶ a run per algorithm
 ```
 
 ## Reading a database into the catalogue
@@ -243,15 +248,16 @@ algorithm, or the group's tag itself on a column, isn't read.
 
 ### Algorithms: what trains a group
 
-Each group says which algorithm trains on it with a tag **on the
+Each group says which algorithms train on it with tags **on the
 table**, not on a column: `TimeSeries.XGBoost` for the `default`
 group, `TimeSeries.care.XGBoost` for the `care` group (a child tag of
-`TimeSeries.care`, made with the group's roles). A group without one is
-DeepAR's, as every group was before there was a choice; `TimeSeries.DeepAR`
-says it explicitly. One algorithm a group: to train another on the same
-columns, tag them in another group. What trains a group (a component
-still to come) finds its work by its algorithm's tag, through
-`GET .../timeseries?algorithm=XGBoost` or OpenMetadata's search.
+`TimeSeries.care`, made with the group's roles). A group can have more
+than one: `TimeSeries.care.XGBoost` and `TimeSeries.care.DeepAR` both
+train on the care group's columns, each with runs of its own. A group
+without any is DeepAR's, as every group was before there was a choice;
+`TimeSeries.DeepAR` says it explicitly. What trains a group finds its
+work by its algorithm's tag, through `GET .../timeseries?algorithm=XGBoost`
+or OpenMetadata's search.
 
 | Tag | What trains the group |
 |---|---|
@@ -279,25 +285,174 @@ Custom Properties tab), or through datyx:
 
 `PUT /api/datasources/{id}/timeseries` with a table (its name,
 `schema.table`, or its FQN), a group (`default` when left out), its
-algorithm (`DeepAR` or `XGBoost`, in any case; none when left out) and
-its roles:
-`{"table":"public.patient_days","group":"care","algorithm":"XGBoost",
+algorithms (`"algorithms":["XGBoost","DeepAR"]`, each `DeepAR` or
+`XGBoost` in any case; or one as `"algorithm":"XGBoost"`, as before a
+group could have more, `algorithms` winning when both are given; none
+when left out) and its roles:
+`{"table":"public.patient_days","group":"care","algorithms":["XGBoost"],
 "timestamp":"day","target":"stay_hours","seriesKey":["run_id","person_id"],
 "staticCategorical":["sex","city","hospital_id","chronic_condition"],
 "staticReal":["age"],"knownCovariates":[],
 "pastCovariates":["visits","acute_visits","chronic_visits"],
 "frequency":"1D","missing":"zero","horizon":"30D"}`. It replaces the
 group's tags on the table's columns with these (other tags, other
-groups' too, stay), the group's algorithm tag on the table with the one
-named (none when none is: DeepAR; the table's other tags stay), and
+groups' too, stay), the group's algorithm tags on the table with one per
+algorithm named (none when none is: DeepAR; the table's other tags
+stay), and
 sets the table's three properties, removing one left out: they are
 every group's. A group with no roles left is gone from the table, its
-algorithm tag too (its tags stay in the classification). A column the
-table doesn't have, an algorithm other than DeepAR or XGBoost, or a name
-that can't be a group's, is a 400, a table the catalogue doesn't have a
-404. Nothing is patched when nothing
+algorithm tags too (its tags stay in the classification). An algorithm
+other than DeepAR or XGBoost, or a name that can't be a group's, is a
+400 before the catalogue is read; a column the table doesn't have a 400
+too, a table the catalogue doesn't have a 404. Nothing is patched when nothing
 changes. It answers the group read as a time series (below). This is
 the call a tool that suggests the roles will make.
+
+### Switching a group off
+
+A group can be switched off with a tag on its table, as its algorithm is
+named: `TimeSeries.Disabled` for the `default` group,
+`TimeSeries.chronic.Disabled` for `chronic` (a child tag of the group's,
+made with its roles and algorithms; `Disabled` can't name a group). datyx
+doesn't train a group switched off ([training.md](training.md)), whose
+spec says `"enabled": false`; removing the tag switches it on, and that
+removal is what trains it, a run per algorithm of the group: in
+OpenMetadata's UI (the table's tags, where the change is in the table's
+version history: who, when, which version), whose webhook tells datyx
+(below), or through datyx:
+
+`PUT /api/datasources/{id}/timeseries/enabled` with
+`{"table":"public.admissions_hourly","group":"chronic","enabled":false}`
+(the table as `PUT .../timeseries` takes it; the `default` group when
+none) adds the group's Disabled tag to the table, or removes it, the
+table's other tags kept, nothing patched when it already is, and answers
+the group read as a time series with `event`, the switch it kept
+(`{"id":7,"runIds":[41,42]}`; null when the group already was on or
+off). Switched on, it queues the group's runs itself, one per
+algorithm, an `enabled` run each, so they never wait on the webhook;
+OpenMetadata's post of the same change, seconds later, queues nothing
+more. Switched off, the trainer notes it, so a switch off and on again
+within minutes counts even when OpenMetadata merges one user's quick
+changes into one version. A table or group the catalogue doesn't have
+is a 404, a name that can't be a group's or no `enabled` a 400. The
+dashboard's switch on each group is this call. A group with no roles
+left loses its Disabled tag with its algorithms'.
+
+### OpenMetadata's webhook: switches as they happen
+
+datyx keeps an **event subscription** in OpenMetadata (`CatalogEvents`),
+named `datyx-catalog-events` (`DATYX_OPENMETADATA_SUBSCRIPTION`), made a
+few seconds after start with a create-or-update
+`PUT /api/v1/events/subscriptions`, and made again at the minute's look
+while OpenMetadata can't be reached, or when the subscription is gone or
+posts elsewhere:
+
+```json
+{"name":"datyx-catalog-events","displayName":"datyx: tables switched on and off","description":"...",
+ "alertType":"Notification","enabled":true,"batchSize":10,"retries":3,"pollInterval":5,
+ "resources":["table"],
+ "input":{"filters":[{"name":"filterByEventType","effect":"include","prefixCondition":"AND",
+   "arguments":[{"name":"eventTypeList","input":["entityUpdated"]}]}],"actions":[]},
+ "destinations":[{"category":"External","type":"Webhook","timeout":10,"readTimeout":12,
+   "config":{"endpoint":"http://host.docker.internal:9900/api/catalog/openmetadata-events","httpMethod":"POST",
+     "authType":{"type":"bearer","secretKey":"..."}}}]}
+```
+
+Every update of a table is posted (OpenMetadata 2.0.7 filters a table's
+events by type, not by field: it refuses `filterByFieldChange` for
+tables, so datyx reads the tags itself), to
+`datyx.openmetadata.callback-url` (`DATYX_OPENMETADATA_CALLBACK_URL`):
+in dev, and from `scripts/api.sh` in every mode,
+`http://host.docker.internal:{port}/api/catalog/openmetadata-events`
+(OpenMetadata runs in Docker, the API on the host); in Docker Compose
+the `api` service, `http://api:9900/...`; unset in prod, no subscription,
+the trainer's minute check alone. An API listening on localhost refuses
+a request whose Host header isn't a localhost name (Quarkus's host
+validation, against DNS rebinding), so `CallbackHostConfigSourceFactory`
+allows the callback's host beside them
+(`quarkus.http.host-validation.allowed-hosts` =
+`localhost,127.0.0.1,[::1],host.docker.internal`), and no other.
+
+`POST /api/catalog/openmetadata-events` is open to OpenMetadata without
+a sign-in ([auth.md](auth.md)) and **authenticated by its signature**:
+OpenMetadata signs each post with the subscription's `secretKey`, the
+header `X-OM-Signature: sha256=` and the **base64** (not hex) of the
+HMAC-SHA256 of the raw body, as OpenMetadata 2.0.7 was seen to send it,
+which datyx compares in constant time. The secret is
+`datyx.openmetadata.webhook-secret` (`DATYX_OPENMETADATA_WEBHOOK_SECRET`),
+or one datyx draws at start (32 random bytes) and gives OpenMetadata with
+the subscription; OpenMetadata keeps it encrypted and never answers it.
+Without the header or with a wrong one, a 401 and nothing more is read;
+a post over 1 MB, a 413; not JSON, a 400. Neither the secret nor a post
+is logged. A post is one change event (or an array of them), as
+OpenMetadata 2.0.7 sends it, with the headers `X-OM-Signature`,
+`X-Auth-Params-Email` (the OpenMetadata user it acts for) and
+`Content-Type: application/json`:
+
+```json
+{"id":"4c9cd012-...","eventType":"entityUpdated","entityType":"table","entityId":"595eaee3-...",
+ "entityFullyQualifiedName":"datyx-ds-1.healthhub.public.admissions_hourly",
+ "previousVersion":0.1,"currentVersion":0.6,"userName":"admin","timestamp":1793532978432,
+ "changeDescription":{"fieldsAdded":[],"fieldsUpdated":[],
+   "fieldsDeleted":[{"name":"tags","oldValue":"[{\"tagFQN\":\"TimeSeries.chronic.Disabled\",...}]"}],
+   "previousVersion":0.5},
+ "entity":"{\"id\":\"595eaee3-...\",\"name\":\"admissions_hourly\",\"version\":0.6,\"tags\":[],\"columns\":[...],\"service\":{\"type\":\"databaseService\",\"name\":\"datyx-ds-1\"},...}"}
+```
+
+A table of one of datyx's database sources (its service `datyx-ds-{id}`,
+exactly as datyx names it, `datyx-ds-07` not source 7's, and the table's
+FQN under it) whose own tags (the field `tags`, not `columns.{name}.tags`; the values
+JSON or its text) lost a group's Disabled tag switched the group **on**;
+gained it, **off**; `fieldsUpdated` compares the old tags with the new.
+Another entity, another service, a source datyx doesn't have, a column's
+tag or any other tag switches nothing; nor does a group the table, read
+again, no longer has (removing a group's roles removes its Disabled tag
+with them: no switch on, no run). Each switch is kept; a switch on
+reads the group again from OpenMetadata (from the post's `entity` when
+OpenMetadata can't be read) and queues one run per algorithm, its note
+naming the change: `TimeSeries.chronic.Disabled removed in OpenMetadata
+(table version 0.6, by admin, 2026-11-01 11:38 UTC; webhook)`. It
+answers `{"recorded":[{"eventId":3,"runIds":[3]}]}`, empty when the post
+told datyx nothing new.
+
+### Switches kept
+
+`GroupEvent`, table `group_event` (migration `V8__group_events.sql`):
+the source (removing it removes them), the table's FQN, the group,
+`enabled`, `via` (`openmetadata-webhook`; `datyx-api`, datyx's switch;
+`poll`, the trainer's minute check, kept only when it queued a run),
+`om_version` (the table's version after the change), `om_event_id`
+(OpenMetadata's event id and the group), `changed_by`, `changed_at` (the
+event's time: OpenMetadata merging one user's quick changes may give a
+switch the time of the version it returns to), `received_at`, and
+`run_ids`, the runs it queued, comma-separated. A run queued by a
+switch names it (`training_run.group_event_id`, `eventId` in its view).
+One switch queues its runs once, whichever path learns of it first
+([training.md](training.md)): an OpenMetadata event kept already, or the
+same switch (on or off, at the same version of the table) kept since the
+switch began (its change's time; for datyx's switch, when the call
+began; for a switch on, when datyx last knew the group off, if later),
+is known and kept no more. One kept before isn't the same: OpenMetadata,
+merging one user's quick changes, can give a table a version it had
+before. A switch off told after a switch on datyx kept since, while the
+table reads the group on (the webhook's post of an off that datyx's
+switch, or a later change, has undone already), is passed over: kept,
+it would make that switch on's runs look older than the off and queue
+them again.
+
+`GET /api/catalog/events?limit=50` (1 to 200), secured like the
+sources, answers the latest switches of the caller's sources, the
+newest first:
+
+```json
+{"events":[{"id":3,"sourceId":1,"source":"HealthHub","table":"datyx-ds-1.healthhub.public.admissions_hourly",
+  "name":"admissions_hourly","group":"chronic","enabled":true,"via":"openmetadata-webhook","version":"0.6",
+  "by":"admin","at":"2026-11-01T11:38:56.235Z","receivedAt":"2026-11-01T11:38:59.102Z","runIds":[3]}]}
+```
+
+`by` is OpenMetadata's user for the webhook and the check; for datyx's
+switch, the caller (their email) when signed in, else the OpenMetadata
+user datyx acts as.
 
 ## Time series
 
@@ -306,17 +461,20 @@ table of the source, read as a time series (`TimeSeries.Spec`): a group
 is there when a column is tagged with one of its roles, or the table
 with its algorithm, a table's `default` group first, then the others as
 its tags name them. `?algorithm=XGBoost` (or `DeepAR`, in any case)
-answers only the groups that algorithm trains, what a trainer asks; an
-algorithm there isn't is a 400.
+answers only the groups that algorithm trains (among others), what a
+trainer asks; an algorithm there isn't is a 400. `algorithms` lists a
+group's algorithms, XGBoost first (`["DeepAR"]` when the table names
+none), and `algorithm` is the first of them, as before a group could
+have more than one.
 
 ```json
 {"service":"datyx-ds-1","series":[{
   "table":"datyx-ds-1.healthhub.public.admissions_hourly","schema":"public","name":"admissions_hourly",
-  "group":"default","algorithm":"DeepAR","timestamp":"hour_start","target":"admissions","seriesKey":["run_id","hospital_id"],
+  "group":"default","algorithm":"DeepAR","algorithms":["DeepAR"],"enabled":true,"timestamp":"hour_start","target":"admissions","seriesKey":["run_id","hospital_id"],
   "staticCategorical":["hospital_id"],"staticReal":[],"knownCovariates":[],"pastCovariates":[],
   "frequency":"1h","horizon":null,"missing":"zero","ready":true,"problems":[]},
  {"table":"datyx-ds-1.healthhub.public.patient_days","schema":"public","name":"patient_days",
-  "group":"care","algorithm":"XGBoost","timestamp":"day","target":"stay_hours","seriesKey":["run_id","person_id"],
+  "group":"care","algorithm":"XGBoost","algorithms":["XGBoost"],"enabled":true,"timestamp":"day","target":"stay_hours","seriesKey":["run_id","person_id"],
   "staticCategorical":["sex","city","hospital_id","chronic_condition"],"staticReal":["age"],"knownCovariates":[],
   "pastCovariates":["visits","acute_visits","chronic_visits"],"frequency":"1D","horizon":"30D","missing":"zero",
   "ready":true,"problems":[]}]}
@@ -330,7 +488,7 @@ or timestamp; a Target, StaticReal or covariate that isn't a number; a
 Timestamp or Target that also has another role; a column both
 KnownCovariate and PastCovariate; no frequency, or one that isn't a
 pandas offset; a `timeSeriesMissing` other than `zero` or `unknown`;
-the group tagged with two algorithms; for XGBoost, no horizon; a
+with XGBoost among its algorithms, no horizon; a
 horizon that isn't a pandas offset; a `timeSeriesRetrain` neither a span
 nor `never`. The spec answers `retrain` as the table sets it (null when
 not).
@@ -349,7 +507,12 @@ the simulated calendar from day 1. Three groups can train on it:
 `default` forecasting `admissions`, `acute` forecasting
 `acute_admissions` and `chronic` forecasting `chronic_admissions`, each
 with the same `hour_start`, series key and static category, all three
-DeepAR's.
+DeepAR's. `chronic` is switched off by default
+(`TimeSeries.chronic.Disabled` on the table, set through datyx's switch
+in development's OpenMetadata): switching it on queues its run, which
+fails until datyx has a DeepAR trainer (or chronic is tagged
+`TimeSeries.chronic.XGBoost` too, with a horizon, which trains it with
+XGBoost beside it).
 
 HealthHub's view `patient_days` (in its folder) is a series per patient:
 a row per run, person and simulated day with a visit, the day's visits
@@ -379,19 +542,34 @@ problems of a badly tagged one, the frequency required and missing rows
 unknown by default, a table's groups read as series of their own (with
 their own problems), groups' names and tags, a group's algorithm and
 the horizon read from the table (DeepAR without a tag, XGBoost wanting
-a horizon, two algorithms a problem, a group with only its algorithm
-listed), algorithms' names, the roles' patch (the group's tags
+a horizon, both algorithms a group's, XGBoost first, a group with only
+its algorithm listed), algorithms' names (one, several, each once), the
+roles' patch (the group's tags
 replaced, other tags and other groups' kept, unchanged columns left
-alone whatever the order of their tags, the group's algorithm tag set,
+alone whatever the order of their tags, the group's algorithm tags set
+(one per algorithm, `algorithms` winning over `algorithm`),
 replaced and removed beside the table's other tags, the properties set
-and removed, nothing patched when nothing changes) and a column the
+and removed, nothing patched when nothing changes, a group's Disabled
+tag kept by new roles and gone with its last role) and a column the
 table lacks or an algorithm there isn't refused, the type mapping,
-quoted FQNs.
+quoted FQNs; a group switched off by its Disabled tag (no group of its
+own, `Disabled` no group's name), the switch's patch (added, removed,
+another group's kept, a group the table hasn't refused), and the table's
+history in OpenMetadata read for the version that removed it.
+`CatalogEventsTest`, no server: OpenMetadata's change events read for
+the groups they switched (on, off, both at once, an unrelated tag, a
+column's tag, another service, a service name that isn't datyx's own
+for its id (`datyx-ds-07`), a table outside its service, a topic, still
+off, unreadable values),
+the signature (good, missing, without its prefix, another secret,
+another body, a known base64 value), the host the API lets OpenMetadata
+post to, and the subscription asked for.
 `CatalogResourceTest`, against the Dev Services Postgres standing in for
 a source: `SchemaReader` reads a schema's table, view, column order,
 types, comments and composite key, and no system schema; an S3 source is
 a 400; a wrong password, a Kafka broker that isn't there and an
-unreachable OpenMetadata are 502s, an algorithm there isn't a 400; an
+unreachable OpenMetadata are 502s, an algorithm there isn't a 400
+(among several too, before the catalogue is read); an
 unknown source is a 404; deleting a source doesn't wait on the
 catalogue. `StreamReaderTest`, no cluster:
 the fields and types learnt from JSON records, nested ones included,
@@ -425,6 +603,14 @@ failing.
   truststore or client certificate of the source's own yet.
 - Only XGBoost groups are trained ([training.md](training.md)); DeepAR
   (on GraalPy) is still to come.
+- The webhook's subscription posts every update of every table, and
+  datyx reads each for its tags: OpenMetadata 2.0.7 offers no filter by
+  field for tables. Several API instances against one OpenMetadata each
+  need a subscription name of their own.
+- A secret drawn at start changes at each start, and the subscription is
+  updated with it: posts OpenMetadata retries across a restart are
+  refused (the minute's check catches up). Set
+  `DATYX_OPENMETADATA_WEBHOOK_SECRET` to keep one.
 - The horizon is the table's, shared by its groups like the frequency:
   groups of one table that need different horizons are two tables (or
   views).

@@ -29,8 +29,9 @@ import jakarta.ws.rs.core.Response;
 /**
  * Training, within the caller's profile like the data sources:
  * GET /api/training answers each group of the caller's sources tagged for
- * XGBoost, with how often it is trained, its latest run and latest
- * success, and when it is next due, and the latest runs of them all;
+ * XGBoost (among its algorithms), with how often it is trained, its latest
+ * XGBoost run and latest success, and when it is next due, and the latest
+ * runs of them all, whatever their algorithm;
  * GET /api/training/runs/{id} answers a run with all it found. A
  * source's own training calls are SourceTrainingResource's.
  */
@@ -54,13 +55,13 @@ public class TrainingResource {
 
     /** A run at a glance: what, why, when, how it went, and its test metrics once it succeeded. */
     public record RunView(long id, long sourceId, String source, String table, String name, String group,
-            String algorithm, String trigger, String status, Instant queuedAt, Instant startedAt, Instant finishedAt,
+            String algorithm, String trigger, String triggerNote, Long eventId, String status, Instant queuedAt, Instant startedAt, Instant finishedAt,
             Double seconds, String error, Integer examples, XgbTrainer.Metrics test) {
     }
 
-    /** A group tagged for XGBoost, as GET /api/training answers it. */
+    /** A group tagged for XGBoost, as GET /api/training answers it: switched on or off, and when it is next trained (none when off). */
     public record ModelView(long sourceId, String source, String table, String schema, String name, String group,
-            String algorithm, String target, List<String> seriesKey, boolean ready, List<String> problems, String frequency,
+            String algorithm, boolean enabled, String target, List<String> seriesKey, boolean ready, List<String> problems, String frequency,
             String horizon, String retrain,
             String retrainEvery, Instant nextAt, RunView latest, RunView lastSucceeded) {
     }
@@ -81,7 +82,7 @@ public class TrainingResource {
             try {
                 for (JsonNode table : catalog.tables(source.id())) {
                     for (TimeSeries.Spec spec : TimeSeries.specs(table)) {
-                        if (TimeSeries.Algorithm.XGBOOST.tag.equals(spec.algorithm())) {
+                        if (spec.has(TimeSeries.Algorithm.XGBOOST)) {
                             groups.add(Map.entry(source, spec));
                         }
                     }
@@ -96,11 +97,12 @@ public class TrainingResource {
             for (Map.Entry<SourceRef, TimeSeries.Spec> g : groups) {
                 DataSource source = DataSource.findById(g.getKey().id());
                 TimeSeries.Spec spec = g.getValue();
-                TrainingRun latest = TrainingRun.latest(source, spec.table(), spec.group()).orElse(null);
-                TrainingRun succeeded = TrainingRun.latestSucceeded(source, spec.table(), spec.group()).orElse(null);
-                Instant next = spec.ready() ? Training.nextAt(latest, spec.retrain()).orElse(null) : null;
+                String algorithm = TimeSeries.Algorithm.XGBOOST.tag;
+                TrainingRun latest = TrainingRun.latest(source, spec.table(), spec.group(), algorithm).orElse(null);
+                TrainingRun succeeded = TrainingRun.latestSucceeded(source, spec.table(), spec.group(), algorithm).orElse(null);
+                Instant next = spec.ready() && spec.enabled() ? Training.nextAt(latest, spec.retrain()).orElse(null) : null;
                 models.add(new ModelView(source.id, source.name, spec.table(), spec.schema(), spec.name(), spec.group(),
-                    spec.algorithm(), spec.target(), spec.seriesKey(), spec.ready(), spec.problems(), spec.frequency(), spec.horizon(), spec.retrain(),
+                    algorithm, spec.enabled(), spec.target(), spec.seriesKey(), spec.ready(), spec.problems(), spec.frequency(), spec.horizon(), spec.retrain(),
                     spec.retrain() == null ? TimeSeries.DEFAULT_RETRAIN : spec.retrain(),
                     Instant.EPOCH.equals(next) ? Instant.now() : next, view(latest), view(succeeded)));
             }
@@ -153,7 +155,8 @@ public class TrainingResource {
         }
         String fqn = run.tableFqn;
         return new RunView(run.id, run.dataSource.id, run.dataSource.name, fqn, fqn.substring(fqn.lastIndexOf('.') + 1),
-            run.groupName, run.algorithm, run.trigger.name().toLowerCase(), run.status.name().toLowerCase(), run.queuedAt,
+            run.groupName, run.algorithm, run.trigger.name().toLowerCase(), run.triggerNote, run.eventId, run.status.name().toLowerCase(),
+            run.queuedAt,
             run.startedAt, run.finishedAt, seconds, run.error, examples, test);
     }
 

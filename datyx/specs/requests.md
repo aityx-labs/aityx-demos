@@ -48,6 +48,62 @@ tags win. Written by a JSON Patch after the PUT (a PUT merges tags, and
 both classifications are mutually exclusive); the sync answers how many
 columns or fields hold `personal` and `special` data. Tests
 (`PiiTest`); `catalog.md`, `api.md`, README.
+## 2026-11-01: switching a group on is an event datyx captures, and it trains all its algorithms
+
+Asked: the trigger for training is enabling the tag group; make sure the
+API captures that event, and train every algorithm associated with the
+group. (The dashboard shows the algorithms and the events, in its
+folder.)
+
+Changed: a group may carry several algorithm tags (`TimeSeries.care.XGBoost`
+and `TimeSeries.care.DeepAR`); specs say `algorithms` (XGBoost first;
+`["DeepAR"]` when none) beside `algorithm`, and `PUT .../timeseries`
+takes `algorithms`. Runs are per algorithm (latest run, one at a time,
+schedule), inference and `GET /api/training` use XGBoost's. OpenMetadata
+tells datyx: at start datyx makes the event subscription
+`datyx-catalog-events` (Notification, tables, `entityUpdated`, a Webhook
+to `POST /api/catalog/openmetadata-events` at
+`datyx.openmetadata.callback-url`, `host.docker.internal` in development),
+authenticated by OpenMetadata's `X-OM-Signature` (HMAC-SHA256 of the raw
+body, base64) with a secret datyx sets (`DATYX_OPENMETADATA_WEBHOOK_SECRET`,
+else a random one per start), checked in constant time; the path is
+outside sign-in, the rest stays secured. Each switch of a group's
+Disabled tag is a `GroupEvent` (`group_event`, V8: on or off, via the
+webhook, datyx's switch or the minute's check, the table's version, who,
+when, the runs it queued); a switch on queues one `ENABLED` run per
+algorithm of the group at once, deduplicated across the three ways (one
+locked decision and a unique index on a group's and algorithm's queued or
+running run). `GET /api/catalog/events` lists them; runs carry `eventId`.
+Manual training takes an `algorithm` (DeepAR refused: no trainer yet).
+Reviewed adversarially (security, triggers, regressions); five findings
+fixed with tests (non-canonical service names, a late switch-off, a
+version OpenMetadata reused, a removed group's Disabled tag read as a
+switch on). Tests (75); `catalog.md`, `training.md`, `api.md`, `auth.md`,
+`dev-environment.md`.
+
+## 2026-11-01: groups switched off by a tag, and switching one on trains it
+
+Asked: on the Catalog's view of a table's tag groups, let a group be
+disabled; HealthHub's chronic admissions group disabled by default; when
+a group is enabled, that event triggers its training, whatever its
+algorithm; the tagging as the trigger, viewable in OpenMetadata. (The
+switch on the Catalog and Training tabs is the dashboard's change.)
+
+Changed: a group is switched off by a tag on its table,
+`TimeSeries.{group}.Disabled` (`TimeSeries.Disabled` for the default
+group), made with the group's roles and algorithms; `Disabled` can't
+name a group. Specs say `enabled`. `PUT /api/datasources/{id}/timeseries/enabled`
+adds or removes the tag. The trainer never trains a group switched off
+(nor on request, a 409), and queues an `ENABLED` run of any group
+switched on: seen off at its last look, or, from OpenMetadata's version
+history of the table (GET /tables/{id}/versions), its tag removed after
+its latest run; the run's `trigger_note` (V7) names the change (table
+version, who, when). A switch on through datyx is checked at once, and a
+switch off is noted at once, as OpenMetadata merges one user's quick
+changes into one version. Runs go to the group's algorithm: XGBoost
+trains, DeepAR fails saying datyx has no DeepAR trainer yet. HealthHub's
+`chronic` group of `admissions_hourly` is switched off in development's
+OpenMetadata. Tests; `catalog.md`, `training.md`.
 
 ## 2026-11-01: inference on the trained models, and its account
 

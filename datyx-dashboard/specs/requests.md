@@ -4,6 +4,50 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: a group's algorithms, all trained on enabling, and the switches as events
+
+Asked: the trigger for training is enabling the tag group, captured by
+the API as an event, training every algorithm associated with the group.
+(The webhook, the events and the runs per algorithm are the API's
+change, in its folder.)
+
+Changed: a group shows every algorithm it has (`XGBoost + DeepAR ·
+care`), and the edit dialog picks one or more (sent as `algorithms`);
+the switch's tooltip and snack bar say enabling queues a run for each
+of them. The Training tab lists the group switches from
+`GET /api/catalog/events` (when, table and group, on or off, through the
+webhook, datyx's switch or the minute's check, who, the table's version,
+the runs it queued), and a run queued by one links its event. The API
+client reads `algorithms` (falling back to `algorithm`), `eventId` and
+the events. Tests (26); `dashboard.md`.
+
+## 2026-11-01: groups can be disabled; enabling one triggers its training
+
+Asked: on the Catalog's view of a table's tag groups, let a group be
+disabled, HealthHub's `chronic` group disabled by default; enabling a
+group triggers a training run of it with its algorithm, the tagging
+being the trigger, visible in OpenMetadata. (The Disabled tag, the
+endpoint and the trainer watching the tag's removal in the table's
+version history are the API's change, in its folder.)
+
+Changed: each group's box on the Catalog tab has an Enabled/Disabled
+switch, which is the table's `TimeSeries.<group>.Disabled` tag
+(`TimeSeries.Disabled` for the default group) in OpenMetadata: it calls
+`PUT /api/datasources/{id}/timeseries/enabled`, shows a spinner, takes
+the API's answer and reads the table's tags again; its tooltip says so,
+with the group's algorithm, and enabling says in a snack bar that datyx
+queues a training run. A disabled group is muted, shows its tag as a
+chip, reads `chronic: DeepAR, disabled` under the table's name and
+`chronic: disabled, not trained` among the table's tags, is counted on
+the badge, and can still be edited. The Training tab shows the
+`enabled` trigger with the API's `triggerNote` (which tag was removed,
+in which version of the table, by whom and when) in the activity and
+under the model's latest run, and a disabled group as *disabled*, never
+next and not trainable now. The API client gained
+`setGroupEnabled(...)`, `TimeSeriesSpec.enabled` (true when the API
+doesn't say), `disabledTag(group)`, `TrainingRunInfo.triggerNote` and
+`TrainingModel.enabled`. Tests; `dashboard.md`.
+
 ## 2026-11-01: an Inference tab, the account of the calls to the models
 
 Asked: an Inference panel on the dashboard, to account for inference

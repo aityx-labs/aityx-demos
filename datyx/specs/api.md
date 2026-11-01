@@ -13,7 +13,7 @@ a folder of its own) only calls it.
   `datyx`), and Flyway for the schema: the migrations in `db/migration`
   (`V1__data_sources.sql`, `V2__profiles_and_encrypted_access.sql`,
   `V3__drop_hibernate_unique_name.sql`, `V4__kafka_sources.sql`, `V5__training_runs.sql`,
-  `V6__inference_calls.sql`)
+`V6__inference_calls.sql`, `V7__training_trigger_note.sql`, `V8__group_events.sql`)
   run at every start in every profile (a fresh database, under Docker
   alone or a jar or native build, gets its tables), tests and the dev
   profile clean the schema first (`clean-at-start`: every start drops
@@ -41,9 +41,10 @@ a folder of its own) only calls it.
   `/api/v1/system/version`, and the database services, databases,
   schemas, tables, messaging services, topics, classifications, tags and
   custom properties the catalogue writes and reads, the profiles, test
-  cases and results of its checks, and the teams, domains, data
-  products, glossaries, pipelines, lineage and data contracts a curation
-  writes, signed in by `OpenMetadataSession` ([catalog.md](catalog.md),
+  cases and results of its checks, the teams, domains, data products,
+  glossaries, pipelines, lineage and data contracts a curation writes,
+  and the event subscription that posts tables' changes back to datyx
+  (its webhook), signed in by `OpenMetadataSession` ([catalog.md](catalog.md),
   [curation.md](curation.md)).
 - JDBC's `DatabaseMetaData`, on the PostgreSQL driver, to read a database
   source's tables (`SchemaReader`, [catalog.md](catalog.md)).
@@ -78,8 +79,10 @@ a folder of its own) only calls it.
 
 - `/api/health`: see SmallRye Health above.
 - `/api/datasources`: see [data-sources.md](data-sources.md).
-- `/api/datasources/{id}/catalog` and `/api/datasources/{id}/timeseries`:
-  see [catalog.md](catalog.md).
+- `/api/datasources/{id}/catalog` and `/api/datasources/{id}/timeseries`
+  (with `/timeseries/enabled`), `/api/catalog/events` and
+  `/api/catalog/openmetadata-events` (OpenMetadata's webhook, signed, not
+  signed in): see [catalog.md](catalog.md).
 - `/api/training`, `/api/training/runs/{id}` and
   `/api/datasources/{id}/training`: see [training.md](training.md).
 - `/api/inference` and `/api/datasources/{id}/inference`: see
@@ -92,6 +95,7 @@ a folder of its own) only calls it.
 - `DataSource` (table `data_source`): see [data-sources.md](data-sources.md).
 - `Profile` (table `profile`) and `ProfileIdentity` (`profile_identity`):
   see [profiles.md](profiles.md).
+- `GroupEvent` (table `group_event`): see [catalog.md](catalog.md).
 - `TrainingRun` (table `training_run`): see [training.md](training.md).
 - `InferenceCall` (table `inference_call`): see [inference.md](inference.md).
 
@@ -106,8 +110,14 @@ interface otherwise), `DATYX_DB_URL` (`jdbc:postgresql://localhost:9901/datyx`),
 ([profiles.md](profiles.md); tests use a fixed one), and
 `DATYX_OPENMETADATA_TOKEN`, `DATYX_OPENMETADATA_EMAIL`,
 `DATYX_OPENMETADATA_PASSWORD` ([catalog.md](catalog.md); dev mode signs in
-as the stack's admin when unset), `DATYX_TRAINING_ENABLED` (true; tests
-false, [training.md](training.md)). Tests set no database URL
+as the stack's admin when unset), `DATYX_OPENMETADATA_CALLBACK_URL`
+(where OpenMetadata's webhook posts; dev:
+`http://host.docker.internal:{port}/api/catalog/openmetadata-events`,
+none in prod), `DATYX_OPENMETADATA_WEBHOOK_SECRET` (the webhook's
+signing secret; drawn at start when unset; tests use a fixed one) and
+`DATYX_OPENMETADATA_SUBSCRIPTION` (`datyx-catalog-events`)
+([catalog.md](catalog.md)), `DATYX_TRAINING_ENABLED` (true; tests false,
+[training.md](training.md)). Tests set no database URL
 and get a Postgres test container from Dev Services, and point the
 OpenMetadata client at a closed port (`localhost:1`) so its check fails
 predictably whether or not the stack runs; Quarkus's own compose Dev
@@ -120,7 +130,7 @@ Services and Keycloak Dev Services are off.
 `test` profile and launch mode, `jvm`, a version and a start time),
 `DataSourceResourceTest` ([data-sources.md](data-sources.md)),
 `AuthOffTest` and `AuthOnTest` ([auth.md](auth.md)), `CatalogResourceTest`,
-`StreamReaderTest`, `TimeSeriesTest`, `PiiTest` and `QualityTest` ([catalog.md](catalog.md)),
+`CatalogEventsTest`, `StreamReaderTest`, `TimeSeriesTest`, `PiiTest` and `QualityTest` ([catalog.md](catalog.md)),
 `CurationTest` ([curation.md](curation.md)), `XgbTrainerTest` and
 `TrainingTest` ([training.md](training.md)), `InferenceTest`
 ([inference.md](inference.md)), `ProfileTest` and

@@ -1,1 +1,2 @@
 datyx.auth.AuthConfigSourceFactory
+datyx.catalog.CallbackHostConfigSourceFactory

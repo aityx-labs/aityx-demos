@@ -103,6 +103,16 @@ class CatalogResourceTest {
             .then().statusCode(502).body("error", startsWith("OpenMetadata "));
         given().when().get("/api/datasources/" + right + "/timeseries?algorithm=Prophet")
             .then().statusCode(400).body("error", is("the algorithm is DeepAR or XGBoost, not 'Prophet'"));
+        // A group's algorithms, several, in any case: checked before the catalogue is read.
+        given().contentType(ContentType.JSON).body("{\"table\":\"t\",\"group\":\"care\",\"algorithms\":[\"xgboost\",\"Prophet\"]}")
+            .when().put("/api/datasources/" + right + "/timeseries")
+            .then().statusCode(400).body("error", is("the algorithm is DeepAR or XGBoost, not 'Prophet'"));
+        given().contentType(ContentType.JSON).body("{\"table\":\"t\",\"group\":\"care\",\"algorithm\":\"Prophet\",\"algorithms\":[\"DeepAR\"]}")
+            .when().put("/api/datasources/" + right + "/timeseries")
+            .then().statusCode(502).body("error", startsWith("OpenMetadata ")); // algorithms wins
+        given().contentType(ContentType.JSON).body("{\"table\":\"t\",\"group\":\"care\",\"algorithm\":\"Prophet\"}")
+            .when().put("/api/datasources/" + right + "/timeseries")
+            .then().statusCode(400);
         // Removing a source doesn't wait on the catalogue.
         given().when().delete("/api/datasources/" + right).then().statusCode(204);
         given().when().delete("/api/datasources/" + wrong).then().statusCode(204);

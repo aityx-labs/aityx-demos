@@ -98,8 +98,8 @@ public class SourceInferenceResource {
                 DataSource s = source.get();
                 String wanted = request.table().strip();
                 Optional<TrainingRun> run = TrainingRun.<TrainingRun>find(
-                    "dataSource = ?1 and groupName = ?2 and status = ?3", Sort.descending("queuedAt", "id"), s, group,
-                    TrainingRun.Status.SUCCEEDED).stream()
+                    "dataSource = ?1 and groupName = ?2 and status = ?3 and algorithm = ?4", Sort.descending("queuedAt", "id"), s, group,
+                    TrainingRun.Status.SUCCEEDED, TimeSeries.Algorithm.XGBOOST.tag).stream()
                     .filter(r -> r.tableFqn.equals(wanted) || r.tableFqn.endsWith("." + wanted)).findFirst();
                 if (run.isEmpty()) {
                     throw new NoModel("no model of the group " + group + " of " + wanted + " has been trained yet");

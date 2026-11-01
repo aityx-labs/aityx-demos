@@ -101,6 +101,15 @@ public interface OpenMetadataClient {
     JsonNode table(@HeaderParam("Authorization") String authorization, @PathParam("fqn") String fqn,
             @QueryParam("fields") String fields);
 
+    /**
+     * A table's versions, newest first: {"versions": [...]}, each the
+     * entity as it was, as a JSON string, with its version, updatedBy,
+     * updatedAt and changeDescription.
+     */
+    @GET
+    @Path("/tables/{id}/versions")
+    JsonNode tableVersions(@HeaderParam("Authorization") String authorization, @PathParam("id") String id);
+
     /** A JSON Patch (RFC 6902) of a table: its columns' tags, its custom properties. */
     @PATCH
     @Path("/tables/{id}")
@@ -155,6 +164,20 @@ public interface OpenMetadataClient {
     @PUT
     @Path("/tags")
     JsonNode putTag(@HeaderParam("Authorization") String authorization, JsonNode tag);
+
+    /**
+     * Creates or updates an event subscription by its name (an alert, in
+     * OpenMetadata's UI): which entities' changes it sends, and where, such
+     * as a webhook's endpoint and the secret it signs its posts with.
+     */
+    @PUT
+    @Path("/events/subscriptions")
+    JsonNode putEventSubscription(@HeaderParam("Authorization") String authorization, JsonNode subscription);
+
+    /** An event subscription by its name; a 404 when there is none. */
+    @GET
+    @Path("/events/subscriptions/name/{name}")
+    JsonNode eventSubscription(@HeaderParam("Authorization") String authorization, @PathParam("name") String name);
 
     /** An entity type (table) or a property type (string), with its custom properties. */
     @GET

@@ -188,11 +188,15 @@ class FakeApi implements HealthHubApi {
         partition: 0,
         offset: 42,
       ),
-      const StreamEvent(id: 'lisboa-2', name: 'Ana Sousa', state: PersonState.home, simTime: '09:40', day: 2, partition: 0, offset: 41),
+      // At home, so monitored: the API leaves out everyone else at home.
+      const StreamEvent(id: 'lisboa-2', name: 'Ana Sousa', state: PersonState.home, monitored: true, monitoredFor: 'aged 84', simTime: '09:40', day: 2, partition: 0, offset: 41),
     ];
     return StreamEvents(
       enabled: true,
       paused: paused,
+      // The feed's counts; the answer read later counts more.
+      total: type == StreamEventType.admission ? 48213 : 48190,
+      perSecond: type == StreamEventType.admission ? 70.4 : 70.1,
       topics: [type == StreamEventType.admission ? 'healthhub.admissions' : 'healthhub.people.moves'],
       events: [
         for (final event in all)
@@ -705,6 +709,13 @@ void main() {
     // admissions out.
     expect(api.eventTypes, containsAll([StreamEventType.move, StreamEventType.admission]));
     expect(find.text('1 admission · 2 moves'), findsOneWidget);
+    // Beside the title, every event the API read, hidden ones too, and a second over the last minute.
+    expect(tester.widget<Text>(find.byKey(const Key('stream-events-total'))).data, '48,213 events · 70.4/s');
+    // Ana is at home and monitored, so her move shows, marked, why on hover.
+    final events = find.byKey(const Key('stream-events'));
+    final monitor = find.descendant(of: events, matching: find.byKey(const Key('monitored')));
+    expect(monitor, findsOneWidget);
+    expect(tester.widget<Tooltip>(find.ancestor(of: monitor, matching: find.byType(Tooltip)).first).message, 'Monitored at home: aged 84');
 
     final row = find.byKey(const Key('admission-a1b2c3d4-lisboa-3-d2-t32'));
     expect(row, findsOneWidget);
@@ -1103,7 +1114,7 @@ void main() {
           'partition': 0,
           'offset': 77,
         },
-        {'type': 'move', 'id': 'reus-4', 'state': 'to_home', 'simTime': '10:00', 'day': 4, 'name': 'Anna Vidal', 'age': 33},
+        {'type': 'move', 'id': 'reus-4', 'state': 'to_home', 'simTime': '10:00', 'day': 4, 'name': 'Anna Vidal', 'age': 33, 'monitored': true, 'monitoredFor': 'pregnant'},
         // The records before admissions existed carried no type and a single topic.
         {'id': 'reus-5', 'state': 'home'},
         {'type': 'admission'}, // no person: left out
@@ -1121,7 +1132,13 @@ void main() {
     expect(admission.hospitalId, 12);
     expect(events.events[1].isAdmission, isFalse);
     expect(events.events[1].name, 'Anna Vidal');
+    expect((events.events[1].monitored, events.events[1].monitoredFor), (true, 'pregnant'));
     expect(events.events[2].type, StreamEventType.move);
+    expect(events.events[2].monitored, isFalse);
+    // An API from before the counts: none.
+    expect((events.total, events.perSecond), (null, null));
+    final counted = StreamEvents.fromJson({'enabled': true, 'total': 48213, 'perSecond': 70, 'events': []});
+    expect((counted.total, counted.perSecond), (48213, 70.0));
     expect(StreamEvents.fromJson({'enabled': true, 'topic': 'healthhub.people.moves'}).topics, ['healthhub.people.moves']);
   });
 

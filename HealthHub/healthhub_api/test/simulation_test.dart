@@ -171,6 +171,15 @@ void main() {
     for (final person in people) {
       expect(person.hospital.isGeneralHospital, true, reason: '${person.city}: ${person.hospital.name}');
     }
+    // Only the high-risk are monitored: the 80 and over, the pregnant;
+    // most people aren't.
+    final monitored = people.where((p) => p.monitored).toList();
+    expect(monitored.length / people.length, inInclusiveRange(0.02, 0.25));
+    expect([for (final p in people) if (p.profile.age >= 80) p], everyElement(predicate<Person>((p) => p.monitored)));
+    for (final p in people.where((p) => p.pregnant)) {
+      expect((p.profile.sex, p.profile.age), predicate<(String, int)>((w) => w.$1 == 'woman' && w.$2 >= 18 && w.$2 <= 44));
+      expect(p.monitored, true);
+    }
   });
 
   test('homes are within 1.5 km of a care center of their own city', () {
@@ -223,8 +232,10 @@ void main() {
     final value = record['value'] as Map;
     expect(value.keys, [
       'id', 'name', 'age', 'city', 'lat', 'lon', 'homeLat', 'homeLon', 'hospitalId', 'hospitalName',
-      'state', 'mode', 'conditionName', 'conditionType', 'simTime', 'day', 'turn',
+      'state', 'mode', 'monitored', 'monitoredFor', 'conditionName', 'conditionType', 'simTime', 'day', 'turn',
     ]);
+    expect(value['monitored'], person.monitored);
+    expect(value['monitoredFor'], person.monitoredFor);
     expect(value['name'], person.profile.name);
     expect(value['conditionName'], 'Common cold');
     expect(value['conditionType'], 'acute');
@@ -275,12 +286,55 @@ void main() {
     expect([for (final event in feed.recent) event['turn']], [2, 1, 1]);
   });
 
+  test('someone at home is an event only when monitored, and every event counts', () {
+    final feed = PeopleFeed(throwingKafka, people: ['reus-1', 'reus-2']);
+    Map<String, Object?> move(String id, String state, int turn, {bool? monitored}) => {
+      'id': id, 'city': 'Reus', 'lat': 41.1, 'lon': 1.1, 'homeLat': 41.2, 'homeLon': 1.2,
+      'hospitalName': 'H', 'state': state, 'monitored': ?monitored, 'simTime': '06:00', 'day': 1, 'turn': turn,
+    };
+    feed
+      ..add(move('reus-1', 'home', 1, monitored: true))
+      ..add(move('reus-2', 'home', 1, monitored: false))
+      // A record from before people were monitored, or not: not monitored.
+      ..add(move('reus-2', 'home', 2))
+      ..add(move('reus-2', 'to_hospital', 3, monitored: false))
+      ..add(move('miami-1', 'home', 3, monitored: true));
+    expect([for (final e in feed.recent) (e['id'], e['turn'])], [('reus-2', 3), ('reus-1', 1)]);
+    // The map still has everyone, at home or not.
+    expect([for (final p in feed.people) (p['id'], p['turn'])], [('reus-1', 1), ('reus-2', 3)]);
+    // Hidden or shown, every move of the feed's people counts; another's doesn't.
+    expect(feed.counter.total, 4);
+  });
+
+  test('the event counter averages the last minute, a second at a time', () {
+    var now = DateTime.utc(2026, 11, 1, 12);
+    final counter = EventCounter(clock: () => now);
+    expect(counter.perSecond, 0);
+    for (var i = 0; i < 10; i++) {
+      counter.add();
+    }
+    // Less than a second since the first: over a second.
+    expect(counter.perSecond, 10);
+    now = now.add(const Duration(seconds: 20));
+    for (var i = 0; i < 30; i++) {
+      counter.add();
+    }
+    // 40 over the 20 s since the first.
+    expect(counter.perSecond, 2);
+    now = now.add(const Duration(seconds: 50));
+    // The first ten are over a minute old: 30 over the last 60 s.
+    expect(counter.perSecond, 0.5);
+    now = now.add(const Duration(minutes: 2));
+    expect(counter.perSecond, 0);
+    expect(counter.total, 40);
+  });
+
   test('the feed keeps the latest records as events, up to its limit', () {
     final feed = PeopleFeed(throwingKafka, people: ['reus-1']);
     for (var turn = 0; turn < PeopleFeed.recentLimit + 5; turn++) {
       feed.add({
         'id': 'reus-1', 'city': 'Reus', 'lat': 41.1, 'lon': 1.1, 'homeLat': 41.2, 'homeLon': 1.2,
-        'hospitalName': 'H', 'state': 'home', 'simTime': '06:00', 'day': 1, 'turn': turn,
+        'hospitalName': 'H', 'state': 'home', 'monitored': true, 'simTime': '06:00', 'day': 1, 'turn': turn,
       }, partition: 0, offset: turn);
     }
     expect(feed.recent, hasLength(PeopleFeed.recentLimit));

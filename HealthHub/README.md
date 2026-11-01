@@ -67,7 +67,7 @@ kafka` only Kafka and its REST proxy, `devbox run flink` only Flink and
 its job.
 
 In dev mode (`HEALTHHUB_MODE=dev`, the default) the API runs a
-simulation: `HEALTHHUB_SIM_PEOPLE` people (20) in each city with care
+simulation: `HEALTHHUB_SIM_PEOPLE` people (40) in each city with care
 centers, each with a name typical of the city, an age, an occupation and
 a common medical condition ([specs/conditions.md](specs/conditions.md)).
 A turn is `HEALTHHUB_SIM_TURN_MS` (1 s) of real time and

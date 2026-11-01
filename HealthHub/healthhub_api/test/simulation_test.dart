@@ -534,7 +534,7 @@ void main() {
 
   test('settings fall back to the defaults', () {
     final settings = SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '0', 'HEALTHHUB_SIM_TURN_MS': 'x'});
-    expect(settings.peoplePerCity, 20);
+    expect(settings.peoplePerCity, 40);
     expect(settings.turn, const Duration(seconds: 1));
     expect(settings.minutesPerTurn, 60);
     expect(SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '3'}).peoplePerCity, 3);

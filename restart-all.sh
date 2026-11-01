@@ -75,5 +75,44 @@ if [[ "$DEMOS_TOOLCHAIN" == devbox ]]; then
   done < <(pgrep -f 'process-compose' || true)
 fi
 
+# What a stopped process-compose leaves behind: a demo's server still
+# listening on its port (its children aren't always ended with it), which
+# start-all.sh would take for a demo already up and leave as it is. Any
+# process listening on TCP whose working folder is a demo's, in any
+# worktree of this repository, is asked to end, then made to after 10 s.
+# Docker's containers (the databases, Kafka, OpenMetadata) aren't: their
+# processes don't run from a demo's folder.
+leftovers() {
+  local pid cwd tree demo
+  for pid in $(lsof -nP -iTCP -sTCP:LISTEN -t 2>/dev/null | sort -u); do
+    cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')"
+    [[ -n "$cwd" ]] || continue
+    while read -r tree; do
+      [[ "$cwd" == "$tree"/* ]] || continue
+      demo="${cwd#"$tree"/}"
+      demo="${demo%%/*}"
+      [[ -f "$root/$demo/process-compose.yaml" ]] || continue
+      if [[ $# -gt 0 ]] && ! printf '%s\n' "$@" | grep -qxF "$demo"; then
+        continue
+      fi
+      echo "$pid $demo"
+    done < <(git -C "$root" worktree list --porcelain | awk '/^worktree /{print $2}')
+  done
+}
+left="$(leftovers "$@")"
+if [[ -n "$left" ]]; then
+  while read -r pid demo; do
+    echo "■ $demo: ending what still listens ($(ps -o comm= -p "$pid" 2>/dev/null | xargs basename 2>/dev/null), pid $pid)"
+    kill "$pid" 2>/dev/null
+  done <<<"$left"
+  for _ in $(seq 1 10); do
+    [[ -z "$(leftovers "$@")" ]] && break
+    sleep 1
+  done
+  while read -r pid demo; do
+    kill -0 "$pid" 2>/dev/null && { echo "✗ $demo: pid $pid didn't end, killing it" >&2; kill -9 "$pid" 2>/dev/null; }
+  done <<<"$left"
+fi
+
 echo "▶ starting"
 exec "$root/start-all.sh" "$@"

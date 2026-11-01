@@ -235,6 +235,7 @@ services:
     environment:
       AITYX_API_KEY: ${AITYX_API_KEY:-}
       AITYX_URL: ${AITYX_URL:-}
+      HEALTHHUB_TRIAGE: ${HEALTHHUB_TRIAGE:-on}
       API_PORT: "9802"
       HEALTHHUB_BIND_HOST: 0.0.0.0
       HEALTHHUB_DB_HOST: postgres

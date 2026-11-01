@@ -399,6 +399,7 @@ void main() {
       'visit',
       'visitNumber',
       'complaint',
+      'template',
       'hospitalId',
       'hospitalName',
       'simTime',
@@ -419,7 +420,15 @@ void main() {
       flu.first.map((t) => renderComplaint(t, complaintValues(p, visitNumber: 1, daysSinceFirstVisit: 0))),
       contains(admission['complaint']),
     );
+    // Which template it was said from, so its reference triage is known.
+    final template = admission['template'] as int;
+    expect(
+      renderComplaint(flu.first[template], complaintValues(p, visitNumber: 1, daysSinceFirstVisit: 0)),
+      admission['complaint'],
+    );
     expect(PeopleFeed.isAdmission(admission), true);
+    expect(PeopleFeed.isAdmission({...admission, 'template': 3}), false);
+    expect(PeopleFeed.isAdmission({...admission}..remove('template')), true);
     Map<String, Object?> of(String run) => admissionEvent(
       p,
       condition: flu,

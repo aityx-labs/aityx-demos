@@ -51,6 +51,14 @@ class Forwarded {
 /// [admissions]: what GET /api/admissions answers, the latest admissions
 /// read from the database by the server, as many as [admissionsLimitOf]
 /// the query says (null: the database didn't answer, 503).
+/// [triageEnabled]: whether the API triages admissions with aityx
+/// (lib/triage.dart), reported by /api/health and GET /api/triage.
+/// [triage]: what GET /api/triage answers, the summary and the latest
+/// triages read by the server, as many as [admissionsLimitOf] says
+/// (null: the database didn't answer, 503).
+/// [triageDetail]: for GET /api/triage/{eventId}, the triage the server
+/// read (its row null when there is none, 404; null itself when the
+/// database didn't answer, 503).
 Answer route(
   String method,
   String path, {
@@ -68,6 +76,9 @@ Answer route(
   bool simulation = false,
   List<Map<String, Object?>> people = const [],
   List<Map<String, Object?>>? admissions,
+  bool triageEnabled = false,
+  Map<String, Object?>? triage,
+  TriageLookup? triageDetail,
 }) {
   if (method == 'OPTIONS') return const Answer(204);
   if (method == 'GET') {
@@ -87,6 +98,7 @@ Answer route(
           'auth': auth.enabled,
           'kafka': kafka,
           'simulation': simulation,
+          'triage': triageEnabled,
         });
       case '/api/auth/config':
         return Answer(200, body: auth.toJson());
@@ -145,6 +157,22 @@ Answer route(
           return const Answer(503, body: {'error': 'the database is not answering'});
         }
         return Answer(200, body: {'admissions': admissions});
+      // Open to everyone, like the admissions they triage.
+      case '/api/triage':
+        if (admissionsLimitOf(query) == null) {
+          return const Answer(400, body: {'error': 'limit is a positive number'});
+        }
+        if (triage == null) {
+          return const Answer(503, body: {'error': 'the database is not answering'});
+        }
+        return Answer(200, body: {'enabled': triageEnabled, ...triage});
+      case _ when triageEventId(path) != null:
+        if (triageDetail == null) {
+          return const Answer(503, body: {'error': 'the database is not answering'});
+        }
+        final row = triageDetail.row;
+        if (row == null) return const Answer(404, body: {'error': 'no triage for that admission'});
+        return Answer(200, body: row);
       case '/api/people':
         final box = Bbox.parse(query['bbox']);
         if (query.containsKey('bbox') && box == null) {
@@ -251,6 +279,27 @@ const admissionsMax = 200;
 int? admissionsLimitOf(Map<String, String> query) {
   final limit = query.containsKey('limit') ? int.tryParse(query['limit']!) : admissionsLimit;
   return limit == null || limit < 1 ? null : min(limit, admissionsMax);
+}
+
+/// What the server read for GET /api/triage/{eventId}: the triage, or
+/// null when the admission has none.
+class TriageLookup {
+  const TriageLookup(this.row);
+
+  final Map<String, Object?>? row;
+}
+
+/// The event id in /api/triage/{eventId}, or null for any other path.
+String? triageEventId(String path) {
+  const prefix = '/api/triage/';
+  if (!path.startsWith(prefix)) return null;
+  final String id;
+  try {
+    id = Uri.decodeComponent(path.substring(prefix.length));
+  } on ArgumentError {
+    return null;
+  }
+  return id.isEmpty || id.contains('/') || id.length > 200 ? null : id;
 }
 
 /// The datyx API's path behind one of ours (/api/datyx/me, /api/datyx/datasources), or null.

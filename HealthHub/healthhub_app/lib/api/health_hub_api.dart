@@ -460,6 +460,261 @@ class StreamEvents {
   final List<StreamEvent> events;
 }
 
+
+/// A triage level, most urgent first (the API's lib/triage.dart).
+enum TriageLevel {
+  red('Immediate', 0),
+  orange('Very urgent', 10),
+  yellow('Urgent', 60),
+  green('Standard', 120),
+  blue('Non-urgent', 240);
+
+  const TriageLevel(this.label, this.minutes);
+
+  final String label;
+
+  /// The longest the patient should wait, as the decision sets it.
+  final int minutes;
+
+  static TriageLevel? parse(Object? name) {
+    for (final level in values) {
+      if (level.name == name) return level;
+    }
+    return null;
+  }
+
+  /// How many levels less urgent than [other] this is (negative: more).
+  int below(TriageLevel other) => index - other.index;
+}
+
+/// The danger signs Jev gives a probability of, with how the app names them.
+const triageSigns = {
+  'life_threat': 'Threat to life',
+  'breathing': 'Struggling to breathe',
+  'cardiac': 'Heart pain or palpitations',
+  'stroke': 'Signs of a stroke',
+  'major_injury': 'Injury needing treatment',
+  'serious_infection': 'Serious infection',
+  'dehydration': 'Dehydration',
+  'self_harm': 'Thoughts of self-harm',
+};
+
+/// The areas of the hospital, as the app names them.
+const triageAreas = {
+  'resuscitation': 'Resuscitation room',
+  'emergency': 'Emergency department',
+  'mental_health': 'Mental health team',
+  'minor_care': 'Minor illness and injury',
+  'outpatients': 'Outpatients clinic',
+  'day_unit': 'Day unit',
+};
+
+/// The questions Jev answers with one of their options, as the app names them.
+const triageChoiceNames = {
+  'pain': 'Pain',
+  'onset': 'Started',
+  'visit_purpose': 'Visit',
+  'body_system': 'About',
+};
+
+/// What the decision counts a danger sign present at, and in doubt at.
+const triageEvidence = 0.7;
+const triageDoubt = 0.35;
+
+/// One admission's triage by aityx: who, what they said, and what aityx
+/// read and decided. One row of `GET /api/triage`, or with [receipt] and
+/// [rules], `GET /api/triage/{eventId}`.
+class Triaged {
+  const Triaged({
+    required this.eventId,
+    this.name,
+    this.age,
+    this.complaint,
+    this.conditionName,
+    this.visit,
+    this.visitNumber,
+    this.hospitalName,
+    this.day,
+    this.simTime,
+    this.level,
+    this.waitMinutes,
+    this.area,
+    this.nurseCheck = false,
+    this.levelRule,
+    this.levelWhy,
+    this.areaRule,
+    this.areaWhy,
+    this.signs = const {},
+    this.choices = const {},
+    this.reference,
+    this.error,
+    this.inputTokens,
+    this.millis,
+    this.receipt,
+    this.rules = const {},
+  });
+
+  factory Triaged.fromJson(Map<String, Object?> json) {
+    final signs = json['signs'];
+    final choices = json['choices'];
+    final rules = json['rules'];
+    return Triaged(
+      eventId: json['eventId'] as String,
+      name: _string(json['name']),
+      age: _int(json['age']),
+      complaint: _string(json['complaint']),
+      conditionName: _string(json['conditionName']),
+      visit: VisitKind.named(json['visit']),
+      visitNumber: _int(json['visitNumber']),
+      hospitalName: _string(json['hospitalName']),
+      day: _int(json['day']),
+      simTime: _string(json['simTime']),
+      level: TriageLevel.parse(json['level']),
+      waitMinutes: _int(json['waitMinutes']),
+      area: _string(json['area']),
+      nurseCheck: json['nurseCheck'] == true,
+      levelRule: _int(json['levelRule']),
+      levelWhy: _string(json['levelWhy']),
+      areaRule: _int(json['areaRule']),
+      areaWhy: _string(json['areaWhy']),
+      signs: {
+        if (signs is Map)
+          for (final MapEntry(:key, :value) in signs.entries)
+            if (value is num) key as String: value.toDouble(),
+      },
+      choices: {
+        if (choices is Map)
+          for (final MapEntry(:key, :value) in choices.entries)
+            if (value is Map && value['choice'] is String)
+              key as String: (choice: value['choice'] as String, confidence: (value['confidence'] as num?)?.toDouble()),
+      },
+      reference: TriageLevel.parse(json['reference']),
+      error: _string(json['error']),
+      inputTokens: _int(json['inputTokens']),
+      millis: _int(json['millis']),
+      receipt: (json['receipt'] as Map?)?.cast<String, Object?>(),
+      rules: {
+        if (rules is Map)
+          for (final MapEntry(:key, :value) in rules.entries)
+            if (value is List) key as String: [for (final why in value) why as String?],
+      },
+    );
+  }
+
+  final String eventId;
+  final String? name;
+  final int? age;
+  final String? complaint;
+  final String? conditionName;
+  final VisitKind? visit;
+  final int? visitNumber;
+  final String? hospitalName;
+  final int? day;
+  final String? simTime;
+
+  /// Null when the triage failed ([error]).
+  final TriageLevel? level;
+  final int? waitMinutes;
+  final String? area;
+  final bool nurseCheck;
+  final int? levelRule;
+  final String? levelWhy;
+  final int? areaRule;
+  final String? areaWhy;
+
+  /// Jev's probability of each of [triageSigns].
+  final Map<String, double> signs;
+
+  /// Jev's option for each of [triageChoiceNames], and its confidence.
+  final Map<String, ({String choice, double? confidence})> choices;
+
+  /// The level a nurse applying the same policy gives what the patient
+  /// said: the simulation knows it from the complaint's template.
+  final TriageLevel? reference;
+  final String? error;
+  final int? inputTokens;
+  final int? millis;
+
+  /// aityx's receipt, in the detail only.
+  final Map<String, Object?>? receipt;
+
+  /// The `# why` of each rule of the level and area tables, in order, in
+  /// the detail only.
+  final Map<String, List<String?>> rules;
+}
+
+/// Every triage so far, counted: `GET /api/triage`'s summary.
+class TriageSummary {
+  const TriageSummary({
+    this.total = 0,
+    this.failed = 0,
+    this.compared = 0,
+    this.matched = 0,
+    this.withinOne = 0,
+    this.under = 0,
+    this.over = 0,
+    this.nurseChecks = 0,
+    this.inputTokens = 0,
+    this.medianMillis,
+    this.levels = const {},
+  });
+
+  factory TriageSummary.fromJson(Map<String, Object?> json) {
+    int n(String key) => (json[key] as num?)?.toInt() ?? 0;
+    final levels = json['levels'];
+    return TriageSummary(
+      total: n('total'),
+      failed: n('failed'),
+      compared: n('compared'),
+      matched: n('matched'),
+      withinOne: n('withinOne'),
+      under: n('under'),
+      over: n('over'),
+      nurseChecks: n('nurseChecks'),
+      inputTokens: n('inputTokens'),
+      medianMillis: (json['medianMillis'] as num?)?.toInt(),
+      levels: {
+        if (levels is Map)
+          for (final level in TriageLevel.values) level: (levels[level.name] as num?)?.toInt() ?? 0,
+      },
+    );
+  }
+
+  final int total;
+  final int failed;
+
+  /// How many could be set against a reference level, and of those, how
+  /// many matched it, were within one level, or less or more urgent.
+  final int compared;
+  final int matched;
+  final int withinOne;
+  final int under;
+  final int over;
+  final int nurseChecks;
+  final int inputTokens;
+  final int? medianMillis;
+  final Map<TriageLevel, int> levels;
+}
+
+/// `GET /api/triage`: whether the API triages admissions, the summary,
+/// and the latest triages, newest first.
+class Triages {
+  const Triages({this.enabled = false, this.summary = const TriageSummary(), this.triaged = const []});
+
+  factory Triages.fromJson(Map<String, Object?> json) => Triages(
+    enabled: json['enabled'] == true,
+    summary: TriageSummary.fromJson((json['summary'] as Map?)?.cast() ?? const {}),
+    triaged: [
+      for (final row in (json['triaged'] as List? ?? const []))
+        if (row is Map && row['eventId'] is String) Triaged.fromJson(row.cast()),
+    ],
+  );
+
+  final bool enabled;
+  final TriageSummary summary;
+  final List<Triaged> triaged;
+}
+
 /// The API, as the app sees it.
 abstract class HealthHubApi {
   Future<Health> health();
@@ -493,6 +748,12 @@ abstract class HealthHubApi {
   /// The latest records on the stream: `GET /api/events?limit=&type=`,
   /// only moves or only admissions with [type].
   Future<StreamEvents> events({int limit = 20, StreamEventType? type});
+
+  /// How aityx triages the admissions: `GET /api/triage?limit=`.
+  Future<Triages> triage({int limit = 20});
+
+  /// One admission's triage with aityx's receipt: `GET /api/triage/{eventId}`.
+  Future<Triaged> triageOf(String eventId);
 }
 
 /// Thrown when the API answers an error, with its message.
@@ -561,6 +822,13 @@ class HttpHealthHubApi implements HealthHubApi {
   Future<StreamEvents> events({int limit = 20, StreamEventType? type}) async => StreamEvents.fromJson(
     await _getMap('/api/events?limit=$limit${type == null ? '' : '&type=${type.apiName}'}'),
   );
+
+  @override
+  Future<Triages> triage({int limit = 20}) async => Triages.fromJson(await _getMap('/api/triage?limit=$limit'));
+
+  @override
+  Future<Triaged> triageOf(String eventId) async =>
+      Triaged.fromJson(await _getMap('/api/triage/${Uri.encodeComponent(eventId)}'));
 
   /// An area as the API's `bbox` takes it: west,south,east,north.
   static String _bbox(double west, double south, double east, double north) =>

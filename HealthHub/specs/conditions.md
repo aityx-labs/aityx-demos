@@ -1,7 +1,7 @@
 # Medical conditions
 
 The common diseases and illnesses the simulated people have
-([Simulation](simulation.md)): 19 acute and 19 chronic
+([Simulation](simulation.md)): 22 acute and 19 chronic
 conditions of adults, each with what it is, its usual treatment and
 duration, how it brings someone to the hospital, and what a patient with
 it says on arrival. The data is
@@ -36,6 +36,7 @@ Each file is a JSON array; each element:
 | `follow_up_stay_hours` | Optional, 1 to 72 (`stay_hours` when absent): the stay of the visits after the first, as an appendicitis stays two days and its wound check an hour |
 | `course_gap_days` | Optional, chronic only, 0 or more, or null (null when absent): the days from the last visit of a course to the first of the next. Null is a random 30 to 120; 0 is continuous, the next course starting `interval_days` after the last visit, as dialysis goes on |
 | `templates` | `first`, `repeat` and `last`: exactly three complaint templates each, different from one another |
+| `triage` | `first`, `repeat` and `last`: each template's reference triage level, in the templates' order: `red`, `orange`, `yellow`, `green` or `blue` ([Triage reference levels](#triage-reference-levels)) |
 
 [lib/conditions.dart](../healthhub_api/lib/conditions.dart) checks every
 field, and the generator reports every problem of every element at once
@@ -105,6 +106,20 @@ No other braces are allowed. For example, Influenza's first visit:
 
 > Hi, I'm {name}, I'm {age}. Yesterday I suddenly got a high fever, chills and aches all over my body, and I have a dry cough and a pounding headache.
 
+## Triage reference levels
+
+Each template has a reference level, `triage` in the data: the level a
+triage nurse applying HealthHub's triage policy, the tables of
+[docs/aityx.md](../docs/aityx.md#the-decision), gives what the template
+says, from immediate (`red`) to non-urgent (`blue`). It is what aityx's
+triage of an admission said from that template is set against
+([Triage at the desk](triage.md)). The seed's 369 templates have 5 red,
+31 orange, 37 yellow, 38 green and 258 blue: most return and last visits
+are booked reviews. The levels were written for the demo by applying the
+policy to the words, not by clinicians. Anaphylaxis, acute coronary
+syndrome and stroke, the three conditions with immediate or
+time-critical first visits, came with them.
+
 ## Acute conditions
 
 | Condition | Ages | Weight | Women | Treatment | Duration | Visits |
@@ -125,9 +140,13 @@ No other braces are allowed. For example, Influenza's first visit:
 | **Community-acquired pneumonia** (`community_acquired_pneumonia`): An acute infection of the lung tissue acquired outside hospital, most often caused by Streptococcus pneumoniae, with fever, productive cough, breathlessness and pleuritic chest pain. | 18 to 90 | 1 | 50% | Assess severity (CURB-65, oxygen saturation, chest X-ray, bloods); low-severity cases take an oral antibiotic such as amoxicillin, or doxycycline or a macrolide if allergic, for 5 days, while moderate or severe cases are admitted for IV antibiotics, oxygen and fluids. Review at 48 to 72 hours and arrange a repeat chest X-ray at about 6 weeks for smokers, older patients or persisting symptoms. | Antibiotics for 5 days, recovery over 3 to 6 weeks (42 d) | 3, every 21 d, 24 h the first, 2 h after; **urgent** |
 | **Acute otitis externa** (`acute_otitis_externa`): An acute inflammation of the external ear canal, usually bacterial (Pseudomonas or Staphylococcus) and often after swimming, with ear pain, itch, discharge and pain on moving the ear. | 18 to 90 | 1 | 50% | Clean the ear canal (aural toilet), prescribe topical antibiotic ear drops with or without a corticosteroid, insert a wick if the canal is very swollen, give analgesia and keep the ear dry. Review if not settling within a week; spreading redness or diabetes with severe pain needs urgent review for necrotising otitis externa. | 7 to 14 days (7 d) | 2, every 7 d, 1 h each |
 | **Ankle sprain** (`ankle_sprain`): A stretch or tear of the ankle ligaments, usually the lateral ligaments after an inversion injury, with pain, swelling and bruising. | 18 to 80 | 0.6 | 50% | Apply the Ottawa ankle rules to decide on an X-ray, then rest, ice, compression and elevation with NSAIDs or paracetamol, early weight-bearing in a supportive brace and progressive physiotherapy exercises. Severe sprains may need a short period in a walking boot and review if instability persists. | 2 to 6 weeks (21 d) | 2, every 14 d, 3 h each |
+| **Acute coronary syndrome (heart attack)** (`acute_coronary_syndrome`): A sudden reduction of blood flow to the heart muscle, from a ruptured plaque and clot in a coronary artery, with crushing chest pain at rest spreading to the arm or jaw, sweating, nausea and breathlessness: unstable angina or a myocardial infarction. | 35 to 90 | 0.4 | 35% | Record an ECG within 10 minutes of arrival, give aspirin, pain relief and oxygen if saturation is low, and measure troponin; a heart attack with ST elevation goes for immediate angioplasty, others for anticoagulation and angiography within 24 to 72 hours. Start secondary prevention (antiplatelets, a statin, a beta-blocker and an ACE inhibitor) and refer to cardiac rehabilitation. | A hospital stay of 2 to 5 days, then cardiac rehabilitation over 6 to 12 weeks (60 d) | 3, every 28 d, 72 h the first, 3 h after; **urgent** |
 | **Kidney stones (renal colic)** (`renal_colic`): Severe colicky flank pain caused by a stone obstructing the ureter, radiating to the groin, often with nausea and blood in the urine. | 20 to 80 | 0.3 | 35% | Give an NSAID as first-line analgesia (opioid if contraindicated) and an antiemetic, confirm with non-contrast CT, and offer an alpha-blocker to help pass distal stones of 5 to 10 mm. Urgent decompression is needed if obstructed and infected; stones that do not pass are removed by ureteroscopy or shockwave lithotripsy, with follow-up imaging and prevention advice (fluids, diet). | Most small stones pass within 1 to 4 weeks (21 d) | 2, every 14 d, 8 h the first, 1 h after; **urgent** |
+| **Anaphylaxis (severe allergic reaction)** (`anaphylaxis`): A sudden, severe, life-threatening allergic reaction, most often to a food, an insect sting or a medicine, with swelling of the throat or tongue, difficulty breathing, wheeze, a rash and a fall in blood pressure. | 18 to 90 | 0.3 | 55% | Give intramuscular adrenaline at once, repeated after 5 minutes if needed, with high-flow oxygen, IV fluids for low blood pressure and nebulised bronchodilators for wheeze; antihistamines and steroids are secondary. Observe for at least 6 to 12 hours for a second reaction, prescribe two adrenaline auto-injectors with training, and refer to an allergy clinic to confirm the trigger. | Hours, with observation for 6 to 12 hours and an allergy clinic review within weeks (14 d) | 2, every 21 d, 12 h the first, 2 h after; **urgent** |
+| **Stroke** (`stroke`): A sudden loss of blood flow to part of the brain, from a clot (ischaemic) or a bleed (haemorrhagic), with weakness of the face, arm or leg on one side, slurred or lost speech, or loss of vision. | 40 to 90 | 0.3 | 50% | Treat as a time-critical emergency: a brain scan straight away, then clot-busting treatment within 4.5 hours of onset, or clot retrieval within 6 to 24 hours for a large-vessel blockage, if the scan shows no bleed. Admit to a stroke unit for monitoring, swallow assessment and early rehabilitation, then start antiplatelets, a statin and blood pressure control to prevent another. | A stroke unit stay of days to weeks, then rehabilitation over months (90 d) | 3, every 30 d, 72 h the first, 2 h after; **urgent** |
 | **Distal radius (wrist) fracture** (`distal_radius_fracture`): A break of the radius just above the wrist, typically from a fall on an outstretched hand, common in older adults with osteoporosis. | 18 to 90 | 0.2 | 70% | Confirm with X-ray, reduce displaced fractures under local or regional anaesthesia and immobilise in a cast or splint for about 6 weeks, with surgical fixation (usually a volar plate) for unstable fractures. Review in fracture clinic with repeat X-rays at 1 to 2 weeks, then physiotherapy after cast removal, and assess bone health in older patients. | 6 weeks in a cast, full recovery over 3 to 6 months (42 d) | 4, every 14 d, 4 h the first, 2 h after; **urgent** |
 | **Acute appendicitis** (`acute_appendicitis`): An acute inflammation of the appendix, with pain starting around the navel and moving to the right lower abdomen, loss of appetite, nausea and fever, which can perforate if untreated. | 18 to 80 | 0.1 | 50% | Keep nil by mouth, give IV fluids, analgesia and IV antibiotics, confirm with bloods and ultrasound or CT, then perform a laparoscopic appendicectomy; selected uncomplicated cases may be treated with antibiotics alone. Discharge after 1 to 3 days, with a wound review at 1 to 2 weeks and return to full activity over 2 to 4 weeks. | Surgery with a 1 to 3 day stay, recovery over 2 to 4 weeks (21 d) | 2, every 14 d, 48 h the first, 1 h after; **urgent** |
+
 
 ## Chronic conditions
 

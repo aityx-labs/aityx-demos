@@ -5,15 +5,20 @@ a Dart API and PostgreSQL, laid out like Mortgage Hub, Contact Hub and
 PokerFace so the same scripts, dev containers and launchers run it. For
 now the app is a map: the index, for someone not signed in, shows where
 they are with a welcome over it, and home, after signing in, is a
-dashboard whose one tile is the same map. What HealthHub does with
-[aityx.ai](https://aityx.ai) comes next.
+dashboard whose one tile is the same map, with the admissions under it.
+[aityx.ai](https://aityx.ai) triages every patient who arrives at a
+hospital from what they say at the desk: how soon they must be seen,
+where they go, whether a nurse checks first, and why. See
+[docs/aityx.md](docs/aityx.md) for what aityx does here, with sample
+cases, and [docs/aityx-triage-cases.md](docs/aityx-triage-cases.md) for
+every complaint triaged.
 
 ## Technology
 
 | Part | Technology |
 |---|---|
 | App ([healthhub_app/](healthhub_app)) | [Flutter](https://flutter.dev) (Dart): web, Android, iOS and Linux from one codebase |
-| API ([healthhub_api/](healthhub_api)) | Dart (`dart:io`) with the [postgres](https://pub.dev/packages/postgres) package: holds the [aityx](https://aityx.ai) key, talks to the database, serves `/api/hello` and `/api/health`, verifies Google sign-ins ([openid_client](https://pub.dev/packages/openid_client)) and passes the user's token on to the datyx API |
+| API ([healthhub_api/](healthhub_api)) | Dart (`dart:io`) with the [postgres](https://pub.dev/packages/postgres) package: holds the [aityx](https://aityx.ai) key and triages each admission with it, talks to the database, serves `/api/hello` and `/api/health`, verifies Google sign-ins ([openid_client](https://pub.dev/packages/openid_client)) and passes the user's token on to the datyx API |
 | Database | [PostgreSQL](https://www.postgresql.org) 17, the `postgres` service of [compose.yaml](compose.yaml); the API makes its own tables |
 | Message stream | [Apache Kafka](https://kafka.apache.org) 4.3, one node in KRaft mode (the `kafka` service), reached over HTTP through [Karapace](https://github.com/Aiven-Open/karapace)'s REST proxy (the `kafka-rest` service, Confluent REST Proxy v2 compatible). In dev mode the API streams a simulation of people moving across the map through it |
 | Stream processing | [Apache Flink](https://flink.apache.org) 2.2 (the `flink-jobmanager`, `flink-taskmanager` and `flink-sql` services): a SQL job that counts the admissions per hospital and simulated hour into a topic and a table, the time series a forecast is trained on |
@@ -32,7 +37,7 @@ PostgreSQL, Kafka and Flink are not in it: they run as containers, so
 2. Optionally put your [aityx](https://aityx.ai) key in `.env` (copy
    [.env.example](.env.example)): the same `AITYX_API_KEY` as Mortgage
    Hub's, for instance `grep '^AITYX_' ../MortgageHub/.env > .env`.
-   Nothing calls aityx yet; the app only reports whether the key is set.
+   Without one, admissions aren't triaged ([docs/aityx.md](docs/aityx.md)).
    The database's development password and port are in `.env.example`
    too, with defaults.
 3. From this folder:
@@ -186,7 +191,7 @@ Otherwise add it at
 [github.com/settings/codespaces](https://github.com/settings/codespaces)
 (**New secret**, name `AITYX_API_KEY`, access to
 `aityx-labs/aityx-demos`), or enter it when GitHub asks on the creation
-page. Nothing calls aityx yet, so the app works without it.
+page. Without it the app works, but admissions aren't triaged.
 
 The dev container adds Docker (the `docker-in-docker` feature) for the
 databases. On first start,

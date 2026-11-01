@@ -1,0 +1,477 @@
+{
+  "model": "jev-latest",
+  "questions": {
+    "life_threat_probability": {
+      "type": "noul",
+      "instructions": "Does state.complaint describe an immediate threat to the patient's life right now: choking or not breathing, swelling of the face, lips, tongue or throat, collapse or fainting with a racing heart, signs of shock (cold, clammy, grey), heavy bleeding that pours or spurts despite pressure, or crushing chest pain at rest with sweating, nausea or vomiting?",
+      "criteria": {
+        "true": "At least one of those signs is described as happening now.",
+        "false": "None of them is described. Breathlessness on effort, pain on its own, or a cut that oozes or bleeds through a dressing doesn't count."
+      }
+    },
+    "breathing_probability": {
+      "type": "noul",
+      "instructions": "Is the patient in state.complaint short of breath beyond their usual: breathless at rest, while talking, lying flat or waking up gasping at night; breathless walking across a room or getting dressed; wheezing or a reliever inhaler needed far more often than usual or no longer helping; a peak flow well below normal; lips turning blue; or an oxygen reading of 94 or below?",
+      "criteria": {
+        "true": "At least one of those signs, now or since it started.",
+        "false": "No breathing difficulty, or breathless only on stairs, hills or brisk walking as before, or a cough on its own."
+      }
+    },
+    "cardiac_probability": {
+      "type": "noul",
+      "instructions": "Does state.complaint describe chest pain or pressure that could come from the heart and is new, getting worse or happening at rest: heavy, squeezing or tight, in the middle of the chest, spreading to the arm, jaw or back; or a racing, irregular heartbeat with breathlessness, light-headedness or weakness?",
+      "criteria": {
+        "true": "Chest pain, pressure or palpitations of that kind, new, worse than before, or at rest.",
+        "false": "None; a burning after meals that rises into the throat, a chest sore from coughing, or a known angina that is stable and controlled at a booked review don't count."
+      }
+    },
+    "stroke_probability": {
+      "type": "noul",
+      "instructions": "Does state.complaint describe a sudden problem in the brain: weakness or numbness of the face, an arm or a leg, slurred or lost speech, sudden confusion, sudden loss of vision, a fit, or a sudden headache like a thunderclap, the worst ever?",
+      "criteria": {
+        "true": "A sudden sign of that kind is described.",
+        "false": "None; memory problems that came on slowly, or a usual migraine with its aura, don't count."
+      }
+    },
+    "major_injury_probability": {
+      "type": "noul",
+      "instructions": "Does state.complaint describe an injury that needs prompt treatment: a limb that looks broken or bent, a joint that can't be moved after a fall, a deep or gaping wound, a wound still bleeding, or a head injury?",
+      "criteria": {
+        "true": "An injury of that kind is described.",
+        "false": "No injury, or only a minor one: a twisted ankle the patient can still stand on, a bruise, a healed or healing wound."
+      }
+    },
+    "serious_infection_probability": {
+      "type": "noul",
+      "instructions": "Does state.complaint describe a serious infection: a fever the patient calls high (or 39 or above) with chills, shivers or rigors; shivering and burning up; a fever with confusion or breathlessness; a fever with pain in the side or back; or a red, hot, spreading area of skin with a fever or shivers?",
+      "criteria": {
+        "true": "A fever, or shivers, with at least one of those signs.",
+        "false": "No fever, a fever that has gone, or a mild or low fever with an ordinary cold, sore throat, cough or stomach upset."
+      }
+    },
+    "dehydration_probability": {
+      "type": "noul",
+      "instructions": "Is the patient in state.complaint dehydrated or at risk of it: vomiting or diarrhoea and unable to keep fluids down, passing very little urine, a dry mouth, or dizzy and faint when standing?",
+      "criteria": {
+        "true": "Vomiting or diarrhoea, or very little urine, together with one of those signs.",
+        "false": "No vomiting, diarrhoea or reduced urine, or the patient keeps fluids down and feels steady. Dizziness on standing without any fluid loss doesn't count."
+      }
+    },
+    "self_harm_probability": {
+      "type": "noul",
+      "instructions": "Does state.complaint mention thoughts of suicide, of harming themselves or of harming someone else, or a wish to die?",
+      "criteria": {
+        "true": "Such thoughts are mentioned as present.",
+        "false": "None are mentioned, or the patient says they don't want to hurt themselves; low mood or hopelessness alone doesn't count."
+      }
+    },
+    "pain": {
+      "type": "choice",
+      "instructions": "How bad is the worst pain state.complaint describes now, as the patient feels it today?",
+      "criteria": {
+        "severe": "Unbearable, agonising, the worst ever, can't keep still, or extreme pain (8 to 10 out of 10).",
+        "moderate": "Bad pain now that stops them from walking, swallowing, bearing weight, moving the part or sleeping, and painkillers barely help (5 to 7 out of 10).",
+        "mild": "An ache, soreness, stiffness or discomfort they can get on with, pain only on some activities, or a long-standing pain they live with (1 to 4 out of 10).",
+        "none": "No pain is described."
+      }
+    },
+    "onset": {
+      "type": "choice",
+      "instructions": "When did the problem state.complaint is about start, or last get worse?",
+      "criteria": {
+        "today": "Within the last 24 hours: this morning, last night, an hour ago.",
+        "this_week": "Between one and seven days ago.",
+        "longer": "More than a week ago, or a long-standing condition with nothing new."
+      }
+    },
+    "visit_purpose": {
+      "type": "choice",
+      "instructions": "Why has the patient in state.complaint come in today?",
+      "criteria": {
+        "new_problem": "A new problem, or the first visit for it.",
+        "worse": "They came before for the same problem and it is now clearly worse, or a new symptom has appeared since; symptoms that carry on, improve, or go more slowly than hoped are a follow_up.",
+        "follow_up": "A booked review, check-up, test result, scan, X-ray, wound check, stitches out or final check, including symptoms that carry on or improve slowly.",
+        "treatment_session": "A scheduled treatment session, such as dialysis, chemotherapy or an infusion."
+      }
+    },
+    "body_system": {
+      "type": "choice",
+      "instructions": "Which part of the body is state.complaint mainly about?",
+      "criteria": {
+        "breathing": "Lungs and airways: cough, breathlessness, wheeze, asthma, COPD, chest infection.",
+        "heart": "Heart and circulation: chest pain, palpitations, blood pressure, heart failure.",
+        "brain_nerves": "Brain and nerves: headache, stroke, fits, memory, numbness.",
+        "digestion": "Stomach and bowel: vomiting, diarrhoea, abdominal pain, reflux.",
+        "kidneys_urine": "Kidneys and bladder: urine infection, kidney stones, kidney disease, dialysis.",
+        "bones_joints": "Bones, joints, muscles and back: sprains, fractures, arthritis, back pain.",
+        "skin_wounds": "Skin and wounds: cuts, infections of the skin, rashes, swelling of the skin.",
+        "eyes_ears_throat": "Eyes, ears, nose and throat: sore throat, sinuses, ear or eye problems, colds.",
+        "mental_health": "Mood, anxiety, sleep, stress, thoughts.",
+        "hormones_metabolism": "Diabetes, thyroid, cholesterol, weight.",
+        "cancer": "Cancer and its treatment.",
+        "general": "Fever or feeling unwell all over, allergy, or nothing more specific."
+      }
+    }
+  },
+  "decision": {
+    "name": "HealthHub · Triage at the desk",
+    "types": {
+      "Level": "red|orange|yellow|green|blue",
+      "Area": "resuscitation|emergency|mental_health|minor_care|outpatients|day_unit"
+    },
+    "inputs": {
+      "age": {
+        "type": "number [0..120]",
+        "desc": "The patient's age in years",
+        "from": "the desk"
+      },
+      "life_threat_probability": {
+        "type": "number [0..1]",
+        "desc": "aityx probability: is the patient's life threatened right now?",
+        "from": "the questions"
+      },
+      "breathing_probability": {
+        "type": "number [0..1]",
+        "desc": "aityx probability: is the patient struggling to breathe now?",
+        "from": "the questions"
+      },
+      "cardiac_probability": {
+        "type": "number [0..1]",
+        "desc": "aityx probability: chest pain or palpitations that could come from the heart?",
+        "from": "the questions"
+      },
+      "stroke_probability": {
+        "type": "number [0..1]",
+        "desc": "aityx probability: a sudden sign of a stroke or another problem in the brain?",
+        "from": "the questions"
+      },
+      "major_injury_probability": {
+        "type": "number [0..1]",
+        "desc": "aityx probability: an injury that needs prompt treatment?",
+        "from": "the questions"
+      },
+      "serious_infection_probability": {
+        "type": "number [0..1]",
+        "desc": "aityx probability: a fever with signs of serious illness?",
+        "from": "the questions"
+      },
+      "dehydration_probability": {
+        "type": "number [0..1]",
+        "desc": "aityx probability: dehydrated, or at risk of it?",
+        "from": "the questions"
+      },
+      "self_harm_probability": {
+        "type": "number [0..1]",
+        "desc": "aityx probability: thoughts of suicide or of harming themselves or others?",
+        "from": "the questions"
+      },
+      "pain": {
+        "type": "severe|moderate|mild|none",
+        "desc": "aityx's choice: how bad the worst pain is now",
+        "from": "the questions"
+      },
+      "onset": {
+        "type": "today|this_week|longer",
+        "desc": "aityx's choice: when the problem started or last got worse",
+        "from": "the questions"
+      },
+      "visit_purpose": {
+        "type": "new_problem|worse|follow_up|treatment_session",
+        "desc": "aityx's choice: why the patient came in today",
+        "from": "the questions"
+      },
+      "body_system": {
+        "type": "breathing|heart|brain_nerves|digestion|kidneys_urine|bones_joints|skin_wounds|eyes_ears_throat|mental_health|hormones_metabolism|cancer|general",
+        "desc": "aityx's choice: which part of the body the complaint is mainly about",
+        "from": "the questions"
+      }
+    },
+    "decisions": {
+      "evidence": {
+        "type": "number [0..1]",
+        "desc": "The probability at or above which a danger sign counts as present",
+        "expr": "0.7"
+      },
+      "doubt": {
+        "type": "number [0..1]",
+        "desc": "The probability at or above which a danger sign not yet present is in doubt, for a nurse to check",
+        "expr": "0.35"
+      },
+      "life_threat": {
+        "type": "boolean",
+        "desc": "Is the patient's life threatened right now?",
+        "expr": "life_threat_probability >= evidence"
+      },
+      "breathing_difficulty": {
+        "type": "boolean",
+        "desc": "Is the patient struggling to breathe?",
+        "expr": "breathing_probability >= evidence"
+      },
+      "cardiac_pain": {
+        "type": "boolean",
+        "desc": "Chest pain or palpitations that could come from the heart?",
+        "expr": "cardiac_probability >= evidence"
+      },
+      "stroke_signs": {
+        "type": "boolean",
+        "desc": "A sudden sign of a stroke or another problem in the brain?",
+        "expr": "stroke_probability >= evidence"
+      },
+      "major_injury": {
+        "type": "boolean",
+        "desc": "An injury that needs prompt treatment?",
+        "expr": "major_injury_probability >= evidence"
+      },
+      "serious_infection": {
+        "type": "boolean",
+        "desc": "A fever with signs of serious illness?",
+        "expr": "serious_infection_probability >= evidence"
+      },
+      "dehydrated": {
+        "type": "boolean",
+        "desc": "Dehydrated, or at risk of it?",
+        "expr": "dehydration_probability >= evidence"
+      },
+      "self_harm_risk": {
+        "type": "boolean",
+        "desc": "Thoughts of suicide or of harming themselves or others?",
+        "expr": "self_harm_probability >= evidence"
+      },
+      "older": {
+        "type": "boolean",
+        "desc": "Is the patient 65 or older, when a fever can turn into sepsis fast?",
+        "expr": "age >= 65"
+      },
+      "recent": {
+        "type": "boolean",
+        "desc": "Did the problem start, or get worse, within the last week?",
+        "expr": "onset != \"longer\""
+      },
+      "level": {
+        "type": "Level",
+        "desc": "The triage level: how soon a clinician must see the patient",
+        "table": [
+          [
+            "life_threat",
+            "stroke_signs",
+            "breathing_difficulty",
+            "cardiac_pain",
+            "self_harm_risk",
+            "pain",
+            "serious_infection",
+            "major_injury",
+            "dehydrated",
+            "visit_purpose",
+            "recent",
+            "=>",
+            "# why"
+          ],
+          {
+            "when": {
+              "life_threat": "true"
+            },
+            "then": "red",
+            "why": "An immediate threat to life: seen at once, in resuscitation."
+          },
+          {
+            "when": {
+              "stroke_signs": "true"
+            },
+            "then": "orange",
+            "why": "Signs of a stroke or another sudden problem in the brain: every minute counts."
+          },
+          {
+            "when": {
+              "breathing_difficulty": "true"
+            },
+            "then": "orange",
+            "why": "Struggling to breathe at rest or while talking."
+          },
+          {
+            "when": {
+              "cardiac_pain": "true"
+            },
+            "then": "orange",
+            "why": "Chest pain or palpitations that may come from the heart, until a tracing says otherwise."
+          },
+          {
+            "when": {
+              "self_harm_risk": "true"
+            },
+            "then": "orange",
+            "why": "Thoughts of self-harm: seen within 10 minutes and not left alone."
+          },
+          {
+            "when": {
+              "pain": "severe"
+            },
+            "then": "orange",
+            "why": "Severe pain, which is treated within 10 minutes whatever its cause."
+          },
+          {
+            "when": {
+              "major_injury": "true"
+            },
+            "then": "yellow",
+            "why": "An injury that needs prompt treatment: a possible fracture, a deep wound or a head injury."
+          },
+          {
+            "when": {
+              "serious_infection": "true"
+            },
+            "then": "yellow",
+            "why": "A fever with signs of serious illness."
+          },
+          {
+            "when": {
+              "dehydrated": "true"
+            },
+            "then": "yellow",
+            "why": "Losing fluids faster than they can be kept down."
+          },
+          {
+            "when": {
+              "pain": "moderate"
+            },
+            "then": "yellow",
+            "why": "Moderate pain: it hurts to move, swallow or bear weight."
+          },
+          {
+            "when": {
+              "visit_purpose": "treatment_session"
+            },
+            "then": "blue",
+            "why": "A booked treatment session, with no danger signs: it goes to its unit for its slot."
+          },
+          {
+            "when": {
+              "visit_purpose": "follow_up"
+            },
+            "then": "blue",
+            "why": "A booked review or check, with no danger signs: seen at its appointment."
+          },
+          {
+            "when": {
+              "recent": "true"
+            },
+            "then": "green",
+            "why": "A new or recent problem with no danger signs."
+          },
+          {
+            "then": "blue",
+            "why": "A long-standing problem with no danger signs and nothing new."
+          }
+        ]
+      },
+      "wait_minutes": {
+        "type": "number",
+        "desc": "The longest the patient should wait to be seen, in minutes",
+        "table": [
+          [
+            "level",
+            "=> number",
+            "# why"
+          ],
+          [
+            "red",
+            "0",
+            "Immediate: seen at once."
+          ],
+          [
+            "orange",
+            "10",
+            "Very urgent: seen within 10 minutes."
+          ],
+          [
+            "yellow",
+            "60",
+            "Urgent: seen within an hour."
+          ],
+          [
+            "green",
+            "120",
+            "Standard: seen within two hours."
+          ],
+          [
+            "-",
+            "240",
+            "Non-urgent: seen within four hours, or at the appointment."
+          ]
+        ]
+      },
+      "area": {
+        "type": "Area",
+        "desc": "Where in the hospital the patient goes",
+        "table": [
+          [
+            "level",
+            "self_harm_risk",
+            "visit_purpose",
+            "body_system",
+            "recent",
+            "=>",
+            "# why"
+          ],
+          {
+            "when": {
+              "level": "red"
+            },
+            "then": "resuscitation",
+            "why": "Immediate threats to life go to the resuscitation room."
+          },
+          {
+            "when": {
+              "self_harm_risk": "true"
+            },
+            "then": "mental_health",
+            "why": "The mental health liaison team sees a patient at risk, in a safe room."
+          },
+          {
+            "when": {
+              "level": "orange, yellow"
+            },
+            "then": "emergency",
+            "why": "Very urgent and urgent patients are seen in the emergency department."
+          },
+          {
+            "when": {
+              "visit_purpose": "treatment_session"
+            },
+            "then": "day_unit",
+            "why": "Booked treatments, such as dialysis or chemotherapy, run in the day unit."
+          },
+          {
+            "when": {
+              "visit_purpose": "follow_up"
+            },
+            "then": "outpatients",
+            "why": "Booked reviews and checks are seen in the specialty's clinic."
+          },
+          {
+            "when": {
+              "body_system": "mental_health"
+            },
+            "then": "mental_health",
+            "why": "Low mood, anxiety and memory worries are seen by the mental health team."
+          },
+          {
+            "when": {
+              "recent": "false"
+            },
+            "then": "outpatients",
+            "why": "A long-standing problem with nothing new is booked into the specialty's clinic."
+          },
+          {
+            "then": "minor_care",
+            "why": "A recent problem with no danger signs goes to the minor illness and injury stream."
+          }
+        ]
+      },
+      "nurse_check": {
+        "type": "boolean",
+        "desc": "Is a danger sign in doubt, or a fever at 65 or older, so a nurse confirms the level before the patient waits?",
+        "expr": "(life_threat_probability >= doubt and not(life_threat)) or (breathing_probability >= doubt and not(breathing_difficulty)) or (cardiac_probability >= doubt and not(cardiac_pain)) or (stroke_probability >= doubt and not(stroke_signs)) or (major_injury_probability >= doubt and not(major_injury)) or (self_harm_probability >= doubt and not(self_harm_risk)) or (older and serious_infection_probability >= doubt)"
+      }
+    }
+  }
+}

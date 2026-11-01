@@ -1,0 +1,331 @@
+{
+ "answers": {
+  "life_threat_probability": {
+   "type": "noul",
+   "noul": 0.04
+  },
+  "breathing_probability": {
+   "type": "noul",
+   "noul": 0.12
+  },
+  "cardiac_probability": {
+   "type": "noul",
+   "noul": 0.08
+  },
+  "stroke_probability": {
+   "type": "noul",
+   "noul": 0.02
+  },
+  "major_injury_probability": {
+   "type": "noul",
+   "noul": 0.02
+  },
+  "serious_infection_probability": {
+   "type": "noul",
+   "noul": 0.93
+  },
+  "dehydration_probability": {
+   "type": "noul",
+   "noul": 0.11
+  },
+  "self_harm_probability": {
+   "type": "noul",
+   "noul": 0.01
+  },
+  "pain": {
+   "type": "choice",
+   "choice": "mild",
+   "confidence": 0.56,
+   "probabilities": {
+    "severe": 0.01,
+    "moderate": 0.32,
+    "mild": 0.67,
+    "none": 0
+   }
+  },
+  "onset": {
+   "type": "choice",
+   "choice": "this_week",
+   "confidence": 1,
+   "probabilities": {
+    "today": 0,
+    "this_week": 1,
+    "longer": 0
+   }
+  },
+  "visit_purpose": {
+   "type": "choice",
+   "choice": "new_problem",
+   "confidence": 0.96,
+   "probabilities": {
+    "new_problem": 0.97,
+    "worse": 0.03,
+    "follow_up": 0,
+    "treatment_session": 0
+   }
+  },
+  "body_system": {
+   "type": "choice",
+   "choice": "breathing",
+   "confidence": 1,
+   "probabilities": {
+    "breathing": 1,
+    "heart": 0,
+    "brain_nerves": 0,
+    "digestion": 0,
+    "kidneys_urine": 0,
+    "bones_joints": 0,
+    "skin_wounds": 0,
+    "eyes_ears_throat": 0,
+    "mental_health": 0,
+    "hormones_metabolism": 0,
+    "cancer": 0,
+    "general": 0
+   }
+  },
+  "evidence": {
+   "type": "number",
+   "number": 0.7,
+   "confidence": 1.0
+  },
+  "doubt": {
+   "type": "number",
+   "number": 0.35,
+   "confidence": 1.0
+  },
+  "life_threat": {
+   "type": "noul",
+   "noul": 0.0
+  },
+  "breathing_difficulty": {
+   "type": "noul",
+   "noul": 0.0
+  },
+  "cardiac_pain": {
+   "type": "noul",
+   "noul": 0.0
+  },
+  "stroke_signs": {
+   "type": "noul",
+   "noul": 0.0
+  },
+  "major_injury": {
+   "type": "noul",
+   "noul": 0.0
+  },
+  "serious_infection": {
+   "type": "noul",
+   "noul": 1.0
+  },
+  "dehydrated": {
+   "type": "noul",
+   "noul": 0.0
+  },
+  "self_harm_risk": {
+   "type": "noul",
+   "noul": 0.0
+  },
+  "older": {
+   "type": "noul",
+   "noul": 1.0
+  },
+  "recent": {
+   "type": "noul",
+   "noul": 1.0
+  },
+  "level": {
+   "type": "choice",
+   "choice": "yellow",
+   "confidence": 1.0,
+   "probabilities": {
+    "red": 0.0,
+    "orange": 0.0,
+    "yellow": 1.0,
+    "green": 0.0,
+    "blue": 0.0
+   }
+  },
+  "wait_minutes": {
+   "type": "number",
+   "number": 60,
+   "confidence": 1.0
+  },
+  "area": {
+   "type": "choice",
+   "choice": "emergency",
+   "confidence": 1.0,
+   "probabilities": {
+    "resuscitation": 0.0,
+    "emergency": 1.0,
+    "mental_health": 0.0,
+    "minor_care": 0.0,
+    "outpatients": 0.0,
+    "day_unit": 0.0
+   }
+  },
+  "nurse_check": {
+   "type": "noul",
+   "noul": 1.0
+  }
+ },
+ "receipt": {
+  "read": {
+   "life_threat_probability": {
+    "value": 0.04,
+    "source": "jev"
+   },
+   "breathing_probability": {
+    "value": 0.12,
+    "source": "jev"
+   },
+   "cardiac_probability": {
+    "value": 0.08,
+    "source": "jev"
+   },
+   "stroke_probability": {
+    "value": 0.02,
+    "source": "jev"
+   },
+   "major_injury_probability": {
+    "value": 0.02,
+    "source": "jev"
+   },
+   "serious_infection_probability": {
+    "value": 0.93,
+    "source": "jev"
+   },
+   "dehydration_probability": {
+    "value": 0.11,
+    "source": "jev"
+   },
+   "self_harm_probability": {
+    "value": 0.01,
+    "source": "jev"
+   },
+   "pain": {
+    "value": "mild",
+    "source": "jev"
+   },
+   "onset": {
+    "value": "this_week",
+    "source": "jev"
+   },
+   "visit_purpose": {
+    "value": "new_problem",
+    "source": "jev"
+   },
+   "body_system": {
+    "value": "breathing",
+    "source": "jev"
+   }
+  },
+  "provenance": {
+   "age": "state",
+   "life_threat_probability": "jev",
+   "breathing_probability": "jev",
+   "cardiac_probability": "jev",
+   "stroke_probability": "jev",
+   "major_injury_probability": "jev",
+   "serious_infection_probability": "jev",
+   "dehydration_probability": "jev",
+   "self_harm_probability": "jev",
+   "pain": "jev",
+   "onset": "jev",
+   "visit_purpose": "jev",
+   "body_system": "jev"
+  },
+  "decisions": {
+   "evidence": {
+    "value": 0.7
+   },
+   "doubt": {
+    "value": 0.35
+   },
+   "life_threat": {
+    "value": false
+   },
+   "breathing_difficulty": {
+    "value": false
+   },
+   "cardiac_pain": {
+    "value": false
+   },
+   "stroke_signs": {
+    "value": false
+   },
+   "major_injury": {
+    "value": false
+   },
+   "serious_infection": {
+    "value": true
+   },
+   "dehydrated": {
+    "value": false
+   },
+   "self_harm_risk": {
+    "value": false
+   },
+   "older": {
+    "value": true
+   },
+   "recent": {
+    "value": true
+   },
+   "level": {
+    "value": "yellow",
+    "rule": 8,
+    "rows": "xxxxxxxF....++",
+    "cells": [
+     "FTTTTTTTTTT",
+     "TFTTTTTTTTT",
+     "TTFTTTTTTTT",
+     "TTTFTTTTTTT",
+     "TTTTFTTTTTT",
+     "TTTTTFTTTTT",
+     "TTTTTTTFTTT",
+     "TTTTTTTTTTT",
+     "TTTTTTTTFTT",
+     "TTTTTFTTTTT",
+     "TTTTTTTTTFT",
+     "TTTTTTTTTFT",
+     "TTTTTTTTTTT",
+     "TTTTTTTTTTT"
+    ]
+   },
+   "wait_minutes": {
+    "value": 60,
+    "rule": 3,
+    "rows": "xxF.+",
+    "cells": [
+     "F",
+     "F",
+     "T",
+     "F",
+     "T"
+    ]
+   },
+   "area": {
+    "value": "emergency",
+    "rule": 3,
+    "rows": "xxF....+",
+    "cells": [
+     "FTTTT",
+     "TFTTT",
+     "TTTTT",
+     "TTFTT",
+     "TTFTT",
+     "TTTFT",
+     "TTTTF",
+     "TTTTT"
+    ]
+   },
+   "nurse_check": {
+    "value": true
+   }
+  }
+ },
+ "usage": {
+  "input_tokens": 4209,
+  "output_tokens": 1346
+ }
+}

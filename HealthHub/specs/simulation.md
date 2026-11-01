@@ -137,7 +137,10 @@ goes first.
 On arrival at the hospital the person says what is wrong: a template of
 the condition for the visit's kind, chosen at random among its three,
 with its placeholders replaced by the person's details
-([conditions.md](conditions.md#complaint-templates)). The arrival is an
+([conditions.md](conditions.md#complaint-templates)); `template` says
+which (0 to 2), so the complaint's reference triage level is known
+([Triage at the desk](triage.md)). A consumer reads an admission without
+it, from before, as valid. The arrival is an
 admission, published once to the Kafka topic `healthhub.admissions`,
 keyed by the person's id:
 
@@ -147,7 +150,7 @@ keyed by the person's id:
  "occupation": "teacher", "city": "Reus",
  "conditionCode": "influenza", "conditionName": "Influenza",
  "conditionType": "acute", "visit": "first", "visitNumber": 1,
- "complaint": "Hi, I'm Núria Puig Soler, 54...",
+ "complaint": "Hi, I'm Núria Puig Soler, 54...", "template": 0,
  "hospitalId": 42, "hospitalName": "Hospital Universitari de Sant Joan de Reus",
  "simTime": "09:09", "day": 4, "turn": 75}
 ```

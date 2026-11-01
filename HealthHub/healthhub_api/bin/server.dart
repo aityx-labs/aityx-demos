@@ -33,6 +33,15 @@
 ///                       recorded in the database, newest first (at most
 ///                       200), open to all; 503 when the database doesn't
 ///                       answer
+///   GET  /api/triage?limit=20
+///                       {"enabled", "summary", "triaged": [...]}: how
+///                       aityx has triaged the admissions so far, against
+///                       their reference levels, and the latest triages,
+///                       newest first (lib/triage.dart), open to all; 503
+///                       when the database doesn't answer
+///   GET  /api/triage/{eventId}
+///                       one admission's triage with aityx's receipt; 404
+///                       when it has none
 ///   GET  /api/auth/config  how to sign in: {"enabled", "issuer", "clientId"}
 ///   GET  /api/me        who the bearer token says is calling (lib/auth.dart);
 ///                       401 without a valid one once authentication is on
@@ -42,8 +51,10 @@
 ///                       person; 401 without a user, 502 when datyx is down
 ///
 /// Settings, from the environment (scripts/api.sh loads .env):
-///   AITYX_API_KEY         the key (secret); nothing calls aityx yet
+///   AITYX_API_KEY         the key (secret), which triages the admissions
 ///   AITYX_URL             aityx's base URL (default https://api.aityx.ai)
+///   HEALTHHUB_TRIAGE      on (the default, with a key) or off: whether
+///                         each admission is triaged with aityx
 ///   API_PORT              the port (default 9802)
 ///   HEALTHHUB_BIND_HOST   the address to bind (default 127.0.0.1)
 ///   ALLOWED_ORIGINS       comma-separated origins allowed by CORS
@@ -74,6 +85,7 @@ import 'package:healthhub_api/db.dart';
 import 'package:healthhub_api/kafka_rest.dart';
 import 'package:healthhub_api/routes.dart';
 import 'package:healthhub_api/simulation.dart';
+import 'package:healthhub_api/triage.dart';
 
 Future<void> main(List<String> args) async {
   if (args.firstOrNull == 'healthcheck') exit(await _healthcheck());
@@ -96,6 +108,12 @@ Future<void> main(List<String> args) async {
       .where((origin) => origin.isNotEmpty)
       .toSet();
   if (key.isEmpty) stderr.writeln('warning: AITYX_API_KEY is not set');
+  final triageSetting = (env['HEALTHHUB_TRIAGE'] ?? '').isEmpty ? 'on' : env['HEALTHHUB_TRIAGE']!;
+  if (triageSetting != 'on' && triageSetting != 'off') {
+    stderr.writeln('error: HEALTHHUB_TRIAGE must be on or off');
+    exit(1);
+  }
+  final aityx = Aityx(url, key);
 
   final db = Db(DbSettings.fromEnvironment());
   final auth = AuthSettings.fromEnvironment();
@@ -113,13 +131,13 @@ Future<void> main(List<String> args) async {
         ? 'http://127.0.0.1:9805'
         : env['HEALTHHUB_KAFKA_REST_URL']!,
   ));
-  final live = _Live(dev: mode == 'dev', kafka: kafka);
+  final live = _Live(dev: mode == 'dev', kafka: kafka, aityx: aityx, triage: triageSetting == 'on' && aityx.configured);
   final server = await HttpServer.bind(host, port);
   stdout.writeln(
     'healthhub_api on http://$host:$port (mode: $mode; aityx: ${url.host}; '
     'database: ${db.settings}; '
     'auth: ${auth.enabled ? 'on, ${auth.issuer}' : 'off'}; datyx: $datyx; '
-    'kafka: ${kafka.base})',
+    'kafka: ${kafka.base}; triage: ${live.triage ? 'on' : 'off'})',
   );
   // The tables, once the database answers: retried in the background, so
   // the server is up (and /api/health says db: false) meanwhile. The
@@ -140,13 +158,18 @@ Future<void> main(List<String> args) async {
 /// Kafka and, in dev mode, the simulation writing to it and the feed
 /// reading it back.
 class _Live {
-  _Live({required this.dev, required this.kafka});
+  _Live({required this.dev, required this.kafka, required this.aityx, required this.triage});
 
   final bool dev;
   final KafkaRest kafka;
+
+  /// aityx, which triages each admission recorded when [triage] is on.
+  final Aityx aityx;
+  final bool triage;
   Simulation? simulation;
   PeopleFeed? feed;
   AdmissionRecorder? recorder;
+  Triager? triager;
 
   /// Whether the REST proxy answered its last ping. /api/health reports
   /// this rather than pinging, so a hung proxy never slows the health
@@ -185,6 +208,12 @@ Future<void> _shutdown(HttpServer server, _Live live) async {
     await live.recorder?.idle.timeout(const Duration(seconds: 5));
   } catch (_) {}
   live.recorder?.stop();
+  // The triages under way, given a moment to finish and be recorded.
+  try {
+    await live.triager?.idle.timeout(const Duration(seconds: 5));
+  } catch (_) {}
+  live.triager?.stop();
+  live.aityx.close();
   live.kafka.close();
   await server.close(force: true);
   exit(0);
@@ -237,8 +266,20 @@ Future<void> _simulate(Db db, _Live live) async {
   if (conditionSeed.isEmpty) {
     stderr.writeln('simulation: no medical conditions, so nobody goes to the hospital');
   }
+  // Each admission recorded the first time is triaged with aityx, in the
+  // background; a triage the database can't record is logged and lost.
+  final triager = live.triage
+      ? live.triager = Triager((admission) async => db.recordTriage(await triageAdmission(live.aityx, admission)))
+      : null;
   // Bad data the database refuses is dropped, not retried forever.
-  final recorder = live.recorder = AdmissionRecorder(db.recordAdmission, isPermanent: Db.isPermanentError);
+  final recorder = live.recorder = AdmissionRecorder(
+    (admission) async {
+      final inserted = await db.recordAdmission(admission);
+      if (inserted) triager?.triage(admission);
+      return inserted;
+    },
+    isPermanent: Db.isPermanentError,
+  );
   final feed = live.feed = PeopleFeed(
     live.kafka,
     people: [for (final person in people) person.id],
@@ -304,6 +345,21 @@ Future<void> _handle(
         auth: auth,
         kafka: live.kafkaUp,
         simulation: live.simulation?.running ?? false,
+        triageEnabled: live.triage,
+      ),
+      ('GET', '/api/triage') => route(
+        method,
+        path,
+        query: request.uri.queryParameters,
+        auth: auth,
+        triageEnabled: live.triage,
+        triage: await _triage(db, request.uri.queryParameters),
+      ),
+      ('GET', _) when triageEventId(path) != null => route(
+        method,
+        path,
+        auth: auth,
+        triageDetail: await _triageOf(db, triageEventId(path)!),
       ),
       ('GET', '/api/events') => route(
         method,
@@ -390,6 +446,35 @@ Future<List<Map<String, Object?>>?> _admissions(Db db, Map<String, String> query
     return await db.latestAdmissions(limit: limit);
   } catch (error) {
     stderr.writeln('admissions: $error');
+    return null;
+  }
+}
+
+/// The summary of every triage and the latest [query] asks for (none for
+/// a limit that isn't one, which the route answers 400); null when the
+/// database doesn't answer (logged).
+Future<Map<String, Object?>?> _triage(Db db, Map<String, String> query) async {
+  final limit = admissionsLimitOf(query);
+  if (limit == null) return const {};
+  try {
+    return {'summary': await db.triageSummary(), 'triaged': await db.latestTriage(limit: limit)};
+  } catch (error) {
+    stderr.writeln('triage: $error');
+    return null;
+  }
+}
+
+/// One admission's triage, as the route wants it, with the rules of the
+/// level and area tables, so the app can show each rule tried up to the
+/// one that fired; null when the database doesn't answer (logged).
+Future<TriageLookup?> _triageOf(Db db, String eventId) async {
+  try {
+    final row = await db.triageOf(eventId);
+    return TriageLookup(
+      row == null ? null : {...row, 'rules': {'level': triageRules('level'), 'area': triageRules('area')}},
+    );
+  } catch (error) {
+    stderr.writeln('triage: $error');
     return null;
   }
 }

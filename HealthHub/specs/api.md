@@ -12,12 +12,14 @@ check, and the people feed for `/api/people` and `/api/events`:
 | Request | Answer |
 |---|---|
 | `GET /` | 302 to `/app/`, so a forwarded port's bare URL opens the app |
-| `GET /api/health` | `{"ok": true, "db": <whether the database answers SELECT 1>, "aityx": <whether the API has its key>, "auth": <whether authentication is on>, "kafka": <whether Kafka's REST proxy answers GET /topics with 200>, "simulation": <whether the people simulation runs>}`; `ok` is true whether or not the database or Kafka answer |
+| `GET /api/health` | `{"ok": true, "db": <whether the database answers SELECT 1>, "aityx": <whether the API has its key>, "auth": <whether authentication is on>, "kafka": <whether Kafka's REST proxy answers GET /topics with 200>, "simulation": <whether the people simulation runs>, "triage": <whether admissions are triaged with aityx>}`; `ok` is true whether or not the database or Kafka answer |
 | `GET /api/hello` | `{"message": "Hello, world", "since": <when the row was written, ISO 8601 UTC>, "postgres": <the server's version()>, "user": <the signed-in user's subject, email, name and picture, or null>}`, the first row of `greetings`; with a signed-in user the message is `Hello, <name>`; 503 `{"error": "the database is not answering"}` when it can't be read |
 | `GET /api/care-centers?bbox=west,south,east,north` | `{"centers": [...], "truncated": <whether there were more>}`, the care centers with a location in the area, hospitals first, at most 500 ([Care centers](care-centers.md)); open to everyone; 400 for a bbox that isn't one, 503 when the database doesn't answer |
 | `GET /api/people?bbox=west,south,east,north` | The simulated people ([Simulation](simulation.md)): `{"enabled": <dev mode>, "simTime": "HH:MM", "day": <from 1>, "people": [{"id", "name", "age", "city", "lat", "lon", "homeLat", "homeLon", "state", "mode", "hospitalName", "conditionName", "conditionType"}]}`, each person's latest move as read back from Kafka, only those who are, or whose home is, in the bbox when one is given (400 for a bbox that isn't one), and the time and day of the newest move of all; `simTime` and `day` are null until the first move arrives; in prod mode `{"enabled": false, "simTime": null, "day": null, "people": []}`; open to everyone |
 | `GET /api/events?limit=20&type=admission` | The latest moves and admissions the API read from the streams, merged newest first by arrival ([Simulation](simulation.md#the-stream)): `{"enabled": <dev mode>, "topic": "healthhub.people.moves", "topics": ["healthhub.people.moves", "healthhub.admissions"], "events": [...]}`. A move is `{"type": "move", "id", "name", "age", "city", "state", "mode", "conditionName", "conditionType", "hospitalName", "simTime", "day", "turn", "lat", "lon", "partition", "offset"}`; an admission is `{"type": "admission", "eventId", "personId", "id" (the person's id again, as a move has it), "name", "age", "sex", "occupation", "city", "conditionCode", "conditionName", "conditionType", "visit", "visitNumber", "complaint", "hospitalId", "hospitalName", "simTime", "day", "turn", "partition", "offset"}`. `type` (`admission` or `move`, else 400) keeps one kind; `limit` of them (20 unless asked, at most 100; 400 when not a positive number). The feed keeps the latest 100 of each kind apart, so admissions stay among the events however many moves follow. In prod mode `"enabled": false` and no events; open to everyone |
 | `GET /api/admissions?limit=20` | `{"admissions": [{"id", "eventId", "personId", "name", "age", "sex", "occupation", "city", "conditionCode", "conditionName", "conditionType", "visit", "visitNumber", "complaint", "hospitalId", "hospitalName", "day", "simTime", "recordedAt"}]}`: the latest admissions recorded in the database's `admissions` table, newest first, `limit` of them (20 unless asked, at most 200; 400 when not a positive number); in prod mode too, whatever a dev run recorded; open to everyone; 503 when the database doesn't answer |
+| `GET /api/triage?limit=20` | `{"enabled": <whether admissions are triaged>, "summary": {"total", "failed", "compared", "matched", "withinOne", "under", "over", "nurseChecks", "inputTokens", "medianMillis", "levels": {"red", "orange", "yellow", "green", "blue"}}, "triaged": [{"eventId", "name", "age", "sex", "city", "complaint", "conditionName", "conditionType", "visit", "visitNumber", "hospitalName", "day", "simTime", "level", "waitMinutes", "area", "nurseCheck", "levelRule", "levelWhy", "areaRule", "areaWhy", "signs", "choices", "reference", "error", "inputTokens", "millis", "triagedAt"}]}`: every triage counted, against the reference levels, and the latest, newest first, `limit` of them (as `/api/admissions`) ([Triage at the desk](triage.md)); open to everyone; 503 when the database doesn't answer |
+| `GET /api/triage/{eventId}` | One admission's triage as in the list, with `receipt`, aityx's, and `rules`, the `# why` of each rule of the `level` and `area` tables in order; 404 when it has none; open to everyone |
 | `GET /api/auth/config` | How to sign in: `{"enabled": <whether OIDC_CLIENT_ID is set>, "issuer": "https://accounts.google.com", "clientId": <the id, or null>}`; the app reads it at start |
 | `GET /api/me` | Who the bearer token says is calling: `{"authenticated": true, "subject", "email", "name", "picture"}`; 401 `{"error": "sign in first"}` without a valid token once authentication is on; `{"authenticated": false}` while it's off |
 | `GET /api/datyx/me`, `GET /api/datyx/datasources` | The datyx API's `/api/me` and `/api/datasources`, asked with the user's own token, so datyx sees the same person; the answer and its status pass through; 401 without a user once authentication is on, 502 `{"error": "the datyx API is not answering"}` when datyx doesn't answer |
@@ -25,8 +27,10 @@ check, and the people feed for `/api/people` and `/api/events`:
 | anything else | 404 `{"error": "not found"}` |
 
 The API reads from its environment `AITYX_API_KEY` and `AITYX_URL`
-(default `https://api.aityx.ai`, which must be https; nothing calls it
-yet), `API_PORT` (9802), `HEALTHHUB_BIND_HOST` (127.0.0.1),
+(default `https://api.aityx.ai`, which must be https), with which it
+triages each admission unless `HEALTHHUB_TRIAGE` is `off` (`on` by
+default; anything else stops the server; [Triage at the desk](triage.md)),
+`API_PORT` (9802), `HEALTHHUB_BIND_HOST` (127.0.0.1),
 `ALLOWED_ORIGINS` and the database settings `HEALTHHUB_DB_HOST`
 (127.0.0.1), `HEALTHHUB_DB_PORT` (9803), `HEALTHHUB_DB_NAME`,
 `HEALTHHUB_DB_USER` (both `healthhub`) and `HEALTHHUB_DB_PASSWORD`,
@@ -115,7 +119,6 @@ the proxy.
 
 ## Known limitations
 
-- Nothing calls aityx yet; the key is only reported as set or not.
 - Only the two datyx paths are forwarded; a general proxy isn't wanted.
 - One connection, no pool: enough for the hello world.
 - Every person publishes its own record each turn, one HTTP call each

@@ -50,6 +50,12 @@ const complaintPlaceholders = {
 /// How many templates each visit kind has.
 const templatesPerVisit = 3;
 
+/// The triage levels, most urgent first: immediate, very urgent, urgent,
+/// standard and non-urgent ([Triage at the desk](../../specs/triage.md)).
+/// Each template has one as its reference: the level a triage nurse
+/// applying HealthHub's triage policy gives what it says.
+const triageLevels = ['red', 'orange', 'yellow', 'green', 'blue'];
+
 /// The ages people are simulated at: adults.
 const minAdultAge = 18;
 const maxAdultAge = 90;
@@ -76,6 +82,9 @@ class MedicalCondition {
     required this.first,
     required this.repeat,
     required this.last,
+    required this.firstTriage,
+    required this.repeatTriage,
+    required this.lastTriage,
     this.femaleShare = 0.5,
     this.urgent = false,
     this.followUpStayHours,
@@ -92,6 +101,8 @@ class MedicalCondition {
     final visits = json['visits'] as Map;
     final templates = json['templates'] as Map;
     List<String> texts(String kind) => List.unmodifiable((templates[kind] as List).cast<String>());
+    final triage = json['triage'] as Map;
+    List<String> levels(String kind) => List.unmodifiable((triage[kind] as List).cast<String>());
     return MedicalCondition(
       code: json['code'] as String,
       name: (json['name'] as String).trim(),
@@ -109,6 +120,9 @@ class MedicalCondition {
       first: texts('first'),
       repeat: texts('repeat'),
       last: texts('last'),
+      firstTriage: levels('first'),
+      repeatTriage: levels('repeat'),
+      lastTriage: levels('last'),
       femaleShare: (json['female_share'] as num? ?? 0.5).toDouble(),
       urgent: json['urgent'] as bool? ?? false,
       followUpStayHours: json['follow_up_stay_hours'] as int?,
@@ -209,6 +223,21 @@ class MedicalCondition {
       final extra = templates.keys.where((k) => !VisitKind.values.any((v) => v.json == k));
       if (extra.isNotEmpty) found.add('"templates" has unknown kinds $extra');
     }
+
+    // Each template's reference triage level, in the templates' order.
+    final triage = json['triage'];
+    if (triage is! Map) {
+      found.add('"triage" is not an object');
+    } else {
+      for (final kind in VisitKind.values) {
+        final list = triage[kind.json];
+        if (list is! List || list.length != templatesPerVisit || list.any((l) => !triageLevels.contains(l))) {
+          found.add('"triage.${kind.json}" is not $templatesPerVisit of ${triageLevels.join(', ')}');
+        }
+      }
+      final extra = triage.keys.where((k) => !VisitKind.values.any((v) => v.json == k));
+      if (extra.isNotEmpty) found.add('"triage" has unknown kinds $extra');
+    }
     return found;
   }
 
@@ -274,6 +303,12 @@ class MedicalCondition {
   final List<String> repeat;
   final List<String> last;
 
+  /// Each template's reference triage level ([triageLevels]), in the
+  /// order of [first], [repeat] and [last].
+  final List<String> firstTriage;
+  final List<String> repeatTriage;
+  final List<String> lastTriage;
+
   bool get isChronic => type == 'chronic';
 
   /// The templates of [kind].
@@ -281,6 +316,13 @@ class MedicalCondition {
     VisitKind.first => first,
     VisitKind.repeat => repeat,
     VisitKind.last => last,
+  };
+
+  /// The reference triage levels of the templates of [kind].
+  List<String> triageOf(VisitKind kind) => switch (kind) {
+    VisitKind.first => firstTriage,
+    VisitKind.repeat => repeatTriage,
+    VisitKind.last => lastTriage,
   };
 
   /// How many hours a visit of [kind] lasts.

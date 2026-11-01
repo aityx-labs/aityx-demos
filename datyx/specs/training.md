@@ -96,7 +96,10 @@ the frequency and the horizon.
    how much it moved the predictions. The 25 highest scores of the series
    still observed, with their Target over the last horizon.
 6. The run keeps all of it as JSON (`results`) and the model, XGBoost's
-   UBJSON (`model`, for scoring later). What went wrong fails it with the
+   UBJSON (`model`), with what scoring needs to build features as it did
+   ([inference.md](inference.md)): the group as it was trained (`spec`),
+   its categories' codes (`categories`), and the features' names and
+   types in order. What went wrong fails it with the
    reason: the catalogue or the source unreachable, the group no longer
    ready, too few examples, XGBoost's native library missing.
 
@@ -210,7 +213,5 @@ trained end to end in the tests.
 - A series' end with missing rows as zero is its cohort's (all of its
   key but the last column): right for HealthHub's runs, a guess for a
   table whose last key column isn't the one within a cohort.
-- The model is kept but nothing serves it yet: its scores are the ones
-  made when it was trained.
 - With several API instances on one database, each would train: one
   instance only.

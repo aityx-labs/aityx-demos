@@ -2,6 +2,24 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-01: inference on the trained models, and its account
+
+Asked: an Inference panel on the dashboard, to account for inference
+calls and their statistics. (The panel is the dashboard's change.)
+
+Changed: `POST /api/datasources/{id}/inference` scores series named by
+their key, or all those still observed, with a group's latest model:
+`Inference` reads only those series and their cohort's end from the
+source, builds their features as training did, and predicts with the
+model loaded from the run (kept, the latest 8). Training runs now keep
+the group as trained, its categories' codes and the features with the
+model (`Dataset` codes by them when given, and gives every series'
+features at its end; `TableReader` reads series by key). Each call is
+kept in `inference_call` (V6); `GET /api/inference` answers the last 7
+days' account: totals, latency percentiles, per model, per hour, the
+latest calls. Secured like the rest. Tests; `inference.md`,
+`training.md`, `api.md`, README.
+
 ## 2026-11-01: XGBoost trained by a component started with the API
 
 Asked: in a separate component, started with the API, train XGBoost

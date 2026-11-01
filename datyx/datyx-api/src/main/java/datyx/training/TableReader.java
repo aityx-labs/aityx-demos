@@ -2,6 +2,7 @@ package datyx.training;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -11,8 +12,10 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 
 import datyx.catalog.SchemaReader;
 import datyx.catalog.TimeSeries;
@@ -53,6 +56,76 @@ final class TableReader {
 
     /** Adds every row of the group's table to {@code builder}; an IllegalArgumentException when there are too many. */
     static void read(DatabaseAccess access, TimeSeries.Spec spec, Dataset.Builder builder) throws SQLException {
+        try (Connection c = connect(access)) {
+            read(c, spec, builder);
+        }
+    }
+
+    /**
+     * Adds the rows of the series {@code keys} names (each the SeriesKey's
+     * values, in order) to {@code builder}, and tells it how far each one's
+     * cohort is observed: what inference needs, without the whole table.
+     */
+    static void read(DatabaseAccess access, TimeSeries.Spec spec, Dataset.Builder builder, List<List<String>> keys)
+            throws SQLException {
+        try (Connection c = connect(access)) {
+            read(c, spec, builder, keys);
+        }
+    }
+
+    static void read(Connection c, TimeSeries.Spec spec, Dataset.Builder builder, List<List<String>> keys)
+            throws SQLException {
+        if (keys.isEmpty()) {
+            return;
+        }
+        List<String> ors = new ArrayList<>();
+        for (int i = 0; i < keys.size(); i++) {
+            ors.add("(" + equal(spec.seriesKey()) + ")");
+        }
+        try (PreparedStatement s = c.prepareStatement(query(spec) + " WHERE " + String.join(" OR ", ors))) {
+            s.setQueryTimeout(60);
+            int p = 1;
+            for (List<String> key : keys) {
+                for (String v : key) {
+                    s.setString(p++, v);
+                }
+            }
+            try (ResultSet rs = s.executeQuery()) {
+                read(rs, spec, builder);
+            }
+        }
+        List<String> cohortColumns = spec.seriesKey().size() >= 2
+            ? spec.seriesKey().subList(0, spec.seriesKey().size() - 1) : List.of();
+        Set<List<String>> cohorts = new LinkedHashSet<>();
+        for (List<String> key : keys) {
+            cohorts.add(key.subList(0, cohortColumns.size()));
+        }
+        String latest = "SELECT max(" + quote(spec.timestamp()) + ") FROM " + quote(spec.schema()) + "." + quote(spec.name())
+            + (cohortColumns.isEmpty() ? "" : " WHERE " + equal(cohortColumns));
+        for (List<String> cohort : cohorts) {
+            try (PreparedStatement s = c.prepareStatement(latest)) {
+                s.setQueryTimeout(60);
+                for (int i = 0; i < cohort.size(); i++) {
+                    s.setString(i + 1, cohort.get(i));
+                }
+                try (ResultSet rs = s.executeQuery()) {
+                    if (rs.next()) {
+                        Long at = epochSecond(rs, rs.getMetaData().getColumnType(1));
+                        if (at != null) {
+                            builder.observedUntil(List.copyOf(cohort), at);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Each column equal to a value, compared as text so a key of any type takes a string. */
+    private static String equal(List<String> columns) {
+        return String.join(" AND ", columns.stream().map(k -> "CAST(" + quote(k) + " AS text) = ?").toList());
+    }
+
+    private static Connection connect(DatabaseAccess access) throws SQLException {
         Properties props = new Properties();
         if (access.username() != null) {
             props.setProperty("user", access.username());
@@ -64,9 +137,7 @@ final class TableReader {
         props.setProperty("socketTimeout", "600");
         props.setProperty("readOnly", "true");
         props.setProperty("ApplicationName", "datyx training");
-        try (Connection c = DriverManager.getConnection(SchemaReader.jdbcUrl(access), props)) {
-            read(c, spec, builder);
-        }
+        return DriverManager.getConnection(SchemaReader.jdbcUrl(access), props);
     }
 
     /** Reads the group's table on an open connection, streamed in a transaction it rolls back. */

@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import datyx.catalog.TimeSeries;
 import io.quarkus.runtime.annotations.RegisterForReflection;
 import ml.dmlc.xgboost4j.java.Booster;
 import ml.dmlc.xgboost4j.java.DMatrix;
@@ -48,9 +49,15 @@ public final class XgbTrainer {
     public record Score(Map<String, String> series, double predicted, double last) {
     }
 
+    /**
+     * What a run found, and what inference needs to use its model: the group
+     * as it was trained ({@code spec}), the categories' codes, and the
+     * features in order.
+     */
     @RegisterForReflection
     public record Result(Dataset.Summary dataset, Map<String, Object> params, int bestIteration, Metrics test,
-            List<Importance> importance, List<Score> scores) {
+            List<Importance> importance, List<Score> scores, TimeSeries.Spec spec,
+            Map<String, Map<String, Integer>> categories, List<String> features, List<String> featureTypes) {
     }
 
     /** What training answers: the result to keep, and the model. */
@@ -98,7 +105,8 @@ public final class XgbTrainer {
             List<Score> scores = scores(data, booster);
             byte[] model = booster.toByteArray("ubj");
             booster.dispose();
-            return new Trained(new Result(data.summary, params, bestIteration, metrics, importance, scores), model);
+            return new Trained(new Result(data.summary, params, bestIteration, metrics, importance, scores, data.spec,
+                data.categories, data.featureNames, List.of(data.featureTypes)), model);
         } finally {
             train.dispose();
             if (valid != null) {

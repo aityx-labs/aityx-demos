@@ -58,8 +58,8 @@ public final class Dataset {
     public record Part(float[] features, float[] labels, double[] naive, int rows) {
     }
 
-    /** A series scored at its end: its key's values, its features, and its Target over the last horizon. */
-    public record Scored(Map<String, String> series, float[] features, double last) {
+    /** A series scored at its end (a step): its key's values, its features, and its Target over the last horizon. */
+    public record Scored(Map<String, String> series, float[] features, double last, long end) {
     }
 
     @RegisterForReflection
@@ -76,8 +76,16 @@ public final class Dataset {
     public final List<Scored> scored;
     public final Summary summary;
 
-    private Dataset(List<String> featureNames, String[] featureTypes, Part train, Part valid, Part test,
-            List<Scored> scored, Summary summary) {
+    /** The group as it was read: what a model trained on it was trained with, and inference rebuilds. */
+    public final TimeSeries.Spec spec;
+
+    /** Each StaticCategorical column's codes, by value: kept with a model, so inference codes as training did. */
+    public final Map<String, Map<String, Integer>> categories;
+
+    private Dataset(TimeSeries.Spec spec, Map<String, Map<String, Integer>> categories, List<String> featureNames,
+            String[] featureTypes, Part train, Part valid, Part test, List<Scored> scored, Summary summary) {
+        this.spec = spec;
+        this.categories = categories;
         this.featureNames = featureNames;
         this.featureTypes = featureTypes;
         this.train = train;
@@ -97,11 +105,28 @@ public final class Dataset {
         private final int horizon;
         private final boolean zero;
         private final Map<List<String>, Series> series = new LinkedHashMap<>();
+        private final Map<String, Map<String, Integer>> categories = new LinkedHashMap<>();
+        private final boolean frozen;
+        private final Map<List<String>, Long> observedUntil = new HashMap<>();
         private int rows;
 
         /** An IllegalArgumentException says why the frequency or horizon can't be trained on. */
         public Builder(TimeSeries.Spec spec) {
+            this(spec, null);
+        }
+
+        /**
+         * A builder that codes categories as {@code categories} says, as a
+         * model was trained (a value it didn't see is missing), or by first
+         * appearance when null.
+         */
+        public Builder(TimeSeries.Spec spec, Map<String, Map<String, Integer>> categories) {
             this.spec = spec;
+            this.frozen = categories != null;
+            for (String c : spec.staticCategorical()) {
+                Map<String, Integer> known = categories == null ? null : categories.get(c);
+                this.categories.put(c, known == null ? new LinkedHashMap<>() : new LinkedHashMap<>(known));
+            }
             this.frequency = Span.parse(spec.frequency());
             if (frequency == null) {
                 throw new IllegalArgumentException("the trainer steps by a fixed span (such as 15min, 1h, 1D or 1W), not "
@@ -137,15 +162,88 @@ public final class Dataset {
             return rows;
         }
 
+        /**
+         * Says the cohort of a series (its key but the last column) was
+         * observed until a time its rows read here may not reach: inference
+         * reads only the series it scores, and a series ends with its cohort.
+         */
+        public void observedUntil(List<String> cohort, long epochSecond) {
+            observedUntil.merge(cohort, Math.floorDiv(epochSecond, step), Math::max);
+        }
+
+        /** Each cohort's end: its series' latest step, or later when {@link #observedUntil} says so. */
+        private Map<List<String>, Long> cohortEnds() {
+            Map<List<String>, Long> ends = new HashMap<>(observedUntil);
+            for (Map.Entry<List<String>, Series> e : series.entrySet()) {
+                ends.merge(cohort(e.getKey()), e.getValue().steps.lastKey(), Math::max);
+            }
+            return ends;
+        }
+
+        private int[] windows() {
+            return new TreeSet<>(List.of(1, horizon, 3 * horizon, 12 * horizon)).stream().mapToInt(Integer::intValue).toArray();
+        }
+
+        /** The static features of a series: its categories coded, then its numbers. */
+        private float[] fixed(Series s) {
+            float[] fixed = new float[spec.staticCategorical().size() + spec.staticReal().size()];
+            for (int i = 0; i < spec.staticCategorical().size(); i++) {
+                String v = s.categories[i];
+                Map<String, Integer> m = categories.get(spec.staticCategorical().get(i));
+                Integer code = v == null ? null : (frozen ? m.get(v) : m.computeIfAbsent(v, x -> m.size()));
+                fixed[i] = code == null ? Float.NaN : code;
+            }
+            for (int i = 0; i < spec.staticReal().size(); i++) {
+                fixed[spec.staticCategorical().size() + i] = (float) s.reals[i];
+            }
+            return fixed;
+        }
+
+        private Map<String, String> key(List<String> values) {
+            Map<String, String> key = new LinkedHashMap<>();
+            for (int k = 0; k < spec.seriesKey().size(); k++) {
+                key.put(spec.seriesKey().get(k), values.get(k));
+            }
+            return key;
+        }
+
+        /**
+         * Every series' features at its end (its cohort's, with missing rows
+         * as zero), and its Target over the last horizon: what a model
+         * scores. No minimum of data: a series of one row is scored too.
+         */
+        public List<Scored> atEnd() {
+            Map<List<String>, Long> cohortEnds = cohortEnds();
+            int[] windows = windows();
+            int nPast = spec.pastCovariates().size();
+            int nKnown = spec.knownCovariates().size();
+            int nFeatures = featureCount(windows);
+            List<Scored> scored = new ArrayList<>();
+            for (Map.Entry<List<String>, Series> e : series.entrySet()) {
+                Series s = e.getValue();
+                long start = s.steps.firstKey();
+                long end = zero ? cohortEnds.get(cohort(e.getKey())) : s.steps.lastKey();
+                float[] fixed = fixed(s);
+                Dense d = new Dense(e.getKey(), s, start, end);
+                d.fill(zero, 1 + nPast + nKnown);
+                int i = (int) (end - start);
+                scored.add(new Scored(key(e.getKey()), features(d, i, fixed, windows, nPast, nKnown, nFeatures, false),
+                    d.sum(0, i - horizon + 1, i), end));
+            }
+            return scored;
+        }
+
+        private int featureCount(int[] windows) {
+            return spec.staticCategorical().size() + spec.staticReal().size() + 2
+                + (1 + spec.pastCovariates().size()) * windows.length + spec.knownCovariates().size();
+        }
+
         /** The dataset; an IllegalArgumentException says why there's too little to train on, or too much. */
         public Dataset build() {
             if (series.isEmpty()) {
                 throw new IllegalArgumentException("the table has no rows to train on");
             }
-            Map<List<String>, Long> cohortEnds = new HashMap<>();
-            for (Map.Entry<List<String>, Series> e : series.entrySet()) {
-                cohortEnds.merge(cohort(e.getKey()), e.getValue().steps.lastKey(), Math::max);
-            }
+            Map<List<String>, Long> cohortEnds = cohortEnds();
             long latest = Long.MIN_VALUE;
             long totalSteps = 0;
             List<Dense> dense = new ArrayList<>();
@@ -161,8 +259,7 @@ public final class Dataset {
                 latest = Math.max(latest, end);
                 dense.add(new Dense(e.getKey(), s, start, end));
             }
-            TreeSet<Integer> windowSet = new TreeSet<>(List.of(1, horizon, 3 * horizon, 12 * horizon));
-            int[] windows = windowSet.stream().mapToInt(Integer::intValue).toArray();
+            int[] windows = windows();
             int nPast = spec.pastCovariates().size();
             int nKnown = spec.knownCovariates().size();
 
@@ -195,12 +292,6 @@ public final class Dataset {
             }
             int nFeatures = names.size();
 
-            // Categories as codes, by first appearance, per column.
-            List<Map<String, Integer>> codes = new ArrayList<>();
-            for (int i = 0; i < spec.staticCategorical().size(); i++) {
-                codes.add(new HashMap<>());
-            }
-
             int stride = Math.max(1, horizon / 4);
             long count = 0;
             for (Dense d : dense) {
@@ -213,15 +304,7 @@ public final class Dataset {
             List<Example> examples = new ArrayList<>();
             List<Scored> scored = new ArrayList<>();
             for (Dense d : dense) {
-                float[] fixed = new float[spec.staticCategorical().size() + spec.staticReal().size()];
-                for (int i = 0; i < spec.staticCategorical().size(); i++) {
-                    String v = d.series.categories[i];
-                    Map<String, Integer> m = codes.get(i);
-                    fixed[i] = v == null ? Float.NaN : m.computeIfAbsent(v, x -> m.size());
-                }
-                for (int i = 0; i < spec.staticReal().size(); i++) {
-                    fixed[spec.staticCategorical().size() + i] = (float) d.series.reals[i];
-                }
+                float[] fixed = fixed(d.series);
                 d.fill(zero, 1 + nPast + nKnown);
                 for (long c = d.end - horizon; c >= d.start; c -= stride) {
                     int i = (int) (c - d.start);
@@ -233,12 +316,8 @@ public final class Dataset {
                 }
                 if (d.end == latest) {
                     int i = (int) (d.end - d.start);
-                    Map<String, String> key = new LinkedHashMap<>();
-                    for (int k = 0; k < spec.seriesKey().size(); k++) {
-                        key.put(spec.seriesKey().get(k), d.key.get(k));
-                    }
-                    scored.add(new Scored(key, features(d, i, fixed, windows, nPast, nKnown, nFeatures, false),
-                        d.sum(0, i - horizon + 1, i)));
+                    scored.add(new Scored(key(d.key), features(d, i, fixed, windows, nPast, nKnown, nFeatures, false),
+                        d.sum(0, i - horizon + 1, i), d.end));
                 }
             }
 
@@ -269,8 +348,10 @@ public final class Dataset {
             Summary summary = new Summary(rows, series.size(), totalSteps, examples.size(), tr.size(), va.size(), te.size(),
                 stride, nFeatures, frequency.toString(), horizonSpan.toString(), time(times[0] + 1),
                 time(times[times.length - 1] + 1), time(latest + 1), scored.size());
-            return new Dataset(List.copyOf(names), types.toArray(String[]::new), part(tr, nFeatures), part(va, nFeatures),
-                part(te, nFeatures), scored, summary);
+            Map<String, Map<String, Integer>> codes = new LinkedHashMap<>();
+            categories.forEach((column, m) -> codes.put(column, Map.copyOf(m)));
+            return new Dataset(spec, codes, List.copyOf(names), types.toArray(String[]::new), part(tr, nFeatures),
+                part(va, nFeatures), part(te, nFeatures), scored, summary);
         }
 
         private long cutoffs(Dense d, int stride) {

@@ -12,7 +12,8 @@ a folder of its own) only calls it.
 - Hibernate ORM with Panache on PostgreSQL (the `datyx` database, user
   `datyx`), and Flyway for the schema: the migrations in `db/migration`
   (`V1__data_sources.sql`, `V2__profiles_and_encrypted_access.sql`,
-  `V3__drop_hibernate_unique_name.sql`, `V4__kafka_sources.sql`, `V5__training_runs.sql`)
+  `V3__drop_hibernate_unique_name.sql`, `V4__kafka_sources.sql`, `V5__training_runs.sql`,
+  `V6__inference_calls.sql`)
   run at every start in every profile (a fresh database, under Docker
   alone or a jar or native build, gets its tables), tests and the dev
   profile clean the schema first (`clean-at-start`: every start drops
@@ -78,6 +79,8 @@ a folder of its own) only calls it.
   see [catalog.md](catalog.md).
 - `/api/training`, `/api/training/runs/{id}` and
   `/api/datasources/{id}/training`: see [training.md](training.md).
+- `/api/inference` and `/api/datasources/{id}/inference`: see
+  [inference.md](inference.md).
 - `/api/auth/config` and `/api/me`: see [auth.md](auth.md).
 - `/api/profile`: see [profiles.md](profiles.md).
 
@@ -87,6 +90,7 @@ a folder of its own) only calls it.
 - `Profile` (table `profile`) and `ProfileIdentity` (`profile_identity`):
   see [profiles.md](profiles.md).
 - `TrainingRun` (table `training_run`): see [training.md](training.md).
+- `InferenceCall` (table `inference_call`): see [inference.md](inference.md).
 
 ## Settings
 
@@ -114,7 +118,8 @@ Services and Keycloak Dev Services are off.
 `DataSourceResourceTest` ([data-sources.md](data-sources.md)),
 `AuthOffTest` and `AuthOnTest` ([auth.md](auth.md)), `CatalogResourceTest`,
 `StreamReaderTest` and `TimeSeriesTest` ([catalog.md](catalog.md)), `XgbTrainerTest` and
-`TrainingTest` ([training.md](training.md)), `ProfileTest` and
+`TrainingTest` ([training.md](training.md)), `InferenceTest`
+([inference.md](inference.md)), `ProfileTest` and
 `CryptoTest` ([profiles.md](profiles.md)), and `DevDataTest`, which adds
 `db/devdata` to the test's locations and reads the HealthHub data source
 back through the API.

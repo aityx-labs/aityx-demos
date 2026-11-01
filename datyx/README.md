@@ -114,6 +114,11 @@ OpenAPI, and a REST client for OpenMetadata.
   trains a group now, `PUT` sets how often. XGBoost4J needs an OpenMP
   runtime: `brew install libomp` on macOS. See
   [specs/training.md](specs/training.md).
+- `/api/inference`: the account of the calls to the trained models over
+  the last 7 days (totals, latency percentiles, per model, per hour, the
+  latest calls); `POST /api/datasources/{id}/inference` scores series by
+  their key, or all those still observed. See
+  [specs/inference.md](specs/inference.md).
 - `/api/profile`: the caller's profile, made the first time an identity
   signs in, which owns their data sources and holds a key of its own:
   the access details of its sources are encrypted with it at rest, the

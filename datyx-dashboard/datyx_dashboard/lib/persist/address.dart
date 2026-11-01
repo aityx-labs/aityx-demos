@@ -11,4 +11,10 @@ abstract final class Address {
 
   /// Puts [tab] in the address, in place: no new history entry.
   static void showTab(String tab) => impl.replaceQuery({'tab': tab});
+
+  /// Opens [url] in a new browser tab, without access back to this page.
+  static void open(Uri url) => impl.openTab(url.toString());
+
+  /// This page's own address: the dashboard, without its query or route.
+  static Uri get page => Uri(scheme: Uri.base.scheme, host: Uri.base.host, port: Uri.base.port, path: Uri.base.path);
 }

@@ -4,7 +4,7 @@ import 'dart:ui' show Color;
 import 'model.dart';
 
 const _names = [
-  'Spinner', 'Charger', 'Sniper', 'Dodger', 'Rammer', 'Sweeper', //
+  'Spinner', 'Charger', 'Marksman', 'Dodger', 'Rammer', 'Sweeper', //
   'Circler', 'Hunter', 'Coward', 'Jitter', 'Turret', 'Wallflower',
   'Stalker', 'Brawler', 'Drifter', 'Gunner', 'Ghost', 'Tornado',
   'Bulldog', 'Hornet', 'Viper', 'Mantis', 'Rhino', 'Falcon',

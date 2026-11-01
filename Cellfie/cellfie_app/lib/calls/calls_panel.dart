@@ -91,11 +91,16 @@ class CallsPanel extends StatefulWidget {
     super.key,
     required this.calls,
     required this.notes,
+    this.status,
     this.onClear,
   });
 
   final List<CallRecord> calls;
   final List<PatternNote> notes;
+
+  /// Where the board stands, under the title: the generation, the cells,
+  /// and how aityx answered the last one.
+  final String? status;
   final VoidCallback? onClear;
 
   @override
@@ -193,6 +198,16 @@ class _CallsPanelState extends State<CallsPanel> {
             ],
           ),
         ),
+        if (widget.status case final status?)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text(
+              status,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
         Expanded(
           child: calls.isEmpty && notes.isEmpty
               ? Center(

@@ -34,6 +34,32 @@ void main() {
     minutesPerTurn: minutesPerTurn,
   );
 
+  test('only the high-risk are monitored: the old, the pregnant, some chronic conditions', () {
+    Profile aged(int age) => Profile(firstName: 'Núria', lastName: 'Puig Soler', age: age, sex: 'woman', occupation: 'teacher');
+    MedicalCondition chronic(String code, String name) => MedicalCondition(
+      code: code, name: name, type: 'chronic', prevalence: 1, minAge: 18, maxAge: 90, summary: 's', treatment: 't',
+      treatmentDurationDays: null, duration: 'd', visitCount: 1, visitIntervalDays: 30, stayHours: 2,
+      first: const ['a', 'b', 'c'], repeat: const ['a', 'b', 'c'], last: const ['a', 'b', 'c'],
+      firstTriage: const ['green', 'green', 'green'], repeatTriage: const ['green', 'green', 'green'],
+      lastTriage: const ['green', 'green', 'green'],
+    );
+    expect(person().monitoredFor, isNull);
+    expect(person().monitored, false);
+    expect(person(who: aged(79)).monitoredFor, isNull);
+    expect(person(who: aged(84)).monitoredFor, 'aged 84');
+    final pregnant = Person(
+      id: 'reus-2', city: 'Reus', home: nearHome, hospital: reusHospital, profile: aged(31), minutesPerTurn: 60, pregnant: true,
+    );
+    expect((pregnant.monitored, pregnant.monitoredFor), (true, 'pregnant'));
+    final depressed = person()..giveChronic(chronic('major_depressive_disorder', 'Major depressive disorder'), 1, Random(1));
+    expect(depressed.monitoredFor, 'Major depressive disorder');
+    final failing = person()..giveChronic(chronic('heart_failure', 'Heart failure'), 1, Random(1));
+    expect(failing.monitoredFor, 'Heart failure');
+    // Anxiety, or hypertension, isn't high-risk enough.
+    expect((person()..giveChronic(chronic('generalized_anxiety_disorder', 'Anxiety'), 1, Random(1))).monitored, false);
+    expect((person()..giveChronic(chronic('hypertension', 'Hypertension'), 1, Random(1))).monitored, false);
+  });
+
   /// Runs [p] for [turns] turns from [from], returning each admission with
   /// its turn.
   List<(int, Map<String, Object?>)> run(
@@ -291,6 +317,43 @@ void main() {
       expect(cold.stayHoursOf(VisitKind.repeat), cold.stayHours);
     });
 
+    test('each visit goes to the care center its setting needs, travelling by its distance', () {
+      // A pneumonia: admitted at the hospital, about 20 km away by car;
+      // checked after at the health station near home, on foot.
+      const cap = Place(id: 12, name: 'CAP Horts de Miró', kind: 'health_station', city: 'Reus', at: LatLon(41.2655, 0.9070));
+      final pneumonia = condition('pneumonia', 'acute',
+          count: 2, interval: 7, stay: 24, followUpStay: 1, urgent: true, followUpSetting: CareSetting.primary);
+      final p = Person(
+        id: 'reus-1',
+        city: 'Reus',
+        home: farHome,
+        hospital: reusHospital,
+        careCenters: const {CareSetting.primary: cap},
+        profile: profile,
+        minutesPerTurn: 60,
+      )..beginAcute(pneumonia, dayStart(2) + 10 * 60, Random(9));
+      final random = Random(9);
+      final visits = <(Map<String, Object?>, TravelMode)>[];
+      for (var turn = 0; turn < 24 * 30 && visits.length < 2; turn++) {
+        final a = advance(p, turn: turn, minutesPerTurn: 60, random: random, conditions: const [], run: 'r1');
+        if (a != null) visits.add((a, p.mode));
+      }
+      final [(first, firstMode), (second, secondMode)] = visits;
+      expect((first['hospitalId'], first['careCenterKind'], firstMode), (7, 'hospital', TravelMode.car));
+      expect((second['hospitalId'], second['hospitalName'], second['careCenterKind'], secondMode),
+          (12, 'CAP Horts de Miró', 'health_station', TravelMode.walk));
+      // At the health station the moves name it; home again, the hospital.
+      expect((p.record(0, 60)['value'] as Map)['careCenterKind'], 'health_station');
+      for (var turn = 24 * 30; p.state != PersonState.home; turn++) {
+        advance(p, turn: turn, minutesPerTurn: 60, random: random, conditions: const [], run: 'r1');
+      }
+      final home = p.record(0, 60)['value'] as Map;
+      expect((home['hospitalId'], home['careCenterKind']), (7, 'hospital'));
+      expect(pneumonia.settingOf(VisitKind.first), CareSetting.hospital);
+      expect(pneumonia.settingOf(VisitKind.last), CareSetting.primary);
+      expect(cold.settingOf(VisitKind.repeat), CareSetting.hospital);
+    });
+
     test('an urgent first visit is made at night, at once', () {
       final renalColic = condition('renal_colic', 'acute', count: 2, interval: 14, stay: 8, urgent: true);
       // The pain starts at 02:30 on day 3.
@@ -399,8 +462,10 @@ void main() {
       'visit',
       'visitNumber',
       'complaint',
+      'template',
       'hospitalId',
       'hospitalName',
+      'careCenterKind',
       'simTime',
       'day',
       'turn',
@@ -419,7 +484,15 @@ void main() {
       flu.first.map((t) => renderComplaint(t, complaintValues(p, visitNumber: 1, daysSinceFirstVisit: 0))),
       contains(admission['complaint']),
     );
+    // Which template it was said from, so its reference triage is known.
+    final template = admission['template'] as int;
+    expect(
+      renderComplaint(flu.first[template], complaintValues(p, visitNumber: 1, daysSinceFirstVisit: 0)),
+      admission['complaint'],
+    );
     expect(PeopleFeed.isAdmission(admission), true);
+    expect(PeopleFeed.isAdmission({...admission, 'template': 3}), false);
+    expect(PeopleFeed.isAdmission({...admission}..remove('template')), true);
     Map<String, Object?> of(String run) => admissionEvent(
       p,
       condition: flu,
@@ -463,7 +536,8 @@ void main() {
       'homeLat': 41.2,
       'homeLon': 1.2,
       'hospitalName': 'H',
-      'state': 'home',
+      // On the way home: every such move is an event.
+      'state': 'to_home',
       'simTime': '06:00',
       'day': 1,
       'turn': turn,

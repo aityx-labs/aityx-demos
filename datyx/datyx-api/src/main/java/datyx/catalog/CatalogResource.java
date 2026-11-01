@@ -1,20 +1,25 @@
 package datyx.catalog;
 
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import datyx.auth.CurrentUser;
 import datyx.crypto.Crypto;
 import datyx.datasource.AccessCodec;
 import datyx.datasource.DataSource;
 import datyx.datasource.DataSource.Access;
 import datyx.profile.Profile;
 import datyx.profile.Profiles;
+import datyx.training.Training;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
@@ -25,6 +30,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -40,10 +46,15 @@ import org.jboss.logging.Logger;
  * cluster's topics, each with its settings and its records' fields;
  * GET /api/datasources/{id}/timeseries answers each group of TimeSeries
  * roles a table's columns are tagged with, read as a time series
- * (TimeSeries.Spec);
- * PUT /api/datasources/{id}/timeseries sets one group's roles in a
- * table, and the table's frequency and missing rows, and answers the
- * group's spec.
+ * (TimeSeries.Spec), or with ?algorithm=XGBoost only the groups that
+ * algorithm trains: what a trainer looks for;
+ * PUT /api/datasources/{id}/timeseries sets one group's roles and
+ * algorithms in a table, and the table's frequency, missing rows and
+ * horizon, and answers the group's spec;
+ * PUT /api/datasources/{id}/timeseries/enabled switches a group off (its
+ * Disabled tag on the table) or on (the tag removed), keeps the switch
+ * (GroupEvent) and, switched on, queues one run per algorithm of the
+ * group at once (datyx.training.Training).
  * Only database sources (PostgreSQL so far) and Kafka clusters have a
  * catalogue, and only tables have time series: another type, or another
  * engine, is a 400. A source or OpenMetadata that can't
@@ -67,6 +78,16 @@ public class CatalogResource {
 
     @Inject
     Catalog catalog;
+
+    @Inject
+    Training training;
+
+    @Inject
+    CurrentUser user;
+
+    /** PUT .../timeseries/enabled: a table, one of its groups (default when none), on or off. */
+    public record Switch(String table, String group, Boolean enabled) {
+    }
 
     /** A source of the caller's, its access details decrypted: read in a transaction of its own. */
     record Source(long id, String name, String description, DataSource.Type type, Access access) {
@@ -125,15 +146,25 @@ public class CatalogResource {
 
     @GET
     @Path("/timeseries")
-    public Response timeSeries(@PathParam("id") long id) {
+    public Response timeSeries(@PathParam("id") long id, @QueryParam("algorithm") String algorithm) {
         Optional<Source> source = source(id);
         if (source.isEmpty()) {
             return notFound(id);
         }
+        TimeSeries.Algorithm only;
+        try {
+            only = TimeSeries.Algorithm.named(algorithm);
+        } catch (IllegalArgumentException e) {
+            return error(Response.Status.BAD_REQUEST, e.getMessage());
+        }
         try {
             List<TimeSeries.Spec> series = new ArrayList<>();
             for (JsonNode table : catalog.tables(id)) {
-                series.addAll(TimeSeries.specs(table));
+                for (TimeSeries.Spec spec : TimeSeries.specs(table)) {
+                    if (only == null || spec.has(only)) {
+                        series.add(spec);
+                    }
+                }
             }
             return Response.ok(Map.of("service", Catalog.serviceName(id), "series", series)).build();
         } catch (WebApplicationException | ProcessingException | IllegalStateException e) {
@@ -153,24 +184,16 @@ public class CatalogResource {
             return error(Response.Status.BAD_REQUEST, "name the table: \"table\":\"schema.table\", or its name alone");
         }
         try {
-            String wanted = roles.table().strip();
-            List<JsonNode> matches = new ArrayList<>();
-            for (JsonNode table : catalog.tables(id)) {
-                String name = table.path("name").asText();
-                String schema = table.path("databaseSchema").path("name").asText();
-                if (wanted.equals(name) || wanted.equals(schema + "." + name)
-                        || wanted.equals(table.path("fullyQualifiedName").asText())) {
-                    matches.add(table);
-                }
-            }
-            if (matches.isEmpty()) {
-                return error(Response.Status.NOT_FOUND, "the catalogue of data source " + id + " has no table " + wanted
-                    + " (POST /api/datasources/" + id + "/catalog reads the source again)");
-            }
-            if (matches.size() > 1) {
-                return error(Response.Status.BAD_REQUEST, wanted + " is in more than one schema: name it as schema.table");
-            }
-            return Response.ok(catalog.applyRoles(matches.get(0), roles)).build();
+            // What the request names, before the catalogue is read.
+            roles.named();
+            TimeSeries.group(roles.group());
+        } catch (IllegalArgumentException e) {
+            return error(Response.Status.BAD_REQUEST, e.getMessage());
+        }
+        try {
+            return Response.ok(catalog.applyRoles(table(id, roles.table().strip()), roles)).build();
+        } catch (NoSuchElementException e) {
+            return error(Response.Status.NOT_FOUND, e.getMessage());
         } catch (IllegalArgumentException e) {
             return error(Response.Status.BAD_REQUEST, e.getMessage());
         } catch (WebApplicationException | ProcessingException | IllegalStateException e) {
@@ -178,7 +201,82 @@ public class CatalogResource {
         }
     }
 
-    /** A table for GET .../catalog: its names and type, and each column's type, constraint and tags. */
+    /**
+     * Switches a group of a table off (its Disabled tag added to the table
+     * in OpenMetadata) or on (the tag removed), and answers the group read
+     * again, with the switch kept ({@code event}: its id and the runs it
+     * queued; null when the group already was on or off). Switched on, its
+     * runs are queued here, one per algorithm, so they never wait on
+     * OpenMetadata's webhook, whose post of the same change queues nothing
+     * more.
+     */
+    @PUT
+    @Path("/timeseries/enabled")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Response setEnabled(@PathParam("id") long id, Switch request) {
+        Optional<Source> source = source(id);
+        if (source.isEmpty()) {
+            return notFound(id);
+        }
+        if (request == null || request.table() == null || request.table().isBlank() || request.enabled() == null) {
+            return error(Response.Status.BAD_REQUEST,
+                "name the table and say whether its group is on: {\"table\":\"schema.table\",\"group\":\"acute\",\"enabled\":false}");
+        }
+        try {
+            Instant since = Instant.now();
+            Catalog.Switched switched = catalog.setEnabled(table(id, request.table().strip()), request.group(), request.enabled());
+            TimeSeries.Spec spec = switched.spec();
+            ObjectNode answer = json.valueToTree(spec);
+            answer.putNull("event");
+            if (switched.patched()) {
+                Catalog.Change change = switched.change();
+                String by = user.authenticated() && user.id() != null ? user.id() : change.by();
+                String note = TimeSeries.disabledFqn(spec.group()) + " removed through datyx's switch ("
+                    + new Catalog.Change(change.version(), by, change.at()).describe() + ")";
+                training.switched(new Training.Switch(id, spec.table(), spec.group(), request.enabled(), GroupEvent.VIA_API,
+                    change.version(), by, change.at(), null), spec, since, note).ifPresent(r -> {
+                        ObjectNode event = answer.putObject("event").put("id", r.eventId());
+                        r.runIds().forEach(event.putArray("runIds")::add);
+                    });
+            } else if (!spec.enabled()) {
+                training.switchedOff(id, spec.table(), spec.group());
+            }
+            return Response.ok(answer).build();
+        } catch (NoSuchElementException e) {
+            return error(Response.Status.NOT_FOUND, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return error(Response.Status.BAD_REQUEST, e.getMessage());
+        } catch (WebApplicationException | ProcessingException | IllegalStateException e) {
+            return openMetadataFailed(id, e);
+        }
+    }
+
+    /**
+     * The source's table that {@code wanted} names (its name, schema.table,
+     * or its FQN). A NoSuchElementException when the catalogue has none; an
+     * IllegalArgumentException when the name alone fits more than one.
+     */
+    private JsonNode table(long id, String wanted) {
+        List<JsonNode> matches = new ArrayList<>();
+        for (JsonNode table : catalog.tables(id)) {
+            String name = table.path("name").asText();
+            String schema = table.path("databaseSchema").path("name").asText();
+            if (wanted.equals(name) || wanted.equals(schema + "." + name)
+                    || wanted.equals(table.path("fullyQualifiedName").asText())) {
+                matches.add(table);
+            }
+        }
+        if (matches.isEmpty()) {
+            throw new NoSuchElementException("the catalogue of data source " + id + " has no table " + wanted
+                + " (POST /api/datasources/" + id + "/catalog reads the source again)");
+        }
+        if (matches.size() > 1) {
+            throw new IllegalArgumentException(wanted + " is in more than one schema: name it as schema.table");
+        }
+        return matches.get(0);
+    }
+
+    /** A table for GET .../catalog: its names, type and tags, and each column's type, constraint and tags. */
     private static Map<String, Object> view(JsonNode table) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("fqn", table.path("fullyQualifiedName").asText());
@@ -186,6 +284,9 @@ public class CatalogResource {
         map.put("name", table.path("name").asText());
         map.put("type", table.path("tableType").asText(null));
         map.put("description", table.path("description").asText(null));
+        List<String> tableTags = new ArrayList<>();
+        table.path("tags").forEach(tag -> tableTags.add(tag.path("tagFQN").asText()));
+        map.put("tags", tableTags);
         List<Map<String, Object>> columns = new ArrayList<>();
         for (JsonNode column : table.path("columns")) {
             Map<String, Object> c = new LinkedHashMap<>();

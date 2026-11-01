@@ -5,7 +5,9 @@ library;
 import 'dart:math';
 
 import 'auth.dart';
-import 'simulation.dart' show admissionsTopic, movesTopic;
+import 'care_centers.dart' show simulatedCapacity;
+import 'conditions.dart' show CareSetting;
+import 'simulation.dart' show LatLon, Place, admissionsTopic, movesTopic;
 
 /// An answer: a status, and a JSON body or a redirect.
 class Answer {
@@ -41,16 +43,50 @@ class Forwarded {
 /// the query's bbox read by the server, up to [careCentersLimit] + 1 so
 /// the answer can say whether there were more (null: the database didn't
 /// answer, 503).
+/// [nearest]: for GET /api/care-centers/nearest, the care center nearest
+/// the query's lat and lon the server read (its center null when there is
+/// none; null itself when the database didn't answer, 503).
 /// [dev]: whether the API runs in dev mode (HEALTHHUB_MODE=dev), where
 /// the simulation runs and GET /api/people serves it.
 /// [kafka]: whether Kafka's REST proxy answers; [simulation]: whether the
 /// simulation runs; both reported by /api/health.
+/// [paused]: whether the simulation is paused, reported by /api/health
+/// and GET /api/events.
+/// [control]: for POST /api/simulation/pause and /resume, pauses (true)
+/// or resumes (false) the simulation and says whether it is paused now;
+/// called only for a signed-in user (once authentication is on) and while
+/// the simulation runs in dev mode (else 401, 409).
 /// [people]: the latest move of each simulated person, as read back from
 /// Kafka by the server (lib/simulation.dart's PeopleFeed).
 /// [events]: the latest moves and admissions the feed read, newest first.
+/// [eventsTotal], [eventsPerSecond]: every event the feed read, those
+/// [events] leaves out too, and how many a second over the last minute.
 /// [admissions]: what GET /api/admissions answers, the latest admissions
 /// read from the database by the server, as many as [admissionsLimitOf]
 /// the query says (null: the database didn't answer, 503).
+/// [triageEnabled]: whether the API triages admissions with aityx
+/// (lib/triage.dart), reported by /api/health and GET /api/triage.
+/// [triage]: what GET /api/triage answers, the summary and the latest
+/// triages read by the server, as many as [admissionsLimitOf] says
+/// (null: the database didn't answer, 503).
+/// [triageDetail]: for GET /api/triage/{eventId}, the triage the server
+/// read (its row null when there is none, 404; null itself when the
+/// database didn't answer, 503).
+/// [person]: for GET /api/people/{id}, what the server read of that
+/// person in the database (null: it didn't answer, 503), with [people]
+/// for where they are now.
+/// [prediction]: for GET /api/people/{id}/prediction, datyx's answer to
+/// the inference the server asked for with the user's token (null: datyx
+/// didn't answer, 502).
+/// [careCenter]: for GET /api/care-centers/{id}, what the server read of
+/// that care center in the database (null: it didn't answer, 503), with
+/// [people] for who is there now.
+/// [hourly]: for GET /api/care-centers/{id}/admissions, the hospital's
+/// admissions per hour the server read (null: the database didn't answer,
+/// 503).
+/// [forecast]: for GET /api/care-centers/{id}/admissions/forecast,
+/// datyx's answer to the inference the server asked for with the user's
+/// token (null: datyx didn't answer, 502).
 Answer route(
   String method,
   String path, {
@@ -62,15 +98,83 @@ Answer route(
   Forwarded? datyx,
   Map<String, String> query = const {},
   List<Map<String, Object?>> events = const [],
+  int eventsTotal = 0,
+  double eventsPerSecond = 0,
   List<Map<String, Object?>>? careCenters,
+  NearestCenter? nearest,
   bool dev = false,
   bool kafka = false,
   bool simulation = false,
+  bool paused = false,
+  bool Function(bool pause)? control,
   List<Map<String, Object?>> people = const [],
   List<Map<String, Object?>>? admissions,
+  bool triageEnabled = false,
+  Map<String, Object?>? triage,
+  TriageLookup? triageDetail,
+  PersonLookup? person,
+  Forwarded? prediction,
+  CareCenterLookup? careCenter,
+  HourlyLookup? hourly,
+  Forwarded? forecast,
 }) {
   if (method == 'OPTIONS') return const Answer(204);
+  if (method == 'POST') {
+    switch (path) {
+      // Anyone signed in may pause or resume it: there is one simulation,
+      // and everyone watching sees it stand still.
+      case simulationPausePath || simulationResumePath:
+        if (auth.enabled && identity == null) return _signIn;
+        if (!dev || !simulation || control == null) {
+          return const Answer(409, body: {'error': 'the simulation does not run'});
+        }
+        return Answer(200, body: {'paused': control(path == simulationPausePath)});
+    }
+  }
   if (method == 'GET') {
+    switch (personPath(path)) {
+      case (final id, false):
+        if (person == null) {
+          return const Answer(503, body: {'error': 'the database is not answering'});
+        }
+        final answer = personAnswer(dev, id, people, person);
+        return answer == null ? const Answer(404, body: {'error': 'nobody with that id'}) : Answer(200, body: answer);
+      case (_, true):
+        if (auth.enabled && identity == null) return _signIn;
+        if (prediction == null) {
+          return const Answer(502, body: {'error': 'the datyx API is not answering'});
+        }
+        return predictionAnswer(prediction);
+      case null:
+    }
+    // Open to everyone, like the map it is opened from.
+    if (careCenterIdOf(path) != null) {
+      if (careCenter == null) {
+        return const Answer(503, body: {'error': 'the database is not answering'});
+      }
+      final answer = careCenterAnswer(dev, careCenter, people);
+      return answer == null
+          ? const Answer(404, body: {'error': 'no care center with that id'})
+          : Answer(200, body: answer);
+    }
+    switch (careCenterAdmissionsPath(path)) {
+      // Open to everyone, like the care centers: the counts are the simulation's.
+      case (final id, false):
+        if (hoursOf(query) == null) {
+          return const Answer(400, body: {'error': 'hours is a positive number'});
+        }
+        if (hourly == null) {
+          return const Answer(503, body: {'error': 'the database is not answering'});
+        }
+        return Answer(200, body: hourlyAnswer(id, hourly, hours: hoursOf(query)!));
+      case (_, true):
+        if (auth.enabled && identity == null) return _signIn;
+        if (forecast == null) {
+          return const Answer(502, body: {'error': 'the datyx API is not answering'});
+        }
+        return forecastAnswer(forecast);
+      case null:
+    }
     switch (path) {
       // The site root, which the web server proxies here
       // (scripts/flutter-web.sh), so a forwarded port's bare URL opens the
@@ -87,6 +191,8 @@ Answer route(
           'auth': auth.enabled,
           'kafka': kafka,
           'simulation': simulation,
+          'paused': paused,
+          'triage': triageEnabled,
         });
       case '/api/auth/config':
         return Answer(200, body: auth.toJson());
@@ -122,6 +228,16 @@ Answer route(
           'centers': careCenters.take(careCentersLimit).toList(),
           'truncated': careCenters.length > careCentersLimit,
         });
+      // Open to everyone, like the care centers. The point is the user's
+      // location: used for the query only, never logged or kept.
+      case '/api/care-centers/nearest':
+        if (nearestPoint(query) == null) {
+          return const Answer(400, body: {'error': 'lat and lon are degrees, -90 to 90 and -180 to 180'});
+        }
+        if (nearest == null) {
+          return const Answer(503, body: {'error': 'the database is not answering'});
+        }
+        return Answer(200, body: {'center': nearest.center});
       // Open to everyone, like the care centers: the people are simulated.
       // The latest records on the stream, newest first, for home's events.
       case '/api/events':
@@ -133,7 +249,15 @@ Answer route(
         if (type != null && !eventTypes.contains(type)) {
           return const Answer(400, body: {'error': 'type is admission or move'});
         }
-        return Answer(200, body: eventsAnswer(dev, events, limit: limit, type: type));
+        return Answer(200, body: eventsAnswer(
+            dev,
+            events,
+            limit: limit,
+            type: type,
+            paused: paused,
+            total: eventsTotal,
+            perSecond: eventsPerSecond,
+          ));
       // Open to everyone, like the events: the people are simulated. Read
       // from the database, so in prod too, whatever an earlier dev run
       // recorded.
@@ -145,6 +269,22 @@ Answer route(
           return const Answer(503, body: {'error': 'the database is not answering'});
         }
         return Answer(200, body: {'admissions': admissions});
+      // Open to everyone, like the admissions they triage.
+      case '/api/triage':
+        if (admissionsLimitOf(query) == null) {
+          return const Answer(400, body: {'error': 'limit is a positive number'});
+        }
+        if (triage == null) {
+          return const Answer(503, body: {'error': 'the database is not answering'});
+        }
+        return Answer(200, body: {'enabled': triageEnabled, ...triage});
+      case _ when triageEventId(path) != null:
+        if (triageDetail == null) {
+          return const Answer(503, body: {'error': 'the database is not answering'});
+        }
+        final row = triageDetail.row;
+        if (row == null) return const Answer(404, body: {'error': 'no triage for that admission'});
+        return Answer(200, body: row);
       case '/api/people':
         final box = Bbox.parse(query['bbox']);
         if (query.containsKey('bbox') && box == null) {
@@ -178,8 +318,8 @@ Map<String, Object?> peopleAnswer(bool dev, List<Map<String, Object?>> moves, {B
     if (turn is num && (newest == null || turn > (newest['turn'] as num))) newest = move;
   }
   const fields = [
-    'id', 'name', 'age', 'city', 'lat', 'lon', 'homeLat', 'homeLon', 'state', 'mode',
-    'hospitalName', 'conditionName', 'conditionType',
+    'id', 'name', 'age', 'city', 'lat', 'lon', 'homeLat', 'homeLon', 'state', 'mode', 'monitored',
+    'monitoredFor', 'hospitalId', 'hospitalName', 'careCenterKind', 'conditionName', 'conditionType',
   ];
   return {
     'enabled': true,
@@ -193,6 +333,283 @@ Map<String, Object?> peopleAnswer(bool dev, List<Map<String, Object?>> moves, {B
   };
 }
 
+/// What the server read of a person for GET /api/people/{id}: [history],
+/// the database's (Db.personHistory: the run, the admissions, the days),
+/// and [currentRun], the simulation's run (null when it doesn't run), so
+/// the answer says whether this is the person moving now.
+class PersonLookup {
+  const PersonLookup(this.history, {this.currentRun});
+
+  final Map<String, Object?> history;
+  final String? currentRun;
+}
+
+/// The person id in /api/people/{id}, and whether the path asks for their
+/// prediction (/api/people/{id}/prediction); null for any other path.
+(String, bool)? personPath(String path) {
+  const prefix = '/api/people/';
+  if (!path.startsWith(prefix)) return null;
+  var rest = path.substring(prefix.length);
+  final prediction = rest.endsWith('/prediction');
+  if (prediction) rest = rest.substring(0, rest.length - '/prediction'.length);
+  final String id;
+  try {
+    id = Uri.decodeComponent(rest);
+  } on ArgumentError {
+    return null;
+  } on FormatException {
+    // Not UTF-8 once decoded.
+    return null;
+  }
+  return id.isEmpty || id.contains('/') || id.length > 200 ? null : (id, prediction);
+}
+
+/// What GET /api/people/{id} answers: one person of one run, their facts
+/// (from their latest move and admission: a move has no sex or
+/// occupation), where they are now when it is the current run (their
+/// latest move, in dev mode), their admissions with each one's triage,
+/// their days of care, and those counted; null when nothing is known of
+/// them (404).
+Map<String, Object?>? personAnswer(
+  bool dev,
+  String id,
+  List<Map<String, Object?>> moves,
+  PersonLookup person,
+) {
+  final history = person.history;
+  final run = history['run'] as String?;
+  final admissions = [for (final a in history['admissions'] as List? ?? const []) a as Map<String, Object?>];
+  final days = [for (final d in history['days'] as List? ?? const []) d as Map<String, Object?>];
+  // The latest move is this run's person only when the run is the current one.
+  final current = person.currentRun != null && (run == null || run == person.currentRun);
+  Map<String, Object?>? move;
+  if (dev && current) {
+    for (final m in moves) {
+      if (m['id'] == id) move = m;
+    }
+  }
+  if (move == null && admissions.isEmpty) return null;
+  final latest = admissions.isEmpty ? null : admissions.first;
+  const nowFields = [
+    'state', 'mode', 'lat', 'lon', 'homeLat', 'homeLon', 'hospitalId', 'hospitalName', 'careCenterKind',
+    'conditionName', 'conditionType', 'simTime', 'day',
+  ];
+  return {
+    'id': id,
+    'run': run ?? (move == null ? null : person.currentRun),
+    'current': current,
+    'name': move?['name'] ?? latest?['name'],
+    'age': move?['age'] ?? latest?['age'],
+    'sex': latest?['sex'],
+    'occupation': latest?['occupation'],
+    'city': move?['city'] ?? latest?['city'],
+    'now': move == null ? null : {for (final field in nowFields) field: move[field]},
+    'summary': {
+      'admissions': admissions.length,
+      'acute': admissions.where((a) => a['conditionType'] == 'acute').length,
+      'chronic': admissions.where((a) => a['conditionType'] == 'chronic').length,
+      'triaged': admissions.where((a) => a['triage'] != null).length,
+      'days': days.length,
+      'stayHours': days.fold<num>(0, (sum, d) => sum + ((d['stayHours'] as num?) ?? 0)),
+    },
+    'admissions': admissions,
+    'days': days,
+  };
+}
+
+/// What the server read of a care center for GET /api/care-centers/{id}:
+/// [history], the database's (Db.careCenterHistory: the center, its
+/// admissions counted and the latest), and [currentRun], the simulation's
+/// run (null when it doesn't run).
+class CareCenterLookup {
+  const CareCenterLookup(this.history, {this.currentRun});
+
+  final Map<String, Object?> history;
+  final String? currentRun;
+}
+
+/// The id in /api/care-centers/{id}, a positive number; null for any other
+/// path.
+int? careCenterIdOf(String path) {
+  const prefix = '/api/care-centers/';
+  if (!path.startsWith(prefix)) return null;
+  final rest = path.substring(prefix.length);
+  if (!RegExp(r'^[0-9]{1,9}$').hasMatch(rest)) return null;
+  final id = int.parse(rest);
+  return id > 0 ? id : null;
+}
+
+/// What GET /api/care-centers/{id} answers: the care center, the settings
+/// the simulation sends people to it for (lib/simulation.dart's
+/// Place.serves), its capacity in the simulation
+/// (lib/care_centers.dart's simulatedCapacity), who is
+/// there now and who is on the way (their latest [moves], in dev mode),
+/// how many have it as their hospital, and its admissions: counted in the
+/// current run and in all, and the latest; null when there is no such
+/// care center (404).
+Map<String, Object?>? careCenterAnswer(bool dev, CareCenterLookup lookup, List<Map<String, Object?>> moves) {
+  final center = lookup.history['center'] as Map<String, Object?>?;
+  if (center == null) return null;
+  final id = center['id'];
+  final capacity = simulatedCapacity(center['key'] as String? ?? '$id', center['kind'] as String? ?? '');
+  final place = Place(
+    id: id is int ? id : 0,
+    name: center['name'] as String? ?? '',
+    kind: center['kind'] as String? ?? '',
+    city: center['city'] as String? ?? '',
+    at: const LatLon(0, 0),
+    subtype: center['subtype'] as String?,
+  );
+  const personFields = [
+    'id', 'name', 'age', 'city', 'state', 'mode', 'lat', 'lon', 'conditionName', 'conditionType', 'simTime', 'day',
+  ];
+  Map<String, Object?> who(Map<String, Object?> move) => {for (final field in personFields) field: move[field]};
+  final mine = dev ? moves.where((m) => m['hospitalId'] == id).toList() : const <Map<String, Object?>>[];
+  final here = [for (final m in mine) if (m['state'] == 'at_hospital') who(m)];
+  final coming = [for (final m in mine) if (m['state'] == 'to_hospital') who(m)];
+  Map<String, Object?>? newest;
+  if (dev) {
+    for (final move in moves) {
+      final turn = move['turn'];
+      if (turn is num && (newest == null || turn > (newest['turn'] as num))) newest = move;
+    }
+  }
+  return {
+    for (final MapEntry(:key, :value) in center.entries)
+      if (key != 'key') key: value,
+    'serves': [for (final setting in CareSetting.values) if (place.serves(setting)) setting.json],
+    'capacity': {'places': capacity.places, 'unit': capacity.unit, 'simulated': true},
+    'now': {
+      'enabled': dev,
+      'run': dev ? lookup.currentRun : null,
+      'simTime': newest?['simTime'],
+      'day': newest?['day'],
+      'inUse': here.length,
+      'usage': here.length / capacity.places,
+      'assigned': mine.length,
+      'here': here,
+      'onTheWay': coming,
+    },
+    'admissions': lookup.history['admissions'] ??
+        const {'run': null, 'thisRun': 0, 'total': 0, 'latestOf': 'all', 'latest': []},
+  };
+}
+
+/// What GET /api/people/{id}/prediction answers from datyx's inference
+/// ([prediction], POST /api/datasources/{id}/inference for the person's
+/// series of patient_days): the person's prediction and what the model
+/// is (`predicted`, the Target summed over the horizon ahead, null with a
+/// `note` when it can't say; `last`, the same over the horizon just
+/// gone; `target`, `horizon`, `group`, `table`, the training run and when
+/// it was trained); datyx's own status and error otherwise, as it said.
+Answer predictionAnswer(Forwarded prediction) {
+  final body = prediction.body;
+  if (prediction.status != 200 || body is! Map) return Answer(prediction.status, body: body);
+  final predictions = body['predictions'];
+  final first = predictions is List && predictions.isNotEmpty && predictions.first is Map
+      ? predictions.first as Map
+      : const {};
+  return Answer(200, body: {
+    'predicted': first['predicted'],
+    'last': first['last'],
+    'note': first['note'],
+    'series': first['series'],
+    'target': body['target'],
+    'horizon': body['horizon'],
+    'group': body['group'],
+    'table': body['table'],
+    'trainingRunId': body['runId'],
+    'trainedAt': body['trainedAt'],
+    'sourceId': body['sourceId'],
+    'millis': body['millis'],
+  });
+}
+
+/// The hospital id in /api/care-centers/{id}/admissions, and whether the
+/// path asks for datyx's forecast (/api/care-centers/{id}/admissions/forecast);
+/// null for any other path.
+(int, bool)? careCenterAdmissionsPath(String path) {
+  final match = RegExp(r'^/api/care-centers/(\d{1,9})/admissions(/forecast)?$').firstMatch(path);
+  return match == null ? null : (int.parse(match.group(1)!), match.group(2) != null);
+}
+
+/// How many hours GET /api/care-centers/{id}/admissions answers unless
+/// asked (three simulated days), and at most (30).
+const hourlyHours = 72;
+const hourlyMax = 720;
+
+/// The hours [query] asks for, at most [hourlyMax]; null when its hours
+/// isn't a positive number.
+int? hoursOf(Map<String, String> query) {
+  final hours = query.containsKey('hours') ? int.tryParse(query['hours']!) : hourlyHours;
+  return hours == null || hours < 1 ? null : min(hours, hourlyMax);
+}
+
+/// What the server read of one hospital's admissions per hour, from
+/// admissions_hourly: the [run] (null when the hospital has none), the
+/// run's latest hour at any hospital ([end], where its series end, as
+/// datyx sees them), whether it is the [current] run, and the hospital's
+/// rows up to [end] (`hour`, `admissions`, `acute`, `chronic`).
+class HourlyLookup {
+  const HourlyLookup({this.run, this.end, this.current = false, this.rows = const []});
+
+  final String? run;
+  final DateTime? end;
+  final bool current;
+  final List<Map<String, Object?>> rows;
+}
+
+/// What GET /api/care-centers/{id}/admissions answers: the hospital's
+/// admissions in each of the [hours] hours up to its run's end, oldest
+/// first, an hour without a row a zero (the table has none for it), as
+/// `{"hour", "admissions", "acute", "chronic"}`, the hour as
+/// `YYYY-MM-DDTHH:MM`, simulated time.
+Map<String, Object?> hourlyAnswer(int id, HourlyLookup hourly, {int hours = hourlyHours}) {
+  final end = hourly.end;
+  final byHour = {for (final row in hourly.rows) _hourKey(row['hour'] as DateTime): row};
+  return {
+    'hospitalId': id,
+    'run': hourly.run,
+    'current': hourly.current,
+    'end': end == null ? null : _hourKey(end),
+    'hours': [
+      if (end != null)
+        for (var i = hours - 1; i >= 0; i--)
+          () {
+            final hour = _hourKey(end.subtract(Duration(hours: i)));
+            final row = byHour[hour];
+            return {
+              'hour': hour,
+              'admissions': row?['admissions'] ?? 0,
+              'acute': row?['acute'] ?? 0,
+              'chronic': row?['chronic'] ?? 0,
+            };
+          }(),
+    ],
+  };
+}
+
+String _hourKey(DateTime hour) => hour.toUtc().toIso8601String().substring(0, 16);
+
+/// What GET /api/care-centers/{id}/admissions/forecast answers from
+/// datyx's inference of the hospital's series of admissions_hourly
+/// ([forecast]): as [predictionAnswer], with the `forecast`, step by step
+/// from the series' end (`at`, `mean`, `p10`, `p50`, `p90`), empty when
+/// datyx can't say.
+Answer forecastAnswer(Forwarded forecast) {
+  final answer = predictionAnswer(forecast);
+  if (answer.status != 200) return answer;
+  final predictions = (forecast.body as Map)['predictions'];
+  final first = predictions is List && predictions.isNotEmpty && predictions.first is Map
+      ? predictions.first as Map
+      : const {};
+  return Answer(200, body: {...answer.body as Map, 'forecast': first['forecast'] ?? const []});
+}
+
+/// The paths that pause and resume the simulation (POST).
+const simulationPausePath = '/api/simulation/pause';
+const simulationResumePath = '/api/simulation/resume';
+
 /// How many events GET /api/events answers unless asked, and at most.
 const eventsLimit = 20;
 const eventsMax = 100;
@@ -200,18 +617,29 @@ const eventsMax = 100;
 /// What GET /api/events answers: in dev mode, the latest [events] read
 /// from the streams (newest first, only those of [type] when given, at
 /// most [limit], never more than [eventsMax]), each with its type and
-/// where it sits in its topic; in prod, nothing. "topic" is the moves'
-/// topic, as before admissions; "topics" names both.
+/// where it sits in its topic, and whether the simulation is [paused]; in
+/// prod, nothing. "topic" is the moves' topic, as before admissions;
+/// "topics" names both.
 Map<String, Object?> eventsAnswer(
   bool dev,
   List<Map<String, Object?>> events, {
   int limit = eventsLimit,
   String? type,
+  bool paused = false,
+  int total = 0,
+  double perSecond = 0,
 }) {
   const topics = [movesTopic, admissionsTopic];
-  if (!dev) return const {'enabled': false, 'topic': movesTopic, 'topics': topics, 'events': []};
+  if (!dev) {
+    return const {
+      'enabled': false, 'paused': false, 'topic': movesTopic, 'topics': topics, 'total': 0, 'perSecond': 0, 'events': [],
+    };
+  }
   return {
     'enabled': true,
+    'paused': paused,
+    'total': total,
+    'perSecond': (perSecond * 10).round() / 10,
     'topic': movesTopic,
     'topics': topics,
     'events': [
@@ -231,14 +659,14 @@ const eventTypes = {'admission', 'move'};
 String _typeOf(Map<String, Object?> event) => event['type'] == 'admission' ? 'admission' : 'move';
 
 const _moveEventFields = [
-  'type', 'id', 'name', 'age', 'city', 'state', 'mode', 'conditionName', 'conditionType',
-  'hospitalName', 'simTime', 'day', 'turn', 'lat', 'lon', 'partition', 'offset',
+  'type', 'id', 'name', 'age', 'city', 'state', 'mode', 'monitored', 'monitoredFor', 'conditionName', 'conditionType',
+  'hospitalId', 'hospitalName', 'careCenterKind', 'simTime', 'day', 'turn', 'lat', 'lon', 'partition', 'offset',
 ];
 
 const _admissionEventFields = [
   'type', 'eventId', 'personId', 'name', 'age', 'sex', 'occupation', 'city', 'conditionCode',
   'conditionName', 'conditionType', 'visit', 'visitNumber', 'complaint', 'hospitalId',
-  'hospitalName', 'simTime', 'day', 'turn', 'partition', 'offset',
+  'hospitalName', 'careCenterKind', 'simTime', 'day', 'turn', 'partition', 'offset',
 ];
 
 /// How many admissions GET /api/admissions answers unless asked, and at
@@ -253,6 +681,27 @@ int? admissionsLimitOf(Map<String, String> query) {
   return limit == null || limit < 1 ? null : min(limit, admissionsMax);
 }
 
+/// What the server read for GET /api/triage/{eventId}: the triage, or
+/// null when the admission has none.
+class TriageLookup {
+  const TriageLookup(this.row);
+
+  final Map<String, Object?>? row;
+}
+
+/// The event id in /api/triage/{eventId}, or null for any other path.
+String? triageEventId(String path) {
+  const prefix = '/api/triage/';
+  if (!path.startsWith(prefix)) return null;
+  final String id;
+  try {
+    id = Uri.decodeComponent(path.substring(prefix.length));
+  } on ArgumentError {
+    return null;
+  }
+  return id.isEmpty || id.contains('/') || id.length > 200 ? null : id;
+}
+
 /// The datyx API's path behind one of ours (/api/datyx/me, /api/datyx/datasources), or null.
 String? datyxPath(String path) => switch (path) {
   '/api/datyx/me' => '/api/me',
@@ -263,6 +712,24 @@ String? datyxPath(String path) => switch (path) {
 /// The most care centers one answer holds: hospitals first, then health
 /// stations, then clinics, so a wide area shows the biggest first.
 const careCentersLimit = 500;
+
+/// The point GET /api/care-centers/nearest asks about: its lat and lon in
+/// degrees, or null when they aren't.
+({double lat, double lon})? nearestPoint(Map<String, String> query) {
+  final lat = double.tryParse(query['lat']?.trim() ?? '');
+  final lon = double.tryParse(query['lon']?.trim() ?? '');
+  if (lat == null || lon == null || lat.abs() > 90 || lon.abs() > 180) return null;
+  return (lat: lat, lon: lon);
+}
+
+/// What the server read for GET /api/care-centers/nearest: the nearest
+/// care center with its distance in metres, or null when none has a
+/// location.
+class NearestCenter {
+  const NearestCenter(this.center);
+
+  final Map<String, Object?>? center;
+}
 
 /// An area of the map: GET /api/care-centers?bbox=west,south,east,north,
 /// in degrees, west not east of east (no crossing the antimeridian).

@@ -13,6 +13,7 @@ import 'care_centers_seed.dart';
 import 'conditions.dart';
 import 'conditions_seed.dart';
 import 'routes.dart' show Bbox;
+import 'schema_comments.dart';
 import 'simulation.dart' show LatLon, Place;
 
 /// Where the database is, from the environment (scripts/api.sh and
@@ -217,7 +218,9 @@ class Db {
         female_share DOUBLE PRECISION NOT NULL DEFAULT 0.5,
         urgent BOOLEAN NOT NULL DEFAULT false,
         follow_up_stay_hours INT,
-        course_gap_days INT
+        course_gap_days INT,
+        setting TEXT NOT NULL DEFAULT 'hospital',
+        follow_up_setting TEXT NOT NULL DEFAULT 'hospital'
       )
     ''');
     // Added after the table was first made: a database from before has it
@@ -227,6 +230,8 @@ class Db {
       'urgent BOOLEAN NOT NULL DEFAULT false',
       'follow_up_stay_hours INT',
       'course_gap_days INT',
+      "setting TEXT NOT NULL DEFAULT 'hospital'",
+      "follow_up_setting TEXT NOT NULL DEFAULT 'hospital'",
     ]) {
       await c.execute('ALTER TABLE medical_conditions ADD COLUMN IF NOT EXISTS $column');
     }
@@ -237,9 +242,16 @@ class Db {
         visit TEXT NOT NULL CHECK (visit IN ('first', 'repeat', 'last')),
         position INT NOT NULL,
         text TEXT NOT NULL,
+        triage TEXT CHECK (triage IN ('red', 'orange', 'yellow', 'green', 'blue')),
         UNIQUE (condition_code, visit, position)
       )
     ''');
+    // Added after the table was first made: the template's reference
+    // triage level (lib/conditions.dart's triageLevels).
+    await c.execute(
+      "ALTER TABLE complaint_templates ADD COLUMN IF NOT EXISTS triage TEXT "
+      "CHECK (triage IN ('red', 'orange', 'yellow', 'green', 'blue'))",
+    );
     await seedConditions(c, conditionSeed);
     // The simulated people's arrivals at the hospital, as the feed reads
     // them from healthhub.admissions; their moves are not kept.
@@ -259,11 +271,45 @@ class Db {
         visit TEXT NOT NULL CHECK (visit IN ('first', 'repeat', 'last')),
         visit_number INT NOT NULL,
         complaint TEXT NOT NULL,
+        template INT,
         hospital_id INT NOT NULL,
         hospital_name TEXT NOT NULL,
         sim_day INT NOT NULL,
         sim_time TEXT NOT NULL,
         recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    ''');
+    // Added after the table was first made: which complaint template the
+    // admission was said from, null for those recorded before.
+    await c.execute('ALTER TABLE admissions ADD COLUMN IF NOT EXISTS template INT');
+    // One person's admissions, for GET /api/people/{id}.
+    await c.execute('CREATE INDEX IF NOT EXISTS admissions_person_idx ON admissions (person_id)');
+    // One care center's admissions, the latest first, for GET /api/care-centers/{id}.
+    await c.execute('CREATE INDEX IF NOT EXISTS admissions_hospital_idx ON admissions (hospital_id, id)');
+    // Each admission's triage by aityx (lib/triage.dart): the level, the
+    // wait, the area, the rules behind them, what Jev read, aityx's
+    // receipt and the template's reference level; or why it failed.
+    await c.execute('''
+      CREATE TABLE IF NOT EXISTS admission_triage (
+        event_id TEXT PRIMARY KEY REFERENCES admissions (event_id) ON DELETE CASCADE,
+        level TEXT CHECK (level IN ('red', 'orange', 'yellow', 'green', 'blue')),
+        wait_minutes INT,
+        area TEXT,
+        nurse_check BOOLEAN,
+        level_rule INT,
+        level_why TEXT,
+        area_rule INT,
+        area_why TEXT,
+        signs JSONB,
+        choices JSONB,
+        receipt JSONB,
+        reference TEXT CHECK (reference IN ('red', 'orange', 'yellow', 'green', 'blue')),
+        error TEXT,
+        input_tokens INT,
+        millis INT,
+        mode TEXT,
+        triaged_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CHECK ((level IS NULL) <> (error IS NULL))
       )
     ''');
     // The admissions per run, hospital and simulated hour. The API only
@@ -281,6 +327,37 @@ class Db {
         PRIMARY KEY (run_id, hospital_id, hour_start)
       )
     ''');
+    // Each person's days at the hospital, per run and simulated day (day 1
+    // being 2026-01-01, as in admissions_hourly): the visits of the day,
+    // the hours of care they take (each visit's stay, by its condition and
+    // kind, as the simulation keeps people) and the person's facts, the
+    // chronic condition being the one their run's admissions show. A view
+    // of the admissions, so it is always up to date; a day without visits
+    // has no row. Recreated at every start, as its definition may change.
+    await c.execute('DROP VIEW IF EXISTS patient_days');
+    await c.execute('''
+      CREATE VIEW patient_days AS
+      SELECT split_part(a.event_id, '-', 1) AS run_id,
+             a.person_id,
+             DATE '2026-01-01' + (a.sim_day - 1) AS day,
+             max(a.age) AS age,
+             max(a.sex) AS sex,
+             max(a.city) AS city,
+             max(a.hospital_id) AS hospital_id,
+             coalesce(max(max(a.condition_code) FILTER (WHERE a.condition_type = 'chronic'))
+               OVER (PARTITION BY split_part(a.event_id, '-', 1), a.person_id), 'none') AS chronic_condition,
+             count(*)::int AS visits,
+             (count(*) FILTER (WHERE a.condition_type = 'acute'))::int AS acute_visits,
+             (count(*) FILTER (WHERE a.condition_type = 'chronic'))::int AS chronic_visits,
+             sum(CASE WHEN a.visit = 'first' THEN m.stay_hours
+                      ELSE coalesce(m.follow_up_stay_hours, m.stay_hours) END)::int AS stay_hours
+      FROM admissions a
+      LEFT JOIN medical_conditions m ON m.code = a.condition_code
+      WHERE a.event_id ~ '^[0-9a-f]{8}-'
+      GROUP BY split_part(a.event_id, '-', 1), a.person_id, a.sim_day
+    ''');
+    // What each table and column is, for a catalogue reading the schema.
+    await commentSchema(c);
   }
 
   /// Makes medical_conditions and complaint_templates hold exactly
@@ -306,11 +383,18 @@ class Db {
             for (final (position, text) in condition.templates(kind).indexed) {
               await tx.execute(
                 Sql.named(
-                  'INSERT INTO complaint_templates (condition_code, visit, position, text) '
-                  'VALUES (@code, @visit, @position, @text) '
-                  'ON CONFLICT (condition_code, visit, position) DO UPDATE SET text = EXCLUDED.text',
+                  'INSERT INTO complaint_templates (condition_code, visit, position, text, triage) '
+                  'VALUES (@code, @visit, @position, @text, @triage) '
+                  'ON CONFLICT (condition_code, visit, position) '
+                  'DO UPDATE SET text = EXCLUDED.text, triage = EXCLUDED.triage',
                 ),
-                parameters: {'code': condition.code, 'visit': kind.json, 'position': position, 'text': text},
+                parameters: {
+                  'code': condition.code,
+                  'visit': kind.json,
+                  'position': position,
+                  'text': text,
+                  'triage': condition.triageOf(kind)[position],
+                },
               );
               codes.add(condition.code);
               visits.add(kind.json);
@@ -347,24 +431,414 @@ class Db {
     final rows = await c.execute(
       Sql.named('''
         INSERT INTO admissions (event_id, person_id, person_name, age, sex, occupation, city,
-          condition_code, condition_name, condition_type, visit, visit_number, complaint,
+          condition_code, condition_name, condition_type, visit, visit_number, complaint, template,
           hospital_id, hospital_name, sim_day, sim_time)
         VALUES (@eventId, @personId, @name, @age, @sex, @occupation, @city,
-          @conditionCode, @conditionName, @conditionType, @visit, @visitNumber, @complaint,
+          @conditionCode, @conditionName, @conditionType, @visit, @visitNumber, @complaint, @template,
           @hospitalId, @hospitalName, @day, @simTime)
         ON CONFLICT (event_id) DO NOTHING
         RETURNING id
       '''),
-      parameters: {for (final field in _admissionFields) field: admission[field]},
+      parameters: {
+        for (final field in _admissionFields) field: admission[field],
+        'template': TypedValue(Type.integer, admission['template']),
+      },
     );
     return rows.isNotEmpty;
   });
+
+  /// Records [triage], an admission's triage (lib/triage.dart's
+  /// triageAdmission), once: a second for the same admission is left
+  /// out. Throws when the database doesn't answer or refuses it.
+  Future<void> recordTriage(Map<String, Object?> triage) => _run((c) async {
+    Object? json(String field) => triage[field] == null ? null : TypedValue(Type.jsonb, triage[field]);
+    await c.execute(
+      Sql.named('''
+        INSERT INTO admission_triage (event_id, level, wait_minutes, area, nurse_check, level_rule,
+          level_why, area_rule, area_why, signs, choices, receipt, reference, error, input_tokens,
+          millis, mode)
+        VALUES (@eventId, @level, @waitMinutes, @area, @nurseCheck, @levelRule, @levelWhy,
+          @areaRule, @areaWhy, @signs, @choices, @receipt, @reference, @error, @inputTokens,
+          @millis, @mode)
+        ON CONFLICT (event_id) DO NOTHING
+      '''),
+      parameters: {
+        'eventId': triage['eventId'],
+        'level': TypedValue(Type.text, triage['level']),
+        'waitMinutes': TypedValue(Type.integer, triage['waitMinutes']),
+        'area': TypedValue(Type.text, triage['area']),
+        'nurseCheck': TypedValue(Type.boolean, triage['nurseCheck']),
+        'levelRule': TypedValue(Type.integer, triage['levelRule']),
+        'levelWhy': TypedValue(Type.text, triage['levelWhy']),
+        'areaRule': TypedValue(Type.integer, triage['areaRule']),
+        'areaWhy': TypedValue(Type.text, triage['areaWhy']),
+        'signs': json('signs'),
+        'choices': json('choices'),
+        'receipt': json('receipt'),
+        'reference': TypedValue(Type.text, triage['reference']),
+        'error': TypedValue(Type.text, triage['error']),
+        'inputTokens': TypedValue(Type.integer, triage['inputTokens']),
+        'millis': TypedValue(Type.integer, triage['millis']),
+        'mode': TypedValue(Type.text, triage['mode']),
+      },
+    );
+  });
+
+  /// The latest [limit] admissions triaged, newest first, each with what
+  /// the desk heard and its triage, without the receipt: what GET
+  /// /api/triage lists.
+  Future<List<Map<String, Object?>>> latestTriage({required int limit}) => _run((c) async {
+    final rows = await c.execute(
+      Sql.named('''
+        SELECT $_triageColumns
+        FROM admission_triage t JOIN admissions a USING (event_id)
+        ORDER BY t.triaged_at DESC, a.id DESC LIMIT @limit
+      '''),
+      parameters: {'limit': limit},
+    );
+    return [for (final row in rows) _triageRow(row)];
+  });
+
+  /// One admission's triage with aityx's receipt, or null when it has
+  /// none: GET /api/triage/{eventId}.
+  Future<Map<String, Object?>?> triageOf(String eventId) => _run((c) async {
+    final rows = await c.execute(
+      Sql.named('''
+        SELECT $_triageColumns, t.receipt
+        FROM admission_triage t JOIN admissions a USING (event_id)
+        WHERE t.event_id = @eventId
+      '''),
+      parameters: {'eventId': eventId},
+    );
+    if (rows.isEmpty) return null;
+    return {..._triageRow(rows.first), 'receipt': rows.first[_triageColumnCount]};
+  });
+
+  /// Every triage so far, counted: how many, by level, how many failed,
+  /// how many matched the reference, were within one level of it, or
+  /// less (under) or more (over) urgent than it, how many a nurse
+  /// checks, and the time and tokens they took.
+  Future<Map<String, Object?>> triageSummary() => _run((c) async {
+    const rank = "array_position(ARRAY['red', 'orange', 'yellow', 'green', 'blue']::text[], %s)";
+    final level = rank.replaceAll('%s', 'level');
+    final reference = rank.replaceAll('%s', 'reference');
+    final rows = await c.execute('''
+      SELECT count(*), count(*) FILTER (WHERE error IS NOT NULL),
+        count(*) FILTER (WHERE level IS NOT NULL AND reference IS NOT NULL),
+        count(*) FILTER (WHERE level = reference),
+        count(*) FILTER (WHERE abs($level - $reference) <= 1),
+        count(*) FILTER (WHERE $level > $reference),
+        count(*) FILTER (WHERE $level < $reference),
+        count(*) FILTER (WHERE nurse_check),
+        coalesce(sum(input_tokens), 0), percentile_disc(0.5) WITHIN GROUP (ORDER BY millis)
+          FILTER (WHERE level IS NOT NULL),
+        count(*) FILTER (WHERE level = 'red'), count(*) FILTER (WHERE level = 'orange'),
+        count(*) FILTER (WHERE level = 'yellow'), count(*) FILTER (WHERE level = 'green'),
+        count(*) FILTER (WHERE level = 'blue')
+      FROM admission_triage
+    ''');
+    final r = rows.first;
+    int n(int i) => (r[i] as int?) ?? 0;
+    return {
+      'total': n(0),
+      'failed': n(1),
+      'compared': n(2),
+      'matched': n(3),
+      'withinOne': n(4),
+      'under': n(5),
+      'over': n(6),
+      'nurseChecks': n(7),
+      'inputTokens': n(8),
+      'medianMillis': r[9],
+      'levels': {'red': n(10), 'orange': n(11), 'yellow': n(12), 'green': n(13), 'blue': n(14)},
+    };
+  });
+
+  static const _triageColumns = '''
+    t.event_id, a.person_name, a.age, a.sex, a.city, a.complaint, a.condition_name, a.condition_type,
+    a.visit, a.visit_number, a.hospital_name, a.sim_day, a.sim_time, t.level, t.wait_minutes, t.area,
+    t.nurse_check, t.level_rule, t.level_why, t.area_rule, t.area_why, t.signs, t.choices,
+    t.reference, t.error, t.input_tokens, t.millis, t.triaged_at, a.person_id, a.hospital_id''';
+  static const _triageColumnCount = 30;
+
+  static Map<String, Object?> _triageRow(ResultRow row) => {
+    'eventId': row[0],
+    'name': row[1],
+    'age': row[2],
+    'sex': row[3],
+    'city': row[4],
+    'complaint': row[5],
+    'conditionName': row[6],
+    'conditionType': row[7],
+    'visit': row[8],
+    'visitNumber': row[9],
+    'hospitalName': row[10],
+    'day': row[11],
+    'simTime': row[12],
+    'level': row[13],
+    'waitMinutes': row[14],
+    'area': row[15],
+    'nurseCheck': row[16],
+    'levelRule': row[17],
+    'levelWhy': row[18],
+    'areaRule': row[19],
+    'areaWhy': row[20],
+    'signs': row[21],
+    'choices': row[22],
+    'reference': row[23],
+    'error': row[24],
+    'inputTokens': row[25],
+    'millis': row[26],
+    'triagedAt': (row[27] as DateTime).toUtc().toIso8601String(),
+    'personId': row[28],
+    'hospitalId': row[29],
+  };
 
   static const _admissionFields = [
     'eventId', 'personId', 'name', 'age', 'sex', 'occupation', 'city', 'conditionCode',
     'conditionName', 'conditionType', 'visit', 'visitNumber', 'complaint', 'hospitalId',
     'hospitalName', 'day', 'simTime',
   ];
+
+  /// One hospital's admissions per hour in one run, from
+  /// admissions_hourly (the Flink job's): the run (the newest run with an
+  /// admission at the hospital when [run] is null; none: no rows, run
+  /// null), the run's latest hour at any hospital (where its series end),
+  /// and the hospital's rows of the [hours] hours up to it.
+  Future<({String? run, DateTime? end, List<Map<String, Object?>> rows})> hospitalHourly(
+    int hospitalId, {
+    String? run,
+    required int hours,
+  }) => _run((c) async {
+    var chosen = run;
+    if (chosen == null) {
+      final newest = await c.execute(
+        Sql.named(
+          "SELECT split_part(event_id, '-', 1) FROM admissions WHERE hospital_id = @id ORDER BY id DESC LIMIT 1",
+        ),
+        parameters: {'id': hospitalId},
+      );
+      if (newest.isEmpty) return (run: null, end: null, rows: const <Map<String, Object?>>[]);
+      chosen = newest.first[0] as String;
+    }
+    final ends = await c.execute(
+      Sql.named('SELECT max(hour_start) FROM admissions_hourly WHERE run_id = @run'),
+      parameters: {'run': chosen},
+    );
+    final end = ends.first[0] as DateTime?;
+    if (end == null) return (run: chosen, end: null, rows: const <Map<String, Object?>>[]);
+    final rows = await c.execute(
+      Sql.named('''
+        SELECT hour_start, admissions, acute_admissions, chronic_admissions FROM admissions_hourly
+        WHERE run_id = @run AND hospital_id = @id AND hour_start > @from AND hour_start <= @end
+        ORDER BY hour_start
+      '''),
+      parameters: {
+        'run': chosen,
+        'id': hospitalId,
+        'from': TypedValue(Type.timestampWithoutTimezone, end.subtract(Duration(hours: hours))),
+        'end': TypedValue(Type.timestampWithoutTimezone, end),
+      },
+    );
+    return (
+      run: chosen,
+      end: end,
+      rows: [
+        for (final row in rows) {'hour': row[0], 'admissions': row[1], 'acute': row[2], 'chronic': row[3]},
+      ],
+    );
+  });
+
+  /// How many of a person's admissions, and of their days,
+  /// [personHistory] answers at most.
+  static const personLimit = 200;
+
+  /// One person of one run, as the database has them: their admissions,
+  /// newest first, each with its triage when it has one (level, wait,
+  /// area, nurse check, reference, error), and their days of care from
+  /// patient_days, the latest first; at most [personLimit] of each. A
+  /// person's id comes back in every run, a new person each time, so
+  /// [run] says which: the newest run with an admission of theirs when
+  /// null (none: no admissions, no days, run null).
+  Future<Map<String, Object?>> personHistory(String personId, {String? run}) => _run((c) async {
+    var chosen = run;
+    if (chosen == null) {
+      final newest = await c.execute(
+        Sql.named(
+          "SELECT split_part(event_id, '-', 1) FROM admissions WHERE person_id = @id ORDER BY id DESC LIMIT 1",
+        ),
+        parameters: {'id': personId},
+      );
+      if (newest.isEmpty) return {'run': null, 'admissions': const [], 'days': const []};
+      chosen = newest.first[0] as String;
+    }
+    final admissions = await c.execute(
+      Sql.named('''
+        SELECT a.event_id, a.person_name, a.age, a.sex, a.occupation, a.city, a.condition_code,
+               a.condition_name, a.condition_type, a.visit, a.visit_number, a.complaint,
+               a.hospital_id, a.hospital_name, a.sim_day, a.sim_time, a.recorded_at,
+               t.level, t.wait_minutes, t.area, t.nurse_check, t.reference, t.error, t.event_id IS NOT NULL
+        FROM admissions a LEFT JOIN admission_triage t USING (event_id)
+        WHERE a.person_id = @id AND split_part(a.event_id, '-', 1) = @run
+        ORDER BY a.id DESC LIMIT @limit
+      '''),
+      parameters: {'id': personId, 'run': chosen, 'limit': personLimit},
+    );
+    final days = await c.execute(
+      Sql.named('''
+        SELECT day, visits, acute_visits, chronic_visits, stay_hours, chronic_condition
+        FROM patient_days WHERE run_id = @run AND person_id = @id
+        ORDER BY day DESC LIMIT @limit
+      '''),
+      parameters: {'id': personId, 'run': chosen, 'limit': personLimit},
+    );
+    return {
+      'run': chosen,
+      'admissions': [
+        for (final row in admissions)
+          {
+            'eventId': row[0],
+            'name': row[1],
+            'age': row[2],
+            'sex': row[3],
+            'occupation': row[4],
+            'city': row[5],
+            'conditionCode': row[6],
+            'conditionName': row[7],
+            'conditionType': row[8],
+            'visit': row[9],
+            'visitNumber': row[10],
+            'complaint': row[11],
+            'hospitalId': row[12],
+            'hospitalName': row[13],
+            'day': row[14],
+            'simTime': row[15],
+            'recordedAt': (row[16] as DateTime).toUtc().toIso8601String(),
+            'triage': row[23] == true
+                ? {
+                    'level': row[17],
+                    'waitMinutes': row[18],
+                    'area': row[19],
+                    'nurseCheck': row[20],
+                    'reference': row[21],
+                    'error': row[22],
+                  }
+                : null,
+          },
+      ],
+      'days': [
+        for (final row in days)
+          {
+            'day': (row[0] as DateTime).toIso8601String().substring(0, 10),
+            'visits': row[1],
+            'acuteVisits': row[2],
+            'chronicVisits': row[3],
+            'stayHours': row[4],
+            'chronicCondition': row[5],
+          },
+      ],
+    };
+  });
+
+  /// How many of a care center's latest admissions [careCenterHistory]
+  /// answers.
+  static const careCenterLimit = 30;
+
+  /// One care center as the database has it: its row (null when there is
+  /// none), and its admissions: how many in [run] (the current run; none
+  /// without one) and in all runs, acute and chronic, and the latest
+  /// [careCenterLimit], newest first, each with its triage when it has
+  /// one: of [run] when it has any there, else of any run.
+  Future<Map<String, Object?>> careCenterHistory(int id, {String? run}) => _run((c) async {
+    final centers = await c.execute(
+      Sql.named('''
+        SELECT id, key, name, kind, subtype, address, postal_code, city, region, country,
+               latitude, longitude, phone, website, ownership, source
+        FROM care_centers WHERE id = @id
+      '''),
+      parameters: {'id': id},
+    );
+    if (centers.isEmpty) return {'center': null};
+    final row = centers.first;
+    final counts = await c.execute(
+      Sql.named('''
+        SELECT count(*),
+               count(*) FILTER (WHERE condition_type = 'acute'),
+               count(*) FILTER (WHERE condition_type = 'chronic'),
+               count(*) FILTER (WHERE split_part(event_id, '-', 1) = @run),
+               count(*) FILTER (WHERE split_part(event_id, '-', 1) = @run AND condition_type = 'acute'),
+               count(*) FILTER (WHERE split_part(event_id, '-', 1) = @run AND condition_type = 'chronic')
+        FROM admissions WHERE hospital_id = @id
+      '''),
+      parameters: {'id': id, 'run': run ?? ''},
+    );
+    final [total, acute, chronic, thisRun, runAcute, runChronic] = [
+      for (final value in counts.first) (value as int?) ?? 0,
+    ];
+    final onlyRun = thisRun > 0;
+    final latest = await c.execute(
+      Sql.named('''
+        SELECT a.event_id, a.person_id, a.person_name, a.age, a.sex, a.city, a.condition_name,
+               a.condition_type, a.visit, a.visit_number, a.complaint, a.sim_day, a.sim_time,
+               t.level, t.wait_minutes, t.area, t.nurse_check, t.error, t.event_id IS NOT NULL
+        FROM admissions a LEFT JOIN admission_triage t USING (event_id)
+        WHERE a.hospital_id = @id AND (@onlyRun = false OR split_part(a.event_id, '-', 1) = @run)
+        ORDER BY a.id DESC LIMIT @limit
+      '''),
+      parameters: {'id': id, 'run': run ?? '', 'onlyRun': onlyRun, 'limit': careCenterLimit},
+    );
+    return {
+      'center': {
+        'id': row[0],
+        'key': row[1],
+        'name': row[2],
+        'kind': row[3],
+        'subtype': row[4],
+        'address': row[5],
+        'postalCode': row[6],
+        'city': row[7],
+        'region': row[8],
+        'country': (row[9] as String).trim(),
+        'lat': row[10],
+        'lon': row[11],
+        'phone': row[12],
+        'website': row[13],
+        'ownership': row[14],
+        'source': row[15],
+      },
+      'admissions': {
+        'run': run,
+        'thisRun': thisRun,
+        'thisRunAcute': runAcute,
+        'thisRunChronic': runChronic,
+        'total': total,
+        'acute': acute,
+        'chronic': chronic,
+        'latestOf': onlyRun ? 'run' : 'all',
+        'latest': [
+          for (final a in latest)
+            {
+              'eventId': a[0],
+              'personId': a[1],
+              'name': a[2],
+              'age': a[3],
+              'sex': a[4],
+              'city': a[5],
+              'conditionName': a[6],
+              'conditionType': a[7],
+              'visit': a[8],
+              'visitNumber': a[9],
+              'complaint': a[10],
+              'day': a[11],
+              'simTime': a[12],
+              'triage': a[18] == true
+                  ? {'level': a[13], 'waitMinutes': a[14], 'area': a[15], 'nurseCheck': a[16], 'error': a[17]}
+                  : null,
+            },
+        ],
+      },
+    };
+  });
 
   /// The latest [limit] admissions recorded, newest first: what GET
   /// /api/admissions answers.
@@ -471,24 +945,48 @@ class Db {
         'limit': limit,
       },
     );
-    return [
-      for (final row in rows)
-        {
-          'id': row[0],
-          'name': row[1],
-          'kind': row[2],
-          'subtype': row[3],
-          'address': row[4],
-          'city': row[5],
-          'country': (row[6] as String).trim(),
-          'lat': row[7],
-          'lon': row[8],
-          'phone': row[9],
-          'website': row[10],
-          'ownership': row[11],
-        },
-    ];
+    return [for (final row in rows) _careCenter(row)];
   });
+
+  /// The care center nearest [lat], [lon], of any kind, with its
+  /// great-circle `distance` in metres; null when none has a location:
+  /// what GET /api/care-centers/nearest answers.
+  Future<Map<String, Object?>?> nearestCareCenter(double lat, double lon) => _run((c) async {
+    final rows = await c.execute(
+      Sql.named('''
+        SELECT id, name, kind, subtype, address, city, country, latitude, longitude,
+               phone, website, ownership,
+               2 * 6371008.8 * asin(least(1, sqrt(
+                 power(sin(radians(latitude - @lat) / 2), 2)
+                 + cos(radians(@lat)) * cos(radians(latitude)) * power(sin(radians(longitude - @lon) / 2), 2)
+               ))) AS distance
+        FROM care_centers
+        WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+        ORDER BY distance, id
+        LIMIT 1
+      '''),
+      parameters: {'lat': TypedValue(Type.double, lat), 'lon': TypedValue(Type.double, lon)},
+    );
+    if (rows.isEmpty) return null;
+    return {..._careCenter(rows.first), 'distance': (rows.first[12] as double).round()};
+  });
+
+  /// A care center as the API answers it, from a row of the columns
+  /// [careCenters] selects, in its order.
+  static Map<String, Object?> _careCenter(ResultRow row) => {
+    'id': row[0],
+    'name': row[1],
+    'kind': row[2],
+    'subtype': row[3],
+    'address': row[4],
+    'city': row[5],
+    'country': (row[6] as String).trim(),
+    'lat': row[7],
+    'lon': row[8],
+    'phone': row[9],
+    'website': row[10],
+    'ownership': row[11],
+  };
 
   /// Every care center with a location, as the simulation places homes
   /// near them and sends people to the hospitals among them.

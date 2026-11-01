@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import '../api/datyx_api.dart';
 import '../app_version.dart';
 import '../auth/auth_controller.dart';
+import '../persist/address.dart';
 import '../theme.dart';
 
 /// The Health tab: the system as `GET /api/health` reports it, in cards
 /// (the API with its profile and mode, PostgreSQL, OpenMetadata), the
-/// sign-in, and this dashboard build itself with its version.
+/// sign-in, and this dashboard build itself with its version. The API's
+/// health check, OpenMetadata (at the address the API reports) and the
+/// dashboard are links that open in a new tab.
 class HealthTab extends StatelessWidget {
   const HealthTab({
     super.key,
@@ -48,6 +51,7 @@ class HealthTab extends StatelessWidget {
                       if (s.startedAt != null)
                         'since ${s.startedAt!.toLocal().toString().substring(0, 19)}',
                     ],
+              link: apiAddress('/api/health'),
             ),
             StatusCard(
               title: 'PostgreSQL',
@@ -57,10 +61,8 @@ class HealthTab extends StatelessWidget {
             StatusCard(
               title: 'OpenMetadata',
               ok: s?.openMetadata.ok ?? false,
-              lines: [
-                ..._dependency(s?.openMetadata),
-                if (s?.openMetadata.url != null) s!.openMetadata.url!,
-              ],
+              lines: _dependency(s?.openMetadata),
+              link: s?.openMetadata.url == null ? null : Uri.tryParse(s!.openMetadata.url!),
             ),
             ListenableBuilder(
               listenable: auth,
@@ -97,6 +99,7 @@ class HealthTab extends StatelessWidget {
                     : 'dash ${AppVersion.version}',
                 'asks the API every ${refreshEvery.inSeconds} s, and on refresh',
               ],
+              link: Address.page,
             ),
           ],
         ),
@@ -132,18 +135,21 @@ class ApiDownLine extends StatelessWidget {
   );
 }
 
-/// One of the status cards: a title, a green or red dot, a few lines.
+/// One of the status cards: a title, a green or red dot, a few lines, and
+/// a link to what it is about, opened in a new tab.
 class StatusCard extends StatelessWidget {
   const StatusCard({
     super.key,
     required this.title,
     required this.ok,
     required this.lines,
+    this.link,
   });
 
   final String title;
   final bool ok;
   final List<String> lines;
+  final Uri? link;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -176,6 +182,44 @@ class StatusCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(color: Aityx.muted, fontSize: 13),
               ),
+            if (link != null) _Link(key: ValueKey('link-$title'), url: link!),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// An address that opens in a new tab: underlined, in the accent, with the
+/// open-in-new icon.
+class _Link extends StatelessWidget {
+  const _Link({super.key, required this.url});
+  final Uri url;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 4),
+    child: Tooltip(
+      message: 'Open in a new tab',
+      child: InkWell(
+        onTap: () => Address.open(url),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                '$url',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Aityx.orangeLight,
+                  fontSize: 13,
+                  decoration: TextDecoration.underline,
+                  decorationColor: Aityx.orangeLight,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.open_in_new, size: 13, color: Aityx.orangeLight),
           ],
         ),
       ),

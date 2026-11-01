@@ -1,7 +1,8 @@
 # The battle on aityx
 
 Everything that happens in a battle is computed by aityx; the app only
-draws the frames it returns.
+draws the frames it returns, and [sounds](window.md) the collisions, hits
+and losses it reads in them.
 
 ## The world model
 

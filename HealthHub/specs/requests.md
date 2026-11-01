@@ -248,3 +248,249 @@ The feature files hold the current specification; see the
    DeepAR: datyx reads the table through OpenMetadata. See [Admissions
    per hour](admissions-hourly.md), [Database](database.md) and
    [Development environment](dev-environment.md).
+
+## 2026-11-01
+
+1. **Score each patient's hospital care in the next 30 days (the horizon
+   a parameter) with XGBoost, the dataset found by its tags in
+   OpenMetadata as datyx does for DeepAR, HealthHub being the customer.**
+   HealthHub's part is the data: the view `patient_days`, each person's
+   visits and hours of hospital care per run and simulated day (day 1
+   being 2026-01-01), with their age, sex, city, hospital and chronic
+   condition, made by the API at every start from `admissions` and
+   `medical_conditions`. The stay of a visit is its condition's, for a
+   first visit or a follow-up, as the simulation keeps people. Nothing in
+   HealthHub knows about datyx or XGBoost. See [Patient
+   days](patient-days.md) and [Database](database.md).
+
+1. **Use aityx for triage at the desk, and write a document apart from
+   the specs about HealthHub's aityx features, starting with this one:
+   how Jev and aityx help, sample classifications, plenty of cases in the
+   data, matching the tables, explainable.** Each admission the API
+   records is triaged by aityx from what the patient said and their age,
+   nothing else: one call, in which Jev reads eight danger signs as
+   probabilities and four choices (pain, onset, why they came, the part
+   of the body), and a decision (`data/triage/triage.json`) gives the
+   level on five levels after the Manchester Triage System's, the longest
+   wait, the area of the hospital and a nurse's check, with the rule
+   behind each. The API keeps each triage with aityx's receipt
+   (`admission_triage`) and answers `GET /api/triage` and
+   `GET /api/triage/{eventId}`; home gains the **Triage at the desk**
+   card, whose rows open why: the signs against the thresholds and each
+   rule tried in order. `HEALTHHUB_TRIAGE=off` turns it off. For plenty
+   of cases, every complaint template now has a reference level, the one
+   a nurse applying the same policy gives it, and admissions say which
+   template they were said from, so every triage is set against it; three
+   acute conditions bring immediate and time-critical cases: anaphylaxis,
+   acute coronary syndrome and stroke. `scripts/model-test.sh` checks the
+   decision on aityx at each rule and threshold, and
+   `scripts/triage-cases.sh` triages all 369 templates into
+   `docs/aityx-triage-cases.md`: 93.5% at the reference level, 97.8%
+   within one, after the questions were made more precise (85.1% at
+   first). The document is [docs/aityx.md](../docs/aityx.md). See
+   [Triage at the desk](triage.md), [Medical conditions](conditions.md),
+   [Simulation](simulation.md), [Database](database.md), [API](api.md),
+   [Home](home.md) and [Development environment](dev-environment.md).
+
+1. **In HealthHub, let each person's id or name be clickable, opening a
+   view of the person with what the system knows of them; in it, show
+   datyx's XGBoost inference of the 30-day return, highlighted in a
+   card.** Every person named on home is now a link: a move's id, an
+   admission's name, a triage's name (in the row and its detail), and a
+   person or home on the map (a click opens; the tooltip shows on hover).
+   The person view shows who they are, what they do now, a highlighted
+   card with datyx's prediction of their hours of hospital care over the
+   next 30 days against the last 30, their admissions with aityx's
+   triage, and their days of care. A person's id comes back in every run
+   as someone new, so a view is of one run: an admission's own, else the
+   current one. The API gains `GET /api/people/{id}` (from the database
+   and the latest move) and `GET /api/people/{id}/prediction` (datyx's
+   inference of `patient_days`, group `care`, asked with the user's token
+   from their datyx source for HealthHub's database), an index on
+   `admissions.person_id`, and `personId` on the triage rows. See
+   [The person view](person.md), [Home](home.md), [The map](map.md),
+   [API](api.md) and [Database](database.md).
+
+1. **On HealthHub's dashboard: beside the map, explain the data and how
+   the simulation works; beside the triage at the desk, what aityx does,
+   where Jev is, where the rules (DMN, decision tables) are and what
+   aityx adds, briefly. In the events, name the person on each row, a
+   link to their view, and invite opening anyone's. In the person view,
+   explain the XGBoost inference beside the return chance, and why Jev
+   can't calculate it: it depends on history.** Two explainer cards sit
+   to the right of the map and the triage from 1000 px wide (under them
+   when narrower); a move's row now names the person, not their id; the
+   events card invites opening anyone; the person view explains how
+   datyx's XGBoost model predicts from the person's own history, and why
+   Jev, which reads text, can't. See [Home](home.md) and
+   [The person view](person.md).
+1. **On top of the events, a button to pause the simulation.** **Pause
+   the simulation** (then **Resume the simulation**) heads the events
+   card. The API has `POST /api/simulation/pause` and `/resume`,
+   answering `{"paused": true|false}` (idempotent), 401 without a user
+   once sign-in is on, 409 when the simulation doesn't run. Pausing stops
+   the simulation's clock and holds every person's loop before its next
+   turn: nobody moves or is admitted, the simulated time stands still,
+   and resuming goes on from the same turn with none skipped. There is
+   one simulation, so a pause is everyone's. `GET /api/health` and
+   `GET /api/events` say `"paused"`; the API logs each pause and resume.
+   See [Simulation](simulation.md#pausing), [API](api.md) and
+   [Home](home.md).
+
+1. **Add more people to the simulation: double it.** The default of
+   `HEALTHHUB_SIM_PEOPLE` is now 20 a city, not 10: 140 people across the
+   seven cities, each publishing a move a turn, and about twice the
+   admissions (and so twice the aityx triage calls). The explainer beside
+   the map says twenty per city. See [Simulation](simulation.md),
+   [Home](home.md), [API](api.md), [Database](database.md) and
+   [Development environment](dev-environment.md).
+1. **In the events view, make the event cards look the same always,
+   with filterable conditions on top, in a new row below the pause
+   control.** Moves and admissions are now rows of one shape and
+   height: a bar and tint in the event's colour (the state's for a move,
+   orange for an admission), a mark, and two lines that never wrap: who,
+   the condition and the time; what happened, the hospital and where the
+   record sits. An admission's complaint is cut to what fits, in full on
+   hover, instead of wrapped below. Under the header with the pause, a
+   row of chips, **All conditions** and one per condition of the events
+   with its count, filters the events in the app, several at once, kept
+   through the 5-second reads; the header counts what is shown. See
+   [Home](home.md).
+1. **The hospital view: clicking a care center's name or id opens a view,
+   for every kind of care center, with its position on the map, the
+   people in it, its capacity and its current usage.** Every care center
+   named on home is now a link: a pin on the map (a click opens, the
+   tooltip shows on hover), the hospital of a move or an admission in the
+   events, of a triage (in the row and its detail) and of a person's
+   admissions and what they do now. The view shows what and where it is,
+   a map around it with a badge of who is there and the people on their
+   way, a highlighted card of the capacity in use ("1 of 8 beds", a bar,
+   the share, green, amber, red), who is there and on the way (links to
+   them), and its admissions, counted this run and in all, the latest
+   with who and aityx's triage; it reads again every 5 seconds. The
+   registries have no beds, so the capacity is the simulation's, sized to
+   its people and fixed per care center. Pages and dialogs opened from
+   home now carry home's links, so the person in a triage's detail opens
+   too. The API gains `GET /api/care-centers/{id}`, `hospitalId` on the
+   moves, a person's now and the triage rows, and an index on
+   `admissions (hospital_id, id)`. See [The care center
+   view](care-center.md), [The map](map.md), [Home](home.md), [The person
+   view](person.md), [API](api.md) and [Database](database.md).
+1. **Route people by need: send them to health stations and clinics, not
+   only hospitals, so that every kind of care center has people.** Each
+   condition now says where its first visit goes (`setting`) and, when
+   elsewhere, its follow-ups (`follow_up_setting`): primary care (a
+   health station) for colds, flu, check-ups of hypertension or diabetes;
+   urgent care (a CUAP, a UPA, an urgent care center, or a hospital's
+   emergency department, whichever is nearer) for a sprain, a laceration,
+   a migraine, gastroenteritis; adult mental health clinics for
+   depression and anxiety; dialysis centers for end-stage kidney disease;
+   a general hospital for emergencies and the specialists'
+   conditions. A pneumonia is admitted at the hospital and checked at the
+   health station after. Each person goes to the nearest care center
+   serving the visit's setting, travelling by its distance; the moves and
+   admissions say `careCenterKind`, and the app names it ("Going to the
+   health station"); the legend says going for care and in care. The
+   care center view says what each serves and when the simulation sends
+   nobody there. `medical_conditions` gains `setting` and
+   `follow_up_setting`. See [Medical conditions](conditions.md#where-visits-go),
+   [Simulation](simulation.md#people), [The map](map.md), [The care
+   center view](care-center.md), [API](api.md), [Database](database.md)
+   and [Admissions per hour](admissions-hourly.md).
+1. **Check HealthHub's data classification and quality indexing in
+   OpenMetadata, add the OpenMetadata calls needed after the data
+   initialization, reset what needs it: the console should show
+   everything at top quality, described and in context.** HealthHub's
+   part is the descriptions, set by its data initialization: every table,
+   the `patient_days` view and every column of the schema says what it
+   is, as a PostgreSQL comment that the migration sets at every start
+   (`COMMENT ON TABLE`, `COMMENT ON VIEW`, `COMMENT ON COLUMN`, from
+   `schemaComments` in
+   [lib/schema_comments.dart](../healthhub_api/lib/schema_comments.dart)).
+   HealthHub still knows nothing of datyx or OpenMetadata: datyx's schema
+   read carries a database's comments into OpenMetadata, and datyx, in
+   development, waits for them before it catalogues and curates
+   HealthHub (its own spec, `catalog.md`). A test checks against a live
+   database that the described tables and columns are exactly the
+   schema's, so a table or column added without a description fails. See
+   [Database](database.md).
+1. **When the HealthHub dashboard is opened, centre the map on the care
+   center nearest to the user.** Home's map, once the location is known,
+   asks the API for the nearest care center of any kind and centres on
+   it, at zoom 14 or as far out as keeps the user in view; it stays on
+   the user when there is no answer or the user has moved the map. The
+   index still centres on the user. The API has
+   `GET /api/care-centers/nearest?lat=..&lon=..`, answering the care
+   center and its great-circle distance in metres, the point used for
+   the query only and never logged. See [The map](map.md), [API](api.md)
+   and [Home](home.md).
+1. **In the care center view, plot a time series: for a start only the
+   admissions per hour, historically until now in simulation time, and
+   predicted for the next 24 hours in simulation time** (after an
+   earlier ask, "start by adding a timeline of admissions to the care
+   center view, the past solid and the future predictions dashed and a
+   bit transparent", whose card was written while the view was built
+   apart). The care center view now shows **Admissions per hour** under
+   its map and capacity (`AdmissionsTimelineCard`): the care center's
+   admissions in each of the last 72 simulated hours up to the run's
+   latest hour, solid, and datyx's DeepAR forecast of the next 24, dashed,
+   lighter, in the band of its 10th to 90th percentiles, with hover and
+   touch for each hour's numbers, refreshed every 10 seconds. Until datyx
+   has a model of the group, the card shows the hours and says why there
+   is no forecast. The API gains `GET /api/care-centers/{id}/admissions`
+   (from `admissions_hourly`, missing hours zero) and
+   `GET /api/care-centers/{id}/admissions/forecast` (datyx's inference of
+   the care center's series, group `default`, asked with the user's
+   token, as the person's prediction is, now through a shared
+   `_inference`). See [A care center's admissions per
+   hour](admissions-timeline.md), [The care center view](care-center.md)
+   and [API](api.md).
+
+1. **In the events where a person reaches a hospital, show their
+   expected 30-day bed usage on the event line.** Each admission in the
+   latest events shows datyx's XGBoost prediction of the person's hours
+   of hospital care over the next 30 days, the person view's, with a bed
+   icon ("9 h expected in 30 days"; the model and the last 30 days on
+   hover). The card asks for it once per admission, for the person of
+   the admission's run, and shows nothing when datyx can't say. See
+   [Home](home.md) and [The person view](person.md).
+
+1. **Have a new "monitored" property on people: only monitored people
+   show "at home" events, hidden for the others. Keep the total events
+   count on top, and a moving average too. Most patients aren't
+   monitored, only the high-risk: the elderly, pregnant women, some
+   mentally ill; the others' at-home events only count.** People are
+   monitored at home for being 80 or over, pregnant (a new fact of the
+   simulation: 7% of women aged 18 to 44), or having depression,
+   Alzheimer's disease, heart failure or end-stage kidney disease as
+   their chronic condition, about one in ten; every move says whether
+   and why (`monitored`, `monitoredFor`). The API's feed keeps a move at
+   home among the events only for a monitored person (the map still
+   shows everyone), counts every move and admission it reads, hidden
+   ones too, and averages how many a second over the last minute; `GET
+   /api/events` answers them as `total` and `perSecond`. The events card
+   shows them beside its title, "48,213 events · 70.4/s", and a
+   monitored person's rows carry a heart monitor, why on hover. See
+   [Simulation](simulation.md), [API](api.md) and [Home](home.md).
+1. **(Previewing the monitored people) Fewer at-home events: monitored
+   people check in, spread over the day.** A monitored person at home is
+   now an event once a simulated day, their first move at home from
+   their check-in hour on, an hour drawn from their id, so the check-ins
+   spread over the day; their other moves at home only count, as
+   everyone else's.
+   See [Simulation](simulation.md#the-stream), [Home](home.md) and
+   [API](api.md).
+1. **Still little to no occupancy in the care centers: double the
+   population of each city.** Forty simulated people a city, double the
+   twenty: 280 in all, 280 moves a second. Over 90 simulated days (after
+   a 30-day warm-up) about one person is in care at any hour across the
+   seven cities, against 0.6 with twenty, and 149 care centers see
+   someone, against 91: the capacities (2 to 12) are still mostly empty.
+   See [Simulation](simulation.md#people).
+1. **Make the cards' attributes align in the events view.** The time of
+   each row drifted with the length of its person's name: the name and
+   the condition each had half the row's spare width up front, and what
+   a short name left over went after the time. Now they share what the
+   time leaves, so every row's time ends at its right edge, over the
+   record's partition and offset, in figures of one width. See
+   [Home](home.md).

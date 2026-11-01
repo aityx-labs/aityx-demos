@@ -53,13 +53,18 @@ void main() {
       ..writeln('    femaleShare: ${_literal(c.femaleShare)},')
       ..writeln('    urgent: ${c.urgent},')
       ..writeln('    followUpStayHours: ${c.followUpStayHours},')
-      ..writeln('    courseGapDays: ${c.courseGapDays},');
+      ..writeln('    courseGapDays: ${c.courseGapDays},')
+      ..writeln('    setting: CareSetting.${c.setting.name},')
+      ..writeln('    followUpSetting: ${c.followUpSetting == null ? 'null' : 'CareSetting.${c.followUpSetting!.name}'},');
     for (final kind in VisitKind.values) {
       out.writeln('    ${kind.json}: [');
       for (final template in c.templates(kind)) {
         out.writeln('      ${_literal(template)},');
       }
       out.writeln('    ],');
+    }
+    for (final kind in VisitKind.values) {
+      out.writeln('    ${kind.json}Triage: [${c.triageOf(kind).map(_literal).join(', ')}],');
     }
     out.writeln('  ),');
   }

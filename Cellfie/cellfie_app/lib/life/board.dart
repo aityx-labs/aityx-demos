@@ -293,12 +293,13 @@ bool isPatternPhase(String id, String shape) =>
     _patternPhases[id]?.contains(shape) ?? false;
 
 /// The board: the live cells, the generation, and which cells were born
-/// in it (for the colors).
+/// and which died in it (for the colors).
 class Board {
   const Board({
     this.alive = const {},
     this.generation = 0,
     this.born = const {},
+    this.died = const {},
   });
 
   final Set<Cell> alive;
@@ -306,6 +307,9 @@ class Board {
 
   /// The cells of [alive] born in this generation.
   final Set<Cell> born;
+
+  /// The cells alive in the generation before this one and dead in it.
+  final Set<Cell> died;
 
   int get population => alive.length;
 
@@ -333,7 +337,7 @@ class Board {
   Board toggled(Cell cell) {
     final next = {...alive};
     if (!next.remove(cell)) next.add(cell);
-    return Board(alive: next, generation: generation, born: born);
+    return Board(alive: next, generation: generation, born: born, died: died);
   }
 
   /// The situations on the board, each with its cells (see
@@ -344,7 +348,8 @@ class Board {
   List<Cluster> get clusters => clustersOf(alive);
 
   /// The next generation, given whether the cells of each situation, in
-  /// the order of [situations], are alive next. Cells born are marked.
+  /// the order of [situations], are alive next. Cells born and cells that
+  /// died are marked.
   Board next(Map<SituationKey, List<Cell>> groups, List<bool> aliveNext) {
     final next = <Cell>{};
     final born = <Cell>{};
@@ -355,7 +360,12 @@ class Board {
         if (!situation.alive) born.addAll(cells);
       }
     }
-    return Board(alive: next, generation: generation + 1, born: born);
+    return Board(
+      alive: next,
+      generation: generation + 1,
+      born: born,
+      died: alive.difference(next),
+    );
   }
 }
 
@@ -406,7 +416,7 @@ Board startBoard(
 
   switch (kind) {
     case StartKind.sparse:
-      return soup(0.12);
+      return soup(0.06);
     case StartKind.soup:
       return soup(0.35);
     case StartKind.dense:

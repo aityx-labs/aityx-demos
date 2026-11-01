@@ -4,6 +4,94 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: DeepAR groups on the Training tab
+
+Asked: as for XGBoost, train a DeepAR group of tags when it is enabled or
+retrained (datyx's change: the API now trains DeepAR, and lists its
+groups on `GET /api/training`).
+
+Changed: the Training tab says datyx trains each tagged group with its
+algorithm; a DeepAR model's card says it forecasts the Target step by
+step over its horizon, its tiles are per step (three decimals, the
+error the median's) with a fifth, *inside its 80% band* (`coverage`,
+read by `TrainingRunDetail`), and it has no feature weights. With none
+tagged, the tab says to tag one for DeepAR, or XGBoost with a horizon.
+Tests.
+## 2026-11-01: a group's algorithms, all trained on enabling, and the switches as events
+
+Asked: the trigger for training is enabling the tag group, captured by
+the API as an event, training every algorithm associated with the group.
+(The webhook, the events and the runs per algorithm are the API's
+change, in its folder.)
+
+Changed: a group shows every algorithm it has (`XGBoost + DeepAR ·
+care`), and the edit dialog picks one or more (sent as `algorithms`);
+the switch's tooltip and snack bar say enabling queues a run for each
+of them. The Training tab lists the group switches from
+`GET /api/catalog/events` (when, table and group, on or off, through the
+webhook, datyx's switch or the minute's check, who, the table's version,
+the runs it queued), and a run queued by one links its event. The API
+client reads `algorithms` (falling back to `algorithm`), `eventId` and
+the events. Tests (26); `dashboard.md`.
+
+## 2026-11-01: groups can be disabled; enabling one triggers its training
+
+Asked: on the Catalog's view of a table's tag groups, let a group be
+disabled, HealthHub's `chronic` group disabled by default; enabling a
+group triggers a training run of it with its algorithm, the tagging
+being the trigger, visible in OpenMetadata. (The Disabled tag, the
+endpoint and the trainer watching the tag's removal in the table's
+version history are the API's change, in its folder.)
+
+Changed: each group's box on the Catalog tab has an Enabled/Disabled
+switch, which is the table's `TimeSeries.<group>.Disabled` tag
+(`TimeSeries.Disabled` for the default group) in OpenMetadata: it calls
+`PUT /api/datasources/{id}/timeseries/enabled`, shows a spinner, takes
+the API's answer and reads the table's tags again; its tooltip says so,
+with the group's algorithm, and enabling says in a snack bar that datyx
+queues a training run. A disabled group is muted, shows its tag as a
+chip, reads `chronic: DeepAR, disabled` under the table's name and
+`chronic: disabled, not trained` among the table's tags, is counted on
+the badge, and can still be edited. The Training tab shows the
+`enabled` trigger with the API's `triggerNote` (which tag was removed,
+in which version of the table, by whom and when) in the activity and
+under the model's latest run, and a disabled group as *disabled*, never
+next and not trainable now. The API client gained
+`setGroupEnabled(...)`, `TimeSeriesSpec.enabled` (true when the API
+doesn't say), `disabledTag(group)`, `TrainingRunInfo.triggerNote` and
+`TrainingModel.enabled`. Tests; `dashboard.md`.
+
+## 2026-11-01: an Inference tab, the account of the calls to the models
+
+Asked: an Inference panel on the dashboard, to account for inference
+calls and their statistics. (Inference itself, and its account, are the
+API's change, in its folder.)
+
+Changed: an Inference tab after Training (`InferenceTab`,
+`?tab=inference`): the last 7 days' totals as stat tiles (calls, the
+last hour's, failures, series scored, median and 95th-percentile
+latency), the calls per hour of the last 24 as columns, a card per model
+with its own account and **Try it** (score a series by its key, or all
+still observed, through the accounted endpoint, showing the
+predictions), and the latest calls. The API client gained `inference()`
+and `score(...)`; the status chip says ok in green. Tests;
+`dashboard.md`.
+
+## 2026-11-01: a Training tab, the models datyx trains and their runs
+
+Asked: present the training's activity and results in a view of its
+own, in the navigation; let the user set how often a model is retrained
+(in OpenMetadata where possible). (The training, a component started
+with the API, is datyx's change, in its folder.)
+
+Changed: a Training tab after Catalog (`TrainingTab`, `?tab=training`):
+a card per model tagged for XGBoost, with its latest status, what it
+scores, **Retrain every** (saved to OpenMetadata through the API),
+when it's next due, **Train now**, and its latest success's stat tiles
+(its error against the naive forecast's), features' weights as bars and
+highest scores; then the activity, every run newest first; asked again
+every 3 s while a run is on. The API client gained the four training
+calls. Tests; `dashboard.md`.
 ## 2026-11-01: tooltips on the Catalog
 
 Asked: on the Catalog, add tooltips to the elements, so the user knows
@@ -18,6 +106,11 @@ becomes; which classification a tag is from; what a cleanup policy
 does; what Read schema and Read topics read. `tableKind`, `tagHelp` and
 `cleanupHelp` name them; tests. Column descriptions aren't in the API's
 catalogue answer yet, so a column's tooltip can't show one.
+
+Merged with groups of several algorithms, switched on and off: the
+tooltips name what each of a group's algorithms takes a role as, say
+what an algorithm's tag and a Disabled tag mean, count the disabled
+groups on the table's badge, and the button reads **Tag for training**.
 
 ## 2026-11-01: Kafka sources, a Streams section, and cards apart
 
@@ -35,6 +128,23 @@ Streams and Not read yet, with a title and room above each section and
 16 px between cards. A Kafka source's card (`StreamCatalog`) reads its
 topics and shows each with its settings and the fields of its records,
 nested ones indented. `DatyxApi.topics`; the fake's topics; tests.
+
+## 2026-11-01: the algorithm that trains each group, XGBoost or DeepAR
+
+Asked: score each patient's care in the next 30 days with XGBoost, the
+horizon a parameter, by tagging a group with the XGBoost algorithm in
+OpenMetadata (explicit for now) for a trainer to come; see in the
+catalog clearly that XGBoost will train on the given table.
+
+Changed: the API answers each group's `algorithm` and `horizon`, and a
+table's own tags (datyx's change, in its folder). The Catalog tab shows,
+under a table's name, what trains each group (`care: XGBoost, 30D
+ahead`), the table's tags (`care: trained by XGBoost`), each role in
+the terms of its group's algorithm, and boxes named by algorithm
+(`XGBoost · care`) saying what XGBoost scores and the horizon.
+**Tag for DeepAR** is **Tag for training**; the dialog picks the
+algorithm (DeepAR or XGBoost, sent explicitly) and the table's horizon
+(required for XGBoost). Tests; `dashboard.md`.
 
 ## 2026-11-01: a color per group of tags
 
@@ -65,6 +175,15 @@ twice). The API client's `TimeSeriesSpec` and `TimeSeriesRoles` carry
 the `group`, and `TimeSeriesTag` reads a tag's group and role (it
 replaces `TimeSeriesRole.ofTag`). The fake keeps groups; a widget test
 adds, refuses and removes one.
+
+## 2026-11-01: the Audit panel's title without the count
+
+Asked: remove the count from the Audit panel's title too
+(*API calls · 4 of the latest 100 kept*): there's no point in it.
+
+Changed: the title is *API calls* alone, the Clear button at the right.
+The widget test no longer looks for the count.
+
 ## 2026-11-01: the Audit tab without the count
 
 Asked: the Audit tab's label read *Audit (100)*; remove the number, and
@@ -75,6 +194,18 @@ the dashboard asks the API for the health, the sources and the profile
 every 15 seconds, and the log keeps the latest 100 (`CallLog.keep`)
 across reloads, so it soon read 100 and stayed there. The panel still
 says how many it keeps. The widget test no longer looks for the count.
+
+## 2026-11-01: links on the Health tab
+
+Asked: make OpenMetadata's address on the Health tab clickable, and the
+dashboard's, and the API's health check.
+
+Changed: the API, OpenMetadata and Dashboard cards end with a link that
+opens in a new tab (`StatusCard.link`): `/api/health` where the app
+calls the API (`apiAddress`), the URL OpenMetadata's check reports, and
+this page (`Address.page`). `Address.open` opens it (`window.open`,
+`noopener`; off the web it records the link, for tests). A widget test
+taps the three.
 
 ## 2026-10-31: the catalogue and DeepAR tags on the Catalog tab
 

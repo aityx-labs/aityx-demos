@@ -171,6 +171,71 @@ void main() {
     for (final person in people) {
       expect(person.hospital.isGeneralHospital, true, reason: '${person.city}: ${person.hospital.name}');
     }
+    // Only the high-risk are monitored: the 80 and over, the pregnant;
+    // most people aren't.
+    final monitored = people.where((p) => p.monitored).toList();
+    expect(monitored.length / people.length, inInclusiveRange(0.02, 0.25));
+    expect([for (final p in people) if (p.profile.age >= 80) p], everyElement(predicate<Person>((p) => p.monitored)));
+    for (final p in people.where((p) => p.pregnant)) {
+      expect((p.profile.sex, p.profile.age), predicate<(String, int)>((w) => w.$1 == 'woman' && w.$2 >= 18 && w.$2 <= 44));
+      expect(p.monitored, true);
+    }
+  });
+
+  test('a care center serves the settings of its kind and subtype', () {
+    Place clinic(String subtype) => Place(id: 9, name: 'c', kind: 'clinic', city: 'x', at: sagradaFamilia, subtype: subtype);
+    const hospital = Place(id: 1, name: 'Hospital del Mar', kind: 'hospital', city: 'Barcelona', at: hospitalDelMar);
+    const cap = Place(id: 2, name: 'CAP', kind: 'health_station', city: 'Barcelona', at: sagradaFamilia);
+    expect([for (final s in CareSetting.values) if (hospital.serves(s)) s],
+        [CareSetting.hospital, CareSetting.urgentCare, CareSetting.dialysis]);
+    expect([for (final s in CareSetting.values) if (cap.serves(s)) s], [CareSetting.primary, CareSetting.mentalHealth]);
+    for (final urgent in ['CUAP', 'PRONTO ATENDIMENTO - UPA', 'PRONTO SOCORRO GERAL', 'Urgent care',
+        'Health Care Clinic Exemption (Urgent care)', 'Health Care Clinic Exemption (Primary care / walk-in clinic)']) {
+      expect(clinic(urgent).serves(CareSetting.urgentCare), true, reason: urgent);
+    }
+    for (final mental in ['CSMA', 'Centre de salut mental / addiccions', 'Community Mental Health Center',
+        'CENTRO DE ATENCAO PSICOSSOCIAL - CAPS II', 'CENTRO DE ATENCAO PSICOSSOCIAL - CAPS III']) {
+      expect(clinic(mental).serves(CareSetting.mentalHealth), true, reason: mental);
+    }
+    // Not the children's, nor alcohol and drugs.
+    for (final other in ['CSMIJ', 'CENTRO DE ATENCAO PSICOSSOCIAL - CAPS INFANTO/JUVENIL',
+        'CENTRO DE ATENCAO PSICOSSOCIAL - CAPS ALCOOL E DROGA', 'POLICLINICA', 'Ambulatory Surgical Center']) {
+      expect([for (final s in CareSetting.values) if (clinic(other).serves(s)) s], isEmpty, reason: other);
+    }
+    expect(clinic('End-Stage Renal Disease Center').serves(CareSetting.dialysis), true);
+  });
+
+  test('a setting goes to the nearest care center serving it, else the hospital', () {
+    const home = LatLon(41.40, 2.17);
+    final hospital = place(1, 'Barcelona', 'hospital', hospitalDelMar); // ~2.5 km
+    final cap = place(2, 'Barcelona', 'health_station', const LatLon(41.402, 2.172));
+    final farCap = place(3, 'Barcelona', 'health_station', const LatLon(41.45, 2.2));
+    final cuap = Place(id: 4, name: 'CUAP', kind: 'clinic', city: 'Barcelona', at: const LatLon(41.395, 2.17), subtype: 'CUAP');
+    final places = [hospital, farCap, cap, cuap];
+    expect(nearestCareCenter(home, CareSetting.hospital, places), hospital);
+    expect(nearestCareCenter(home, CareSetting.primary, places), cap);
+    expect(nearestCareCenter(home, CareSetting.urgentCare, places), cuap);
+    // No mental health clinic: primary care is nearer than the hospital.
+    expect(nearestCareCenter(home, CareSetting.mentalHealth, places), cap);
+    // No dialysis center: the hospital.
+    expect(nearestCareCenter(home, CareSetting.dialysis, places), hospital);
+    // No health station at all: the hospital.
+    expect(nearestCareCenter(home, CareSetting.primary, [hospital]), hospital);
+  });
+
+  test('the seed gives every city primary care and urgent care, and people a place for each setting', () {
+    final places = [
+      for (final c in careCenterSeed)
+        if (c.latitude != null && c.longitude != null)
+          Place(id: 0, name: c.name, kind: c.kind, city: c.city, at: LatLon(c.latitude!, c.longitude!), subtype: c.subtype),
+    ];
+    final people = populate(places, 5, 60, Random(12));
+    for (final person in people) {
+      expect(person.careCenters.keys.toSet(), CareSetting.values.toSet());
+      expect(person.careCenterFor(CareSetting.primary).isPrimaryCare, true, reason: person.city);
+      final urgent = person.careCenterFor(CareSetting.urgentCare);
+      expect(urgent.isUrgentCare || urgent.isGeneralHospital, true, reason: person.city);
+    }
   });
 
   test('homes are within 1.5 km of a care center of their own city', () {
@@ -223,8 +288,11 @@ void main() {
     final value = record['value'] as Map;
     expect(value.keys, [
       'id', 'name', 'age', 'city', 'lat', 'lon', 'homeLat', 'homeLon', 'hospitalId', 'hospitalName',
-      'state', 'mode', 'conditionName', 'conditionType', 'simTime', 'day', 'turn',
+      'careCenterKind', 'state', 'mode', 'monitored', 'monitoredFor', 'conditionName', 'conditionType', 'simTime', 'day',
+      'turn',
     ]);
+    expect(value['monitored'], person.monitored);
+    expect(value['monitoredFor'], person.monitoredFor);
     expect(value['name'], person.profile.name);
     expect(value['conditionName'], 'Common cold');
     expect(value['conditionType'], 'acute');
@@ -275,12 +343,81 @@ void main() {
     expect([for (final event in feed.recent) event['turn']], [2, 1, 1]);
   });
 
+  test('someone at home is an event only when monitored, and every event counts', () {
+    final feed = PeopleFeed(throwingKafka, people: ['reus-1', 'reus-2']);
+    Map<String, Object?> move(String id, String state, int turn, {bool? monitored}) => {
+      'id': id, 'city': 'Reus', 'lat': 41.1, 'lon': 1.1, 'homeLat': 41.2, 'homeLon': 1.2,
+      // Late in the day: past anyone's check-in hour.
+      'hospitalName': 'H', 'state': state, 'monitored': ?monitored, 'simTime': '23:00', 'day': 1, 'turn': turn,
+    };
+    feed
+      ..add(move('reus-1', 'home', 1, monitored: true))
+      // Still home, the same day: it only counts.
+      ..add(move('reus-1', 'home', 2, monitored: true))
+      ..add(move('reus-2', 'home', 1, monitored: false))
+      // A record from before people were monitored, or not: not monitored.
+      ..add(move('reus-2', 'home', 2))
+      ..add(move('reus-2', 'to_hospital', 3, monitored: false))
+      ..add(move('miami-1', 'home', 3, monitored: true));
+    expect([for (final e in feed.recent) (e['id'], e['turn'])], [('reus-2', 3), ('reus-1', 1)]);
+    // The map still has everyone, at home or not.
+    expect([for (final p in feed.people) (p['id'], p['turn'])], [('reus-1', 2), ('reus-2', 3)]);
+    // Hidden or shown, every move of the feed's people counts; another's doesn't.
+    expect(feed.counter.total, 5);
+  });
+
+  test('a monitored person at home checks in once a simulated day, from their hour', () {
+    // Each person's hour, from their id: spread over the day.
+    final hours = {for (var n = 1; n <= 20; n++) PeopleFeed.checkInHour('reus-$n')};
+    expect(hours.length, greaterThan(10));
+    expect(hours.every((h) => h >= 0 && h < 24), isTrue);
+    final hour = PeopleFeed.checkInHour('reus-1');
+    String two(int n) => n.toString().padLeft(2, '0');
+    final feed = PeopleFeed(throwingKafka, people: ['reus-1']);
+    var turn = 0;
+    void at(int day, String time) => feed.add({
+      'id': 'reus-1', 'city': 'Reus', 'lat': 41.1, 'lon': 1.1, 'homeLat': 41.2, 'homeLon': 1.2,
+      'hospitalName': 'H', 'state': 'home', 'monitored': true, 'simTime': time, 'day': day, 'turn': turn++,
+    });
+    for (var h = 0; h < 24; h++) {
+      at(1, '${two(h)}:00');
+    }
+    at(2, '${two(hour)}:30');
+    at(2, '23:00');
+    // The first move at home from their hour on, once a day; every one counts.
+    expect([for (final e in feed.recent) '${e['day']} ${e['simTime']}'], ['2 ${two(hour)}:30', '1 ${two(hour)}:00']);
+    expect(feed.counter.total, 26);
+  });
+
+  test('the event counter averages the last minute, a second at a time', () {
+    var now = DateTime.utc(2026, 11, 1, 12);
+    final counter = EventCounter(clock: () => now);
+    expect(counter.perSecond, 0);
+    for (var i = 0; i < 10; i++) {
+      counter.add();
+    }
+    // Less than a second since the first: over a second.
+    expect(counter.perSecond, 10);
+    now = now.add(const Duration(seconds: 20));
+    for (var i = 0; i < 30; i++) {
+      counter.add();
+    }
+    // 40 over the 20 s since the first.
+    expect(counter.perSecond, 2);
+    now = now.add(const Duration(seconds: 50));
+    // The first ten are over a minute old: 30 over the last 60 s.
+    expect(counter.perSecond, 0.5);
+    now = now.add(const Duration(minutes: 2));
+    expect(counter.perSecond, 0);
+    expect(counter.total, 40);
+  });
+
   test('the feed keeps the latest records as events, up to its limit', () {
     final feed = PeopleFeed(throwingKafka, people: ['reus-1']);
     for (var turn = 0; turn < PeopleFeed.recentLimit + 5; turn++) {
       feed.add({
         'id': 'reus-1', 'city': 'Reus', 'lat': 41.1, 'lon': 1.1, 'homeLat': 41.2, 'homeLon': 1.2,
-        'hospitalName': 'H', 'state': 'home', 'simTime': '06:00', 'day': 1, 'turn': turn,
+        'hospitalName': 'H', 'state': 'to_hospital', 'simTime': '06:00', 'day': 1, 'turn': turn,
       }, partition: 0, offset: turn);
     }
     expect(feed.recent, hasLength(PeopleFeed.recentLimit));
@@ -329,9 +466,75 @@ void main() {
     expect(second.toSet().length, second.length);
   });
 
+  test('a paused simulation publishes nothing, and resumes from the turn it stood at', () async {
+    final proxy = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final turns = <int>[];
+    proxy.listen((request) async {
+      final body = jsonDecode(await utf8.decodeStream(request)) as Map;
+      for (final record in body['records'] as List) {
+        turns.add(((record as Map)['value'] as Map)['turn'] as int);
+      }
+      request.response
+        ..headers.contentType = ContentType.json
+        ..write('{"offsets":[{"partition":0,"offset":0}]}');
+      await request.response.close();
+    });
+    final kafka = KafkaRest(Uri.parse('http://127.0.0.1:${proxy.port}'));
+    addTearDown(() async {
+      kafka.close();
+      await proxy.close(force: true);
+    });
+    final places = [const Place(id: 1, name: 'H', kind: 'hospital', city: 'Reus', at: LatLon(41.1554, 1.1076))];
+    final simulation = Simulation(populate(places, 1, 10, Random(6)), const SimulationSettings(turn: Duration(milliseconds: 40), minutesPerTurn: 10), kafka);
+    addTearDown(simulation.stop);
+    // Not running: nothing to pause.
+    simulation.pause();
+    expect(simulation.paused, isFalse);
+
+    simulation.start();
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    simulation
+      ..pause()
+      ..pause();
+    expect(simulation.paused, isTrue);
+    expect(simulation.running, isTrue);
+    // A publish under way when paused may still land.
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    final before = List.of(turns);
+    expect(before, isNotEmpty);
+    // Several turns' length: nothing published.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(turns, before);
+
+    simulation.resume();
+    expect(simulation.paused, isFalse);
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    final after = turns.skip(before.length).toList();
+    expect(after, isNotEmpty);
+    // The clock stood still: the next turn follows on (a slow publish may
+    // skip one), not the ~7 turns the pause lasted.
+    expect(after.first, inInclusiveRange(before.last + 1, before.last + 2));
+
+    // Stopped while paused: the loops end, and a new start runs one loop.
+    simulation.pause();
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    simulation.stop();
+    expect(simulation.paused, isFalse);
+    expect(simulation.running, isFalse);
+    final stopped = turns.length;
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    expect(turns, hasLength(stopped));
+    simulation.start();
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    simulation.stop();
+    final second = turns.skip(stopped).toList();
+    expect(second.first, 0);
+    expect(second.toSet().length, second.length);
+  });
+
   test('settings fall back to the defaults', () {
     final settings = SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '0', 'HEALTHHUB_SIM_TURN_MS': 'x'});
-    expect(settings.peoplePerCity, 10);
+    expect(settings.peoplePerCity, 40);
     expect(settings.turn, const Duration(seconds: 1));
     expect(settings.minutesPerTurn, 60);
     expect(SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '3'}).peoplePerCity, 3);
@@ -351,6 +554,8 @@ MedicalCondition condition(
   bool urgent = false,
   int? followUpStay,
   int? courseGap,
+  CareSetting setting = CareSetting.hospital,
+  CareSetting? followUpSetting,
 }) =>
     MedicalCondition(
       code: code,
@@ -369,10 +574,15 @@ MedicalCondition condition(
       first: const ['First, I am {name}, {age}.', 'First 2 {first_name}', 'First 3 {first_name}'],
       repeat: const ['Repeat {visit_number} after {days_since_first_visit} days', 'Repeat 2 {name}', 'Repeat 3 {name}'],
       last: const ['Last at {hospital} in {city}, a {sex} {occupation}', 'Last 2 {name}', 'Last 3 {name}'],
+      firstTriage: const ['yellow', 'green', 'green'],
+      repeatTriage: const ['green', 'blue', 'blue'],
+      lastTriage: const ['blue', 'blue', 'blue'],
       femaleShare: femaleShare,
       urgent: urgent,
       followUpStayHours: followUpStay,
       courseGapDays: courseGap,
+      setting: setting,
+      followUpSetting: followUpSetting,
     );
 
 final cold = condition('cold', 'acute');

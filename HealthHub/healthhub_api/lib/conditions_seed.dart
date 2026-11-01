@@ -3,7 +3,7 @@
 
 import 'conditions.dart';
 
-/// The medical conditions seeded at start, 38 of them.
+/// The medical conditions seeded at start, 41 of them.
 const conditionSeed = <MedicalCondition>[
   MedicalCondition(
     code: "common_cold",
@@ -23,6 +23,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. For the last three days I've had a sore throat, a blocked runny nose and I keep sneezing, and paracetamol only helps a little.",
       "Hello, my name is {first_name}, I'm {age} and I'm a {occupation}. I've had a stuffy nose, a scratchy throat and a mild cough since the weekend, and I wanted to make sure it's nothing more than a cold.",
@@ -38,6 +40,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name} again. It has been {days_since_first_visit} days since I first came in, the congestion has cleared and I've stopped taking anything for it.",
       "I'm {name}, back one last time about the cold. I feel well again apart from a tickle in my throat, so I'd just like to be signed off.",
     ],
+    firstTriage: ["green", "green", "green"],
+    repeatTriage: ["green", "green", "green"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "influenza",
@@ -57,6 +62,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. Yesterday I suddenly got a high fever, chills and aches all over my body, and I have a dry cough and a pounding headache.",
       "Hello, my name is {first_name}, {age}. Since last night I've had a temperature of over 39, my muscles ache so much I can barely get out of bed, and several people around me have had the flu this week.",
@@ -72,6 +79,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It's been {days_since_first_visit} days since the flu started and I'm breathing normally again, I just want to know if I can go back to my normal activities.",
       "I'm {name}, back for my last visit about the flu. I feel much better, I've stopped all the medicines, and only a light cough is left.",
     ],
+    firstTriage: ["yellow", "yellow", "yellow"],
+    repeatTriage: ["yellow", "blue", "green"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "covid_19",
@@ -91,6 +101,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. I tested positive for COVID at home this morning, I've had a fever and a dry cough for two days and I can't taste my food.",
       "Hello, my name is {first_name}, {age}. I've had a sore throat, chills and a cough since Monday, my home test is positive and I'm getting a bit breathless climbing stairs.",
@@ -106,6 +118,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It's been {days_since_first_visit} days since I got COVID, I'm breathing normally and my oxygen readings are fine, I'd like to know I can go back to my normal routine.",
       "I'm {name}, back for my final COVID visit. I feel well apart from tiring a little faster than usual, and I've stopped all the medicines.",
     ],
+    firstTriage: ["green", "green", "green"],
+    repeatTriage: ["orange", "green", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "acute_bronchitis",
@@ -125,6 +140,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. I've had a chesty cough for about a week after a cold, I'm bringing up yellowish phlegm and my chest feels sore from coughing.",
       "Hello, my name is {first_name}, {age}. I can't stop coughing, especially at night, it started ten days ago and cough syrup hasn't helped.",
@@ -140,6 +157,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It has been {days_since_first_visit} days since I first came in, my chest feels clear and I've stopped the cough medicine.",
       "I'm {name}, back for my last visit about the bronchitis. I only cough now and then, no more phlegm or wheezing.",
     ],
+    firstTriage: ["green", "blue", "green"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "community_acquired_pneumonia",
@@ -159,6 +179,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: true,
     followUpStayHours: 2,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: CareSetting.primary,
     first: [
       "Hi, I'm {name}, I'm {age}. I've had a high fever and a cough with rusty-coloured phlegm for three days, and now I get a sharp pain on the right side of my chest when I breathe in.",
       "Hello, my name is {first_name}, {age}. I'm very short of breath, shaking with chills and coughing up green phlegm, and I feel confused and weak.",
@@ -174,6 +196,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It's been {days_since_first_visit} days since I was admitted with pneumonia, my breathing is normal and I'd like the final check before going back to my normal activities.",
       "I'm {name}, back for the last pneumonia appointment. No fever, hardly any cough, and I can climb stairs without stopping.",
     ],
+    firstTriage: ["yellow", "orange", "orange"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "streptococcal_pharyngitis",
@@ -193,6 +218,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. My throat is so sore I can barely swallow, I have a fever of 38.8 and there are white spots on my tonsils, but no cough.",
       "Hello, my name is {first_name}, {age}. Since yesterday my throat has been burning, the glands in my neck are swollen and painful, and ibuprofen barely helps.",
@@ -208,6 +235,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It has been {days_since_first_visit} days since my strep throat started, I'm eating normally again and just want a final look.",
       "I'm {name}, back one last time about the throat infection. No more fever or pain, I'd like to know I'm no longer infectious.",
     ],
+    firstTriage: ["yellow", "yellow", "yellow"],
+    repeatTriage: ["yellow", "green", "green"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "acute_sinusitis",
@@ -227,6 +257,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. For ten days my nose has been blocked with thick green discharge, and there's a heavy pain over my cheeks that gets worse when I bend over.",
       "Hello, my name is {first_name}, {age}. After a cold I've developed pressure behind my eyes and forehead, my top teeth ache and I can't smell anything.",
@@ -242,6 +274,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It has been {days_since_first_visit} days since the sinusitis began, my sense of smell is back and I've stopped the spray.",
       "I'm {name}, back one last time about my sinuses. Just a bit of stuffiness left, no pain or fever.",
     ],
+    firstTriage: ["blue", "green", "yellow"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "acute_otitis_externa",
@@ -261,6 +296,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. My right ear has been very painful for three days, it's itchy, there's a smelly discharge and it hurts when I touch it.",
       "Hello, my name is {first_name}, {age}. I went swimming last week and since then my left ear feels blocked and sore, and pulling the earlobe is agony.",
@@ -276,6 +313,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It's been {days_since_first_visit} days since the ear infection started and I've finished the drops, my hearing is back.",
       "I'm {name}, back one last time about my ear. It's healed up, I just want to know when I can swim again.",
     ],
+    firstTriage: ["yellow", "orange", "yellow"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "acute_gastroenteritis",
@@ -295,6 +335,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.urgentCare,
+    followUpSetting: CareSetting.primary,
     first: [
       "Hi, I'm {name}, I'm {age}. Since last night I've been vomiting and had watery diarrhoea more than ten times, I can't keep water down and I feel dizzy.",
       "Hello, my name is {first_name}, {age}. I have bad stomach cramps, diarrhoea and a low fever since yesterday, after a meal out in {city}.",
@@ -310,6 +352,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It's been {days_since_first_visit} days since the stomach bug, the stool test came back and I'd like the results.",
       "I'm {name}, back for my last visit about the gastroenteritis. I feel fine now and want to know when I can safely be around other people again.",
     ],
+    firstTriage: ["yellow", "yellow", "yellow"],
+    repeatTriage: ["blue", "yellow", "green"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "urinary_tract_infection",
@@ -329,6 +374,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. Since yesterday it burns when I pass urine, I need to go every half hour and my lower tummy aches.",
       "Hello, my name is {first_name}, {age}. My urine is cloudy and smells strong, I have to rush to the toilet all the time and it stings badly.",
@@ -344,6 +391,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It has been {days_since_first_visit} days since the urine infection started, I feel normal again and wanted the culture results.",
       "I'm {name}, back for my last visit about the infection. No more symptoms, I just want to know how to stop it coming back.",
     ],
+    firstTriage: ["green", "green", "yellow"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "cellulitis",
@@ -363,6 +413,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: 1,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. My lower leg has gone red, hot and swollen over the last two days, it's very painful to walk on and I feel feverish.",
       "Hello, my name is {first_name}, {age}. I'm a {occupation}, I scratched my shin last week and now there's a red patch the size of my hand that keeps spreading.",
@@ -378,6 +430,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It has been {days_since_first_visit} days since the cellulitis started, and I can walk normally again.",
       "I'm {name}, back for my last visit about my leg. The skin is just a bit peeling now, no pain, I want to know how to avoid it happening again.",
     ],
+    firstTriage: ["yellow", "green", "yellow"],
+    repeatTriage: ["blue", "blue", "green"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "acute_appendicitis",
@@ -397,6 +452,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: true,
     followUpStayHours: 1,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. It started as a pain around my belly button and now it has moved to the lower right side; it's sharp and much worse when I move or cough.",
       "Hello, my name is {first_name}, {age}. I've had severe pain in the bottom right of my stomach for about twelve hours, I've vomited twice, I have a fever and I can't eat anything.",
@@ -412,6 +469,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It's been {days_since_first_visit} days since my appendix surgery, I feel fine and want to know when I can lift heavy things again; I'm a {occupation}.",
       "I'm {name}, back for my final appointment after the appendicitis. No pain, no fever, I'd like to be discharged from the clinic.",
     ],
+    firstTriage: ["yellow", "orange", "orange"],
+    repeatTriage: ["green", "blue", "green"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "renal_colic",
@@ -431,6 +491,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: true,
     followUpStayHours: 1,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. An hour ago I got an unbearable pain in my right side that goes down to my groin, I can't keep still and I've been sick.",
       "Hello, my name is {first_name}, {age}. I've had pain coming in waves in my left flank for the last few hours, my urine looks pink and painkillers did nothing.",
@@ -446,6 +508,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It's been {days_since_first_visit} days since the kidney stone, the follow-up scan is done and I'd like the results.",
       "I'm {name}, back for my last appointment about the stone. The pain has gone completely and I want advice on stopping more stones from forming.",
     ],
+    firstTriage: ["orange", "yellow", "orange"],
+    repeatTriage: ["blue", "blue", "yellow"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "migraine_attack",
@@ -465,6 +530,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.urgentCare,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. I've had a throbbing headache on the left side for over a day, I've vomited several times and light hurts my eyes, my usual tablets didn't work.",
       "Hello, my name is {first_name}, {age}. I get migraines but this one has lasted since yesterday morning, I can't keep anything down and I need a dark room.",
@@ -480,6 +547,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It's been {days_since_first_visit} days since the bad migraine, I'm headache-free and want to talk about preventing the next one.",
       "I'm {name}, back one last time about my migraine. The headache has fully settled and I'd like to know which tablets to take next time.",
     ],
+    firstTriage: ["yellow", "yellow", "orange"],
+    repeatTriage: ["yellow", "green", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "ankle_sprain",
@@ -499,6 +569,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.urgentCare,
+    followUpSetting: CareSetting.primary,
     first: [
       "Hi, I'm {name}, I'm {age}. I twisted my ankle stepping off a kerb this morning, it swelled up straight away and it hurts to put any weight on it.",
       "Hello, my name is {first_name}, {age}. I rolled my right ankle on uneven ground last night, the outside is bruised and swollen and I can only hobble.",
@@ -514,6 +586,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It's been {days_since_first_visit} days since the sprain, the swelling is gone and I'd like to know if I can start running again.",
       "I'm {name}, back for my last visit about the ankle. I no longer need the brace and can walk without pain.",
     ],
+    firstTriage: ["yellow", "yellow", "yellow"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "distal_radius_fracture",
@@ -533,6 +608,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: true,
     followUpStayHours: 2,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. I slipped on a wet floor and landed on my outstretched hand, my wrist is swollen, bent at an odd angle and extremely painful.",
       "Hello, my name is {first_name}, {age}. I fell off my bike an hour ago and put my hand out, now I can't move my wrist and my fingers feel tingly.",
@@ -548,6 +625,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It has been {days_since_first_visit} days since I broke my wrist, the cast is off and I'd like to start physiotherapy.",
       "I'm {name}, back for my last fracture clinic visit. My wrist is stiff but not painful, and I want to know when I can use it fully again; I'm a {occupation}.",
     ],
+    firstTriage: ["orange", "yellow", "yellow"],
+    repeatTriage: ["blue", "blue", "green"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "acute_low_back_pain",
@@ -567,6 +647,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. I bent down to lift a box yesterday and felt something go in my lower back, now I can hardly stand up straight.",
       "Hello, my name is {first_name}, {age}. My lower back has been in spasm for three days, the pain shoots into my right buttock and ibuprofen only helps a bit.",
@@ -582,6 +664,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It's been {days_since_first_visit} days since my back went, I've stopped the anti-inflammatories and I'm moving freely.",
       "I'm {name}, back for my last visit about the back pain. Only a slight ache after long days, and I want advice on preventing it again.",
     ],
+    firstTriage: ["yellow", "yellow", "orange"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "conjunctivitis",
@@ -601,6 +686,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. My left eye has been red and gritty since yesterday and this morning the lashes were stuck together with yellow discharge.",
       "Hello, my name is {first_name}, {age}. Both my eyes are pink, watery and itchy for two days, my vision is fine but it feels like there's sand in them.",
@@ -616,6 +703,9 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It has been {days_since_first_visit} days since the conjunctivitis, I've stopped the drops and I'd like to know if I can wear contact lenses again.",
       "I'm {name}, back one last time about my eye. It's back to normal and I want to make sure I'm not contagious anymore.",
     ],
+    firstTriage: ["green", "green", "green"],
+    repeatTriage: ["blue", "green", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "skin_laceration",
@@ -635,6 +725,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: true,
     followUpStayHours: 1,
     courseGapDays: null,
+    setting: CareSetting.urgentCare,
+    followUpSetting: CareSetting.primary,
     first: [
       "Hi, I'm {name}, I'm {age}. I cut my hand on a kitchen knife about an hour ago, it's a deep cut on my palm and it keeps bleeding through the towel.",
       "Hello, my name is {first_name}, {age}. I hit my head on a cupboard door and split my scalp, it bled a lot but I didn't pass out.",
@@ -650,6 +742,126 @@ const conditionSeed = <MedicalCondition>[
       "Hello, it's {first_name}. It's been {days_since_first_visit} days since I cut myself, the wound has closed and I'd like the stitches removed.",
       "I'm {name}, back for my last visit about the cut. No pain or redness now, I just want to know how to look after the scar.",
     ],
+    firstTriage: ["yellow", "yellow", "yellow"],
+    repeatTriage: ["green", "green", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
+  ),
+  MedicalCondition(
+    code: "anaphylaxis",
+    name: "Anaphylaxis (severe allergic reaction)",
+    type: "acute",
+    prevalence: 0.3,
+    minAge: 18,
+    maxAge: 90,
+    summary: "A sudden, severe, life-threatening allergic reaction, most often to a food, an insect sting or a medicine, with swelling of the throat or tongue, difficulty breathing, wheeze, a rash and a fall in blood pressure.",
+    treatment: "Give intramuscular adrenaline at once, repeated after 5 minutes if needed, with high-flow oxygen, IV fluids for low blood pressure and nebulised bronchodilators for wheeze; antihistamines and steroids are secondary. Observe for at least 6 to 12 hours for a second reaction, prescribe two adrenaline auto-injectors with training, and refer to an allergy clinic to confirm the trigger.",
+    treatmentDurationDays: 14,
+    duration: "Hours, with observation for 6 to 12 hours and an allergy clinic review within weeks",
+    visitCount: 2,
+    visitIntervalDays: 21,
+    stayHours: 12,
+    femaleShare: 0.55,
+    urgent: true,
+    followUpStayHours: 2,
+    courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
+    first: [
+      "Hi, I'm {name}, I'm {age}. I ate a cake with nuts in it twenty minutes ago and my throat is closing up, my lips and tongue are swelling and I can hardly breathe.",
+      "Hello, my name is {first_name}, {age}. A wasp stung me in the garden and now my face is swelling, I'm covered in hives, I feel faint and my heart is racing.",
+      "I'm {name}, a {age}-year-old {sex}. I took the new antibiotic an hour ago, my whole body came out in a rash, my tongue feels huge and I nearly passed out in the car.",
+    ],
+    repeat: [
+      "Hi, it's {name} again, I had the severe allergic reaction {days_since_first_visit} days ago. I'm here for the allergy clinic to find out exactly what caused it.",
+      "Hello, I'm {first_name}, {age}, back after my anaphylaxis. My skin has been itchy and blotchy again since yesterday, but my breathing and my mouth are fine.",
+      "I'm {name}, this is visit {visit_number} after my allergic reaction. I'd like someone to check I'm using the adrenaline pen correctly.",
+    ],
+    last: [
+      "Hi, I'm {name}, {age}. I'm here for the results of the allergy tests after my reaction, I've had no symptoms since.",
+      "Hello, it's {first_name}. It's been {days_since_first_visit} days since the anaphylaxis, I carry two pens everywhere and I'd like my written allergy plan.",
+      "I'm {name}, back for my last allergy appointment. I feel completely well and want to know which foods and medicines I must avoid from now on.",
+    ],
+    firstTriage: ["red", "red", "red"],
+    repeatTriage: ["blue", "green", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
+  ),
+  MedicalCondition(
+    code: "acute_coronary_syndrome",
+    name: "Acute coronary syndrome (heart attack)",
+    type: "acute",
+    prevalence: 0.4,
+    minAge: 35,
+    maxAge: 90,
+    summary: "A sudden reduction of blood flow to the heart muscle, from a ruptured plaque and clot in a coronary artery, with crushing chest pain at rest spreading to the arm or jaw, sweating, nausea and breathlessness: unstable angina or a myocardial infarction.",
+    treatment: "Record an ECG within 10 minutes of arrival, give aspirin, pain relief and oxygen if saturation is low, and measure troponin; a heart attack with ST elevation goes for immediate angioplasty, others for anticoagulation and angiography within 24 to 72 hours. Start secondary prevention (antiplatelets, a statin, a beta-blocker and an ACE inhibitor) and refer to cardiac rehabilitation.",
+    treatmentDurationDays: 60,
+    duration: "A hospital stay of 2 to 5 days, then cardiac rehabilitation over 6 to 12 weeks",
+    visitCount: 3,
+    visitIntervalDays: 28,
+    stayHours: 72,
+    femaleShare: 0.35,
+    urgent: true,
+    followUpStayHours: 3,
+    courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
+    first: [
+      "Hi, I'm {name}, I'm {age}. Half an hour ago I got a crushing pain in the middle of my chest while sitting watching TV, it goes into my left arm and jaw, I'm sweating and I feel sick.",
+      "Hello, my name is {first_name}, {age}. I woke up with a heavy weight on my chest that won't go away, I'm drenched in a cold sweat, grey in the face according to my partner, and I've vomited.",
+      "I'm {name}, a {age}-year-old {occupation}. For the last hour I've had a tight pressure in my chest and between my shoulder blades, it's not as bad as it was but it keeps coming back even at rest.",
+    ],
+    repeat: [
+      "Hi, it's {name} again, I had a heart attack {days_since_first_visit} days ago and got a stent. I'm here for the cardiac rehab review and I've had no chest pain since.",
+      "Hello, I'm {first_name}, {age}, back after my heart attack. Last night I had the same tightness in my chest again while lying in bed, it lasted ten minutes and the spray helped.",
+      "I'm {name}, this is visit {visit_number} after my heart attack. The new tablets make me tired and I bruise easily, and I wanted to go over the doses.",
+    ],
+    last: [
+      "Hi, I'm {name}, {age}. I've finished cardiac rehab, I can walk for an hour without any chest pain, and I'm here for the final review.",
+      "Hello, it's {first_name}. It's been {days_since_first_visit} days since my heart attack, the follow-up scan is done and I'd like to know when I can go back to work as a {occupation}.",
+      "I'm {name}, back for my last appointment after the heart attack. I've stopped smoking, I take all my tablets, and I'd like the plan for my GP.",
+    ],
+    firstTriage: ["red", "red", "orange"],
+    repeatTriage: ["blue", "orange", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
+  ),
+  MedicalCondition(
+    code: "stroke",
+    name: "Stroke",
+    type: "acute",
+    prevalence: 0.3,
+    minAge: 40,
+    maxAge: 90,
+    summary: "A sudden loss of blood flow to part of the brain, from a clot (ischaemic) or a bleed (haemorrhagic), with weakness of the face, arm or leg on one side, slurred or lost speech, or loss of vision.",
+    treatment: "Treat as a time-critical emergency: a brain scan straight away, then clot-busting treatment within 4.5 hours of onset, or clot retrieval within 6 to 24 hours for a large-vessel blockage, if the scan shows no bleed. Admit to a stroke unit for monitoring, swallow assessment and early rehabilitation, then start antiplatelets, a statin and blood pressure control to prevent another.",
+    treatmentDurationDays: 90,
+    duration: "A stroke unit stay of days to weeks, then rehabilitation over months",
+    visitCount: 3,
+    visitIntervalDays: 30,
+    stayHours: 72,
+    femaleShare: 0.5,
+    urgent: true,
+    followUpStayHours: 2,
+    courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
+    first: [
+      "Hi, I'm {name}, I'm {age}. About forty minutes ago my right arm suddenly went weak and heavy, I dropped my cup, and my wife says the side of my face is drooping.",
+      "Hello, my name is {first_name}, {age}. This morning my words suddenly came out jumbled and slurred, I can't find the right ones, and my left leg feels numb.",
+      "I'm {name}, a {age}-year-old {sex}. An hour ago I suddenly lost half the vision in both eyes and my left hand went clumsy and numb; it hasn't come back.",
+    ],
+    repeat: [
+      "Hi, it's {name} again, I had a stroke {days_since_first_visit} days ago. I'm here for the stroke clinic, my arm is getting stronger with physiotherapy.",
+      "Hello, I'm {first_name}, {age}, back after my stroke. Since yesterday my speech has been a bit more slurred again when I'm tired, though it's no worse than last week.",
+      "I'm {name}, this is visit {visit_number} after my stroke. I'm taking the blood thinner and the statin, and I'd like my blood pressure checked.",
+    ],
+    last: [
+      "Hi, I'm {name}, {age}. I've finished the rehabilitation programme after my stroke and I can walk without the stick now, so this is my final stroke clinic review.",
+      "Hello, it's {first_name}. It's been {days_since_first_visit} days since the stroke and I'd like to know if I'm allowed to drive again.",
+      "I'm {name}, back for my last appointment after the stroke. My speech is nearly back to normal, and I want the plan for my GP to keep it from happening again.",
+    ],
+    firstTriage: ["orange", "orange", "orange"],
+    repeatTriage: ["blue", "green", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "hypertension",
@@ -669,6 +881,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. I've had a dull headache at the back of my head most mornings this week, and the pharmacy machine read my blood pressure as 168 over 102 twice.",
       "My name is {first_name}, I'm {age}. My GP measured my blood pressure high on three visits and sent me here for a check; I sometimes get a pounding in my ears but no chest pain.",
@@ -684,6 +898,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. I've had my blood and urine tests for this review, and if they and today's reading are good I'd like to keep the same dose until my next check-up; I've had no side effects lately.",
       "Hello, I'm {name}. I've brought my diary of home readings, they're mostly under target, and I'd like to confirm the dose and when my next review is due.",
     ],
+    firstTriage: ["green", "blue", "blue"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "hyperlipidemia",
@@ -703,6 +920,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. A routine blood test showed my cholesterol is high, and my father had a heart attack in his fifties, so my GP asked me to come in about it.",
       "My name is {first_name}, I'm {age}. I've got these small yellowish lumps near my eyelids and my blood test came back with very high cholesterol; I feel well otherwise.",
@@ -718,6 +937,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. My liver tests came back normal and my cholesterol is about half what it was before treatment; I just need my repeat prescriptions sorted until the next review.",
       "Hello, I'm {name}. My cholesterol is under control on treatment, and I'd like to confirm I stay on the same dose and when my next blood test is due.",
     ],
+    firstTriage: ["blue", "blue", "blue"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "osteoarthritis",
@@ -737,6 +959,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. My right knee has ached for months and it's much worse going downstairs; it's stiff for about twenty minutes in the morning, and paracetamol barely helps.",
       "My name is {first_name}, I'm {age} and I'm a {occupation}. My left hip hurts in the groin when I walk more than ten minutes, and I've started limping.",
@@ -752,6 +976,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. The painkillers aren't enough on bad days, and I'd like to talk about a referral to the orthopaedic surgeons before my next review.",
       "Hello, I'm {name}. The joint is better with the support and the gel, so I'm happy to manage at home until my next review and come back sooner if it flares.",
     ],
+    firstTriage: ["yellow", "blue", "blue"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "gerd",
@@ -771,6 +998,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. I get a burning pain behind my breastbone after meals and when I lie down, nearly every night for two months, and antacids only help for an hour.",
       "My name is {first_name}, I'm {age}. I keep waking up with a sour taste and acid in my throat, I've had a hoarse voice and a cough, and it's worse after coffee.",
@@ -786,6 +1015,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. My last camera test was normal and the symptoms are controlled, so I'd like to try taking the tablets only when I need them until my next review.",
       "Hello, I'm {name}. With the tablets and the diet changes I feel much better, and I'd like to confirm the plan and when I should come back for my next review.",
     ],
+    firstTriage: ["blue", "blue", "green"],
+    repeatTriage: ["blue", "green", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "type_2_diabetes",
@@ -805,6 +1037,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. For the last month I've been very thirsty, going to the toilet at night three or four times, and I've lost weight without trying; my GP's finger-prick sugar was high.",
       "My name is {first_name}, I'm {age}. My blood test showed diabetes, I've been really tired, and I have a cut on my foot that won't heal after three weeks.",
@@ -820,6 +1054,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. My sugars have been steady on the current tablets since my last check, so I'd like to keep the same plan and book my next review.",
       "Hello, I'm {name}. I've lost eight kilos since I was diagnosed and my sugars look normal on the meter; I'd like to know whether we can reduce the medication before my next check-up.",
     ],
+    firstTriage: ["blue", "blue", "blue"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "chronic_low_back_pain",
@@ -839,6 +1076,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. My lower back has hurt for about four months, worse after sitting for long; I'm a {occupation}, and ibuprofen only takes the edge off; no numbness or problems with the toilet.",
       "My name is {first_name}, I'm {age}. My back flared up badly two days ago when I bent to lift a box, and the pain goes into my right buttock; I've had back trouble on and off for a year.",
@@ -854,6 +1093,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. My back is better with physio; I'd like an updated home exercise plan and to know what should make me come back before my next review.",
       "Hello, I'm {name}. The leg pain is still there, so I'm here to hear the scan result and talk about a referral to the spinal clinic.",
     ],
+    firstTriage: ["blue", "yellow", "blue"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "chronic_kidney_disease",
@@ -873,6 +1115,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. My GP said my kidney blood test has been low for three months and there's protein in my urine, so I was referred to the kidney clinic; I've noticed my ankles swelling.",
       "My name is {first_name}, I'm {age}. I've had diabetes for years, and now my kidney function is down; I'm more tired than usual and my legs puff up by evening.",
@@ -888,6 +1132,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. My kidney function has kept dropping, and I'm here to talk about dialysis options and the transplant assessment.",
       "Hello, I'm {name}. My potassium and blood pressure are good on the current tablets, and I'd like to confirm the plan until my next check.",
     ],
+    firstTriage: ["blue", "blue", "blue"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "asthma",
@@ -907,6 +1154,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}, I have asthma. Since last night I've been wheezing and tight-chested, my blue inhaler only helps for an hour, and I can't finish a sentence without stopping.",
       "My name is {first_name}, I'm {age}. I caught a cold three days ago and my asthma has got worse every day; I've used my reliever eight times today and my peak flow is half my normal.",
@@ -922,6 +1171,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. My breathing is back to normal after the flare-up, and I'd like to check whether I stay on this inhaler dose or step it down until my next review.",
       "Hello, I'm {name}. I'm here for my breathing tests for this review; I'm getting through my usual day as a {occupation} without getting breathless.",
     ],
+    firstTriage: ["orange", "orange", "green"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "major_depressive_disorder",
@@ -941,6 +1193,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.mentalHealth,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. For about two months I've felt flat and hopeless, I wake at four every morning, I've stopped seeing friends, and I can't concentrate on anything.",
       "My name is {first_name}, I'm {age} and I'm a {occupation}. I've been crying most days and lost my appetite for over a month; I don't want to hurt myself, but I feel like there's no point.",
@@ -956,6 +1210,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. My mood has been stable, and we talked about staying on the tablets for at least six more months; I just need the relapse plan in writing.",
       "Hello, I'm {name}. I'm sleeping and eating normally and I've finished this block of therapy sessions; I'd like to check the dose and book my next review.",
     ],
+    firstTriage: ["blue", "blue", "blue"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "coronary_artery_disease",
@@ -975,6 +1232,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. For three weeks I've had a heavy, squeezing pain in the middle of my chest when I walk uphill, it goes into my left arm, and it eases after a few minutes of rest.",
       "My name is {first_name}, I'm {age}. I get tightness across my chest and shortness of breath when I climb stairs or walk in the cold; it lasted ten minutes this morning, which frightened me.",
@@ -990,6 +1249,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. The angina is well controlled on the medication and I keep up the rehab exercises at home; I'd like to know when my next check-up is.",
       "Hello, I'm {name}. I can walk a few kilometres without chest pain now; I'm here for my results and the plan until my next review.",
     ],
+    firstTriage: ["orange", "orange", "orange"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "hypothyroidism",
@@ -1009,6 +1271,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. For months I've felt exhausted, cold all the time, and I've put on five kilos without eating more; my hair is thinning too.",
       "My name is {first_name}, I'm {age}. My blood test showed an underactive thyroid; I've been constipated, my skin is very dry, and I feel slow and foggy all day.",
@@ -1024,6 +1288,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. My energy is good and my weight is steady; I just need to know when my next thyroid blood test should be.",
       "Hello, I'm {name}. My symptoms are under control on levothyroxine, and I'm here for the results and the plan until my next review.",
     ],
+    firstTriage: ["blue", "blue", "blue"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "copd",
@@ -1043,6 +1310,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}, I have COPD. For four days I've been much more breathless, coughing up thick green phlegm, and my inhalers aren't working like they normally do.",
       "My name is {first_name}, I'm {age}. I smoked for thirty years and now I get out of breath walking to the shop; this week I can barely get dressed without stopping.",
@@ -1058,6 +1327,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. I've had my flu jab, and I'd like a rescue pack and a written plan for the next flare before my next check-up.",
       "Hello, I'm {name}. I'm here for my breathing test for this review; I feel well, and I'd like to keep the same inhalers until my next check.",
     ],
+    firstTriage: ["orange", "orange", "orange"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "generalized_anxiety_disorder",
@@ -1077,6 +1349,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.mentalHealth,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. I've been worrying constantly about everything for months, my heart races, my muscles are tense, and I lie awake most of the night going over things.",
       "My name is {first_name}, I'm {age}. I had a spell of shaking, sweating, and a tight chest this morning; it's been building for half a year and I can't switch my mind off.",
@@ -1092,6 +1366,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. The anxiety has been manageable since my last visit; I'd like to agree whether to stay on the medication and what to do if it gets worse before my next review.",
       "Hello, I'm {name}. I'm keeping up my normal routine and the panicky spells are rare now; I'd like to confirm the dose and book my next review.",
     ],
+    firstTriage: ["blue", "orange", "blue"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "atrial_fibrillation",
@@ -1111,6 +1388,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. Since this morning my heart has been racing and fluttering irregularly, I feel a bit short of breath and light-headed, and it hasn't settled after resting.",
       "My name is {first_name}, I'm {age}. My smartwatch keeps alerting me to an irregular rhythm, and for a week I've had palpitations and been tired on my usual walks.",
@@ -1126,6 +1405,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. The rate is controlled and I have no palpitations now; I'd like to confirm I stay on the blood thinner and what my GP should monitor until my next review.",
       "Hello, I'm {name}. I'm feeling well on treatment, and I'm here for the heart tracing and kidney bloods for this review.",
     ],
+    firstTriage: ["orange", "green", "orange"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "heart_failure",
@@ -1145,6 +1427,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. Over the last two weeks I've got more and more breathless, I need three pillows to sleep, and my ankles and legs are badly swollen.",
       "My name is {first_name}, I'm {age}. I woke up twice last night gasping for air and had to sit on the edge of the bed; I've put on four kilos in a week.",
@@ -1160,6 +1444,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. My last heart scan showed it's pumping better, and I'd like my plan with the community nurse and the rehab exercises until my next review.",
       "Hello, I'm {name}. I feel much better than when I first came in; I'm here for my bloods and to agree what to do if my weight goes up again before my next check-up.",
     ],
+    firstTriage: ["orange", "orange", "orange"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "alzheimer_disease",
@@ -1179,6 +1466,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. My family says I keep repeating questions and forgetting conversations from yesterday, and last week I got lost driving home in {city}, which has never happened before.",
       "My name is {first_name}, I'm {age}. For about a year I've been misplacing things and missing appointments, and my GP referred me to the memory clinic for tests.",
@@ -1194,6 +1483,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. Things have been steady on the tablets, so the doctor said my GP can keep an eye on me until my next memory clinic review.",
       "Hello, I'm {name}. My family and I are here to go over the test results and the support at home, since my memory has got a bit worse since my last review.",
     ],
+    firstTriage: ["blue", "blue", "blue"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "rheumatoid_arthritis",
@@ -1213,6 +1505,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. For two months the knuckles and wrists on both hands have been swollen and painful, and I'm stiff for over an hour every morning before I can grip anything.",
       "My name is {first_name}, I'm {age}. The balls of my feet and my fingers ache and swell on both sides, I'm exhausted, and I'm a {occupation} struggling with everyday tasks.",
@@ -1228,6 +1522,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. On the biologic injections I've had almost no swelling and I'm doing all my usual activities; I'd like to confirm the monitoring plan until my next review.",
       "Hello, I'm {name}. My disease score is in remission on treatment, and the nurse said we can keep the same plan until my next review.",
     ],
+    firstTriage: ["blue", "blue", "blue"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "breast_cancer",
@@ -1247,6 +1544,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. I was diagnosed with breast cancer after the biopsy, and today is my first chemotherapy session at the day unit; I'm nervous but I feel well.",
       "My name is {first_name}, I'm {age}. I'm here to start the treatment the cancer team planned after my surgery; the wound has healed and I have no fever.",
@@ -1262,6 +1561,9 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. This is the last session of this treatment block; I'd like to know how the scans look and when my next review is.",
       "Hello, I'm {name}. I've reached the last cycle of this round; the numbness in my feet is still there and I'd like advice on it before my next check-up.",
     ],
+    firstTriage: ["blue", "blue", "blue"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
   MedicalCondition(
     code: "end_stage_kidney_disease",
@@ -1281,6 +1583,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: 0,
+    setting: CareSetting.dialysis,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. My kidney function has fallen below fifteen percent, and today is my first haemodialysis session through my new fistula; I've been itchy, nauseous, and very tired.",
       "My name is {first_name}, I'm {age}. The kidney team said it's time to start dialysis; my legs are swollen, I'm breathless lying flat, and I'm worried about the needles.",
@@ -1296,5 +1600,8 @@ const conditionSeed = <MedicalCondition>[
       "{first_name} here, {age}. Today's session comes with my monthly review; I'd like the team to go over my notes and my dry weight, and whether home dialysis training could suit me.",
       "Hello, I'm {name}. Today I have my session and the monthly review with the kidney doctor about my dose; I've been keeping to my fluid limit.",
     ],
+    firstTriage: ["blue", "orange", "blue"],
+    repeatTriage: ["blue", "blue", "blue"],
+    lastTriage: ["blue", "blue", "blue"],
   ),
 ];

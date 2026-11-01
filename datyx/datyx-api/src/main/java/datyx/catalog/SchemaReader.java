@@ -55,6 +55,13 @@ public final class SchemaReader {
 
     /** Reads the source's tables, signed in as its user, within a few seconds' timeouts. */
     public static List<Table> read(DatabaseAccess access) throws SQLException {
+        try (Connection c = connect(access)) {
+            return read(c);
+        }
+    }
+
+    /** A read-only connection to the source, signed in as its user: 5 s to connect, 60 s a read. */
+    public static Connection connect(DatabaseAccess access) throws SQLException {
         Properties props = new Properties();
         if (access.username() != null) {
             props.setProperty("user", access.username());
@@ -63,12 +70,10 @@ public final class SchemaReader {
             props.setProperty("password", access.password());
         }
         props.setProperty("connectTimeout", "5");
-        props.setProperty("socketTimeout", "30");
+        props.setProperty("socketTimeout", "60");
         props.setProperty("readOnly", "true");
         props.setProperty("ApplicationName", "datyx catalogue");
-        try (Connection c = DriverManager.getConnection(jdbcUrl(access), props)) {
-            return read(c);
-        }
+        return DriverManager.getConnection(jdbcUrl(access), props);
     }
 
     /** Reads the tables of an open connection: what {@link #read(DatabaseAccess)} does once connected. */

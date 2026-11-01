@@ -42,10 +42,16 @@ void main() {
       'min_age': 10,
       'treatment_duration_days': null,
       'visits': {'count': 0, 'interval_days': 1, 'stay_hours': 100},
+      'setting': 'clinic',
+      'follow_up_setting': 'home',
       'templates': {
         'first': ['Hi {nickname}', 'a {name', 'a'],
         'repeat': ['x', 'x', 'y'],
         'last': ['only one'],
+      },
+      'triage': {
+        'first': ['red', 'amber', 'blue'],
+        'repeat': ['blue'],
       },
     };
     final problems = MedicalCondition.problems(bad, type: 'acute');
@@ -59,12 +65,18 @@ void main() {
         contains('"treatment_duration_days"'),
         contains('visits.count'),
         contains('visits.stay_hours'),
+        contains('"setting"'),
+        contains('"follow_up_setting"'),
         contains('{nickname}'),
         contains('stray brace'),
         contains('repeats a template'),
         contains('"templates.last"'),
+        contains('"triage.first"'),
+        contains('"triage.repeat"'),
+        contains('"triage.last"'),
       ]),
     );
+    expect(MedicalCondition.problems({...influenza(), 'triage': null}, type: 'acute').join(), contains('"triage"'));
     expect(() => MedicalCondition.fromJson(bad, type: 'acute'), throwsFormatException);
     expect(MedicalCondition.problems(influenza(), type: 'acute'), isEmpty);
     // A chronic condition has no treatment duration.
@@ -95,14 +107,43 @@ void main() {
     expect(conditionSeed.map((c) => c.values), data.map((c) => c.values));
     for (final kind in VisitKind.values) {
       expect(conditionSeed.map((c) => c.templates(kind)), data.map((c) => c.templates(kind)));
+      expect(conditionSeed.map((c) => c.triageOf(kind)), data.map((c) => c.triageOf(kind)));
     }
+  });
+
+  test('every condition says where its visits go; emergencies never go to primary care', () {
+    final flu = readConditions(fixtures).first;
+    expect((flu.setting, flu.followUpSetting), (CareSetting.primary, null));
+    for (final c in conditionSeed) {
+      if (c.urgent) {
+        expect([CareSetting.hospital, CareSetting.urgentCare], contains(c.setting), reason: c.code);
+      }
+    }
+    final settings = {for (final c in conditionSeed) c.code: c.setting};
+    expect(settings['end_stage_kidney_disease'], CareSetting.dialysis);
+    expect(settings['major_depressive_disorder'], CareSetting.mentalHealth);
+    expect(settings['hypertension'], CareSetting.primary);
+    expect(settings['stroke'], CareSetting.hospital);
+  });
+
+  test('every template has a reference triage level, and every level has templates', () {
+    final levels = [
+      for (final c in conditionSeed)
+        for (final kind in VisitKind.values) ...c.triageOf(kind),
+    ];
+    expect(levels, hasLength(conditionSeed.length * VisitKind.values.length * templatesPerVisit));
+    for (final level in triageLevels) {
+      expect(levels.where((l) => l == level), isNotEmpty, reason: level);
+    }
+    final flu = readConditions(fixtures).first;
+    expect(flu.triageOf(VisitKind.repeat), ['yellow', 'blue', 'green']);
   });
 
   test('the optional fields default, and are checked when set', () {
     final flu = MedicalCondition.fromJson(influenza(), type: 'acute');
     expect((flu.femaleShare, flu.urgent, flu.followUpStayHours, flu.courseGapDays), (0.5, false, null, null));
     expect(flu.stayHoursOf(VisitKind.repeat), flu.stayHours);
-    expect(flu.values.sublist(flu.values.length - 4), [0.5, false, flu.stayHours, null]);
+    expect(flu.values.sublist(flu.values.length - 6), [0.5, false, flu.stayHours, null, 'primary', 'primary']);
     final set = MedicalCondition.fromJson(
       {...influenza(), 'female_share': 0.8, 'urgent': true, 'follow_up_stay_hours': 1},
       type: 'acute',
@@ -139,7 +180,9 @@ void main() {
       'treatment_duration_days': null,
       'duration': 'd',
       'visits': {'count': 2, 'interval_days': 2, 'stay_hours': 4},
+      'setting': 'primary',
       'templates': {for (final kind in VisitKind.values) kind.json: diabetes.templates(kind)},
+      'triage': {for (final kind in VisitKind.values) kind.json: diabetes.triageOf(kind)},
     };
     expect(MedicalCondition.problems({...chronic, 'course_gap_days': 0}, type: 'chronic'), isEmpty);
     expect(MedicalCondition.fromJson({...chronic, 'course_gap_days': 0}, type: 'chronic').courseGapDays, 0);

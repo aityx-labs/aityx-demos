@@ -19,6 +19,9 @@ abstract final class Aityx {
   static const green = Color(0xFF4CC38A);
   static const amber = Color(0xFFE8B04B);
   static const red = Color(0xFFF0506E);
+
+  /// The non-urgent triage level's colour, beside the palette's four.
+  static const blue = Color(0xFF5B9BD5);
 }
 
 /// The page is the near-black background; panels and cards step up through

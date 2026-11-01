@@ -112,3 +112,29 @@ class CareCenter {
     latitude, longitude, phone, website, ownership, source, sourceId,
   ];
 }
+
+/// A care center's capacity in the simulation: beds for a hospital,
+/// places (rooms, chairs) for a clinic or a health station. The registries
+/// don't say how big a facility is, and the simulation's forty people a
+/// city would fill no real hospital, so the capacity is sized to the
+/// simulation instead: 4 to 12 beds, 2 to 6 places at a clinic, 2 to 5 at
+/// a health station, drawn from the center's [key] so it is the same at
+/// every start and in every run.
+({int places, String unit}) simulatedCapacity(String key, String kind) {
+  final (low, high, unit) = switch (kind) {
+    'hospital' => (4, 12, 'beds'),
+    'health_station' => (2, 5, 'places'),
+    _ => (2, 6, 'places'),
+  };
+  return (places: low + _fnv1a(key) % (high - low + 1), unit: unit);
+}
+
+/// FNV-1a over [text]'s UTF-16 code units: a hash that, unlike
+/// String.hashCode, is the same in every run and every Dart.
+int _fnv1a(String text) {
+  var hash = 0x811c9dc5;
+  for (final unit in text.codeUnits) {
+    hash = ((hash ^ unit) * 0x01000193) & 0xffffffff;
+  }
+  return hash;
+}

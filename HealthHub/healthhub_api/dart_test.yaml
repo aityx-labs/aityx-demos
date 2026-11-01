@@ -1,0 +1,4 @@
+# The tests that call aityx.ai (test/triage_model_test.dart), skipped
+# without AITYX_API_KEY: scripts/model-test.sh runs them with it.
+tags:
+  aityx:

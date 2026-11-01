@@ -120,6 +120,7 @@ process-compose through Docker Compose comes from.
   run at once.
 - **Settings** ([.env.example](../.env.example), read by
   [scripts/env.sh](../scripts/env.sh)): `AITYX_API_KEY`, `AITYX_URL`,
+  `HEALTHHUB_TRIAGE` (`on`, or `off` for no triage),
   `OIDC_CLIENT_ID`, `OIDC_ISSUER`, `DATYX_API_URL` ([API](api.md)),
   `HEALTHHUB_BIND_HOST`, `FLUTTER_WEB_PORT`, `API_PORT`,
   `HEALTHHUB_DB_PORT`, `HEALTHHUB_DB_ADMIN_PASSWORD`,
@@ -127,11 +128,20 @@ process-compose through Docker Compose comes from.
   `HEALTHHUB_KAFKA_REST_PORT` (9805), `HEALTHHUB_FLINK_PORT` (9806),
   `HEALTHHUB_KAFKA_REST_URL`
   (http://127.0.0.1:9805), `HEALTHHUB_MODE` (`dev`, which runs the
-  people simulation; `prod` doesn't), `HEALTHHUB_SIM_PEOPLE` (10 per
+  people simulation; `prod` doesn't), `HEALTHHUB_SIM_PEOPLE` (40 per
   city), `HEALTHHUB_SIM_TURN_MS` (1000) and
   `HEALTHHUB_SIM_MINUTES_PER_TURN` (60, so a real second is a simulated
   hour), every one but the key with a
   default. `.env` is git-ignored.
+- **aityx's triage** ([Triage at the desk](triage.md)):
+  [scripts/model-test.sh](../scripts/model-test.sh) runs the triage
+  decision on aityx at each rule and threshold, and
+  [scripts/triage-cases.sh](../scripts/triage-cases.sh) triages every
+  complaint template and writes
+  [docs/aityx-triage-cases.md](../docs/aityx-triage-cases.md); both read
+  the key like the API (the environment, else `.env`), never printing it.
+  After changing `healthhub_api/data/triage/triage.json`, `dart run
+  tool/generate_triage.dart` in `healthhub_api/` compiles it in.
 - **Builds for the services**: [scripts/build.sh](../scripts/build.sh)
   (`devbox run build`; targets `web`, `web_server`, `api`, `all`) is
   PokerFace's: it builds only what is missing or older than its sources,
@@ -229,7 +239,7 @@ process-compose through Docker Compose comes from.
   devbox services have run end to end (PostgreSQL, the API and the app,
   with `/api/hello` answering from the database).
 - `kafka` and `kafka-rest` have run from process-compose (both ready,
-  the health monitor's 📨 Kafka ✅, the API in dev mode moving 70 people
+  the health monitor's 📨 Kafka ✅, the API in dev mode moving 280 people
   through the topic and `/api/people` reading them back) and with `docker
   compose up kafka kafka-rest`; the whole Compose stack hasn't run with
   them. The host listener (9804) has only been checked to accept

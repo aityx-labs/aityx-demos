@@ -51,6 +51,7 @@ void main() {
     expect(next.generation, 4);
     expect(next.alive, cellsOf('o/o/o', x: 1, y: -1));
     expect(next.born, {(x: 1, y: -1), (x: 1, y: 1)});
+    expect(next.died, {(x: 0, y: 0), (x: 2, y: 0)});
   });
 
   test('a shape reads the same whichever way it faces', () {
@@ -155,7 +156,7 @@ void main() {
       final dense = start(StartKind.dense);
       within(sparse);
       within(dense);
-      expect(sparse.population, inInclusiveRange(600, 1100));
+      expect(sparse.population, inInclusiveRange(300, 560));
       expect(soup.population, inInclusiveRange(2100, 2800));
       expect(dense.population, inInclusiveRange(3800, 4600));
     });

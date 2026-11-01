@@ -111,16 +111,29 @@ class FakeStepper implements GenerationStepper {
 }
 
 void main() {
-  testWidgets('opens on the board, empty, with a hint', (tester) async {
+  testWidgets('opens on the board with a sparse soup, ready to play', (
+    tester,
+  ) async {
     await tester.pumpWidget(CellfieApp(stepper: FakeStepper()));
+    await tester.pump();
 
     expect(find.byType(LifeScreen), findsOneWidget);
     expect(find.text('Cellfie'), findsOneWidget);
     expect(find.byType(BoardView), findsOneWidget);
-    expect(find.textContaining('Press Random start'), findsOneWidget);
-    expect(find.text('Play'), findsOneWidget);
-    expect(find.text('Acceleration'), findsOneWidget);
-    expect(find.textContaining('Generation 0 · 0 cells'), findsOneWidget);
+    // 800 px leaves no room for the labels: the buttons are icons.
+    expect(find.byTooltip('Play'), findsOneWidget);
+    expect(find.byTooltip('Acceleration'), findsOneWidget);
+    expect(find.byTooltip('Zoom in'), findsOneWidget);
+    expect(find.byTooltip('Zoom out'), findsOneWidget);
+    expect(find.byTooltip('Back to the origin'), findsOneWidget);
+    // No calls panel at 800 px: the status is over the board.
+    final status = find.textContaining(RegExp(r'Generation 0 · \d+ cells'));
+    expect(status, findsOneWidget);
+    final cells = int.parse(
+      RegExp(r'(\d+) cells').firstMatch(tester.widget<Text>(status).data!)![1]!,
+    );
+    expect(cells, greaterThan(0));
+    expect(find.textContaining('Press Random start'), findsNothing);
     // A test build has no CELLFIE_VERSION, so no X.Y.Z shows.
     expect(find.textContaining(RegExp(r'^\d+\.\d+\.\d+$')), findsNothing);
   });
@@ -128,12 +141,16 @@ void main() {
   testWidgets('a random start fills the view, and Clear empties it', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = const Size(1800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
-        home: LifeScreen(stepper: FakeStepper(), random: Random(3)),
+        home: LifeScreen(
+          stepper: FakeStepper(),
+          random: Random(3),
+          start: null,
+        ),
       ),
     );
 
@@ -153,16 +170,19 @@ void main() {
     await tester.tap(find.text('Clear'));
     await tester.pump();
     expect(find.textContaining('Generation 0 · 0 cells'), findsOneWidget);
+    expect(find.textContaining('Press Random start'), findsOneWidget);
   });
 
   testWidgets('Step asks for one generation and shows the call', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = const Size(1800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final stepper = FakeStepper();
-    await tester.pumpWidget(MaterialApp(home: LifeScreen(stepper: stepper)));
+    await tester.pumpWidget(
+      MaterialApp(home: LifeScreen(stepper: stepper, start: null)),
+    );
 
     // Draw a blinker at the origin by tapping three cells: the view is
     // centered on the origin at 14 px a cell.
@@ -216,11 +236,13 @@ void main() {
   testWidgets('a reset discards an in-flight generation response', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = const Size(1800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final stepper = FakeStepper()..waitOn = Completer<void>();
-    await tester.pumpWidget(MaterialApp(home: LifeScreen(stepper: stepper)));
+    await tester.pumpWidget(
+      MaterialApp(home: LifeScreen(stepper: stepper, start: null)),
+    );
     final view = tester.getRect(find.byType(BoardView));
     for (final x in [-1, 0, 1]) {
       await tester.tapAt(view.center + Offset(x * 14.0 + 7, 7));
@@ -232,6 +254,7 @@ void main() {
     await tester.tap(find.text('Clear'));
     await tester.pump();
     expect(find.textContaining('Generation 0 · 0 cells'), findsOneWidget);
+    expect(find.textContaining('Press Random start'), findsOneWidget);
 
     stepper.waitOn!.complete();
     await tester.pump();
@@ -243,11 +266,13 @@ void main() {
   testWidgets('restarting a generation keeps call cards uniquely keyed', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = const Size(1800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final stepper = FakeStepper();
-    await tester.pumpWidget(MaterialApp(home: LifeScreen(stepper: stepper)));
+    await tester.pumpWidget(
+      MaterialApp(home: LifeScreen(stepper: stepper, start: null)),
+    );
     final view = tester.getRect(find.byType(BoardView));
 
     Future<void> drawAndStep() async {
@@ -273,11 +298,13 @@ void main() {
   testWidgets('patterns that die are not labeled on the next board', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = const Size(1800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final stepper = FakeStepper()..killNext = true;
-    await tester.pumpWidget(MaterialApp(home: LifeScreen(stepper: stepper)));
+    await tester.pumpWidget(
+      MaterialApp(home: LifeScreen(stepper: stepper, start: null)),
+    );
     final view = tester.getRect(find.byType(BoardView));
     for (final x in [-1, 0, 1]) {
       await tester.tapAt(view.center + Offset(x * 14.0 + 7, 7));
@@ -293,11 +320,13 @@ void main() {
   testWidgets('tapping a pattern noticed opens the call that noticed it', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = const Size(1800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final stepper = FakeStepper();
-    await tester.pumpWidget(MaterialApp(home: LifeScreen(stepper: stepper)));
+    await tester.pumpWidget(
+      MaterialApp(home: LifeScreen(stepper: stepper, start: null)),
+    );
     final view = tester.getRect(find.byType(BoardView));
     for (final x in [-1, 0, 1]) {
       await tester.tapAt(view.center + Offset(x * 14.0 + 7, 7));
@@ -334,23 +363,25 @@ void main() {
   testWidgets('Play runs generations at the acceleration until paused', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = const Size(1800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final stepper = FakeStepper();
-    await tester.pumpWidget(MaterialApp(home: LifeScreen(stepper: stepper)));
+    await tester.pumpWidget(
+      MaterialApp(home: LifeScreen(stepper: stepper, start: null)),
+    );
     final view = tester.getRect(find.byType(BoardView));
     for (final x in [-1, 0, 1]) {
       await tester.tapAt(view.center + Offset(x * 14.0 + 7, 7));
     }
     await tester.pump();
 
-    // 2 generations/s by default: one every 500 ms.
-    expect(find.text('2 generations/s'), findsOneWidget);
+    // 1 generation/s by default: one every second.
+    expect(find.text('1 generation/s'), findsOneWidget);
     await tester.tap(find.text('Play'));
     await tester.pump();
     expect(find.text('Pause'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 1100));
+    await tester.pump(const Duration(milliseconds: 2100));
     await tester.pump();
     expect(stepper.asked.length, inInclusiveRange(2, 3));
 
@@ -366,11 +397,13 @@ void main() {
   testWidgets('play waits for a pending manual step at maximum acceleration', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = const Size(1800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final stepper = FakeStepper()..waitOn = Completer<void>();
-    await tester.pumpWidget(MaterialApp(home: LifeScreen(stepper: stepper)));
+    await tester.pumpWidget(
+      MaterialApp(home: LifeScreen(stepper: stepper, start: null)),
+    );
     final view = tester.getRect(find.byType(BoardView));
     for (final x in [-1, 0, 1]) {
       await tester.tapAt(view.center + Offset(x * 14.0 + 7, 7));
@@ -396,11 +429,13 @@ void main() {
   testWidgets('the Rules dialog switches rules for the next generation', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = const Size(1800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final stepper = FakeStepper();
-    await tester.pumpWidget(MaterialApp(home: LifeScreen(stepper: stepper)));
+    await tester.pumpWidget(
+      MaterialApp(home: LifeScreen(stepper: stepper, start: null)),
+    );
     final view = tester.getRect(find.byType(BoardView));
     await tester.tapAt(view.center + const Offset(7, 7));
     await tester.pump();
@@ -426,12 +461,14 @@ void main() {
   });
 
   testWidgets('a failed generation pauses and says why', (tester) async {
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = const Size(1800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final stepper = FakeStepper()
       ..failWith = 'Could not run the generation: aityx did not answer.';
-    await tester.pumpWidget(MaterialApp(home: LifeScreen(stepper: stepper)));
+    await tester.pumpWidget(
+      MaterialApp(home: LifeScreen(stepper: stepper, start: null)),
+    );
     final view = tester.getRect(find.byType(BoardView));
     await tester.tapAt(view.center + const Offset(7, 7));
     await tester.pump();
@@ -448,13 +485,15 @@ void main() {
   });
 
   testWidgets('without a key, the notice offers to set it', (tester) async {
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = const Size(1800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final stepper = FakeStepper()
       ..failWith = 'aityx is not set up: set your key on the index page.'
       ..noKey = true;
-    await tester.pumpWidget(MaterialApp(home: LifeScreen(stepper: stepper)));
+    await tester.pumpWidget(
+      MaterialApp(home: LifeScreen(stepper: stepper, start: null)),
+    );
     final view = tester.getRect(find.byType(BoardView));
     await tester.tapAt(view.center + const Offset(7, 7));
     await tester.pump();
@@ -478,7 +517,9 @@ void main() {
     );
 
     expect(find.byType(CallsPanel), findsNothing);
-    await tester.tap(find.text('Calls (0)'));
+    expect(find.byTooltip('Random start'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'Generation 0 · \d+ cells')), findsOneWidget);
+    await tester.tap(find.byTooltip('Calls (0)'));
     await tester.pumpAndSettle();
     expect(find.byType(CallsPanel), findsOneWidget);
     expect(find.textContaining('Every generation is one call'), findsOneWidget);

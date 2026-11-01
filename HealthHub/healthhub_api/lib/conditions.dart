@@ -47,8 +47,49 @@ const complaintPlaceholders = {
   'days_since_first_visit',
 };
 
+/// Where a visit is made: what kind of care center the simulation sends
+/// a person to (lib/simulation.dart's [Place.serves]), the nearest of
+/// that kind to their home.
+enum CareSetting {
+  /// A general hospital: emergencies, admissions, specialist follow-ups.
+  hospital('hospital'),
+
+  /// Primary care, a health station: a CAP, a UBS, a community health
+  /// center.
+  primary('primary'),
+
+  /// Urgent care without beds (a CUAP, a UPA, an urgent care center), or a
+  /// general hospital's emergency department, whichever is nearer.
+  urgentCare('urgent_care'),
+
+  /// An adult community mental health clinic (a CSMA, a CAPS), or primary
+  /// care, whichever is nearer.
+  mentalHealth('mental_health'),
+
+  /// A dialysis center, or a general hospital, whichever is nearer.
+  dialysis('dialysis');
+
+  const CareSetting(this.json);
+
+  final String json;
+
+  /// The setting named [name] in the data; null for any other.
+  static CareSetting? named(Object? name) {
+    for (final setting in values) {
+      if (setting.json == name) return setting;
+    }
+    return null;
+  }
+}
+
 /// How many templates each visit kind has.
 const templatesPerVisit = 3;
+
+/// The triage levels, most urgent first: immediate, very urgent, urgent,
+/// standard and non-urgent ([Triage at the desk](../../specs/triage.md)).
+/// Each template has one as its reference: the level a triage nurse
+/// applying HealthHub's triage policy gives what it says.
+const triageLevels = ['red', 'orange', 'yellow', 'green', 'blue'];
 
 /// The ages people are simulated at: adults.
 const minAdultAge = 18;
@@ -76,10 +117,15 @@ class MedicalCondition {
     required this.first,
     required this.repeat,
     required this.last,
+    required this.firstTriage,
+    required this.repeatTriage,
+    required this.lastTriage,
     this.femaleShare = 0.5,
     this.urgent = false,
     this.followUpStayHours,
     this.courseGapDays,
+    this.setting = CareSetting.hospital,
+    this.followUpSetting,
   });
 
   /// An element of data/conditions/[type].json; throws a FormatException
@@ -92,6 +138,8 @@ class MedicalCondition {
     final visits = json['visits'] as Map;
     final templates = json['templates'] as Map;
     List<String> texts(String kind) => List.unmodifiable((templates[kind] as List).cast<String>());
+    final triage = json['triage'] as Map;
+    List<String> levels(String kind) => List.unmodifiable((triage[kind] as List).cast<String>());
     return MedicalCondition(
       code: json['code'] as String,
       name: (json['name'] as String).trim(),
@@ -109,10 +157,15 @@ class MedicalCondition {
       first: texts('first'),
       repeat: texts('repeat'),
       last: texts('last'),
+      firstTriage: levels('first'),
+      repeatTriage: levels('repeat'),
+      lastTriage: levels('last'),
       femaleShare: (json['female_share'] as num? ?? 0.5).toDouble(),
       urgent: json['urgent'] as bool? ?? false,
       followUpStayHours: json['follow_up_stay_hours'] as int?,
       courseGapDays: json['course_gap_days'] as int?,
+      setting: CareSetting.named(json['setting'])!,
+      followUpSetting: CareSetting.named(json['follow_up_setting']),
     );
   }
 
@@ -172,6 +225,13 @@ class MedicalCondition {
     if (json['follow_up_stay_hours'] != null) {
       integer(json, 'follow_up_stay_hours', 'follow_up_stay_hours', least: 1, most: 72);
     }
+    // Where its visits are made: every condition says where the first
+    // goes; the follow-ups go there too unless it says otherwise.
+    final settings = CareSetting.values.map((s) => s.json).join(', ');
+    if (CareSetting.named(json['setting']) == null) found.add('"setting" is not one of $settings');
+    if (json['follow_up_setting'] != null && CareSetting.named(json['follow_up_setting']) == null) {
+      found.add('"follow_up_setting" is not one of $settings');
+    }
     if (json['course_gap_days'] != null) {
       if (type == 'acute') {
         found.add('"course_gap_days" is set, but only a chronic condition has courses that repeat');
@@ -208,6 +268,21 @@ class MedicalCondition {
       }
       final extra = templates.keys.where((k) => !VisitKind.values.any((v) => v.json == k));
       if (extra.isNotEmpty) found.add('"templates" has unknown kinds $extra');
+    }
+
+    // Each template's reference triage level, in the templates' order.
+    final triage = json['triage'];
+    if (triage is! Map) {
+      found.add('"triage" is not an object');
+    } else {
+      for (final kind in VisitKind.values) {
+        final list = triage[kind.json];
+        if (list is! List || list.length != templatesPerVisit || list.any((l) => !triageLevels.contains(l))) {
+          found.add('"triage.${kind.json}" is not $templatesPerVisit of ${triageLevels.join(', ')}');
+        }
+      }
+      final extra = triage.keys.where((k) => !VisitKind.values.any((v) => v.json == k));
+      if (extra.isNotEmpty) found.add('"triage" has unknown kinds $extra');
     }
     return found;
   }
@@ -269,10 +344,23 @@ class MedicalCondition {
   /// the last visit as if the course went on.
   final int? courseGapDays;
 
+  /// Where its first visit is made, and the visits after it ([settingOf]);
+  /// [followUpSetting] null when they go where the first went. A
+  /// pneumonia is admitted at the hospital and checked at the health
+  /// station after.
+  final CareSetting setting;
+  final CareSetting? followUpSetting;
+
   /// What a patient says on arrival, [templatesPerVisit] of each kind.
   final List<String> first;
   final List<String> repeat;
   final List<String> last;
+
+  /// Each template's reference triage level ([triageLevels]), in the
+  /// order of [first], [repeat] and [last].
+  final List<String> firstTriage;
+  final List<String> repeatTriage;
+  final List<String> lastTriage;
 
   bool get isChronic => type == 'chronic';
 
@@ -282,6 +370,16 @@ class MedicalCondition {
     VisitKind.repeat => repeat,
     VisitKind.last => last,
   };
+
+  /// The reference triage levels of the templates of [kind].
+  List<String> triageOf(VisitKind kind) => switch (kind) {
+    VisitKind.first => firstTriage,
+    VisitKind.repeat => repeatTriage,
+    VisitKind.last => lastTriage,
+  };
+
+  /// Where a visit of [kind] is made.
+  CareSetting settingOf(VisitKind kind) => kind == VisitKind.first ? setting : followUpSetting ?? setting;
 
   /// How many hours a visit of [kind] lasts.
   int stayHoursOf(VisitKind kind) => kind == VisitKind.first ? stayHours : followUpStayHours ?? stayHours;
@@ -317,6 +415,8 @@ class MedicalCondition {
     'urgent',
     'follow_up_stay_hours',
     'course_gap_days',
+    'setting',
+    'follow_up_setting',
   ];
 
   List<Object?> get values => [
@@ -337,6 +437,8 @@ class MedicalCondition {
     urgent,
     followUpStayHours ?? stayHours,
     courseGapDays,
+    setting.json,
+    (followUpSetting ?? setting).json,
   ];
 }
 

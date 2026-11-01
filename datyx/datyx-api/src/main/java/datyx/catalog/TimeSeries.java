@@ -18,8 +18,8 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
  * properties of the table. Whoever knows the data says it there (in
  * OpenMetadata's UI, or through PUT /api/datasources/{id}/timeseries);
  * the source itself never changes. The roles are the model's inputs in
- * general terms, so one tagging serves DeepAR (whose field each maps to
- * is in its description) or any other forecaster.
+ * general terms, so one tagging serves DeepAR or XGBoost (what each role
+ * becomes to them is in its description).
  *
  * A table can hold more than one series, each a group of roles with a
  * name: TimeSeries.Target is the default group's Target,
@@ -27,6 +27,18 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
  * TimeSeries.acute). Groups share the table's columns, frequency and
  * missing rows, and are read as datasets of their own, so one column can
  * be the Timestamp of every group and a Target in one of them only.
+ *
+ * Each group says which algorithms train on it with tags on the table:
+ * TimeSeries.XGBoost for the default group, TimeSeries.acute.XGBoost for
+ * acute, and TimeSeries.acute.DeepAR beside it for both; none is DeepAR,
+ * as before there were algorithms to choose. How far ahead to predict is
+ * the table's timeSeriesHorizon, which its groups share, required for
+ * XGBoost. What trains a group finds it by its algorithm's tag.
+ *
+ * A group can be switched off, with TimeSeries.Disabled (the default
+ * group's) or TimeSeries.acute.Disabled on the table: datyx doesn't train
+ * it, and removing the tag, in OpenMetadata or through datyx, is what
+ * trains it again, with each of its algorithms (datyx.training.Training).
  */
 public final class TimeSeries {
 
@@ -36,7 +48,11 @@ public final class TimeSeries {
         What a column is to a time series forecast, such as DeepAR's. A table is a time series dataset \
         when one column is its Timestamp and one its Target; set the table's timeSeriesFrequency too. \
         For more than one dataset in a table, tag a group's columns with the roles under the group's own \
-        tag (TimeSeries.acute.Target): each group is a dataset of its own.""";
+        tag (TimeSeries.acute.Target): each group is a dataset of its own. Tags on the table name the \
+        algorithms that train a group, one or more (TimeSeries.XGBoost, TimeSeries.acute.XGBoost, \
+        TimeSeries.acute.DeepAR; DeepAR when none), and the table's timeSeriesHorizon how far ahead it \
+        predicts. TimeSeries.acute.Disabled on the table switches the group off: datyx doesn't train it \
+        until the tag is removed, which trains it with each of its algorithms.""";
 
     /** The group of the roles tagged without one (TimeSeries.Target). */
     public static final String DEFAULT_GROUP = "default";
@@ -51,27 +67,74 @@ public final class TimeSeries {
 
     public static final Set<String> MISSING_VALUES = Set.of("zero", "unknown");
 
+    /** The table's custom property for how far ahead to predict, as a pandas offset such as 24h or 30D. */
+    public static final String HORIZON = "timeSeriesHorizon";
+
+    /**
+     * The table's custom property for how often datyx trains its groups
+     * again: a span such as 6h, 1D or 1W, or never (trained once).
+     */
+    public static final String RETRAIN = "timeSeriesRetrain";
+
+    /** How often a group is trained again when its table doesn't say. */
+    public static final String DEFAULT_RETRAIN = "1D";
+
+    /** The value of {@link #RETRAIN} that trains a group once only. */
+    public static final String NEVER = "never";
+
+    /** The tag, under the classification or a group, that switches a group off. */
+    public static final String DISABLED = "Disabled";
+
+    public static final String DISABLED_DESCRIPTION = """
+        This group of the table is switched off: datyx doesn't train it. Remove the tag (here, or with \
+        the group's switch on datyx's dashboard) to switch it on: datyx then trains it at once with each of \
+        its algorithms, a run each whose trigger is 'enabled'.""";
+
+    /** The tag on a table that switches a group off: TimeSeries.Disabled for the default group, TimeSeries.acute.Disabled for acute. */
+    public static String disabledFqn(String group) {
+        return DEFAULT_GROUP.equals(group) ? CLASSIFICATION + "." + DISABLED : CLASSIFICATION + "." + group + "." + DISABLED;
+    }
+
+    /** The group a table's tag FQN switches off, or null for a tag that isn't a TimeSeries Disabled tag. */
+    public static String disabledGroupOf(String fqn) {
+        String[] parts = fqn.split("\\.", -1);
+        if (parts.length < 2 || parts.length > 3 || !CLASSIFICATION.equals(parts[0]) || !DISABLED.equals(parts[parts.length - 1])) {
+            return null;
+        }
+        if (parts.length == 2) {
+            return DEFAULT_GROUP;
+        }
+        return GROUP_PATTERN.matcher(parts[1]).matches() && !isReserved(parts[1]) ? parts[1] : null;
+    }
+
     private static final Pattern FREQUENCY_PATTERN = Pattern.compile("\\d*(s|min|h|D|B|W|W-[A-Z]{3}|MS|ME|M|QS|QE|Q|YS|YE|Y)");
 
     public enum Role {
         TIMESTAMP("Timestamp", "timestamp", """
             The time index: when each row's values were observed. One per table, a date or timestamp. \
-            DeepAR: the series' start and the position of each value."""),
+            DeepAR: the series' start and the position of each value. XGBoost: the cutoffs a score is made \
+            at, and the windows before and after them."""),
         TARGET("Target", "target", """
-            The value to forecast. One per table, numeric. DeepAR: target."""),
+            The value to forecast. One per table, numeric. DeepAR: target. XGBoost: the label, its sum \
+            over the horizon after a cutoff; its sums over windows before the cutoff are features."""),
         SERIES_KEY("SeriesKey", "seriesKey", """
             Says which series a row belongs to; together, the columns tagged so name one series. \
-            None: the table is one series. DeepAR: item_id."""),
+            None: the table is one series. DeepAR: item_id. XGBoost: whom a score is for, one row per \
+            series and cutoff."""),
         STATIC_CATEGORICAL("StaticCategorical", "staticCategorical", """
-            A category that holds for a whole series, such as its region or kind. DeepAR: feat_static_cat."""),
+            A category that holds for a whole series, such as its region or kind. DeepAR: feat_static_cat. \
+            XGBoost: a categorical feature."""),
         STATIC_REAL("StaticReal", "staticReal", """
-            A number that holds for a whole series, such as a size or capacity. DeepAR: feat_static_real."""),
+            A number that holds for a whole series, such as a size or capacity. DeepAR: feat_static_real. \
+            XGBoost: a numeric feature."""),
         KNOWN_COVARIATE("KnownCovariate", "knownCovariates", """
             A number that changes over time and is known ahead, for the hours to forecast too, such as a \
-            schedule, a holiday or a planned price. DeepAR: feat_dynamic_real."""),
+            schedule, a holiday or a planned price. DeepAR: feat_dynamic_real. XGBoost: features of the \
+            horizon ahead."""),
         PAST_COVARIATE("PastCovariate", "pastCovariates", """
             A number that changes over time and is only known once observed, such as a related count. \
-            DeepAR: past_feat_dynamic_real, where the model supports it.""");
+            DeepAR: past_feat_dynamic_real, where the model supports it. XGBoost: its sums over windows \
+            before the cutoff, as features.""");
 
         public final String tag;
         public final String field;
@@ -102,6 +165,101 @@ public final class TimeSeries {
         }
     }
 
+    /**
+     * What trains a group, as a tag on the table: TimeSeries.XGBoost for the
+     * default group, TimeSeries.acute.XGBoost for acute; a group can have
+     * both algorithms' tags. A group without one is DeepAR's. In the order
+     * a group lists them: XGBoost first.
+     */
+    public enum Algorithm {
+        XGBOOST("XGBoost", """
+            XGBoost trains on this group of the table: a score per series, the Target summed over the table's \
+            timeSeriesHorizon after each cutoff (required), predicted from the series' static features, the \
+            Target and PastCovariates summed over windows before the cutoff and the KnownCovariates ahead."""),
+        DEEPAR("DeepAR", """
+            DeepAR (GluonTS) trains on this group of the table: a probabilistic forecast of each series, step by \
+            step over the horizon (prediction_length). A group without an algorithm tag is DeepAR's too.""");
+
+        public static final Algorithm DEFAULT = DEEPAR;
+
+        public final String tag;
+        public final String description;
+
+        Algorithm(String tag, String description) {
+            this.tag = tag;
+            this.description = description;
+        }
+
+        /** The algorithm's tag for a group: TimeSeries.XGBoost in the default group, TimeSeries.acute.XGBoost in acute. */
+        public String fqn(String group) {
+            return DEFAULT_GROUP.equals(group) ? CLASSIFICATION + "." + tag : CLASSIFICATION + "." + group + "." + tag;
+        }
+
+        static Algorithm ofTag(String tag) {
+            for (Algorithm algorithm : values()) {
+                if (algorithm.tag.equals(tag)) {
+                    return algorithm;
+                }
+            }
+            return null;
+        }
+
+        /**
+         * The algorithm a request names, in any case; null for none (the
+         * group's tag removed: DeepAR). An IllegalArgumentException names the
+         * algorithms there are.
+         */
+        public static Algorithm named(String name) {
+            if (name == null || name.isBlank()) {
+                return null;
+            }
+            for (Algorithm algorithm : values()) {
+                if (algorithm.tag.equalsIgnoreCase(name.strip())) {
+                    return algorithm;
+                }
+            }
+            throw new IllegalArgumentException("the algorithm is DeepAR or XGBoost, not '" + name.strip() + "'");
+        }
+
+        /**
+         * The algorithms a request names, in any case, each once, in their
+         * order (XGBoost first); none for null or none named. An
+         * IllegalArgumentException names the algorithms there are.
+         */
+        public static List<Algorithm> named(List<String> names) {
+            Set<Algorithm> named = java.util.EnumSet.noneOf(Algorithm.class);
+            if (names != null) {
+                for (String name : names) {
+                    Algorithm algorithm = named(name);
+                    if (algorithm != null) {
+                        named.add(algorithm);
+                    }
+                }
+            }
+            return List.copyOf(named);
+        }
+    }
+
+    /** A group's algorithm, as a table's tag says it. */
+    record Trained(String group, Algorithm algorithm) {
+    }
+
+    /** The group and algorithm a table's tag FQN names, or null for a tag that isn't a TimeSeries algorithm. */
+    static Trained algorithmOf(String fqn) {
+        String[] parts = fqn.split("\\.", -1);
+        if (parts.length < 2 || parts.length > 3 || !CLASSIFICATION.equals(parts[0])) {
+            return null;
+        }
+        Algorithm algorithm = Algorithm.ofTag(parts[parts.length - 1]);
+        if (algorithm == null) {
+            return null;
+        }
+        if (parts.length == 2) {
+            return new Trained(DEFAULT_GROUP, algorithm);
+        }
+        return GROUP_PATTERN.matcher(parts[1]).matches() && !isReserved(parts[1]) ? new Trained(parts[1], algorithm) : null;
+    }
+
     /** A role in a group, as a column's tag says it. */
     record Tagged(String group, Role role) {
     }
@@ -119,7 +277,7 @@ public final class TimeSeries {
         if (parts.length == 2) {
             return new Tagged(DEFAULT_GROUP, role);
         }
-        return GROUP_PATTERN.matcher(parts[1]).matches() && !isRole(parts[1]) ? new Tagged(parts[1], role) : null;
+        return GROUP_PATTERN.matcher(parts[1]).matches() && !isReserved(parts[1]) ? new Tagged(parts[1], role) : null;
     }
 
     /**
@@ -134,15 +292,24 @@ public final class TimeSeries {
         if (!GROUP_PATTERN.matcher(group).matches()) {
             throw new IllegalArgumentException("a group's name is letters, digits, _ and -, up to 64: not '" + group + "'");
         }
-        if (isRole(group)) {
-            throw new IllegalArgumentException("'" + group + "' is a role, so it can't name a group");
+        if (isReserved(group)) {
+            throw new IllegalArgumentException("'" + group + "' is a role, an algorithm or Disabled, so it can't name a group");
         }
         return group;
     }
 
-    private static boolean isRole(String name) {
+    /** A role's or an algorithm's name, or Disabled, in any case: tags under the classification or a group, never a group. */
+    private static boolean isReserved(String name) {
+        if (DISABLED.equalsIgnoreCase(name)) {
+            return true;
+        }
         for (Role role : Role.values()) {
             if (role.tag.equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+        for (Algorithm algorithm : Algorithm.values()) {
+            if (algorithm.tag.equalsIgnoreCase(name)) {
                 return true;
             }
         }
@@ -153,17 +320,33 @@ public final class TimeSeries {
     }
 
     /**
-     * A table read as a time series dataset: the columns of each role, the
-     * frequency and the meaning of a missing row, and what keeps it from
-     * being one ({@code problems}; ready when there are none).
+     * A table read as a time series dataset: the algorithms that train on
+     * the group ({@code algorithms}, XGBoost first; DeepAR alone when the
+     * table names none) and the first of them ({@code algorithm}, as before
+     * a group could have more than one), whether it is switched on
+     * ({@code enabled}: the table has no Disabled tag for it), the columns
+     * of each role, the frequency, the horizon and the meaning of a missing
+     * row, and what keeps it from being one ({@code problems}; ready when
+     * there are none).
      */
     @RegisterForReflection
-    public record Spec(String table, String schema, String name, String group, String timestamp, String target, List<String> seriesKey,
-            List<String> staticCategorical, List<String> staticReal, List<String> knownCovariates,
-            List<String> pastCovariates, String frequency, String missing, boolean ready, List<String> problems) {
+    public record Spec(String table, String schema, String name, String group, String algorithm, List<String> algorithms,
+            boolean enabled, String timestamp, String target,
+            List<String> seriesKey, List<String> staticCategorical, List<String> staticReal, List<String> knownCovariates,
+            List<String> pastCovariates, String frequency, String horizon, String missing, String retrain, boolean ready,
+            List<String> problems) {
+
+        /** Whether the algorithm is one of the group's. */
+        public boolean has(Algorithm algorithm) {
+            return algorithms != null ? algorithms.contains(algorithm.tag) : algorithm.tag.equals(this.algorithm);
+        }
     }
 
-    /** The groups OpenMetadata's table (with columns and their tags) has a column tagged in, the default first; none: no series. */
+    /**
+     * The groups OpenMetadata's table (with columns, their tags, and its
+     * own tags) has a column tagged in, or an algorithm for, the default
+     * first; none: no series.
+     */
     public static List<String> groups(JsonNode table) {
         Set<String> groups = new LinkedHashSet<>();
         for (JsonNode column : table.path("columns")) {
@@ -172,6 +355,12 @@ public final class TimeSeries {
                 if (tagged != null) {
                     groups.add(tagged.group());
                 }
+            }
+        }
+        for (JsonNode tag : table.path("tags")) {
+            Trained trained = algorithmOf(tag.path("tagFQN").asText());
+            if (trained != null) {
+                groups.add(trained.group());
             }
         }
         List<String> ordered = new ArrayList<>(groups);
@@ -186,7 +375,7 @@ public final class TimeSeries {
         return groups(table).stream().map(group -> spec(table, group)).toList();
     }
 
-    /** OpenMetadata's table (with columns, their tags, and extension) as one group's time series dataset. */
+    /** OpenMetadata's table (with columns, their tags, its own tags and extension) as one group's time series dataset. */
     public static Spec spec(JsonNode table, String group) {
         Map<Role, List<String>> columns = new LinkedHashMap<>();
         for (Role role : Role.values()) {
@@ -206,6 +395,20 @@ public final class TimeSeries {
             }
         }
         List<String> problems = new ArrayList<>();
+        Set<Algorithm> tagged = java.util.EnumSet.noneOf(Algorithm.class);
+        for (JsonNode tag : table.path("tags")) {
+            Trained trained = algorithmOf(tag.path("tagFQN").asText());
+            if (trained != null && trained.group().equals(group)) {
+                tagged.add(trained.algorithm());
+            }
+        }
+        List<Algorithm> algorithms = tagged.isEmpty() ? List.of(Algorithm.DEFAULT) : List.copyOf(tagged);
+        boolean enabled = true;
+        for (JsonNode tag : table.path("tags")) {
+            if (group.equals(disabledGroupOf(tag.path("tagFQN").asText()))) {
+                enabled = false;
+            }
+        }
         String timestamp = single(columns.get(Role.TIMESTAMP), Role.TIMESTAMP.fqn(group), "the time index", problems);
         String target = single(columns.get(Role.TARGET), Role.TARGET.fqn(group), "the value to forecast", problems);
         if (timestamp != null && !ColumnTypes.TEMPORAL.contains(types.get(timestamp))) {
@@ -235,6 +438,18 @@ public final class TimeSeries {
         } else if (!FREQUENCY_PATTERN.matcher(frequency).matches()) {
             problems.add(FREQUENCY + " '" + frequency + "' isn't a frequency such as 15min, 1h, 1D, 1W or 1MS");
         }
+        String horizon = text(extension.get(HORIZON));
+        if (horizon == null) {
+            if (algorithms.contains(Algorithm.XGBOOST)) {
+                problems.add("the table has no " + HORIZON + ", how far ahead XGBoost scores (such as 30D)");
+            }
+        } else if (!FREQUENCY_PATTERN.matcher(horizon).matches()) {
+            problems.add(HORIZON + " '" + horizon + "' isn't a span such as 24h, 30D or 4W");
+        }
+        String retrain = text(extension.get(RETRAIN));
+        if (retrain != null && !NEVER.equals(retrain) && Span.parse(retrain) == null) {
+            problems.add(RETRAIN + " '" + retrain + "' is neither a span such as 6h, 1D or 1W nor never");
+        }
         String missing = text(extension.get(MISSING));
         if (missing == null) {
             missing = "unknown";
@@ -242,9 +457,10 @@ public final class TimeSeries {
             problems.add(MISSING + " '" + missing + "' is neither zero (a missing row counts nothing) nor unknown");
         }
         return new Spec(table.path("fullyQualifiedName").asText(), table.path("databaseSchema").path("name").asText(null),
-            table.path("name").asText(), group, timestamp, target, columns.get(Role.SERIES_KEY),
+            table.path("name").asText(), group, algorithms.get(0).tag, algorithms.stream().map(a -> a.tag).toList(), enabled,
+            timestamp, target, columns.get(Role.SERIES_KEY),
             columns.get(Role.STATIC_CATEGORICAL), columns.get(Role.STATIC_REAL), columns.get(Role.KNOWN_COVARIATE),
-            columns.get(Role.PAST_COVARIATE), frequency, missing, problems.isEmpty(), problems);
+            columns.get(Role.PAST_COVARIATE), frequency, horizon, missing, retrain, problems.isEmpty(), problems);
     }
 
     private static String single(List<String> columns, String tag, String what, List<String> problems) {

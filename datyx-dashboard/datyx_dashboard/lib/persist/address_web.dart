@@ -10,3 +10,6 @@ void replaceQuery(Map<String, String> query) {
     // Not worth failing for: the tab just isn't kept.
   }
 }
+
+/// Opens [url] in a new tab; `noopener` keeps it from reaching this page.
+void openTab(String url) => web.window.open(url, '_blank', 'noopener,noreferrer');

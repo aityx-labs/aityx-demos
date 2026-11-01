@@ -10,11 +10,15 @@ import 'time_series_dialog.dart';
 /// The Catalog tab, in sections: Databases, each database source as the
 /// catalogue (OpenMetadata) has it, after the API reads its schema ("Read
 /// schema": tables, columns, types, keys), and the time series in it: a
-/// table's columns tagged with their roles for a forecast (DeepAR), set
-/// with "Tag for DeepAR", in one or more groups, each a series of its own
-/// ("Add a group"); Streams, each Kafka source's topics after the API reads
-/// them ("Read topics": partitions, retention, the fields of their
-/// records); and the sources nothing reads yet. What is shown, the
+/// table's columns tagged with their roles for a forecast, set with "Tag
+/// for training", in one or more groups, each a series of its own ("Add a
+/// group") trained by its own algorithms (DeepAR, XGBoost with a
+/// horizon, or both), a tag each on the table, and each enabled or
+/// disabled (its `TimeSeries.<group>.Disabled` tag on the table, which
+/// enabling removes and so has datyx queue a run for each of the group's
+/// algorithms); Streams, each Kafka source's topics after
+/// the API reads them ("Read topics": partitions, retention, the fields of
+/// their records); and the sources nothing reads yet. What is shown, the
 /// readiness and the problems are the API's; the tab asks and shows.
 class CatalogTab extends StatelessWidget {
   const CatalogTab({
@@ -58,11 +62,13 @@ class CatalogTab extends StatelessWidget {
                 const SizedBox(height: 8),
                 const Text(
                   'Read a database source\'s schema into OpenMetadata, then tag '
-                  'a table\'s columns for forecasting: the time index, the value '
-                  'to forecast, what tells series apart and the features DeepAR '
-                  'takes. Read a Kafka source\'s topics too, with the fields of '
-                  'their latest records. The tags live in OpenMetadata, where they '
-                  'can be edited too; the source itself never changes.',
+                  'a table\'s columns for training: the time index, the value '
+                  'to forecast, what tells series apart and the features, in '
+                  'groups, each trained by DeepAR or by XGBoost, which scores '
+                  'the value summed over a horizon. Read a Kafka source\'s topics '
+                  'too, with the fields of their latest records. The tags live in '
+                  'OpenMetadata, where they can be edited too; the source itself '
+                  'never changes.',
                   style: TextStyle(color: Aityx.muted),
                 ),
                 const SizedBox(height: 12),
@@ -223,6 +229,9 @@ class _SourceCatalogState extends State<SourceCatalog> {
   String? _note;
   bool _busy = false;
 
+  /// The groups being enabled or disabled, as `table/group`.
+  final Set<String> _switching = {};
+
   @override
   void initState() {
     super.initState();
@@ -282,6 +291,45 @@ class _SourceCatalogState extends State<SourceCatalog> {
     if (saved != null) await _load();
   }
 
+  /// Enables or disables [spec]'s group: the API removes or adds its
+  /// Disabled tag in OpenMetadata, and enabling queues a training run for
+  /// each of its algorithms. The group becomes the API's answer, and the
+  /// table's tags are read again.
+  Future<void> _setEnabled(TimeSeriesSpec spec, bool enabled) async {
+    final key = '${spec.table}/${spec.group}';
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() {
+      _switching.add(key);
+      _error = null;
+      _note = null;
+    });
+    try {
+      final answer = await widget.api.setGroupEnabled(widget.source.id, spec.table, spec.group, enabled);
+      if (!mounted) return;
+      setState(() {
+        _series = {
+          for (final e in _series.entries)
+            e.key: [for (final s in e.value) s.table == spec.table && s.group == spec.group ? answer : s],
+        };
+      });
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            answer.enabled
+                ? '${spec.group} enabled: ${queuedRuns(answer.algorithms)}; see the Training tab.'
+                : '${spec.group} disabled: tagged ${answer.disabledTagFqn} in OpenMetadata, datyx doesn\'t train it.',
+          ),
+        ),
+      );
+      final tables = await widget.api.catalog(widget.source.id);
+      if (mounted) setState(() => _tables = tables);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _switching.remove(key));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tables = _tables;
@@ -321,8 +369,13 @@ class _SourceCatalogState extends State<SourceCatalog> {
                 _TableTile(
                   table: t,
                   series: _series[t.fqn] ?? const [],
+                  switching: {
+                    for (final s in _series[t.fqn] ?? const <TimeSeriesSpec>[])
+                      if (_switching.contains('${s.table}/${s.group}')) s.group,
+                  },
                   onEdit: (spec) => _tag(t, spec: spec),
                   onAdd: (from) => _tag(t, startFrom: from),
+                  onEnabled: _setEnabled,
                 ),
           ],
         ),
@@ -351,14 +404,25 @@ Map<String, Color> groupColors(Iterable<String> groups) {
 }
 
 class _TableTile extends StatelessWidget {
-  const _TableTile({required this.table, required this.series, required this.onEdit, required this.onAdd});
+  const _TableTile({
+    required this.table,
+    required this.series,
+    required this.switching,
+    required this.onEdit,
+    required this.onAdd,
+    required this.onEnabled,
+  });
 
   final CatalogTable table;
 
   /// Its groups as the API reads them, the default first; none: not tagged.
   final List<TimeSeriesSpec> series;
+
+  /// The groups being enabled or disabled now.
+  final Set<String> switching;
   final void Function(TimeSeriesSpec spec) onEdit;
   final void Function(TimeSeriesSpec? from) onAdd;
+  final void Function(TimeSeriesSpec spec, bool enabled) onEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -366,8 +430,11 @@ class _TableTile extends StatelessWidget {
       for (final s in series) s.group,
       for (final c in table.columns)
         for (final t in c.tags) ?TimeSeriesTag.parse(t)?.group,
+      for (final t in table.tags) ?AlgorithmTag.parse(t)?.group,
+      for (final t in table.tags) ?disabledGroup(t),
     ]);
     final description = table.description == null || table.description!.isEmpty ? null : table.description!;
+    final algorithmOf = {for (final s in series) s.group: s.algorithms};
     return ExpansionTile(
       key: PageStorageKey(table.fqn),
       tilePadding: EdgeInsets.zero,
@@ -403,6 +470,16 @@ class _TableTile extends StatelessWidget {
           if (series.isNotEmpty) _Badge(series: series),
         ],
       ),
+      subtitle: series.isEmpty
+          ? null
+          : Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [for (final s in series) _TrainedBy(spec: s, color: colors[s.group]!)],
+              ),
+            ),
       childrenPadding: const EdgeInsets.only(left: 40, bottom: 12),
       expandedCrossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -411,9 +488,38 @@ class _TableTile extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(description, style: const TextStyle(color: Aityx.muted)),
           ),
-        for (final c in table.columns) _ColumnRow(column: c, inKey: table.primaryKey.contains(c.name), colors: colors),
+        if (table.tags.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                const SizedBox(
+                  width: 288,
+                  child: Text('on the table', style: TextStyle(color: Aityx.muted, fontSize: 12)),
+                ),
+                for (final tag in table.tags) _TagChip(tag, colors: colors, algorithms: algorithmOf),
+              ],
+            ),
+          ),
+        for (final c in table.columns)
+          _ColumnRow(
+            column: c,
+            inKey: table.primaryKey.contains(c.name),
+            colors: colors,
+            algorithms: algorithmOf,
+          ),
         const SizedBox(height: 8),
-        for (final s in series) _SeriesSummary(spec: s, color: colors[s.group]!, onEdit: () => onEdit(s)),
+        for (final s in series)
+          _SeriesSummary(
+            spec: s,
+            color: colors[s.group]!,
+            switching: switching.contains(s.group),
+            onEdit: () => onEdit(s),
+            onEnabled: (enabled) => onEnabled(s, enabled),
+          ),
         Align(
           alignment: Alignment.centerLeft,
           child: Tooltip(
@@ -426,7 +532,7 @@ class _TableTile extends StatelessWidget {
               key: ValueKey('add-group-${table.fqn}'),
               onPressed: () => onAdd(series.isEmpty ? null : series.first),
               icon: Icon(series.isEmpty ? Icons.sell_outlined : Icons.add, size: 18),
-              label: Text(series.isEmpty ? 'Tag for DeepAR' : 'Add a group'),
+              label: Text(series.isEmpty ? 'Tag for training' : 'Add a group'),
             ),
           ),
         ),
@@ -444,13 +550,16 @@ String tableKind(String? type) => switch (type) {
 };
 
 class _ColumnRow extends StatelessWidget {
-  const _ColumnRow({required this.column, required this.inKey, required this.colors});
+  const _ColumnRow({required this.column, required this.inKey, required this.colors, required this.algorithms});
 
   final CatalogColumn column;
   final bool inKey;
 
   /// The table's groups' colors, for its TimeSeries tags.
   final Map<String, Color> colors;
+
+  /// What trains each of the table's groups, to say what a role is to them.
+  final Map<String, List<String>> algorithms;
 
   @override
   Widget build(BuildContext context) {
@@ -502,31 +611,47 @@ class _ColumnRow extends StatelessWidget {
               ),
             ),
           ),
-          for (final tag in column.tags) _TagChip(tag, colors: colors),
+          for (final tag in column.tags) _TagChip(tag, colors: colors, algorithms: algorithms),
         ],
       ),
     );
   }
 }
 
-/// A column's tag: a TimeSeries role in its group's color, named with its
-/// group but the default's; any other tag in gray.
+/// A tag: a column's TimeSeries role, or one of the table's algorithms for
+/// a group or its Disabled tag, in its group's color, named with its group
+/// but the default's, a role with what it is to each of the group's
+/// algorithms; any other tag in gray.
 class _TagChip extends StatelessWidget {
-  const _TagChip(this.tag, {required this.colors});
+  const _TagChip(this.tag, {required this.colors, required this.algorithms});
   final String tag;
   final Map<String, Color> colors;
+  final Map<String, List<String>> algorithms;
 
   @override
   Widget build(BuildContext context) {
     final role = TimeSeriesTag.parse(tag);
-    final color = role == null ? null : colors[role.group] ?? otherGroupColor;
+    final trained = role == null ? AlgorithmTag.parse(tag) : null;
+    final disabled = role == null && trained == null ? disabledGroup(tag) : null;
+    final group = role?.group ?? trained?.group ?? disabled;
+    final color = group == null ? null : colors[group] ?? otherGroupColor;
+    final prefix = group == null || group == defaultGroup ? '' : '$group: ';
+    final groupAlgorithms = role == null ? null : algorithms[role.group] ?? const [deepArAlgorithm];
     return Tooltip(
-      message: role == null
-          ? tagHelp(tag)
-          : '${role.role.help}, in the ${role.group} group.\n'
-                'DeepAR takes it as ${role.role.deepAr}. Tag $tag in OpenMetadata',
+      message: role != null
+          ? '${role.role.help}, in the ${role.group} group.\n'
+                '${groupAlgorithms!.map((a) => '$a takes it as ${role.role.to(a)}').join('; ')}. Tag $tag in OpenMetadata'
+          : (trained != null
+                ? 'datyx trains the ${trained.group} group with ${trained.algorithm}. Tag $tag in OpenMetadata'
+                : (disabled != null
+                      ? 'The $disabled group is disabled: datyx doesn\'t train it while the table has this tag'
+                      : tagHelp(tag))),
       child: Container(
-        key: role == null ? null : ValueKey('tag-${role.group}-${role.role.tag}'),
+        key: role != null
+            ? ValueKey('tag-${role.group}-${role.role.tag}')
+            : (trained != null
+                  ? ValueKey('algorithm-tag-${trained.group}-${trained.algorithm}')
+                  : (disabled != null ? ValueKey('disabled-tag-$disabled') : null)),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
           color: color == null ? Aityx.bg2 : color.withValues(alpha: 0.18),
@@ -534,10 +659,12 @@ class _TagChip extends StatelessWidget {
           border: Border.all(color: color ?? Aityx.border),
         ),
         child: Text(
-          role == null
-              ? tag
-              : '${role.group == defaultGroup ? '' : '${role.group}: '}${role.role.tag} · ${role.role.deepAr}',
-          style: TextStyle(fontSize: 11, color: role == null ? Aityx.muted : Aityx.fg),
+          role != null
+              ? '$prefix${role.role.tag} · ${role.role.toEach(groupAlgorithms!)}'
+              : (trained != null
+                    ? '${prefix}trained by ${trained.algorithm}'
+                    : (disabled != null ? '${prefix}disabled, not trained' : tag)),
+          style: TextStyle(fontSize: 11, color: group == null ? Aityx.muted : Aityx.fg),
         ),
       ),
     );
@@ -563,15 +690,20 @@ class _Badge extends StatelessWidget {
   Widget build(BuildContext context) {
     final ready = series.where((s) => s.ready).length;
     final all = ready == series.length;
-    final text = series.length == 1
-        ? (all ? 'time series: ready' : 'time series: needs work')
-        : '${series.length} time series: ${all ? 'all' : '$ready'} ready';
+    final off = series.where((s) => !s.enabled).length;
+    final text =
+        (series.length == 1
+            ? (all ? 'time series: ready' : 'time series: needs work')
+            : '${series.length} time series: ${all ? 'all' : '$ready'} ready') +
+        (off == 0 ? '' : (series.length == 1 ? ', disabled' : ', $off disabled'));
     return Tooltip(
-      message: all
-          ? 'Its columns are tagged for a forecast, and DeepAR can train on '
-                '${series.length == 1 ? 'it' : 'each group'} as tagged'
-          : 'Tagged for a forecast, but ${series.length - ready} of ${series.length} '
-                '${series.length == 1 ? 'group needs' : 'groups need'} work: open the row to see what to fix',
+      message:
+          (all
+              ? 'Its columns are tagged for a forecast, and datyx can train '
+                    '${series.length == 1 ? 'it' : 'each group'} as tagged'
+              : 'Tagged for a forecast, but ${series.length - ready} of ${series.length} '
+                    '${series.length == 1 ? 'group needs' : 'groups need'} work: open the row to see what to fix') +
+          (off == 0 ? '' : '. ${off == 1 && series.length == 1 ? 'It is' : '$off of them are'} disabled, not trained'),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
@@ -584,32 +716,95 @@ class _Badge extends StatelessWidget {
   }
 }
 
-/// One group of the table as a time series, as the API reads it: the
-/// DeepAR inputs it gives, and its problems; Edit opens it in the dialog.
+/// What trains one group of the table, in the group's color: the API's
+/// algorithms for it and, when the table has one, its horizon; a disabled
+/// group's muted, saying so.
+class _TrainedBy extends StatelessWidget {
+  const _TrainedBy({required this.spec, required this.color});
+  final TimeSeriesSpec spec;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Opacity(
+    opacity: spec.enabled ? 1 : 0.55,
+    child: Container(
+      key: ValueKey('trained-by-${spec.group}'),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: spec.enabled ? color.withValues(alpha: 0.18) : null,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            !spec.enabled
+                ? Icons.pause_circle_outline
+                : (spec.xgBoost ? Icons.account_tree_outlined : Icons.show_chart),
+            size: 12,
+            color: Aityx.fg,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '${spec.group}: ${spec.algorithms.join(' + ')}${spec.horizon == null ? '' : ', ${spec.horizon} ahead'}'
+            '${spec.enabled ? '' : ', disabled'}',
+            style: const TextStyle(fontSize: 11, color: Aityx.fg),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// One group of the table as a time series, as the API reads it: what its
+/// algorithms make of each role (DeepAR's inputs, XGBoost's dataset), the
+/// horizon, and its problems; Edit opens it in the dialog. Its switch
+/// enables or disables it: a disabled group, muted and showing its
+/// Disabled tag, isn't trained, and can still be edited; enabling it
+/// queues a run for each of its algorithms.
 class _SeriesSummary extends StatelessWidget {
-  const _SeriesSummary({required this.spec, required this.color, required this.onEdit});
+  const _SeriesSummary({
+    required this.spec,
+    required this.color,
+    required this.switching,
+    required this.onEdit,
+    required this.onEnabled,
+  });
   final TimeSeriesSpec spec;
 
   /// Its group's color, as on the group's tags.
   final Color color;
+
+  /// Whether the API is enabling or disabling it now.
+  final bool switching;
   final VoidCallback onEdit;
+  final ValueChanged<bool> onEnabled;
 
   @override
   Widget build(BuildContext context) {
+    final xgb = spec.xgBoost;
     final lines = <String>[
+      if (xgb)
+        'scores ${spec.target ?? '?'} summed over the next ${spec.horizon ?? '?'}, '
+            'per ${spec.seriesKey.isEmpty ? 'table' : spec.seriesKey.join(' + ')}',
       for (final role in TimeSeriesRole.values)
-        if (spec.of(role).isNotEmpty) '${role.deepAr} = ${spec.of(role).join(' + ')}',
+        if (spec.of(role).isNotEmpty) '${role.toEach(spec.algorithms)} = ${spec.of(role).join(' + ')}',
       'freq = ${spec.frequency ?? '?'}',
+      'horizon = ${spec.horizon ?? (xgb ? '?' : 'the trainer\'s choice')}',
       'a missing row = ${spec.missing == 'zero' ? '0' : 'unknown (a gap)'}',
     ];
+    final on = spec.enabled;
+    final tag = spec.disabledTagFqn;
     return Container(
+      key: ValueKey('group-box-${spec.group}'),
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Aityx.bg0,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.6)),
+        border: Border.all(color: color.withValues(alpha: on ? 0.6 : 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -618,19 +813,26 @@ class _SeriesSummary extends StatelessWidget {
             children: [
               Tooltip(
                 message: 'The ${spec.group} group\'s color, on its tags in the columns above',
-                child: Container(
-                  key: ValueKey('group-color-${spec.group}'),
-                  width: 10,
-                  height: 10,
-                  margin: const EdgeInsets.only(right: 8),
-                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                child: Opacity(
+                  opacity: on ? 1 : 0.5,
+                  child: Container(
+                    key: ValueKey('group-color-${spec.group}'),
+                    width: 10,
+                    height: 10,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  ),
                 ),
               ),
               Tooltip(
                 message:
-                    'The ${spec.group} group: one dataset DeepAR can train on, '
-                    'forecasting ${spec.of(TimeSeriesRole.target).isEmpty ? 'no value yet' : spec.of(TimeSeriesRole.target).join(', ')}',
-                child: Text('DeepAR · ${spec.group}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    'The ${spec.group} group: one dataset ${spec.algorithms.join(' and ')} '
+                    '${spec.algorithms.length == 1 ? 'trains' : 'train'} on, forecasting '
+                    '${spec.of(TimeSeriesRole.target).isEmpty ? 'no value yet' : spec.of(TimeSeriesRole.target).join(', ')}',
+                child: Text(
+                  '${spec.algorithms.join(' + ')} · ${spec.group}',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: on ? null : Aityx.muted),
+                ),
               ),
               const SizedBox(width: 8),
               Tooltip(
@@ -641,7 +843,60 @@ class _SeriesSummary extends StatelessWidget {
                   color: spec.ready ? Aityx.green : Aityx.amber,
                 ),
               ),
+              if (!on) ...[
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Tooltip(
+                    message: 'The table\'s tag in OpenMetadata that disables the group',
+                    child: Container(
+                      key: ValueKey('disabled-chip-${spec.group}'),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Aityx.bg2,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Aityx.border),
+                      ),
+                      child: Text(
+                        tag,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11, color: Aityx.muted, fontFamily: 'monospace'),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               const Spacer(),
+              Tooltip(
+                message: on
+                    ? 'Enabled: datyx trains this group with ${_its(spec.algorithms)}. '
+                          'Disabling adds the tag $tag to the table in OpenMetadata, and datyx stops training it.'
+                    : 'Disabled: datyx doesn\'t train this group. Enabling removes its $tag tag in '
+                          'OpenMetadata, and ${queuedRuns(spec.algorithms)}; removing the tag in '
+                          'OpenMetadata itself does the same.',
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (switching)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 14),
+                        child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    else
+                      Switch(
+                        key: ValueKey('enabled-${spec.table}-${spec.group}'),
+                        value: on,
+                        onChanged: onEnabled,
+                      ),
+                    SizedBox(
+                      width: 64,
+                      child: Text(
+                        on ? 'Enabled' : 'Disabled',
+                        style: TextStyle(fontSize: 12, color: on ? Aityx.fg : Aityx.muted),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               Tooltip(
                 message: 'Change this group\'s roles, its frequency and what a missing row means',
                 child: TextButton.icon(
@@ -653,21 +908,43 @@ class _SeriesSummary extends StatelessWidget {
               ),
             ],
           ),
-          for (final l in lines)
-            Tooltip(
-              message: 'What DeepAR is given: its input = the column or setting it comes from',
-              child: Text(l, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+          Opacity(
+            opacity: on ? 1 : 0.55,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!on)
+                  const Text(
+                    'Not trained while the table has this tag in OpenMetadata; enabling removes it.',
+                    style: TextStyle(color: Aityx.muted, fontSize: 12),
+                  ),
+                for (final l in lines)
+                  Tooltip(
+                    message: 'What the group\'s algorithms are given: their input = the column or setting it comes from',
+                    child: Text(l, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                  ),
+                for (final p in spec.problems)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text('• $p', style: const TextStyle(color: Aityx.amber, fontSize: 12)),
+                  ),
+              ],
             ),
-          for (final p in spec.problems)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text('• $p', style: const TextStyle(color: Aityx.amber, fontSize: 12)),
-            ),
+          ),
         ],
       ),
     );
   }
 }
+
+/// The runs datyx queues when a group trained by [algorithms] is enabled: one per algorithm.
+String queuedRuns(List<String> algorithms) => algorithms.length == 1
+    ? 'datyx queues a training run of it (${algorithms.single})'
+    : 'datyx queues a run for each of its algorithms: ${algorithms.join(', ')}';
+
+String _its(List<String> algorithms) => algorithms.length == 1
+    ? 'its algorithm (${algorithms.single})'
+    : 'each of its algorithms (${algorithms.join(', ')})';
 
 /// One Kafka source: its topics in the catalogue, each with its records' fields.
 class StreamCatalog extends StatefulWidget {

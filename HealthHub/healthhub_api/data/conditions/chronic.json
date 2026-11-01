@@ -15,6 +15,7 @@
       "interval_days": 30,
       "stay_hours": 1
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. I've had a dull headache at the back of my head most mornings this week, and the pharmacy machine read my blood pressure as 168 over 102 twice.",
@@ -30,6 +31,23 @@
         "Hi, I'm {name}, here for the last check of this round of blood pressure reviews. My home readings have been around 128 over 80 since my last visit and I feel fine on the tablets.",
         "{first_name} here, {age}. I've had my blood and urine tests for this review, and if they and today's reading are good I'd like to keep the same dose until my next check-up; I've had no side effects lately.",
         "Hello, I'm {name}. I've brought my diary of home readings, they're mostly under target, and I'd like to confirm the dose and when my next review is due."
+      ]
+    },
+    "triage": {
+      "first": [
+        "green",
+        "blue",
+        "blue"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -49,6 +67,7 @@
       "interval_days": 90,
       "stay_hours": 1
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. A routine blood test showed my cholesterol is high, and my father had a heart attack in his fifties, so my GP asked me to come in about it.",
@@ -64,6 +83,23 @@
         "Hi, I'm {name}, here for my results. The nurse said my LDL is at target on the statin, so I'd like to keep the same plan until my next check.",
         "{first_name} here, {age}. My liver tests came back normal and my cholesterol is about half what it was before treatment; I just need my repeat prescriptions sorted until the next review.",
         "Hello, I'm {name}. My cholesterol is under control on treatment, and I'd like to confirm I stay on the same dose and when my next blood test is due."
+      ]
+    },
+    "triage": {
+      "first": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -83,6 +119,7 @@
       "interval_days": 42,
       "stay_hours": 2
     },
+    "setting": "primary",
     "female_share": 0.6,
     "templates": {
       "first": [
@@ -99,6 +136,23 @@
         "Hi, I'm {name}, here for my arthritis review. With the exercises and keeping my weight down the pain is at a manageable level and I can get to {city} centre again, so I'd like to keep this plan until my next check-up.",
         "{first_name} here, {age}. The painkillers aren't enough on bad days, and I'd like to talk about a referral to the orthopaedic surgeons before my next review.",
         "Hello, I'm {name}. The joint is better with the support and the gel, so I'm happy to manage at home until my next review and come back sooner if it flares."
+      ]
+    },
+    "triage": {
+      "first": [
+        "yellow",
+        "blue",
+        "blue"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -118,6 +172,7 @@
       "interval_days": 56,
       "stay_hours": 2
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. I get a burning pain behind my breastbone after meals and when I lie down, nearly every night for two months, and antacids only help for an hour.",
@@ -133,6 +188,23 @@
         "Hi, I'm {name}, here for my reflux review. The tablets are working, I've barely had heartburn, and I'd like to know how to cut down the dose until my next check.",
         "{first_name} here, {age}. My last camera test was normal and the symptoms are controlled, so I'd like to try taking the tablets only when I need them until my next review.",
         "Hello, I'm {name}. With the tablets and the diet changes I feel much better, and I'd like to confirm the plan and when I should come back for my next review."
+      ]
+    },
+    "triage": {
+      "first": [
+        "blue",
+        "blue",
+        "green"
+      ],
+      "repeat": [
+        "blue",
+        "green",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -152,6 +224,7 @@
       "interval_days": 90,
       "stay_hours": 2
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. For the last month I've been very thirsty, going to the toilet at night three or four times, and I've lost weight without trying; my GP's finger-prick sugar was high.",
@@ -167,6 +240,23 @@
         "Hi, I'm {name}, here for my annual review. My HbA1c is at target, my eye screening was clear, and I'd like to go over my feet and kidney results.",
         "{first_name} here, {age}. My sugars have been steady on the current tablets since my last check, so I'd like to keep the same plan and book my next review.",
         "Hello, I'm {name}. I've lost eight kilos since I was diagnosed and my sugars look normal on the meter; I'd like to know whether we can reduce the medication before my next check-up."
+      ]
+    },
+    "triage": {
+      "first": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -186,6 +276,7 @@
       "interval_days": 28,
       "stay_hours": 2
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. My lower back has hurt for about four months, worse after sitting for long; I'm a {occupation}, and ibuprofen only takes the edge off; no numbness or problems with the toilet.",
@@ -201,6 +292,23 @@
         "Hi, I'm {name}, here for my back review. I'm managing my usual routine with only mild aching now, which the exercises keep under control, so I'd like to carry on as we are until the next check.",
         "{first_name} here, {age}. My back is better with physio; I'd like an updated home exercise plan and to know what should make me come back before my next review.",
         "Hello, I'm {name}. The leg pain is still there, so I'm here to hear the scan result and talk about a referral to the spinal clinic."
+      ]
+    },
+    "triage": {
+      "first": [
+        "blue",
+        "yellow",
+        "blue"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -220,6 +328,7 @@
       "interval_days": 90,
       "stay_hours": 2
     },
+    "setting": "hospital",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. My GP said my kidney blood test has been low for three months and there's protein in my urine, so I was referred to the kidney clinic; I've noticed my ankles swelling.",
@@ -235,6 +344,23 @@
         "Hi, I'm {name}, here for my yearly kidney review. My function has stayed stable since my last check, so I'm hoping we can keep the same plan until the next review.",
         "{first_name} here, {age}. My kidney function has kept dropping, and I'm here to talk about dialysis options and the transplant assessment.",
         "Hello, I'm {name}. My potassium and blood pressure are good on the current tablets, and I'd like to confirm the plan until my next check."
+      ]
+    },
+    "triage": {
+      "first": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -254,6 +380,7 @@
       "interval_days": 14,
       "stay_hours": 4
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}, I have asthma. Since last night I've been wheezing and tight-chested, my blue inhaler only helps for an hour, and I can't finish a sentence without stopping.",
@@ -269,6 +396,23 @@
         "Hi, I'm {name}, here for my asthma review. I haven't woken at night with symptoms since my last visit and my peak flow is normal, so I'd like to update my action plan until the next check.",
         "{first_name} here, {age}. My breathing is back to normal after the flare-up, and I'd like to check whether I stay on this inhaler dose or step it down until my next review.",
         "Hello, I'm {name}. I'm here for my breathing tests for this review; I'm getting through my usual day as a {occupation} without getting breathless."
+      ]
+    },
+    "triage": {
+      "first": [
+        "orange",
+        "orange",
+        "green"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -288,6 +432,7 @@
       "interval_days": 28,
       "stay_hours": 1
     },
+    "setting": "mental_health",
     "female_share": 0.65,
     "templates": {
       "first": [
@@ -304,6 +449,23 @@
         "Hi, I'm {name}, here for my review with the team. I've felt more like myself since my last visit and I'm keeping up my normal routine, so I'd like to agree the plan until my next check-up.",
         "{first_name} here, {age}. My mood has been stable, and we talked about staying on the tablets for at least six more months; I just need the relapse plan in writing.",
         "Hello, I'm {name}. I'm sleeping and eating normally and I've finished this block of therapy sessions; I'd like to check the dose and book my next review."
+      ]
+    },
+    "triage": {
+      "first": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -323,6 +485,7 @@
       "interval_days": 42,
       "stay_hours": 6
     },
+    "setting": "hospital",
     "female_share": 0.4,
     "templates": {
       "first": [
@@ -339,6 +502,23 @@
         "Hi, I'm {name}, here for my cardiology review. I haven't had any chest pain since my last visit, I've stayed off cigarettes, and I'd like to go over which tablets I stay on until the next check.",
         "{first_name} here, {age}. The angina is well controlled on the medication and I keep up the rehab exercises at home; I'd like to know when my next check-up is.",
         "Hello, I'm {name}. I can walk a few kilometres without chest pain now; I'm here for my results and the plan until my next review."
+      ]
+    },
+    "triage": {
+      "first": [
+        "orange",
+        "orange",
+        "orange"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -358,6 +538,7 @@
       "interval_days": 42,
       "stay_hours": 1
     },
+    "setting": "primary",
     "female_share": 0.8,
     "templates": {
       "first": [
@@ -374,6 +555,23 @@
         "Hi, I'm {name}, here for my thyroid check. I feel well, and the nurse said my TSH is in range, so I'd like to confirm I stay on this dose until my next blood test.",
         "{first_name} here, {age}. My energy is good and my weight is steady; I just need to know when my next thyroid blood test should be.",
         "Hello, I'm {name}. My symptoms are under control on levothyroxine, and I'm here for the results and the plan until my next review."
+      ]
+    },
+    "triage": {
+      "first": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -393,6 +591,7 @@
       "interval_days": 30,
       "stay_hours": 6
     },
+    "setting": "hospital",
     "female_share": 0.4,
     "templates": {
       "first": [
@@ -409,6 +608,23 @@
         "Hi, I'm {name}, here for my COPD review. I've stayed off cigarettes, my breathing is back to my usual, and I'd like to check my oxygen levels and inhaler plan until the next review.",
         "{first_name} here, {age}. I've had my flu jab, and I'd like a rescue pack and a written plan for the next flare before my next check-up.",
         "Hello, I'm {name}. I'm here for my breathing test for this review; I feel well, and I'd like to keep the same inhalers until my next check."
+      ]
+    },
+    "triage": {
+      "first": [
+        "orange",
+        "orange",
+        "orange"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -428,6 +644,7 @@
       "interval_days": 28,
       "stay_hours": 1
     },
+    "setting": "mental_health",
     "female_share": 0.65,
     "templates": {
       "first": [
@@ -444,6 +661,23 @@
         "Hi, I'm {name}, here for my review. I've finished this block of CBT, I'm worrying much less, and I'm sleeping through most nights, so I'd like to keep the plan as it is until the next check.",
         "{first_name} here, {age}. The anxiety has been manageable since my last visit; I'd like to agree whether to stay on the medication and what to do if it gets worse before my next review.",
         "Hello, I'm {name}. I'm keeping up my normal routine and the panicky spells are rare now; I'd like to confirm the dose and book my next review."
+      ]
+    },
+    "triage": {
+      "first": [
+        "blue",
+        "orange",
+        "blue"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -463,6 +697,7 @@
       "interval_days": 30,
       "stay_hours": 6
     },
+    "setting": "hospital",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. Since this morning my heart has been racing and fluttering irregularly, I feel a bit short of breath and light-headed, and it hasn't settled after resting.",
@@ -478,6 +713,23 @@
         "Hi, I'm {name}, here for my rhythm review. My heart has stayed in a normal rhythm since my last visit and I feel more energetic, so I'd like to keep the same tablets until the next check.",
         "{first_name} here, {age}. The rate is controlled and I have no palpitations now; I'd like to confirm I stay on the blood thinner and what my GP should monitor until my next review.",
         "Hello, I'm {name}. I'm feeling well on treatment, and I'm here for the heart tracing and kidney bloods for this review."
+      ]
+    },
+    "triage": {
+      "first": [
+        "orange",
+        "green",
+        "orange"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -497,6 +749,7 @@
       "interval_days": 14,
       "stay_hours": 8
     },
+    "setting": "hospital",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. Over the last two weeks I've got more and more breathless, I need three pillows to sleep, and my ankles and legs are badly swollen.",
@@ -512,6 +765,23 @@
         "Hi, I'm {name}, here for my clinic review. My weight has been stable since my last visit, I sleep flat with one pillow, and I'd like to confirm my full list of tablets until the next check.",
         "{first_name} here, {age}. My last heart scan showed it's pumping better, and I'd like my plan with the community nurse and the rehab exercises until my next review.",
         "Hello, I'm {name}. I feel much better than when I first came in; I'm here for my bloods and to agree what to do if my weight goes up again before my next check-up."
+      ]
+    },
+    "triage": {
+      "first": [
+        "orange",
+        "orange",
+        "orange"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -531,6 +801,7 @@
       "interval_days": 90,
       "stay_hours": 2
     },
+    "setting": "hospital",
     "female_share": 0.65,
     "templates": {
       "first": [
@@ -547,6 +818,23 @@
         "Hi, I'm {name}, here for my review at the memory clinic. My memory is about the same as last time, and we want to sort out the care plan and power of attorney.",
         "{first_name} here, {age}. Things have been steady on the tablets, so the doctor said my GP can keep an eye on me until my next memory clinic review.",
         "Hello, I'm {name}. My family and I are here to go over the test results and the support at home, since my memory has got a bit worse since my last review."
+      ]
+    },
+    "triage": {
+      "first": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -566,6 +854,7 @@
       "interval_days": 56,
       "stay_hours": 3
     },
+    "setting": "hospital",
     "female_share": 0.75,
     "templates": {
       "first": [
@@ -582,6 +871,23 @@
         "Hi, I'm {name}, here for my review. My joints have been quiet on the current treatment since my last visit, and I'd like to go over my blood monitoring before the next round of check-ups.",
         "{first_name} here, {age}. On the biologic injections I've had almost no swelling and I'm doing all my usual activities; I'd like to confirm the monitoring plan until my next review.",
         "Hello, I'm {name}. My disease score is in remission on treatment, and the nurse said we can keep the same plan until my next review."
+      ]
+    },
+    "triage": {
+      "first": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -601,6 +907,7 @@
       "interval_days": 21,
       "stay_hours": 6
     },
+    "setting": "hospital",
     "female_share": 0.99,
     "templates": {
       "first": [
@@ -617,6 +924,23 @@
         "Hi, I'm {name}, here for the last cycle of this round of chemotherapy. I'm tired but coping, and I'd like to go over the scans and the hormone tablets until my next review.",
         "{first_name} here, {age}. This is the last session of this treatment block; I'd like to know how the scans look and when my next review is.",
         "Hello, I'm {name}. I've reached the last cycle of this round; the numbness in my feet is still there and I'd like advice on it before my next check-up."
+      ]
+    },
+    "triage": {
+      "first": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -636,6 +960,7 @@
       "interval_days": 2,
       "stay_hours": 4
     },
+    "setting": "dialysis",
     "course_gap_days": 0,
     "templates": {
       "first": [
@@ -652,6 +977,23 @@
         "Hi, I'm {name}, here for my last session of the month, with the monthly bloods. I'd like to know about my potassium and haemoglobin and how the transplant workup is going.",
         "{first_name} here, {age}. Today's session comes with my monthly review; I'd like the team to go over my notes and my dry weight, and whether home dialysis training could suit me.",
         "Hello, I'm {name}. Today I have my session and the monthly review with the kidney doctor about my dose; I've been keeping to my fluid limit."
+      ]
+    },
+    "triage": {
+      "first": [
+        "blue",
+        "orange",
+        "blue"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   }

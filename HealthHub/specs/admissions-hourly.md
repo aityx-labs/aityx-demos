@@ -27,8 +27,8 @@ Each admission falls in one key:
   of the API is a new run whose clock starts again at day 1, so the same
   hours repeat from run to run; the run tells them apart.
 - `hospital_id`: the hospital's id, as in `care_centers`.
-- `hour_start`: the simulated hour of the arrival. Simulated time has
-  days, not dates, so day 1 is 2026-01-01: `"day": 4, "simTime":
+- `hour_start`: the simulated hour of the arrival, on the simulation's
+  calendar, where day 1 is 2026-01-01 ([Simulation](simulation.md#the-calendar)): `"day": 4, "simTime":
   "09:09"` is 2026-01-04 09:00. A timestamp without a time zone.
 
 and is counted in `admissions`, and in `acute_admissions` or

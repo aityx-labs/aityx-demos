@@ -468,9 +468,14 @@ void main() {
       'careCenterKind',
       'simTime',
       'day',
+      'at',
       'turn',
     ]);
     expect(admission['type'], 'admission');
+    // Its date and time are its day and minute of arrival.
+    final day = admission['day']! as int;
+    final date = simAt((day - 1) * minutesPerDay).substring(0, 11);
+    expect(admission['at'], '$date${admission['simTime']}');
     // The run id first: the same person, day and turn of another run is
     // another event.
     expect(admission['eventId'], 'r1-reus-1-d1-t$turn');

@@ -109,6 +109,7 @@ const schemaComments = <String, TableComments>{
       'hospital_name': 'The hospital\'s name.',
       'sim_day': 'The simulated day of the arrival, from 1 at each start of the API.',
       'sim_time': 'The simulated minute of the arrival, HH:MM.',
+      'admitted_at': 'The admission\'s simulated date and time, from sim_day and sim_time: day 1 is 2026-01-01.',
       'recorded_at': 'When the API recorded the admission, in real time.',
     },
   ),

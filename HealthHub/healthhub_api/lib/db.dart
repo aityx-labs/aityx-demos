@@ -282,6 +282,15 @@ class Db {
     // Added after the table was first made: which complaint template the
     // admission was said from, null for those recorded before.
     await c.execute('ALTER TABLE admissions ADD COLUMN IF NOT EXISTS template INT');
+    // The admission's simulated date and time, from its day and time (day 1
+    // being 2026-01-01): a column the database keeps, for a reader that
+    // wants a timestamp rather than a day number.
+    await c.execute('''
+      ALTER TABLE admissions ADD COLUMN IF NOT EXISTS admitted_at TIMESTAMP GENERATED ALWAYS AS (
+        TIMESTAMP '2026-01-01' + make_interval(days => sim_day - 1,
+          hours => split_part(sim_time, ':', 1)::int, mins => split_part(sim_time, ':', 2)::int)
+      ) STORED
+    ''');
     // One person's admissions, for GET /api/people/{id}.
     await c.execute('CREATE INDEX IF NOT EXISTS admissions_person_idx ON admissions (person_id)');
     // One care center's admissions, the latest first, for GET /api/care-centers/{id}.

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../api/health_hub_api.dart';
 import '../location/user_location_map.dart' show PersonLook;
+import '../people/person_screen.dart';
 import '../theme.dart';
 
 /// Gives the latest records on the stream: the API's `GET /api/events`,
@@ -179,7 +180,7 @@ class _EventRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           SizedBox(width: 96, child: Text(_when(event), style: muted)),
-          SizedBox(width: 190, child: Text(event.id, overflow: TextOverflow.ellipsis)),
+          SizedBox(width: 190, child: PersonLink(event.id, event.id, overflow: TextOverflow.ellipsis)),
           Expanded(child: Text(what, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13))),
           Text(_where(event), style: muted.copyWith(fontFamily: 'monospace')),
         ],
@@ -233,7 +234,17 @@ class AdmissionRow extends StatelessWidget {
                       child: Text.rich(
                         TextSpan(
                           children: [
-                            TextSpan(text: who, style: const TextStyle(fontWeight: FontWeight.w700)),
+                            // The person of this admission's run.
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.baseline,
+                              baseline: TextBaseline.alphabetic,
+                              child: PersonLink(
+                                event.id,
+                                who,
+                                run: runOf(event.eventId),
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                              ),
+                            ),
                             if (condition.isNotEmpty) TextSpan(text: '  $condition'),
                           ],
                         ),

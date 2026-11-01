@@ -50,9 +50,11 @@ stays shown, not at every turn, and draws:
 - **People**: a small dot in a dark ring, above the homes and the care
   centers and below the orange you-are-here dot, coloured by state:
   amber going to the hospital, violet at the hospital, cyan going home,
-  off-white at home. Tapping or hovering one shows who it is, its
-  condition, its state, its hospital and the simulated time, one line
-  each:
+  off-white at home. On the index, tapping or hovering one shows who it
+  is, its condition, its state, its hospital and the simulated time, one
+  line each; on home, hovering (or a long press) shows it, ending "Click
+  to open", and a click opens the person's view, as a click on a home
+  does ([The person view](person.md)):
 
   ```
   Jordi Puig, 41, reus-3

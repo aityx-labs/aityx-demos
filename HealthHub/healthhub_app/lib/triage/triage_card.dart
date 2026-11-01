@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../api/health_hub_api.dart';
 import '../events/stream_events.dart' show visitOf;
+import '../people/person_screen.dart';
 import '../theme.dart';
 
 /// Gives how aityx triages the admissions: the API's `GET /api/triage`.
@@ -251,7 +252,19 @@ class TriageRow extends StatelessWidget {
             Text.rich(
               TextSpan(
                 children: [
-                  TextSpan(text: who, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  if (row.personId != null)
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.baseline,
+                      baseline: TextBaseline.alphabetic,
+                      child: PersonLink(
+                        row.personId!,
+                        who,
+                        run: runOf(row.eventId),
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      ),
+                    )
+                  else
+                    TextSpan(text: who, style: const TextStyle(fontWeight: FontWeight.w700)),
                   if (row.hospitalName != null) TextSpan(text: '  ${row.hospitalName}', style: muted),
                 ],
               ),
@@ -423,12 +436,32 @@ class _DetailHeader extends StatelessWidget {
                 level == null ? 'Not triaged' : '${level.label}, ${_wait(row.waitMinutes ?? level.minutes)}',
                 style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.w700),
               ),
-              Text(
-                [
-                  [row.name, if (row.age != null) '${row.age}'].nonNulls.join(', '),
-                  if (row.area != null) triageAreas[row.area] ?? row.area!,
-                  ?row.hospitalName,
-                ].join(' · '),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    if (row.personId != null && row.name != null)
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.baseline,
+                        baseline: TextBaseline.alphabetic,
+                        child: PersonLink(
+                          row.personId!,
+                          [row.name!, if (row.age != null) '${row.age}'].join(', '),
+                          run: runOf(row.eventId),
+                          style: const TextStyle(color: Aityx.fg, fontSize: 12),
+                        ),
+                      ),
+                    TextSpan(
+                      text: [
+                        if (row.personId == null || row.name == null)
+                          [row.name, if (row.age != null) '${row.age}'].nonNulls.join(', ')
+                        else
+                          '',
+                        if (row.area != null) triageAreas[row.area] ?? row.area!,
+                        ?row.hospitalName,
+                      ].join(' · '),
+                    ),
+                  ],
+                ),
                 style: const TextStyle(color: Aityx.muted, fontSize: 12),
               ),
             ],

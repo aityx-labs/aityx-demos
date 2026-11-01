@@ -45,6 +45,14 @@
 ///   GET  /api/auth/config  how to sign in: {"enabled", "issuer", "clientId"}
 ///   GET  /api/me        who the bearer token says is calling (lib/auth.dart);
 ///                       401 without a valid one once authentication is on
+///   GET  /api/people/{id}   one person of a run (?run=, else the current
+///                       one, else the newest with their admissions):
+///                       facts, where they
+///                       are now, admissions with triage, days of care
+///   GET  /api/people/{id}/prediction
+///                       datyx's XGBoost prediction of their hours of
+///                       care over the next 30 days, asked with the
+///                       user's own token; 502 when datyx is down
 ///   GET  /api/datyx/me, /api/datyx/datasources
 ///                       the datyx API's /api/me and /api/datasources, asked
 ///                       with the user's own token, so datyx sees the same
@@ -335,6 +343,8 @@ Future<void> _handle(
     final auth = verifier.settings;
     final token = _bearer(request);
     final identity = await verifier.verify(token);
+    // /api/people/{id} and /api/people/{id}/prediction: the id, and which.
+    final personRoute = personPath(path);
     // Only the routes that need the database, or datyx, ask them.
     final answer = switch ((method, path)) {
       ('GET', '/api/health') => route(
@@ -375,6 +385,29 @@ Future<void> _handle(
         query: request.uri.queryParameters,
         auth: auth,
         admissions: await _admissions(db, request.uri.queryParameters),
+      ),
+      ('GET', _) when personRoute != null && !personRoute.$2 => route(
+        method,
+        path,
+        auth: auth,
+        dev: live.dev,
+        people: live.feed?.people ?? const [],
+        person: await _person(
+          db,
+          personRoute.$1,
+          request.uri.queryParameters['run'] ?? live.simulation?.run,
+          live.simulation?.run,
+        ),
+      ),
+      ('GET', _) when personRoute != null => route(
+        method,
+        path,
+        auth: auth,
+        identity: identity,
+        prediction: auth.enabled && identity == null
+            ? null
+            : await _prediction(
+                datyx, token, db, personRoute.$1, request.uri.queryParameters['run'] ?? live.simulation?.run),
       ),
       ('GET', '/api/people') => route(
         method,
@@ -487,15 +520,80 @@ String? _bearer(HttpRequest request) {
   return header.startsWith(prefix) ? header.substring(prefix.length).trim() : null;
 }
 
+/// One person of [run] (the newest run with their admissions when
+/// null), as the route wants them; null when the database doesn't answer
+/// (logged).
+Future<PersonLookup?> _person(Db db, String id, String? run, String? currentRun) async {
+  try {
+    return PersonLookup(await db.personHistory(id, run: run), currentRun: currentRun);
+  } catch (error) {
+    stderr.writeln('people: $error');
+    return null;
+  }
+}
+
+/// The table and group of datyx's model of HealthHub's patients: their
+/// hours of care, summed over the next 30 days, by XGBoost.
+const _predictionTable = 'public.patient_days';
+const _predictionGroup = 'care';
+
+/// datyx's prediction for one person of [run] (the newest run with their
+/// admissions when null), asked with the user's own [token]: their
+/// datyx data source for this API's database (the database source whose
+/// database is ours), then the inference of their series of
+/// patient_days; the answer carries the source's id. A 404 of ours when
+/// datyx has no such source or the person no run; null when datyx
+/// doesn't answer (logged).
+Future<Forwarded?> _prediction(Uri datyx, String? token, Db db, String id, String? run) async {
+  var series = run;
+  if (series == null) {
+    try {
+      series = (await db.personHistory(id))['run'] as String?;
+    } catch (error) {
+      stderr.writeln('people: $error');
+    }
+    if (series == null) return const Forwarded(404, {'error': 'nobody with that id has been admitted'});
+  }
+  final sources = await _forward(datyx, '/api/datasources', token);
+  if (sources == null || sources.status != 200 || sources.body is! List) return sources;
+  int? sourceId;
+  for (final source in sources.body as List) {
+    if (source is Map && source['type'] == 'database' && (source['database'] as Map?)?['database'] == db.settings.database) {
+      sourceId = (source['id'] as num?)?.toInt();
+      break;
+    }
+  }
+  if (sourceId == null) {
+    return Forwarded(404, {'error': "datyx has no data source for HealthHub's database (${db.settings.database})"});
+  }
+  final scored = await _forward(datyx, '/api/datasources/$sourceId/inference', token, payload: {
+    'table': _predictionTable,
+    'group': _predictionGroup,
+    'series': [
+      {'run_id': series, 'person_id': id},
+    ],
+  });
+  if (scored != null && scored.body is Map) {
+    return Forwarded(scored.status, {...(scored.body as Map), 'sourceId': sourceId});
+  }
+  return scored;
+}
+
 /// The datyx API's answer to [path], asked with the user's own [token] so
-/// datyx sees the same person; null when datyx doesn't answer (logged).
-Future<Forwarded?> _forward(Uri datyx, String path, String? token) async {
+/// datyx sees the same person: a GET, or a POST of [payload] as JSON; null
+/// when datyx doesn't answer (logged).
+Future<Forwarded?> _forward(Uri datyx, String path, String? token, {Object? payload}) async {
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
   try {
-    final request = await client.getUrl(datyx.replace(path: path));
+    final url = datyx.replace(path: path);
+    final request = payload == null ? await client.getUrl(url) : await client.postUrl(url);
     request.headers.set(HttpHeaders.acceptHeader, 'application/json');
     if (token != null) {
       request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+    }
+    if (payload != null) {
+      request.headers.contentType = ContentType.json;
+      request.write(jsonEncode(payload));
     }
     final response = await request.close().timeout(const Duration(seconds: 10));
     final body = await response.transform(utf8.decoder).join();
@@ -507,7 +605,7 @@ Future<Forwarded?> _forward(Uri datyx, String path, String? token) async {
     }
     return Forwarded(response.statusCode, json);
   } catch (error) {
-    stderr.writeln('datyx: GET $path: $error');
+    stderr.writeln('datyx: ${payload == null ? 'GET' : 'POST'} $path: $error');
     return null;
   } finally {
     client.close(force: true);

@@ -48,6 +48,10 @@ does in HealthHub is described feature by feature in
 - [Patient days](patient-days.md): the view `patient_days`, each
   person's visits and hours of hospital care per run and simulated day,
   with their facts, a time series per person.
+- [The person view](person.md): every person named on home opens their
+  view: who they are, what they do now, datyx's XGBoost prediction of
+  their hours of care over the next 30 days (highlighted), their
+  admissions with aityx's triage and their days of care.
 - [Triage at the desk](triage.md): each admission triaged by aityx from
   what the patient said and their age (Jev reads the danger signs, a
   decision gives the level, the wait, the area and a nurse's check, with

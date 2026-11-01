@@ -98,6 +98,8 @@ class _HealthHubAppState extends State<HealthHubApp> {
               events: _api.events,
               triage: _api.triage,
               triageDetail: _api.triageOf,
+              person: _api.person,
+              prediction: _api.prediction,
               showTiles: widget.showTiles,
             )
           : IndexScreen(

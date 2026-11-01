@@ -152,3 +152,80 @@ The requests that shaped RoboRules, oldest first, each with what changed.
     dev key aityx refuses reads `aityx answered HTTP n`; neither names
     `.env` or the environment any more. The index page's key section does
     the same.
+
+## 2026-11-01
+
+14. **Let the events in the event log be clickable and present them just
+    like the last-call button.** Every line of the event log now opens the
+    dialog the **aityx call** button opens (the same function, the same
+    viewer), with the line on top and the aityx call behind it. Each event
+    keeps that call: a turn's rule switches, hits and losses the call that
+    played the turn (each buffered turn now remembers its call), a round's
+    end the call of its last turn, the battle's end the last round's
+    score, and a call's own line its call. The app's own lines (the battle
+    and rounds starting, rule changes, failed calls) open the same dialog,
+    saying no aityx call is behind them. Lines have a pointer and a
+    tooltip naming their call; a call's own line stays a link while kept.
+    See [The window](window.md).
+15. **Add more, and more complicated, strategies, and funnier ones; make
+    the default battle three robots; make the default speed a little
+    faster.** Nine new robots to pick (see [Robots](robots.md#predefined-robots)):
+    Orbiter, Sniper, Vulture and Berserker, with seven to ten rules each,
+    and Matador, Chicken, Tipsy, Pacifist and BumperCar, for fun. Each was
+    tried in three-robot battles on aityx, checking its rules fire and
+    tuning those that trapped it against a wall. The app starts with three
+    random robots, and plays 20 turns a second, from 15; the Options menu
+    offers 2, 5, 10, 20 and 30 turns a second, and Max.
+16. **Make a little noise when collisions happen, and explosions; let the
+    user turn it off.** The battle plays short, quiet sounds made in the
+    browser with Web Audio (`lib/sound/`, as RiverRace does): a soft thud
+    when a robot runs into a wall or rams another, a small pop when a
+    bullet hits, a bigger boom when a robot is lost. The controller reads
+    them from the frames as it shows each turn, where it makes the
+    explosions, at most one of each kind every 100 ms. Sound is on by
+    default; **Options › Sound** and a **Sound on/off** button in the
+    controls turn it off and on, and the browser remembers the choice.
+    Silent outside a browser and in tests (see [The window](window.md)).
+17. **When a round ends, announce the winner.** Once aityx has scored a
+    round, the battlefield shows its winner for 3 seconds (from a 1.5 s
+    pause) before the next round: a trophy and "Name wins round n!" in the
+    winner's color, with its points; after the last round it stays until
+    a new battle. The log says "Name wins round n, with p points" (see
+    [The window](window.md)).
+18. **Make the event log's lines alternate between white and light gray,
+    so each event is clear.** Zebra stripes, by each line's place in the
+    log, so a line keeps its shade as more arrive; lines are a little
+    taller (see [The window](window.md)).
+19. **Let a user download or upload robots.** A robot downloads as its
+    aityx model with its color (`Name.robot.json`), from **Robot ›
+    Download …** or the rules editor's JSON tab; **Robot › Download all
+    robots** saves the battle's robots as one file. **Robot › Upload
+    robots…** and **Upload robots…** under the robots add robots from one
+    or more such files between battles, checked as the rules editor checks
+    them, named and colored apart, up to ten; a dialog says what was left
+    out and why (see [Robots](robots.md#robot-files)).
+20. **No need for the long Robot menu; download, edit and remove on each
+    robot's rules are enough.** The Robot menu keeps Add a robot…, Upload
+    robots… and Download all robots; each robot's Edit, Download and
+    Remove items are gone from it. A robot's rules (opened by selecting
+    it) have **Download** (moved from the JSON tab, for either tab) and,
+    between battles, **Remove** (see [Robots](robots.md#the-rules-editor)).
+21. **Highlight in a red tone an event that is a fire shot.** Every shot is
+    now its own line in the event log, "Turn n · Name fires a shot of
+    power p" (from the turn's `fired`, after the robot's rule switch that
+    turn), on a light red background with dark red text; the other lines
+    keep their stripes (see [The window](window.md)).
+22. **Make the simulation start slower and accelerate periodically.**
+    Playback starts at 10 turns a second, from 20, and every 15 seconds of
+    play (counted in the battle's 16 ms ticks while it runs, so pauses
+    don't count) speeds up by 5 turns a second, up to 40, about what aityx
+    plays three robots at; *now n* beside the speed says how fast it runs.
+    Choosing a speed, or starting a battle, starts again from the choice;
+    Max stays Max (see [The window](window.md)).
+23. **Make the aityx call's return time a separate widget, always at the
+    bottom: in the log it looked like an event.** The "aityx played …" and
+    "aityx scored …" lines are gone from the event log; **Last aityx
+    call**, below it, shows the latest call, how long aityx took, and a
+    round's scores, and opens the call. Each call keeps how long it took
+    and its scores (see [The window](window.md)).
+

@@ -10,7 +10,7 @@ void main() {
 
   test('every predefined robot is a robot model the battle accepts', () {
     expect(robotKinds.first, randomRobot);
-    expect(sampleRobots, hasLength(9));
+    expect(sampleRobots, hasLength(18));
     for (final kind in sampleRobots) {
       final robot = kind.make(factory: factory);
       expect(robot.name, kind.name);

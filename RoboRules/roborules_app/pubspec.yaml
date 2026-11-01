@@ -17,6 +17,8 @@ dependencies:
   # shared by the aityx demos.
   aityx_web:
     path: ../../packages/aityx_web
+  # The battle's sounds: Web Audio (lib/sound/sounds_web.dart).
+  web: ^1.1.2
 
 dev_dependencies:
   flutter_test:

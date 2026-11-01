@@ -7,16 +7,31 @@ import '../aityx/json_layout.dart';
 import '../battle/model.dart';
 import '../battle/predefined_robots.dart';
 import '../battle/random_robots.dart';
+import '../battle/robot_files.dart';
+import '../files/files.dart';
 import 'classic.dart';
 
 /// Robot › Edit rules: a robot's name, color and rules, as cards (when,
 /// then, why) or as its aityx model's JSON. Returns the edited robot, or
 /// null when cancelled.
 class RulesEditor extends StatefulWidget {
-  const RulesEditor({super.key, required this.robot, required this.factory});
+  const RulesEditor({
+    super.key,
+    required this.robot,
+    required this.factory,
+    this.files,
+    this.onRemove,
+  });
 
   final Robot robot;
   final RobotFactory factory;
+
+  /// Where Download saves: the browser's downloads unless a test says.
+  final Files? files;
+
+  /// Removes the robot from the battle: a **Remove** button, between
+  /// battles; none when null.
+  final VoidCallback? onRemove;
 
   @override
   State<RulesEditor> createState() => _RulesEditorState();
@@ -76,6 +91,14 @@ class _RulesEditorState extends State<RulesEditor>
     }
   }
 
+  /// Saves the robot as it stands in the editor as a file.
+  void _download() {
+    if (_tabs.index == 1 && !_applyJson()) return;
+    final name = _name.text.trim();
+    final robot = _robot.copy()..name = name.isEmpty ? 'Robot' : name;
+    (widget.files ?? Files()).save(robotFileName(robot.name), robotFile(robot));
+  }
+
   void _done() {
     if (_tabs.index == 1 && !_applyJson()) return;
     _robot.name = _name.text.trim().isEmpty ? 'Robot' : _name.text.trim();
@@ -88,6 +111,23 @@ class _RulesEditorState extends State<RulesEditor>
       title: 'Rules of ${_robot.name}',
       width: 860,
       actions: [
+        if (widget.onRemove case final remove?)
+          ClassicButton(
+            label: 'Remove',
+            icon: Icons.delete_outline,
+            tooltip: 'Take this robot out of the battle',
+            onPressed: () {
+              Navigator.of(context).pop();
+              remove();
+            },
+          ),
+        ClassicButton(
+          label: 'Download',
+          icon: Icons.download,
+          tooltip:
+              'Save the robot as a file, to upload in another battle or share',
+          onPressed: _download,
+        ),
         PopupMenuButton<RobotKind>(
           tooltip:
               "Replace the rules with a predefined robot's, or random ones",

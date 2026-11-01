@@ -33,6 +33,20 @@ separation between them; same for the Inference tab.
 Changed: the Training and Inference tabs put 16 px between their cards,
 as their padding (`spaced`, in `card_title.dart`: the theme's cards have
 no margin of their own). Tests.
+## 2026-11-01: a group's buttons at its top right, and its algorithms named in full
+
+Asked: on the Catalog tab, keep a group box's buttons at its top right
+always, not floating; say "DeepAR Forecasting" and "XGBoost
+Classification" in the cards, only on the big cards.
+
+Changed: a group box's header puts its name, state and tag chip in one
+expanding row, so the switch and **Edit** sit at the top right of every
+box (the disabled chip and a spacer used to share the space, pushing them
+inwards). The group boxes name the algorithms in full: `DeepAR
+Forecasting · acute`, `XGBoost Classification · care`
+(`algorithmTitle`); chips, the Training and Inference tabs keep the short
+names. Tests: an enabled and a disabled group's buttons line up at the
+box's right edge (160 px off before).
 
 ## 2026-11-01: DeepAR groups on the Training tab
 

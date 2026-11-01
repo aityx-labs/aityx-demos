@@ -22,7 +22,7 @@ theirs; narrower, each goes under its row.
 - **The data, and the simulation** (`SimulationExplainer`,
   [explainers.dart](../healthhub_app/lib/screens/explainers.dart)), beside
   the map, briefly: real care centers (7,256, from the official
-  registries of Spain, the US and Brazil), simulated people (forty per city,
+  registries of Spain, the US and Brazil), simulated people (eighty per city to start, as many as the events set,
   some with a chronic condition, anyone falling ill now and then), an
   hour a second (the trip to the nearest care center the visit needs, a
   health station, urgent care or a general hospital, the desk, the stay,
@@ -81,22 +81,19 @@ theirs; narrower, each goes under its row.
   API read, those left out too, and how many a second over the last
   minute, a moving average: "48,213 events · 70.4/s" (under the title
   when narrow; nothing from an API that doesn't count). The header names
-  the topics, counts what is shown, "3 admissions · 12 moves", and has
+  the topics and counts what is shown, "3 admissions · 12 moves". Under
+  it, the simulation's controls, in a row that wraps when narrow:
+  **80 people a city**, a menu of 10, 20, 40, 80, 120, 160 and 200 that
+  sets how many people each city has (`POST /api/simulation/people`;
+  [Simulation](simulation.md#people)), showing what the API answered
+  until the next read says it too, a refusal in a snack bar ("Sign in to
+  change the people of the simulation."); and
   **Pause the simulation** (`POST /api/simulation/pause`; then **Resume
   the simulation**, `/resume`; [Simulation](simulation.md#pausing)):
   while paused the topics line reads "Paused: nobody moves, the clock
   stands", in amber. The button shows what the API answered until the
   next read says it too; a refusal shows in a snack bar ("Sign in to
   pause the simulation." when the API wants a user).
-  - **The conditions**, a row of their own under the header: **All
-    conditions**, then a chip per condition of the events shown, by
-    name, with how many events it has ("COPD 2"). Choosing one or more
-    keeps only their events, in the app, from what the card has read
-    (a healthy person's moves, without a condition, show only under
-    All), and the header counts only those; **All conditions** clears
-    the choice. The choice lasts through the reads; a chosen condition
-    with no event left stays, with 0, until it is unchosen. "No event of
-    these conditions among the latest." when none is left.
   - Under it, an invitation: "Open anyone by their name to see their
     data and statistics: their admissions, aityx's triage, their days of
     care and datyx's prediction."
@@ -107,7 +104,8 @@ theirs; narrower, each goes under its row.
     view, [The person view](person.md); the id on hover), a heart
     monitor (`Icons.monitor_heart_outlined`) when they are monitored (why
     on hover: "Monitored at home: aged 84"), the condition
-    and whether it is acute or chronic, and the simulated time and day.
+    and whether it is acute or chronic, and when, a date and time on the
+    simulation's calendar ("Jan 4, 2026 09:09", [Simulation](simulation.md#the-calendar)).
     The second: what happened and the record's partition and offset.
     The time and the offset end at the row's right edge, the one over
     the other, so they line up down the list whatever the names.

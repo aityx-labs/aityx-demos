@@ -9,6 +9,7 @@ import 'package:healthhub_app/auth/auth_controller.dart';
 import 'package:healthhub_app/care_centers/care_center_screen.dart';
 import 'package:healthhub_app/events/stream_events.dart';
 import 'package:healthhub_app/care_centers/occupancy_timeline.dart';
+import 'package:healthhub_app/sim_clock.dart';
 import 'package:healthhub_app/location/location_controller.dart';
 import 'package:healthhub_app/main.dart';
 import 'package:healthhub_app/people/person_screen.dart';
@@ -43,6 +44,16 @@ class FakeApi implements HealthHubApi {
   Future<bool> pauseSimulation(bool pause) async {
     pausesAsked.add(pause);
     return paused = pause;
+  }
+
+  /// The people a city, and every change asked.
+  int perCity = 80;
+  final perCityAsked = <int>[];
+
+  @override
+  Future<int> setPeoplePerCity(int perCity) async {
+    perCityAsked.add(perCity);
+    return this.perCity = perCity;
   }
 
   static const _signs = {
@@ -197,6 +208,7 @@ class FakeApi implements HealthHubApi {
     return StreamEvents(
       enabled: true,
       paused: paused,
+      peoplePerCity: perCity,
       // The feed's counts; the answer read later counts more.
       total: type == StreamEventType.admission ? 48213 : 48190,
       perSecond: type == StreamEventType.admission ? 70.4 : 70.1,
@@ -686,13 +698,13 @@ void main() {
     expect(find.byKey(const Key('home-lisboa-2')), findsOneWidget);
     expect(find.byIcon(Icons.home), findsNWidgets(3)); // two homes and the legend
     // On the index there is no person view to open: a tap shows who.
-    expect(find.byTooltip('lisboa-1\nGoing to the hospital · Hospital de Santa Maria · 09:40'), findsOneWidget);
+    expect(find.byTooltip('lisboa-1\nGoing to the hospital · Hospital de Santa Maria · Jan 2, 2026 09:40'), findsOneWidget);
     // With a profile, the tooltip also says who they are and their condition.
     expect(
-      find.byTooltip('João Silva, 54, lisboa-2\nInfluenza (acute)\nAt the hospital · Hospital de Santa Maria · 09:40'),
+      find.byTooltip('João Silva, 54, lisboa-2\nInfluenza (acute)\nAt the hospital · Hospital de Santa Maria · Jan 2, 2026 09:40'),
       findsOneWidget,
     );
-    expect(find.text('Simulated time 09:40, day 2'), findsOneWidget);
+    expect(find.text('Simulated time: Jan 2, 2026 09:40'), findsOneWidget);
     expect(find.text('Person, in care'), findsOneWidget);
 
     // It keeps following them while the map is shown, every 5 seconds.
@@ -824,7 +836,7 @@ void main() {
     expect(inRow(find.textContaining('Type 2 diabetes (chronic)', findRichText: true)), findsOneWidget);
     expect(inRow(find.text('Return visit, the 2nd · ')), findsOneWidget);
     expect(inRow(find.byKey(const Key('care-center-link-1'))), findsOneWidget);
-    expect(inRow(find.text('08:00, day 2')), findsOneWidget);
+    expect(inRow(find.text('Jan 2, 2026 08:00')), findsOneWidget);
     expect(inRow(find.text('p0 · #9')), findsOneWidget);
     // datyx's 30-day prediction for her, asked once for the admission's run.
     expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
@@ -883,71 +895,33 @@ void main() {
     expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
   });
 
-  testWidgets('the conditions under the pause keep only their events, through the reads', (tester) async {
+  testWidgets('the events have no filter; beside the pause, the people a city, which anyone can change', (tester) async {
     tester.view.physicalSize = const Size(1400, 2600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
-    await tester.pumpWidget(app(api: FakeApi(auth: false, simulation: true)));
+    final api = FakeApi(auth: false, simulation: true);
+    await tester.pumpWidget(app(api: api));
     await tester.pumpAndSettle();
 
-    final card = find.byKey(const Key('stream-events'));
-    final filter = find.byKey(const Key('condition-filter'));
-    // A row of its own, under the pause, above the events.
-    expect(tester.getTopLeft(filter).dy, greaterThan(tester.getBottomLeft(find.byKey(const Key('simulation-pause'))).dy));
-    expect(tester.getTopLeft(filter).dy, lessThan(tester.getTopLeft(find.byKey(const Key('move-lisboa-1-42'))).dy));
-    // All, then the conditions of the events by name, with how many each.
-    final chips = tester.widgetList<FilterChip>(find.descendant(of: filter, matching: find.byType(FilterChip))).toList();
-    expect(chips.map((chip) => (chip.label as Text).data), ['All conditions', 'COPD 1', 'Type 2 diabetes 1']);
-    expect(chips.first.selected, isTrue);
-
-    await tester.tap(find.byKey(const Key('condition-filter-Type 2 diabetes')));
-    await tester.pump();
-    expect(find.byKey(const Key('admission-a1b2c3d4-lisboa-3-d2-t32')), findsOneWidget);
-    expect(find.descendant(of: card, matching: find.text('Rui Matos')), findsNothing);
-    expect(find.descendant(of: card, matching: find.text('Ana Sousa')), findsNothing); // no condition
-    expect(find.text('1 admission · 0 moves'), findsOneWidget);
-    expect(tester.widget<FilterChip>(find.byKey(const Key('condition-filter-all'))).selected, isFalse);
-
-    // Several at once; the choice outlives the next read.
-    await tester.tap(find.byKey(const Key('condition-filter-COPD')));
-    await tester.pump(const Duration(seconds: 6));
-    expect(find.text('1 admission · 1 move'), findsOneWidget);
-    expect(find.descendant(of: card, matching: find.text('Rui Matos')), findsOneWidget);
-
-    // All shows everything again.
-    await tester.tap(find.byKey(const Key('condition-filter-all')));
-    await tester.pump();
+    expect(find.byKey(const Key('condition-filter')), findsNothing);
+    expect(find.byType(FilterChip), findsNothing);
     expect(find.text('1 admission · 2 moves'), findsOneWidget);
-  });
+    final picker = find.byKey(const Key('simulation-people'));
+    expect(find.descendant(of: picker, matching: find.text('80 people a city')), findsOneWidget);
+    expect(tester.getCenter(picker).dy, closeTo(tester.getCenter(find.byKey(const Key('simulation-pause'))).dy, 4));
 
-  testWidgets('a chosen condition without events stays, to be unchosen', (tester) async {
-    var reads = 0;
-    final events = [
-      const StreamEvent(id: 'reus-1', name: 'Jordi Puig', state: PersonState.home, conditionName: 'Influenza', simTime: '09:00', day: 1, offset: 1),
-    ];
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SingleChildScrollView(
-            child: StreamEventsCard(
-              events: ({int limit = 20, StreamEventType? type}) async {
-                reads++;
-                return StreamEvents(enabled: true, events: reads <= 2 && type == StreamEventType.move ? events : const []);
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-    await tester.tap(find.byKey(const Key('condition-filter-Influenza')));
+    await tester.tap(picker);
+    await tester.pumpAndSettle();
+    for (final n in peopleChoices) {
+      expect(find.byKey(Key('simulation-people-$n')), findsOneWidget);
+    }
+    await tester.tap(find.byKey(const Key('simulation-people-160')));
+    await tester.pumpAndSettle();
+    expect(api.perCityAsked, [160]);
+    expect(find.descendant(of: picker, matching: find.text('160 people a city')), findsOneWidget);
+    // The next read says so too.
     await tester.pump(const Duration(seconds: 6));
-    // Gone from the events, kept as a chosen chip with none.
-    expect(find.text('Influenza 0'), findsOneWidget);
-    expect(find.byKey(const Key('stream-events-none')), findsNothing); // nothing at all: waiting
-    await tester.tap(find.byKey(const Key('condition-filter-Influenza')));
-    await tester.pump();
-    expect(find.byKey(const Key('condition-filter-Influenza')), findsNothing);
+    expect(find.descendant(of: picker, matching: find.text('160 people a city')), findsOneWidget);
   });
 
   testWidgets("a person's id opens their view, datyx's 30-day prediction highlighted", (tester) async {
@@ -1003,7 +977,7 @@ void main() {
       find.descendant(of: find.byKey(const Key('person-admission-a1b2c3d4-lisboa-3-d1-t10')), matching: find.text('Not triaged yet')),
       findsOneWidget,
     );
-    expect(find.text('2026-01-02'), findsOneWidget);
+    expect(find.text('Jan 2, 2026'), findsOneWidget);
     expect(find.text('6'), findsOneWidget); // hours of care, counted
 
     // Back home.
@@ -1091,7 +1065,7 @@ void main() {
     expect(tester.widget<Text>(find.byKey(const Key('usage-capacity'))).data, 'of 8 beds');
     expect(tester.widget<Text>(find.byKey(const Key('usage-percent'))).data, '13% in use');
     expect(find.text('1 on the way · 3 people have it as their hospital'), findsOneWidget);
-    expect(find.text('Simulated time 09:40, day 2'), findsOneWidget);
+    expect(find.text('Simulated time: Jan 2, 2026 09:40'), findsOneWidget);
 
     // Who is there and on the way, and its admissions, counted and the latest with who.
     expect(find.byKey(const Key('care-center-person-lisboa-2')), findsOneWidget);
@@ -1438,14 +1412,17 @@ void main() {
       expect(api.hourlyAsked, [(2, null, 72)]);
       expect(api.forecastAsked, [(2, null)]);
       expect(find.text('Occupancy per hour'), findsOneWidget);
-      expect(find.text('run 1349d576, now'), findsOneWidget);
-      expect(find.textContaining('1 in care at Day 19, 12:00; at most 3 of 8 beds in the last 6 hours.'), findsOneWidget);
+      // The series' end as a simulated date and time, never the run's id.
+      expect(find.byKey(const Key('occupancy-now')), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(const Key('occupancy-now'))).data, 'Now · Jan 19, 2026 12:00');
+      expect(find.textContaining('1349d576'), findsNothing);
+      expect(find.textContaining('1 in care at Jan 19, 2026 12:00; at most 3 of 8 beds in the last 6 hours.'), findsOneWidget);
       expect(
         find.textContaining("datyx's DeepAR expects 1.5 on average over the next 4 hours, 2.0 at most (model of training run 5)"),
         findsOneWidget,
       );
       expect(find.text('In care'), findsOneWidget);
-      expect(find.text('DeepAR forecast (mean; the band, 10th to 90th percentile)'), findsOneWidget);
+      expect(find.text('DeepAR forecast, kept as the hours pass (mean; the band, 10th to 90th percentile)'), findsOneWidget);
       expect(find.text('Capacity, 8 beds'), findsOneWidget);
       expect(
         find.bySemanticsLabel(
@@ -1460,10 +1437,91 @@ void main() {
       double xOf(int index) => chart.left + 28 + index / 9 * (chart.width - 36);
       await tester.tapAt(Offset(xOf(2), chart.center.dy));
       await tester.pump();
-      expect(find.text('Day 19, 09:00\n3 in care of 8 beds'), findsOneWidget);
+      expect(find.text('Jan 19, 2026 09:00\n3 in care of 8 beds'), findsOneWidget);
       await tester.tapAt(Offset(xOf(8), chart.center.dy));
       await tester.pump();
-      expect(find.text('Day 19, 15:00, forecast\n2.0 expected of 8 beds\n0 to 3 (80%)'), findsOneWidget);
+      expect(find.text('Jan 19, 2026 15:00, forecast\n2.0 expected of 8 beds\n0 to 3 (80%)'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('the forecast of the hours gone stays over them, to compare, until the run changes', (tester) async {
+      final semantics = tester.ensureSemantics();
+      // Day 19, 07:00 to 12:00, forecast 13:00 to 16:00; then 09:00 to 14:00, forecast 15:00 to 18:00;
+      // then a new run.
+      var read = 0;
+      HourlyOccupancy series(String run, int from, List<int> inCare) => HourlyOccupancy.fromJson({
+        'hospitalId': 2,
+        'run': run,
+        'current': true,
+        'end': '2026-01-19T${'${from + inCare.length - 1}'.padLeft(2, '0')}:00',
+        'hours': [
+          for (var k = 0; k < inCare.length; k++)
+            {'hour': '2026-01-19T${'${from + k}'.padLeft(2, '0')}:00', 'occupancy': inCare[k]},
+        ],
+      });
+      HourlyForecast ahead(int from, List<double> means) => HourlyForecast.fromJson({
+        'trainingRunId': 5,
+        'forecast': [
+          for (var k = 0; k < means.length; k++)
+            {'at': '2026-01-19T${from + k}:00', 'mean': means[k], 'p10': 0, 'p50': 1, 'p90': 3},
+        ],
+      });
+      await tester.pumpWidget(MaterialApp(
+        theme: aityxDarkTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 720,
+            child: OccupancyTimelineCard(
+              occupancy: (id, {run, hours}) async => switch (read++) {
+                0 => series('1349d576', 7, [0, 1, 3, 2, 2, 1]),
+                1 => series('1349d576', 9, [3, 2, 2, 1, 2, 5]),
+                _ => series('5eed0002', 9, [0, 0, 0, 0, 0, 1]),
+              },
+              forecast: (id, {run}) async => read <= 1 ? ahead(13, [1.0, 1.5, 2.0, 1.5]) : ahead(15, [2.0, 2.5, 2.0, 1.5]),
+              hospitalId: 2,
+              capacity: 8,
+              unit: 'beds',
+              refresh: const Duration(seconds: 10),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('forecast and gone'), findsNothing);
+
+      // 13:00 and 14:00 were counted: 2 in care, in the band, and 5, above it; the first forecast stays over them.
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining(
+          'Of the 2 hours forecast and gone, 1 fell in the 80% band; the mean was off by ${expectedText(2.25)} on average.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel(
+          'Occupancy per hour: 5 in care now, at most 5 in the last 6 hours, of a capacity of 8; '
+          '2.0 on average forecast over the next 4; the forecast kept over 2 of them',
+        ),
+        findsOneWidget,
+      );
+      // 09:00 to 14:00 then 15:00 to 18:00: 13:00 is the fifth of ten.
+      final chart = tester.getRect(find.byType(OccupancyTimelineChart));
+      double xOf(int index) => chart.left + 28 + index / 9 * (chart.width - 36);
+      await tester.tapAt(Offset(xOf(4), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Jan 19, 2026 13:00\n2 in care of 8 beds\nforecast 1.0, 0 to 3 (80%)'), findsOneWidget);
+      // An hour from before any forecast has none.
+      await tester.tapAt(Offset(xOf(1), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Jan 19, 2026 10:00\n2 in care of 8 beds'), findsOneWidget);
+
+      // A new run starts again: nothing of the old forecast is kept.
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('5eed0002'), findsNothing); // the run's id isn't shown: the simulated time is
+      expect(tester.widget<Text>(find.byKey(const Key('occupancy-now'))).data, startsWith('Now · '));
+      expect(find.textContaining('forecast and gone'), findsNothing);
       semantics.dispose();
     });
 
@@ -1492,9 +1550,14 @@ void main() {
       expect(find.byType(OccupancyTimelineChart), findsNothing);
     });
 
-    test('a simulated hour is named by its day', () {
-      expect(simHour(DateTime.utc(2026, 1, 1, 6)), 'Day 1, 06:00');
-      expect(simHour(DateTime.utc(2026, 2, 1, 17)), 'Day 32, 17:00');
+    test('a simulated time is a date on the calendar from 2026-01-01', () {
+      expect(simDateTime(DateTime.utc(2026, 1, 1, 6)), 'Jan 1, 2026 06:00');
+      expect(simWhen(32, '17:05'), 'Feb 1, 2026 17:05');
+      expect(simWhen(554, '18:17'), 'Jul 8, 2027 18:17');
+      expect(simWhen(null, '09:40'), '09:40');
+      expect(simDayLabel(DateTime.utc(2026, 3, 9)), 'Mar 9');
+      expect(simDateOf('2026-01-19'), 'Jan 19, 2026');
+      expect(simDateOf('not a date'), 'not a date');
     });
   });
 }

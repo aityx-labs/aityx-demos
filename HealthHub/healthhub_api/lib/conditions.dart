@@ -330,7 +330,7 @@ class MedicalCondition {
   final double femaleShare;
 
   /// Whether its first visit is an emergency, made at any hour of day or
-  /// night as soon as it starts, rather than at a daytime slot.
+  /// night as soon as it starts, rather than at a planned slot.
   final bool urgent;
 
   /// The stay of the visits after the first, in hours; null when it is

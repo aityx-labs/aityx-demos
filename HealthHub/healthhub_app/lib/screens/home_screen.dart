@@ -41,6 +41,7 @@ class HomeScreen extends StatelessWidget {
     this.careCenterOccupancy,
     this.occupancyForecast,
     this.simulation,
+    this.population,
     this.showTiles = true,
   });
 
@@ -80,6 +81,9 @@ class HomeScreen extends StatelessWidget {
 
   /// Pauses or resumes the simulation, from the events.
   final SimulationControl? simulation;
+
+  /// Sets the people a city of the simulation, from the events.
+  final PopulationControl? population;
   final bool showTiles;
 
   @override
@@ -166,7 +170,7 @@ class HomeScreen extends StatelessWidget {
         if (events != null)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            sliver: SliverToBoxAdapter(child: StreamEventsCard(events: events!, simulation: simulation)),
+            sliver: SliverToBoxAdapter(child: StreamEventsCard(events: events!, simulation: simulation, population: population)),
           ),
         if (AppVersion.version.isNotEmpty)
           const SliverToBoxAdapter(

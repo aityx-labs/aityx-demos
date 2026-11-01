@@ -141,10 +141,13 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
                 const SizedBox(width: 8),
                 Text('Occupancy per hour', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                 const Spacer(),
-                if (history?.run != null)
+                // Where the series end, as a simulated date and time: now,
+                // or when a past run ended. Never the run's id.
+                if (history?.end != null)
                   Text(
-                    history!.current ? 'run ${history.run}, now' : 'run ${history.run}',
-                    style: const TextStyle(color: Aityx.muted, fontSize: 12),
+                    history!.current ? 'Now · ${simDateTime(history.end!)}' : 'Ended ${simDateTime(history.end!)}',
+                    key: const Key('occupancy-now'),
+                    style: const TextStyle(color: Aityx.fg, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
               ],
             ),

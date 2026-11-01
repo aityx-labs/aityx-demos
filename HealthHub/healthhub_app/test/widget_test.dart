@@ -1412,7 +1412,10 @@ void main() {
       expect(api.hourlyAsked, [(2, null, 72)]);
       expect(api.forecastAsked, [(2, null)]);
       expect(find.text('Occupancy per hour'), findsOneWidget);
-      expect(find.text('run 1349d576, now'), findsOneWidget);
+      // The series' end as a simulated date and time, never the run's id.
+      expect(find.byKey(const Key('occupancy-now')), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(const Key('occupancy-now'))).data, 'Now · Jan 19, 2026 12:00');
+      expect(find.textContaining('1349d576'), findsNothing);
       expect(find.textContaining('1 in care at Jan 19, 2026 12:00; at most 3 of 8 beds in the last 6 hours.'), findsOneWidget);
       expect(
         find.textContaining("datyx's DeepAR expects 1.5 on average over the next 4 hours, 2.0 at most (model of training run 5)"),

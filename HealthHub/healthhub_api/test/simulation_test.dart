@@ -294,7 +294,7 @@ void main() {
     };
     feed
       ..add(move('reus-1', 'home', 1, monitored: true))
-      // Still home, in the same check-in slot: it only counts.
+      // Still home, the same day: it only counts.
       ..add(move('reus-1', 'home', 2, monitored: true))
       ..add(move('reus-2', 'home', 1, monitored: false))
       // A record from before people were monitored, or not: not monitored.
@@ -308,7 +308,7 @@ void main() {
     expect(feed.counter.total, 5);
   });
 
-  test('a monitored person at home checks in once every six simulated hours', () {
+  test('a monitored person at home checks in once a simulated day', () {
     final feed = PeopleFeed(throwingKafka, people: ['reus-1']);
     var turn = 0;
     void at(int day, String time) => feed.add({
@@ -320,7 +320,7 @@ void main() {
     }
     at(2, '00:00');
     at(2, '05:00');
-    expect([for (final e in feed.recent) '${e['day']} ${e['simTime']}'], ['2 00:00', '1 18:00', '1 12:00', '1 06:00']);
+    expect([for (final e in feed.recent) '${e['day']} ${e['simTime']}'], ['2 00:00', '1 06:00']);
     expect(feed.counter.total, 9);
   });
 

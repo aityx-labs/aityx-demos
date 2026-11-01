@@ -16,8 +16,11 @@ const retrainChoices = ['1h', '6h', '1D', '1W', 'never'];
 /// enabled on the Catalog tab), **Train now**, and what its latest
 /// success found: its test metrics against the naive forecast, the
 /// features that weighed most, and the highest scores; then the runs of
-/// them all, newest first. While a run is queued or running it asks again
-/// every [busyEvery]. What is shown is the API's; the tab asks and shows.
+/// them all, newest first, each with the group switch that queued it, if
+/// one did; then the groups switched on or off (`GET
+/// /api/catalog/events`), however datyx heard, and the runs each queued.
+/// While a run is queued or running it asks again every [busyEvery].
+/// What is shown is the API's; the tab asks and shows.
 class TrainingTab extends StatefulWidget {
   const TrainingTab({
     super.key,
@@ -40,6 +43,13 @@ class _TrainingTabState extends State<TrainingTab> {
   TrainingOverview? _overview;
   String? _error;
   Timer? _timer;
+  List<GroupEvent>? _events;
+  String? _eventsError;
+
+  /// The event a run's link pointed to, highlighted.
+  int? _shownEvent;
+  final Map<int, GlobalKey> _eventKeys = {};
+  final ScrollController _scroll = ScrollController();
 
   @override
   void initState() {
@@ -56,11 +66,13 @@ class _TrainingTabState extends State<TrainingTab> {
   @override
   void dispose() {
     _timer?.cancel();
+    _scroll.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
     _timer?.cancel();
+    final events = _loadEvents();
     try {
       final overview = await widget.api.training();
       if (!mounted) return;
@@ -72,12 +84,44 @@ class _TrainingTabState extends State<TrainingTab> {
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     }
+    await events;
+  }
+
+  /// The group switches, on their own: an error there leaves the training shown.
+  Future<void> _loadEvents() async {
+    try {
+      final events = await widget.api.groupEvents();
+      if (!mounted) return;
+      setState(() {
+        _events = events;
+        _eventsError = null;
+      });
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _eventsError = e.message);
+    }
+  }
+
+  /// Scrolls to the group switch [id], highlighted.
+  void _showEvent(int id) {
+    setState(() => _shownEvent = id);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (_eventKeys[id]?.currentContext == null && _scroll.hasClients) {
+        // The list builds lazily: the switches, its last card, may not be built yet.
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+        await WidgetsBinding.instance.endOfFrame;
+      }
+      final target = _eventKeys[id]?.currentContext;
+      if (target != null && target.mounted) {
+        Scrollable.ensureVisible(target, duration: const Duration(milliseconds: 300), alignment: 0.3);
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final overview = _overview;
     return ListView(
+      controller: _scroll,
       padding: const EdgeInsets.all(16),
       children: [
         if (widget.statusError != null) ApiDownLine(widget.statusError!),
@@ -103,10 +147,12 @@ class _TrainingTabState extends State<TrainingTab> {
                   'datyx trains each group tagged for XGBoost on the Catalog tab: '
                   'when the API starts, if it never was, then again as often as '
                   'its table says (timeSeriesRetrain in OpenMetadata, 1D when '
-                  'not set), when asked, and when the group is enabled (its '
-                  'Disabled tag removed in OpenMetadata). A disabled group isn\'t '
-                  'trained. Each model scores its series: the Target summed over '
-                  'the horizon ahead.',
+                  'not set), when asked, and when the group is enabled: its '
+                  'Disabled tag removed, on the Catalog tab or in OpenMetadata, '
+                  'which tells datyx at once. Enabling queues a run for each of '
+                  'the group\'s algorithms. A disabled group isn\'t trained. Each '
+                  'model scores its series: the Target summed over the horizon '
+                  'ahead.',
                   style: TextStyle(color: Aityx.muted),
                 ),
                 if (widget.locked) ...[
@@ -138,8 +184,19 @@ class _TrainingTabState extends State<TrainingTab> {
         ),
         if (!widget.locked && overview != null) ...[
           for (final m in overview.models)
-            ModelCard(key: ValueKey('model-${m.table}-${m.group}'), api: widget.api, model: m, onChanged: _load),
-          _Activity(runs: overview.runs),
+            ModelCard(
+              key: ValueKey('model-${m.table}-${m.group}-${m.algorithm}'),
+              api: widget.api,
+              model: m,
+              onChanged: _load,
+            ),
+          _Activity(runs: overview.runs, onEvent: _showEvent),
+          _GroupSwitches(
+            events: _events,
+            error: _eventsError,
+            shown: _shownEvent,
+            keyOf: (id) => _eventKeys.putIfAbsent(id, GlobalKey.new),
+          ),
         ],
       ],
     );
@@ -217,7 +274,8 @@ class _ModelCardState extends State<ModelCard> {
     }
   }
 
-  Future<void> _trainNow() => _act(() => widget.api.trainNow(m.sourceId, m.table, m.group), 'Queued: training now.');
+  Future<void> _trainNow() =>
+      _act(() => widget.api.trainNow(m.sourceId, m.table, m.group, algorithm: m.algorithm), 'Queued: training now.');
 
   Future<void> _saveRetrain() {
     final value = _retrain.text.trim();
@@ -630,12 +688,16 @@ class StatusChip extends StatelessWidget {
   }
 }
 
-/// Every model's runs, the newest first: when, which, why (with the API's
-/// note, for a group enabled), how it went, how long, and its error against
-/// the naive one's.
+/// Every model's runs, the newest first: when, which and with which
+/// algorithm, why (with the API's note, for a group enabled, and a link to
+/// the group switch that queued it), how it went, how long, and its error
+/// against the naive one's.
 class _Activity extends StatelessWidget {
-  const _Activity({required this.runs});
+  const _Activity({required this.runs, required this.onEvent});
   final List<TrainingRunInfo> runs;
+
+  /// Shows the group switch of this id.
+  final ValueChanged<int> onEvent;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -671,7 +733,25 @@ class _Activity extends StatelessWidget {
                         child: Align(widthFactor: 1, alignment: Alignment.centerLeft, child: StatusChip(r.status)),
                       ),
                       Text('${r.name} · ${r.group}', style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                      Text(r.algorithm, key: ValueKey('run-algorithm-${r.id}'), style: const TextStyle(fontSize: 12)),
                       Text(r.trigger, style: const TextStyle(color: Aityx.muted, fontSize: 12)),
+                      if (r.eventId != null)
+                        Tooltip(
+                          message: 'The group switch that queued it, below',
+                          child: InkWell(
+                            key: ValueKey('run-event-${r.id}'),
+                            onTap: () => onEvent(r.eventId!),
+                            child: Text(
+                              'switch #${r.eventId}',
+                              style: const TextStyle(
+                                color: Aityx.orangeLight,
+                                fontSize: 12,
+                                decoration: TextDecoration.underline,
+                                decorationColor: Aityx.orangeLight,
+                              ),
+                            ),
+                          ),
+                        ),
                       if (r.seconds != null)
                         Text('${r.seconds!.toStringAsFixed(1)} s', style: const TextStyle(color: Aityx.muted, fontSize: 12)),
                       if (r.test != null)
@@ -700,4 +780,114 @@ class _Activity extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// The groups switched on or off, newest first (`GET /api/catalog/events`):
+/// when, which table and group, on or off, how datyx heard (OpenMetadata's
+/// webhook, the datyx API, or its minute check), who switched it, the
+/// table's version in OpenMetadata, and the runs it queued, one per
+/// algorithm of a group switched on. The one a run's link points to is
+/// highlighted.
+class _GroupSwitches extends StatelessWidget {
+  const _GroupSwitches({required this.events, required this.error, required this.shown, required this.keyOf});
+
+  final List<GroupEvent>? events;
+  final String? error;
+  final int? shown;
+  final GlobalKey Function(int id) keyOf;
+
+  @override
+  Widget build(BuildContext context) {
+    final events = this.events;
+    const muted = TextStyle(color: Aityx.muted, fontSize: 12);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const CardTitle('Group switches', 'GET /api/catalog/events'),
+            const SizedBox(height: 4),
+            const Text(
+              'Each time a group was switched on or off, its Disabled tag removed or added: '
+              'on the Catalog tab, or in OpenMetadata, whose webhook tells datyx at once '
+              '(its minute check catches any it missed). Switching on queues a run for each '
+              'of the group\'s algorithms.',
+              style: muted,
+            ),
+            const SizedBox(height: 8),
+            if (error != null)
+              Text(error!, style: const TextStyle(color: Aityx.red, fontSize: 12))
+            else if (events == null)
+              const Text('Loading…', style: muted)
+            else if (events.isEmpty)
+              const Text('No group switched yet.', style: muted),
+            if (error == null && events != null)
+              for (final e in events)
+                KeyedSubtree(
+                  key: keyOf(e.id),
+                  child: Container(
+                    key: ValueKey('event-${e.id}'),
+                    margin: const EdgeInsets.symmetric(vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: shown == e.id ? Aityx.orange : Colors.transparent),
+                    ),
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 10,
+                      runSpacing: 4,
+                      children: [
+                        SizedBox(
+                          width: 130,
+                          child: Text(
+                            (e.at ?? e.receivedAt) == null ? '' : when((e.at ?? e.receivedAt)!),
+                            style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
+                          ),
+                        ),
+                        _OnOff(e.enabled),
+                        Text('${e.name} · ${e.group}', style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                        Text('via ${e.viaWords}', style: muted),
+                        if (e.by != null) Text('by ${e.by}', style: muted),
+                        if (e.version != null) Text('table version ${e.version}', style: muted),
+                        Text(
+                          e.runIds.isNotEmpty
+                              ? 'queued run${e.runIds.length == 1 ? '' : 's'} ${e.runIds.join(', ')}'
+                              : (e.enabled ? 'no run queued' : 'not trained while off'),
+                          key: ValueKey('event-runs-${e.id}'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A group switched on or off: a toggle icon and the word, green on, gray off.
+class _OnOff extends StatelessWidget {
+  const _OnOff(this.on);
+  final bool on;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = on ? Aityx.green : Aityx.muted;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), border: Border.all(color: color)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(on ? Icons.toggle_on_outlined : Icons.toggle_off_outlined, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(on ? 'switched on' : 'switched off', style: TextStyle(fontSize: 11, color: color)),
+        ],
+      ),
+    );
+  }
 }

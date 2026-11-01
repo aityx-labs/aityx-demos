@@ -447,13 +447,29 @@ public class Catalog {
 
     /**
      * What PUT /api/datasources/{id}/timeseries asks: a group's roles (the
-     * default group when none), each role's columns, the algorithm that
-     * trains on the group (none: DeepAR), and the table's frequency,
-     * missing rows and horizon, which its groups share.
+     * default group when none), each role's columns, the algorithms that
+     * train on the group ({@code algorithms}, or one as {@code algorithm},
+     * as before a group could have more; {@code algorithms} wins when both
+     * are given; none: DeepAR), and the table's frequency, missing rows and
+     * horizon, which its groups share.
      */
     public record Roles(String table, String group, String timestamp, String target, List<String> seriesKey,
             List<String> staticCategorical, List<String> staticReal, List<String> knownCovariates,
-            List<String> pastCovariates, String frequency, String missing, String algorithm, String horizon) {
+            List<String> pastCovariates, String frequency, String missing, String algorithm, String horizon,
+            List<String> algorithms) {
+
+        /** Roles naming one algorithm, or none. */
+        public Roles(String table, String group, String timestamp, String target, List<String> seriesKey,
+                List<String> staticCategorical, List<String> staticReal, List<String> knownCovariates,
+                List<String> pastCovariates, String frequency, String missing, String algorithm, String horizon) {
+            this(table, group, timestamp, target, seriesKey, staticCategorical, staticReal, knownCovariates, pastCovariates,
+                frequency, missing, algorithm, horizon, null);
+        }
+
+        /** The algorithms named, XGBoost first: {@code algorithms} when given, else {@code algorithm}. */
+        List<TimeSeries.Algorithm> named() {
+            return TimeSeries.Algorithm.named(algorithms != null ? algorithms : algorithm == null ? null : List.of(algorithm));
+        }
 
         Map<TimeSeries.Role, List<String>> columns() {
             Map<TimeSeries.Role, List<String>> map = new LinkedHashMap<>();
@@ -472,15 +488,16 @@ public class Catalog {
      * The JSON Patch that makes a table's TimeSeries tags of the group and
      * custom properties what {@code roles} says: every column's tags of the
      * group replaced, its other tags (other groups' too) kept; the group's
-     * algorithm tag on the table replaced, none when no algorithm is named
-     * or the group has no roles left; the frequency, missing and horizon set
+     * algorithm tags on the table replaced with one per algorithm named,
+     * none when none is or the group has no roles left; the frequency,
+     * missing and horizon set
      * when given and removed when not. An IllegalArgumentException names
      * columns the table doesn't have, an algorithm there isn't, or why the
      * group's name can't be one.
      */
     ArrayNode rolesPatch(JsonNode table, Roles roles) {
         String group = TimeSeries.group(roles.group());
-        TimeSeries.Algorithm algorithm = TimeSeries.Algorithm.named(roles.algorithm());
+        List<TimeSeries.Algorithm> algorithms = roles.named();
         Map<String, List<TimeSeries.Role>> wanted = new LinkedHashMap<>();
         roles.columns().forEach((role, names) -> names.forEach(
             name -> wanted.computeIfAbsent(name, n -> new ArrayList<>()).add(role)));
@@ -523,12 +540,14 @@ public class Catalog {
                 tableTags.add(tag);
             }
         }
-        if (algorithm != null && !wanted.isEmpty()) {
-            tableTags.addObject()
-                .put("tagFQN", algorithm.fqn(group))
-                .put("source", "Classification")
-                .put("labelType", "Manual")
-                .put("state", "Confirmed");
+        if (!wanted.isEmpty()) {
+            for (TimeSeries.Algorithm algorithm : algorithms) {
+                tableTags.addObject()
+                    .put("tagFQN", algorithm.fqn(group))
+                    .put("source", "Classification")
+                    .put("labelType", "Manual")
+                    .put("state", "Confirmed");
+            }
         }
         if (!tagNames(tableTags).equals(tagNames(table.path("tags")))) {
             patch.addObject().put("op", "add").put("path", "/tags").set("value", tableTags);
@@ -573,6 +592,14 @@ public class Catalog {
     }
 
     /**
+     * A group switched through datyx: the group read again, the table's
+     * change in OpenMetadata after it (its version, who, when), and whether
+     * it was switched (false when it already was on or off, nothing patched).
+     */
+    public record Switched(TimeSeries.Spec spec, Change change, boolean patched) {
+    }
+
+    /**
      * Switches one of the table's groups on or off: removes or adds its
      * Disabled tag on the table (TimeSeries.Disabled, TimeSeries.acute.Disabled),
      * the table's other tags kept, and answers the group read again. Nothing
@@ -580,7 +607,7 @@ public class Catalog {
      * the name can't be a group's; a NoSuchElementException that the table has
      * no such group.
      */
-    public TimeSeries.Spec setEnabled(JsonNode table, String groupName, boolean enabled) {
+    public Switched setEnabled(JsonNode table, String groupName, boolean enabled) {
         String group = TimeSeries.group(groupName);
         ArrayNode patch = enabledPatch(table, group, enabled);
         String fqn = table.path("fullyQualifiedName").asText();
@@ -590,7 +617,8 @@ public class Catalog {
             session.call(auth -> client.patchTable(auth, table.path("id").asText(), patch));
             LOG.infof("catalog: %s group %s switched %s (%s)", fqn, group, enabled ? "on" : "off", TimeSeries.disabledFqn(group));
         }
-        return TimeSeries.spec(table(fqn), group);
+        JsonNode now = table(fqn);
+        return new Switched(TimeSeries.spec(now, group), latestChange(now), !patch.isEmpty());
     }
 
     /**

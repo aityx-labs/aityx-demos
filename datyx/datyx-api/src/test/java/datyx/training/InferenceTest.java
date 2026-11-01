@@ -109,6 +109,18 @@ class InferenceTest {
             run.results = results;
             run.model = trained.model();
             run.persist();
+            // A later run of the group's other algorithm, as if datyx trained DeepAR: never what scores.
+            TrainingRun deepAr = new TrainingRun();
+            deepAr.dataSource = run.dataSource;
+            deepAr.tableFqn = spec.table();
+            deepAr.groupName = "care";
+            deepAr.algorithm = "DeepAR";
+            deepAr.trigger = TrainingRun.Trigger.ENABLED;
+            deepAr.status = TrainingRun.Status.SUCCEEDED;
+            deepAr.queuedAt = Instant.now().plusSeconds(1);
+            deepAr.finishedAt = Instant.now().plusSeconds(2);
+            deepAr.results = "{}";
+            deepAr.persist();
             return run.id;
         });
 
@@ -146,6 +158,7 @@ class InferenceTest {
             .body("lastHour", is(3)).body("perHour", hasSize(24)).body("perHour[23].calls", is(3))
             .body("models.find { it.runId == " + runId + " }.stats.calls", is(3))
             .body("models.find { it.runId == " + runId + " }.seriesKey", is(List.of("run_id", "person")))
+            .body("models.findAll { it.table == 'datyx-ds-7.quarkus.ward.stays' }", hasSize(1))
             .body("calls", hasSize(3)).body("calls[0].status", is("failed")).body("calls[2].requested", is(2));
 
         given().when().delete("/api/datasources/" + sourceId).then().statusCode(204);

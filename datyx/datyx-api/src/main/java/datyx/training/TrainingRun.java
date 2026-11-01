@@ -19,8 +19,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 /**
- * One training of a group of a source's table (table training_run): queued,
- * running, then succeeded or failed, with why it ran, what it measured
+ * One training of a group of a source's table with one of its algorithms
+ * (table training_run): queued, running, then succeeded or failed, with
+ * why it ran (and the switch that queued it, {@code eventId}), what it measured
  * ({@code results}, the JSON of {@link XgbTrainer.Result}) and the trained
  * model (XGBoost's UBJSON). A source's runs are its profile's.
  */
@@ -35,7 +36,7 @@ public class TrainingRun extends PanacheEntity {
         SCHEDULE,
         /** Someone asked (POST .../training). */
         MANUAL,
-        /** The group was switched on: its Disabled tag removed from the table in OpenMetadata. */
+        /** The group was switched on: its Disabled tag removed from the table in OpenMetadata; one run per algorithm. */
         ENABLED
     }
 
@@ -67,6 +68,10 @@ public class TrainingRun extends PanacheEntity {
     /** The trigger in words, when it says more than its name: the change in OpenMetadata that switched the group on. */
     @Column(name = "trigger_note", length = 500)
     public String triggerNote;
+
+    /** The switch that queued it (a GroupEvent's id), when one did. */
+    @Column(name = "group_event_id")
+    public Long eventId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
@@ -102,15 +107,21 @@ public class TrainingRun extends PanacheEntity {
         return find("id = ?1 and dataSource.profile = ?2", id, profile).firstResultOptional();
     }
 
-    /** The latest run of a group of a source's table, whatever its status. */
+    /** The latest run of a group of a source's table, whatever its algorithm and status. */
     public static Optional<TrainingRun> latest(DataSource source, String tableFqn, String group) {
         return find("dataSource = ?1 and tableFqn = ?2 and groupName = ?3", Sort.descending("queuedAt", "id"),
             source, tableFqn, group).firstResultOptional();
     }
 
-    /** The latest run of the group that succeeded. */
-    public static Optional<TrainingRun> latestSucceeded(DataSource source, String tableFqn, String group) {
-        return find("dataSource = ?1 and tableFqn = ?2 and groupName = ?3 and status = ?4", Sort.descending("queuedAt", "id"),
-            source, tableFqn, group, Status.SUCCEEDED).firstResultOptional();
+    /** The latest run of a group's algorithm (its tag, XGBoost), whatever its status. */
+    public static Optional<TrainingRun> latest(DataSource source, String tableFqn, String group, String algorithm) {
+        return find("dataSource = ?1 and tableFqn = ?2 and groupName = ?3 and algorithm = ?4", Sort.descending("queuedAt", "id"),
+            source, tableFqn, group, algorithm).firstResultOptional();
+    }
+
+    /** The latest run of the group's algorithm that succeeded. */
+    public static Optional<TrainingRun> latestSucceeded(DataSource source, String tableFqn, String group, String algorithm) {
+        return find("dataSource = ?1 and tableFqn = ?2 and groupName = ?3 and algorithm = ?4 and status = ?5",
+            Sort.descending("queuedAt", "id"), source, tableFqn, group, algorithm, Status.SUCCEEDED).firstResultOptional();
     }
 }

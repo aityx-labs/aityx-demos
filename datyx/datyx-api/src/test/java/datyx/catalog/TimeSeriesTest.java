@@ -49,6 +49,7 @@ class TimeSeriesTest {
         assertEquals("public", spec.schema());
         assertEquals("default", spec.group());
         assertEquals("DeepAR", spec.algorithm(), "a group without an algorithm tag is DeepAR's");
+        assertEquals(List.of("DeepAR"), spec.algorithms());
         assertNull(spec.horizon());
     }
 
@@ -89,7 +90,7 @@ class TimeSeriesTest {
     }
 
     @Test
-    void xgboostWantsAHorizonAndAGroupOneAlgorithm() throws Exception {
+    void xgboostWantsAHorizonAndAGroupCanHaveBothAlgorithms() throws Exception {
         TimeSeries.Spec noHorizon = TimeSeries.spec(patientDays("[{\"tagFQN\":\"TimeSeries.care.XGBoost\"}]",
             "{\"timeSeriesFrequency\":\"1D\",\"timeSeriesMissing\":\"zero\"}"), "care");
         assertEquals(List.of("the table has no timeSeriesHorizon, how far ahead XGBoost scores (such as 30D)"), noHorizon.problems());
@@ -98,10 +99,19 @@ class TimeSeriesTest {
         assertEquals("DeepAR", deepAr.algorithm());
         assertEquals(List.of("timeSeriesHorizon 'a month' isn't a span such as 24h, 30D or 4W"), deepAr.problems());
         TimeSeries.Spec both = TimeSeries.spec(patientDays(
-            "[{\"tagFQN\":\"TimeSeries.care.XGBoost\"},{\"tagFQN\":\"TimeSeries.care.DeepAR\"},{\"tagFQN\":\"TimeSeries.XGBoost\"}]",
+            "[{\"tagFQN\":\"TimeSeries.care.DeepAR\"},{\"tagFQN\":\"TimeSeries.care.XGBoost\"},{\"tagFQN\":\"TimeSeries.DeepAR\"}]",
             "{\"timeSeriesFrequency\":\"1D\",\"timeSeriesHorizon\":\"30D\"}"), "care");
-        assertEquals(List.of("the table is tagged TimeSeries.care.XGBoost and TimeSeries.care.DeepAR; "
-            + "one algorithm trains a group (tag another group for the other)"), both.problems());
+        assertTrue(both.ready(), both.problems().toString());
+        assertEquals(List.of("XGBoost", "DeepAR"), both.algorithms(), "XGBoost first, whatever the tags' order");
+        assertEquals("XGBoost", both.algorithm(), "the first, as before a group had more than one");
+        assertTrue(both.has(TimeSeries.Algorithm.DEEPAR) && both.has(TimeSeries.Algorithm.XGBOOST));
+        TimeSeries.Spec bothNoHorizon = TimeSeries.spec(patientDays(
+            "[{\"tagFQN\":\"TimeSeries.care.DeepAR\"},{\"tagFQN\":\"TimeSeries.care.XGBoost\"}]",
+            "{\"timeSeriesFrequency\":\"1D\",\"timeSeriesMissing\":\"zero\"}"), "care");
+        assertEquals(List.of("the table has no timeSeriesHorizon, how far ahead XGBoost scores (such as 30D)"),
+            bothNoHorizon.problems(), "XGBoost among them wants the horizon");
+        assertEquals(List.of("DeepAR"), deepAr.algorithms());
+        assertFalse(deepAr.has(TimeSeries.Algorithm.XGBOOST));
     }
 
     @Test
@@ -142,6 +152,10 @@ class TimeSeriesTest {
         assertEquals(TimeSeries.Algorithm.XGBOOST, TimeSeries.Algorithm.named(" xgboost "));
         assertEquals(TimeSeries.Algorithm.DEEPAR, TimeSeries.Algorithm.named("DeepAR"));
         assertNull(TimeSeries.Algorithm.named(""));
+        assertEquals(List.of(TimeSeries.Algorithm.XGBOOST, TimeSeries.Algorithm.DEEPAR),
+            TimeSeries.Algorithm.named(List.of("deepar", " XGBoost", "DeepAR", "")), "each once, XGBoost first");
+        assertEquals(List.of(), TimeSeries.Algorithm.named((List<String>) null));
+        assertThrows(IllegalArgumentException.class, () -> TimeSeries.Algorithm.named(List.of("XGBoost", "Prophet")));
         assertEquals("the algorithm is DeepAR or XGBoost, not 'Prophet'",
             assertThrows(IllegalArgumentException.class, () -> TimeSeries.Algorithm.named("Prophet")).getMessage());
     }
@@ -182,6 +196,34 @@ class TimeSeriesTest {
         Catalog.Roles unknown = new Catalog.Roles("patient_days", "care", "day", null, null, null, null, null, null,
             null, null, "Prophet", null);
         assertThrows(IllegalArgumentException.class, () -> catalog.rolesPatch(tagged, unknown));
+        Catalog.Roles unknownAmong = new Catalog.Roles("patient_days", "care", "day", null, null, null, null, null, null,
+            null, null, null, null, List.of("XGBoost", "Prophet"));
+        assertThrows(IllegalArgumentException.class, () -> catalog.rolesPatch(tagged, unknownAmong));
+    }
+
+    @Test
+    void rolesSetEveryAlgorithmOfTheGroup() throws Exception {
+        Catalog catalog = new Catalog();
+        catalog.json = json;
+        JsonNode tagged = patientDays("[{\"tagFQN\":\"Tier.Tier2\"},{\"tagFQN\":\"TimeSeries.care.XGBoost\"},{\"tagFQN\":\"TimeSeries.XGBoost\"}]",
+            "{\"timeSeriesFrequency\":\"1D\",\"timeSeriesMissing\":\"zero\",\"timeSeriesHorizon\":\"30D\"}");
+        Catalog.Roles both = new Catalog.Roles("patient_days", "care", "day", "stay_hours", List.of("run_id", "person_id"),
+            List.of("chronic_condition"), List.of("age"), null, List.of("visits"), "1D", "zero", "XGBoost", "30D",
+            List.of("deepar", "XGBOOST"));
+        assertEquals(List.of("Tier.Tier2", "TimeSeries.XGBoost", "TimeSeries.care.XGBoost", "TimeSeries.care.DeepAR"),
+            fqns(byPath(catalog.rolesPatch(tagged, both)).path("/tags")), "one tag per algorithm, XGBoost first; the default group's stays");
+        JsonNode bothTagged = json.readTree(tagged.toString().replace("{\"tagFQN\":\"TimeSeries.XGBoost\"}",
+            "{\"tagFQN\":\"TimeSeries.XGBoost\"},{\"tagFQN\":\"TimeSeries.care.DeepAR\"}"));
+        assertTrue(catalog.rolesPatch(bothTagged, both).isEmpty(), "both tagged already: nothing to patch");
+        assertEquals(List.of("XGBoost", "DeepAR"), TimeSeries.spec(bothTagged, "care").algorithms());
+        Catalog.Roles none = new Catalog.Roles("patient_days", "care", "day", "stay_hours", List.of("run_id", "person_id"),
+            List.of("chronic_condition"), List.of("age"), null, List.of("visits"), "1D", "zero", "XGBoost", "30D", List.of());
+        assertEquals(List.of("Tier.Tier2", "TimeSeries.XGBoost"), fqns(byPath(catalog.rolesPatch(bothTagged, none)).path("/tags")),
+            "algorithms wins over algorithm: none named, DeepAR by no tag");
+        Catalog.Roles deepAr = new Catalog.Roles("patient_days", "care", "day", "stay_hours", List.of("run_id", "person_id"),
+            List.of("chronic_condition"), List.of("age"), null, List.of("visits"), "1D", "zero", null, "30D", List.of("DeepAR"));
+        assertEquals(List.of("Tier.Tier2", "TimeSeries.XGBoost", "TimeSeries.care.DeepAR"),
+            fqns(byPath(catalog.rolesPatch(bothTagged, deepAr)).path("/tags")));
     }
 
     private JsonNode byPath(ArrayNode patch) {

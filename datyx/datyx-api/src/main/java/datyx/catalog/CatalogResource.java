@@ -1,6 +1,7 @@
 package datyx.catalog;
 
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -10,6 +11,8 @@ import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import datyx.auth.CurrentUser;
 import datyx.crypto.Crypto;
 import datyx.datasource.AccessCodec;
 import datyx.datasource.DataSource;
@@ -46,11 +49,12 @@ import org.jboss.logging.Logger;
  * (TimeSeries.Spec), or with ?algorithm=XGBoost only the groups that
  * algorithm trains: what a trainer looks for;
  * PUT /api/datasources/{id}/timeseries sets one group's roles and
- * algorithm in a table, and the table's frequency, missing rows and
+ * algorithms in a table, and the table's frequency, missing rows and
  * horizon, and answers the group's spec;
  * PUT /api/datasources/{id}/timeseries/enabled switches a group off (its
- * Disabled tag on the table) or on (the tag removed, which the trainer
- * sees at once and trains the group: datyx.training.Training).
+ * Disabled tag on the table) or on (the tag removed), keeps the switch
+ * (GroupEvent) and, switched on, queues one run per algorithm of the
+ * group at once (datyx.training.Training).
  * Only database sources (PostgreSQL so far) and Kafka clusters have a
  * catalogue, and only tables have time series: another type, or another
  * engine, is a 400. A source or OpenMetadata that can't
@@ -77,6 +81,9 @@ public class CatalogResource {
 
     @Inject
     Training training;
+
+    @Inject
+    CurrentUser user;
 
     /** PUT .../timeseries/enabled: a table, one of its groups (default when none), on or off. */
     public record Switch(String table, String group, Boolean enabled) {
@@ -154,7 +161,7 @@ public class CatalogResource {
             List<TimeSeries.Spec> series = new ArrayList<>();
             for (JsonNode table : catalog.tables(id)) {
                 for (TimeSeries.Spec spec : TimeSeries.specs(table)) {
-                    if (only == null || only.tag.equals(spec.algorithm())) {
+                    if (only == null || spec.has(only)) {
                         series.add(spec);
                     }
                 }
@@ -177,6 +184,13 @@ public class CatalogResource {
             return error(Response.Status.BAD_REQUEST, "name the table: \"table\":\"schema.table\", or its name alone");
         }
         try {
+            // What the request names, before the catalogue is read.
+            roles.named();
+            TimeSeries.group(roles.group());
+        } catch (IllegalArgumentException e) {
+            return error(Response.Status.BAD_REQUEST, e.getMessage());
+        }
+        try {
             return Response.ok(catalog.applyRoles(table(id, roles.table().strip()), roles)).build();
         } catch (NoSuchElementException e) {
             return error(Response.Status.NOT_FOUND, e.getMessage());
@@ -190,8 +204,11 @@ public class CatalogResource {
     /**
      * Switches a group of a table off (its Disabled tag added to the table
      * in OpenMetadata) or on (the tag removed), and answers the group read
-     * again. Switched on, the trainer looks at the source at once: the tag's
-     * removal is what queues the group's run.
+     * again, with the switch kept ({@code event}: its id and the runs it
+     * queued; null when the group already was on or off). Switched on, its
+     * runs are queued here, one per algorithm, so they never wait on
+     * OpenMetadata's webhook, whose post of the same change queues nothing
+     * more.
      */
     @PUT
     @Path("/timeseries/enabled")
@@ -206,13 +223,25 @@ public class CatalogResource {
                 "name the table and say whether its group is on: {\"table\":\"schema.table\",\"group\":\"acute\",\"enabled\":false}");
         }
         try {
-            TimeSeries.Spec spec = catalog.setEnabled(table(id, request.table().strip()), request.group(), request.enabled());
-            if (spec.enabled()) {
-                training.checkSoon(id);
-            } else {
-                training.switchedOff(id, spec);
+            Instant since = Instant.now();
+            Catalog.Switched switched = catalog.setEnabled(table(id, request.table().strip()), request.group(), request.enabled());
+            TimeSeries.Spec spec = switched.spec();
+            ObjectNode answer = json.valueToTree(spec);
+            answer.putNull("event");
+            if (switched.patched()) {
+                Catalog.Change change = switched.change();
+                String by = user.authenticated() && user.id() != null ? user.id() : change.by();
+                String note = TimeSeries.disabledFqn(spec.group()) + " removed through datyx's switch ("
+                    + new Catalog.Change(change.version(), by, change.at()).describe() + ")";
+                training.switched(new Training.Switch(id, spec.table(), spec.group(), request.enabled(), GroupEvent.VIA_API,
+                    change.version(), by, change.at(), null), spec, since, note).ifPresent(r -> {
+                        ObjectNode event = answer.putObject("event").put("id", r.eventId());
+                        r.runIds().forEach(event.putArray("runIds")::add);
+                    });
+            } else if (!spec.enabled()) {
+                training.switchedOff(id, spec.table(), spec.group());
             }
-            return Response.ok(spec).build();
+            return Response.ok(answer).build();
         } catch (NoSuchElementException e) {
             return error(Response.Status.NOT_FOUND, e.getMessage());
         } catch (IllegalArgumentException e) {

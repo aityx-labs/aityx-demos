@@ -10,6 +10,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import datyx.catalog.TimeSeries;
 import datyx.profile.Profile;
 import datyx.profile.Profiles;
 import io.quarkus.narayana.jta.QuarkusTransaction;
@@ -71,8 +72,8 @@ public class InferenceResource {
             List<InferenceCall> calls = InferenceCall.since(profile, now.minus(WINDOW), MAX_CALLS);
 
             Map<Key, ModelStats> models = new LinkedHashMap<>();
-            for (TrainingRun run : TrainingRun.<TrainingRun>find("dataSource.profile = ?1 and status = ?2",
-                    Sort.descending("queuedAt", "id"), profile, TrainingRun.Status.SUCCEEDED).list()) {
+            for (TrainingRun run : TrainingRun.<TrainingRun>find("dataSource.profile = ?1 and status = ?2 and algorithm = ?3",
+                    Sort.descending("queuedAt", "id"), profile, TrainingRun.Status.SUCCEEDED, TimeSeries.Algorithm.XGBOOST.tag).list()) {
                 Key key = new Key(run.dataSource.id, run.tableFqn, run.groupName);
                 if (!models.containsKey(key)) {
                     models.put(key, model(run, calls.stream().filter(c -> key.equals(key(c))).toList()));

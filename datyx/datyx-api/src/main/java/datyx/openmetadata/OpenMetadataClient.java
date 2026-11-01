@@ -159,6 +159,20 @@ public interface OpenMetadataClient {
     @Path("/tags")
     JsonNode putTag(@HeaderParam("Authorization") String authorization, JsonNode tag);
 
+    /**
+     * Creates or updates an event subscription by its name (an alert, in
+     * OpenMetadata's UI): which entities' changes it sends, and where, such
+     * as a webhook's endpoint and the secret it signs its posts with.
+     */
+    @PUT
+    @Path("/events/subscriptions")
+    JsonNode putEventSubscription(@HeaderParam("Authorization") String authorization, JsonNode subscription);
+
+    /** An event subscription by its name; a 404 when there is none. */
+    @GET
+    @Path("/events/subscriptions/name/{name}")
+    JsonNode eventSubscription(@HeaderParam("Authorization") String authorization, @PathParam("name") String name);
+
     /** An entity type (table) or a property type (string), with its custom properties. */
     @GET
     @Path("/metadata/types/name/{name}")

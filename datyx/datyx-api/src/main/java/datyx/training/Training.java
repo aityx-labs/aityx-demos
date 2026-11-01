@@ -12,16 +12,19 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import datyx.catalog.Catalog;
+import datyx.catalog.GroupEvent;
 import datyx.catalog.Span;
 import datyx.catalog.TimeSeries;
 import datyx.crypto.Crypto;
 import datyx.datasource.AccessCodec;
 import datyx.datasource.DataSource;
 import datyx.datasource.DataSource.DatabaseAccess;
+import datyx.db.UniqueViolation;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.runtime.StartupEvent;
 import io.quarkus.scheduler.Scheduled;
@@ -38,24 +41,29 @@ import org.jboss.logging.Logger;
  * The trainer, started with the API: it finds the groups tagged for
  * XGBoost in each database source's catalogue (OpenMetadata) and trains
  * them, one at a time on a thread of its own, keeping each run
- * (TrainingRun). Every minute ({@code datyx.training.check-every}), the
- * first time a few seconds after start, a ready group is queued when it
- * has never been trained, or when its table's timeSeriesRetrain (1D when
- * not set) has passed since its latest run; after a failure, an hour at
- * most. never trains a group once. A run reads the group's table from the
- * source, builds XGBoost's dataset (Dataset) and trains (XgbTrainer); what
- * it can't do (the catalogue or the source unreachable, a group no longer
- * ready, too little data, XGBoost's native library missing) fails the run
- * with the reason. Runs a stopped API left queued or running are failed
- * at start. Off with {@code datyx.training.enabled=false} (tests).
+ * (TrainingRun), one per group and algorithm. Every minute
+ * ({@code datyx.training.check-every}), the first time a few seconds after
+ * start, a ready group's XGBoost is queued when it has never been trained,
+ * or when its table's timeSeriesRetrain (1D when not set) has passed since
+ * its latest XGBoost run; after a failure, an hour at most. never trains a
+ * group once. A run reads the group's table from the source, builds
+ * XGBoost's dataset (Dataset) and trains (XgbTrainer); what it can't do
+ * (the catalogue or the source unreachable, a group no longer ready, too
+ * little data, XGBoost's native library missing) fails the run with the
+ * reason. Runs a stopped API left queued or running are failed at start.
+ * Off with {@code datyx.training.enabled=false} (tests).
  *
  * A group switched off (TimeSeries.Disabled, TimeSeries.acute.Disabled on
- * its table) isn't trained. Switching it on is the trigger: when its
- * Disabled tag is gone, and the trainer saw it there at its last look, or
- * OpenMetadata's history of the table shows it removed after the group's
- * latest run, the group is queued at once, an ENABLED run, whatever its
- * algorithm, its note naming the change in OpenMetadata. A DeepAR group's
- * run fails: datyx has no DeepAR trainer yet.
+ * its table) isn't trained. Switching it on is the trigger: one ENABLED
+ * run per algorithm of the group, whatever datyx can train, each noting
+ * the change ({@link #switched}). datyx learns of it from OpenMetadata's
+ * webhook (datyx.catalog.CatalogEvents), from its own switch
+ * (PUT .../timeseries/enabled), or, as a safety net, at its minute's
+ * check: when the Disabled tag is gone and the trainer saw it at its last
+ * look, or OpenMetadata's history of the table shows it removed after the
+ * group's latest run. Each switch is kept (GroupEvent), and one switch on
+ * queues its runs once, whichever path learns of it first. A DeepAR run
+ * fails: datyx has no DeepAR trainer yet.
  */
 @ApplicationScoped
 public class Training {
@@ -81,11 +89,12 @@ public class Training {
     /** The groups switched off at the trainer's last look, "sourceId|table|group", and since when it knows. */
     private final Map<String, Instant> seenDisabled = new ConcurrentHashMap<>();
 
-    private final ExecutorService checker = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "datyx-training-check");
-        t.setDaemon(true);
-        return t;
-    });
+    /**
+     * Held while a run is decided and queued: the webhook, the switch and
+     * the check can learn of one switch at once, and the decision (is a
+     * run of this algorithm queued since?) and the run must be one step.
+     */
+    private final Object queueing = new Object();
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "datyx-training");
@@ -105,15 +114,14 @@ public class Training {
 
     @PreDestroy
     void stop() {
-        checker.shutdownNow();
         worker.shutdownNow();
     }
 
     /**
-     * When a group is next trained: now (Instant.EPOCH) when it never was;
-     * empty while a run is queued or running, or after its run when its
-     * table says never; else its latest run's time plus the interval (an
-     * hour at most after a failure).
+     * When a group's algorithm is next trained: now (Instant.EPOCH) when it
+     * never was; empty while a run is queued or running, or after its run
+     * when its table says never; else its latest run's time plus the
+     * interval (an hour at most after a failure).
      */
     static Optional<Instant> nextAt(TrainingRun latest, String retrain) {
         if (latest == null) {
@@ -137,9 +145,9 @@ public class Training {
         return Optional.of(latest.queuedAt.plus(interval));
     }
 
-    /** Whether a group can be trained, by schedule or on request: switched on, tagged for XGBoost, and ready. */
+    /** Whether a group can be trained by schedule or on request: switched on, tagged for XGBoost among its algorithms, and ready. */
     static boolean trainable(TimeSeries.Spec spec) {
-        return spec.enabled() && TimeSeries.Algorithm.XGBOOST.tag.equals(spec.algorithm()) && spec.ready();
+        return spec.enabled() && spec.has(TimeSeries.Algorithm.XGBOOST) && spec.ready();
     }
 
     @Scheduled(every = "${datyx.training.check-every:60s}", delayed = "${datyx.training.first-check:5s}",
@@ -155,25 +163,18 @@ public class Training {
         }
     }
 
-    /**
-     * Looks at the source's groups soon, on a thread of the trainer's own:
-     * after a group is switched on through datyx, so its run doesn't wait
-     * for the next minute's check.
-     */
-    public void checkSoon(long sourceId) {
-        if (enabled) {
-            checker.submit(() -> checkSource(sourceId));
-        }
+    private static String key(long sourceId, String table, String group) {
+        return sourceId + "|" + table + "|" + group;
     }
 
     /**
-     * Notes that a group was just switched off through datyx, as if the
-     * trainer had seen it: OpenMetadata merges one user's quick changes into
-     * one version, so a switch off and on again within minutes may leave no
-     * trace in the table's history, and the switch on would go unnoticed.
+     * Notes that a group was just switched off, as if the trainer had seen
+     * it: OpenMetadata merges one user's quick changes into one version, so
+     * a switch off and on again within minutes may leave no trace in the
+     * table's history, and the switch on would go unnoticed by the check.
      */
-    public void switchedOff(long sourceId, TimeSeries.Spec spec) {
-        seenDisabled.putIfAbsent(sourceId + "|" + spec.table() + "|" + spec.group(), Instant.now());
+    public void switchedOff(long sourceId, String table, String group) {
+        seenDisabled.putIfAbsent(key(sourceId, table, group), Instant.now());
     }
 
     /** One source's groups: switched-on groups queued, the rest when due. One look at a time. */
@@ -187,16 +188,14 @@ public class Training {
         }
         for (JsonNode table : tables) {
             for (TimeSeries.Spec spec : TimeSeries.specs(table)) {
-                String key = sourceId + "|" + spec.table() + "|" + spec.group();
+                String key = key(sourceId, spec.table(), spec.group());
                 if (!spec.enabled()) {
                     seenDisabled.putIfAbsent(key, Instant.now());
                     continue;
                 }
                 Instant offSince = seenDisabled.remove(key);
                 try {
-                    if (queueIfEnabled(sourceId, table, spec, offSince)) {
-                        continue;
-                    }
+                    queueIfEnabled(sourceId, table, spec, offSince);
                 } catch (WebApplicationException | ProcessingException | IllegalStateException e) {
                     LOG.debugf("training: the history of %s can't be read: %s", spec.table(), e.getMessage());
                 }
@@ -208,88 +207,226 @@ public class Training {
     }
 
     /**
-     * Queues an ENABLED run of a group switched on since its latest run:
-     * the trainer saw its Disabled tag at its last look ({@code offSince}, when),
-     * or OpenMetadata's history of the table shows the tag removed after
-     * that run (or ever, when it never ran). Whatever its algorithm. False
-     * when it wasn't switched on, or a run of it is queued or running.
+     * The check's safety net, for a switch on neither the webhook nor
+     * datyx's switch told of: the trainer saw the group's Disabled tag at its
+     * last look ({@code offSince}, when), or OpenMetadata's history of the
+     * table shows the tag removed after the group's latest run or switch on
+     * (or ever, when there is neither). Queues its runs as {@link #switched}
+     * does, recorded as the check's only when it queues one.
      */
-    private boolean queueIfEnabled(long sourceId, JsonNode table, TimeSeries.Spec spec, Instant offSince) {
-        Instant after = QuarkusTransaction.requiringNew().call(() -> {
+    private void queueIfEnabled(long sourceId, JsonNode table, TimeSeries.Spec spec, Instant offSince) {
+        Instant since = QuarkusTransaction.requiringNew().call(() -> {
             DataSource source = DataSource.findById(sourceId);
-            TrainingRun latest = source == null ? null : TrainingRun.latest(source, spec.table(), spec.group()).orElse(null);
-            return latest == null ? Instant.EPOCH : latest.queuedAt;
+            if (source == null) {
+                return null;
+            }
+            Instant run = TrainingRun.latest(source, spec.table(), spec.group()).map(r -> r.queuedAt).orElse(Instant.EPOCH);
+            Instant on = GroupEvent.latestOn(source, spec.table(), spec.group()).map(e -> e.receivedAt).orElse(Instant.EPOCH);
+            return run.isAfter(on) ? run : on;
         });
-        Optional<Catalog.Change> change = offSince != null ? Optional.of(Catalog.latestChange(table))
-            : catalog.enabledAfter(table, spec.group(), after);
-        if (change.isEmpty()) {
-            return false;
+        if (since == null || offSince != null && since.isAfter(offSince)) {
+            // Its runs were queued, or its switch on recorded, since the trainer saw it off.
+            return;
         }
+        Optional<Catalog.Change> change = offSince != null ? Optional.of(Catalog.latestChange(table))
+            : catalog.enabledAfter(table, spec.group(), since);
+        if (change.isEmpty()) {
+            return;
+        }
+        boolean merged = offSince != null && !change.get().at().isAfter(offSince);
         String note = TimeSeries.disabledFqn(spec.group()) + " removed in OpenMetadata ("
-            + (offSince == null || change.get().at().isAfter(offSince) ? change.get().describe()
+            + (!merged ? change.get().describe()
                 : "seen by datyx at " + UTC.format(Instant.now()) + "; OpenMetadata merged it into table version "
                     + change.get().version() + ", as it does one user's changes within minutes")
             + ")";
-        Long runId = QuarkusTransaction.requiringNew().call(() -> {
-            DataSource source = DataSource.findById(sourceId);
-            if (source == null) {
-                return null;
-            }
-            TrainingRun latest = TrainingRun.latest(source, spec.table(), spec.group()).orElse(null);
-            if (latest != null && (!latest.status.done() || latest.queuedAt.isAfter(after))) {
-                return null;
-            }
-            TrainingRun run = create(source, spec, TrainingRun.Trigger.ENABLED);
-            run.triggerNote = note.length() > 500 ? note.substring(0, 500) : note;
-            return run.id;
-        });
-        if (runId != null) {
-            submit(runId);
-        }
-        return true;
+        switched(new Switch(sourceId, spec.table(), spec.group(), true, GroupEvent.VIA_POLL, change.get().version(),
+            change.get().by(), merged ? Instant.now() : change.get().at(), null), spec, offSince != null ? offSince : change.get().at(), note);
     }
 
     private void queueIfDue(long sourceId, TimeSeries.Spec spec) {
-        Long runId = QuarkusTransaction.requiringNew().call(() -> {
-            DataSource source = DataSource.findById(sourceId);
-            if (source == null) {
-                return null;
-            }
-            TrainingRun latest = TrainingRun.latest(source, spec.table(), spec.group()).orElse(null);
-            Optional<Instant> next = nextAt(latest, spec.retrain());
-            if (next.isEmpty() || Instant.now().isBefore(next.get())) {
-                return null;
-            }
-            return create(source, spec, latest == null ? TrainingRun.Trigger.INITIAL : TrainingRun.Trigger.SCHEDULE).id;
-        });
+        String algorithm = TimeSeries.Algorithm.XGBOOST.tag;
+        Long runId;
+        synchronized (queueing) {
+            runId = queue(() -> {
+                DataSource source = DataSource.findById(sourceId);
+                if (source == null) {
+                    return null;
+                }
+                TrainingRun latest = TrainingRun.latest(source, spec.table(), spec.group(), algorithm).orElse(null);
+                Optional<Instant> next = nextAt(latest, spec.retrain());
+                if (next.isEmpty() || Instant.now().isBefore(next.get())) {
+                    return null;
+                }
+                return create(source, spec, algorithm, latest == null ? TrainingRun.Trigger.INITIAL : TrainingRun.Trigger.SCHEDULE).id;
+            });
+        }
         if (runId != null) {
             submit(runId);
         }
     }
 
     /**
-     * Queues a run of the group someone asked for, in the caller's
-     * transaction: empty when one is queued or running already.
+     * A group switched on or off, as datyx learned it: {@code via}
+     * OpenMetadata's webhook, datyx's switch or the check; the table's
+     * version after the change, who made it and when; OpenMetadata's id of
+     * the change event, when it told.
      */
-    public Optional<TrainingRun> queueManual(DataSource source, TimeSeries.Spec spec) {
-        TrainingRun latest = TrainingRun.latest(source, spec.table(), spec.group()).orElse(null);
-        if (latest != null && !latest.status.done()) {
-            return Optional.empty();
-        }
-        return Optional.of(create(source, spec, TrainingRun.Trigger.MANUAL));
+    public record Switch(long sourceId, String table, String group, boolean enabled, String via, String version, String by,
+            Instant at, String omEventId) {
     }
 
-    private static TrainingRun create(DataSource source, TimeSeries.Spec spec, TrainingRun.Trigger trigger) {
+    /** A switch kept: its GroupEvent's id and the runs it queued. */
+    public record Recorded(long eventId, List<Long> runIds) {
+    }
+
+    /**
+     * Keeps a switch (a GroupEvent), unless datyx knows it already, and,
+     * for a switch on, queues one ENABLED run per algorithm of the group
+     * ({@code spec}, read after the change), each noting {@code note}: one
+     * per algorithm with no run queued at or after {@code since} (when the
+     * group was switched on, or datyx knew it off: the trainer saw it off,
+     * or kept a switch off after it), whether or not datyx has its trainer;
+     * none while the group reads switched off again. Known already: the same
+     * OpenMetadata change event; or the same switch (on or off, at the same
+     * version of the table) kept since {@code since}: the webhook of datyx's
+     * own switch, or the other way round (OpenMetadata may give a table a
+     * version again, merging one user's quick changes, so an older one is
+     * another switch). A switch off older than a switch on datyx kept since,
+     * while {@code spec} reads the group on, is passed over: the switch on
+     * came after it, its runs queued. The check's switch is kept only when it
+     * queues a run. Empty when nothing is kept. One decision at a time, so
+     * the webhook, the switch and the check never queue a switch's runs
+     * twice. A switch off kept is noted as seen by the trainer.
+     */
+    public Optional<Recorded> switched(Switch s, TimeSeries.Spec spec, Instant since, String note) {
+        String key = key(s.sourceId(), s.table(), s.group());
+        Instant seenOff = seenDisabled.get(key);
+        Optional<Recorded> recorded;
+        synchronized (queueing) {
+            recorded = Optional.ofNullable(queue(() -> record(s, spec, since, seenOff, note)));
+        }
+        if (recorded.isPresent()) {
+            if (s.enabled()) {
+                seenDisabled.remove(key);
+            } else {
+                seenDisabled.putIfAbsent(key, Instant.now());
+            }
+        }
+        recorded.ifPresent(r -> {
+            r.runIds().forEach(this::submit);
+            LOG.infof("training: %s group %s switched %s (%s, table version %s, by %s): event %d, runs %s", s.table(), s.group(),
+                s.enabled() ? "on" : "off", s.via(), s.version(), s.by(), r.eventId(), r.runIds());
+        });
+        return recorded;
+    }
+
+    private Recorded record(Switch s, TimeSeries.Spec spec, Instant since, Instant seenOff, String note) {
+        DataSource source = DataSource.findById(s.sourceId());
+        if (source == null || GroupEvent.recorded(s.omEventId())) {
+            return null;
+        }
+        if (!s.enabled() && spec != null && spec.enabled() && s.at() != null && GroupEvent.latestOn(source, s.table(), s.group())
+                .filter(on -> on.receivedAt.isAfter(s.at())).isPresent()) {
+            // A switch off told late (the webhook's, after datyx's own switch on): the group is on now, and the
+            // switch on datyx kept since came after it. Kept, it would make that switch on's runs look older.
+            return null;
+        }
+        if (s.enabled()) {
+            if (seenOff != null && seenOff.isAfter(since)) {
+                // The trainer saw it off then: a run before belongs to an earlier switch on.
+                since = seenOff;
+            }
+            GroupEvent latest = GroupEvent.latest(source, s.table(), s.group()).orElse(null);
+            if (latest != null && !latest.enabled && latest.receivedAt.isAfter(since)) {
+                // OpenMetadata merges one user's quick changes: an off and on again may carry the time of the version
+                // before the off. The group was off when datyx kept the off; it was switched on after.
+                since = latest.receivedAt;
+            }
+        }
+        if (GroupEvent.keptSince(source, s.table(), s.group(), s.enabled(), s.version(), since)) {
+            return null;
+        }
+        List<String> algorithms = new ArrayList<>();
+        if (s.enabled() && spec != null && spec.enabled() && spec.algorithms() != null) {
+            for (String algorithm : spec.algorithms()) {
+                TrainingRun run = TrainingRun.latest(source, s.table(), s.group(), algorithm).orElse(null);
+                if (run == null || run.status.done() && run.queuedAt.isBefore(since)) {
+                    algorithms.add(algorithm);
+                }
+            }
+        }
+        if (GroupEvent.VIA_POLL.equals(s.via()) && algorithms.isEmpty()) {
+            return null;
+        }
+        GroupEvent event = new GroupEvent();
+        event.dataSource = source;
+        event.tableFqn = s.table();
+        event.groupName = s.group();
+        event.enabled = s.enabled();
+        event.via = s.via();
+        event.omVersion = s.version();
+        event.omEventId = s.omEventId();
+        event.changedBy = s.by() == null || s.by().length() <= 320 ? s.by() : s.by().substring(0, 320);
+        event.changedAt = s.at();
+        event.receivedAt = Instant.now();
+        event.persist();
+        List<Long> runIds = new ArrayList<>();
+        for (String algorithm : algorithms) {
+            TrainingRun run = create(source, spec, algorithm, TrainingRun.Trigger.ENABLED);
+            run.triggerNote = note == null || note.length() <= 500 ? note : note.substring(0, 500);
+            run.eventId = event.id;
+            runIds.add(run.id);
+        }
+        event.runIds = runIds.isEmpty() ? null : runIds.stream().map(String::valueOf).collect(Collectors.joining(","));
+        return new Recorded(event.id, runIds);
+    }
+
+    /**
+     * Runs {@code decide} in a transaction of its own, under the queueing
+     * lock: null when the database refused a second active run of an
+     * algorithm (its unique index), which the lock should already prevent.
+     */
+    private <T> T queue(java.util.concurrent.Callable<T> decide) {
+        try {
+            return QuarkusTransaction.requiringNew().call(decide);
+        } catch (RuntimeException e) {
+            if (UniqueViolation.in(e)) {
+                LOG.infof("training: a run is queued already: %s", e.getMessage());
+                return null;
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Queues a run of the group's algorithm someone asked for: empty when
+     * one is queued or running already.
+     */
+    public Optional<Long> queueManual(long sourceId, TimeSeries.Spec spec, TimeSeries.Algorithm algorithm) {
+        synchronized (queueing) {
+            return Optional.ofNullable(queue(() -> {
+                DataSource source = DataSource.findById(sourceId);
+                TrainingRun latest = TrainingRun.latest(source, spec.table(), spec.group(), algorithm.tag).orElse(null);
+                if (latest != null && !latest.status.done()) {
+                    return null;
+                }
+                return create(source, spec, algorithm.tag, TrainingRun.Trigger.MANUAL).id;
+            }));
+        }
+    }
+
+    private static TrainingRun create(DataSource source, TimeSeries.Spec spec, String algorithm, TrainingRun.Trigger trigger) {
         TrainingRun run = new TrainingRun();
         run.dataSource = source;
         run.tableFqn = spec.table();
         run.groupName = spec.group();
-        run.algorithm = spec.algorithm();
+        run.algorithm = algorithm;
         run.trigger = trigger;
         run.status = TrainingRun.Status.QUEUED;
         run.queuedAt = Instant.now();
         run.persist();
-        LOG.infof("training: run %d queued (%s), %s group %s", run.id, trigger.name().toLowerCase(), spec.table(), spec.group());
+        LOG.infof("training: run %d queued (%s), %s group %s, %s", run.id, trigger.name().toLowerCase(), spec.table(), spec.group(),
+            algorithm);
         return run;
     }
 
@@ -298,7 +435,7 @@ public class Training {
         worker.submit(() -> run(runId));
     }
 
-    private record Job(String tableFqn, String group, DatabaseAccess access) {
+    private record Job(String tableFqn, String group, String algorithm, DatabaseAccess access) {
     }
 
     /** Trains a queued run: reads the group's table, builds the dataset, trains and keeps what it found. */
@@ -313,7 +450,7 @@ public class Training {
             DataSource source = run.dataSource;
             DatabaseAccess access = AccessCodec.unseal(crypto, json, source.profile.id, source.profile.keyWrapped,
                 source.access).database();
-            return new Job(run.tableFqn, run.groupName, access);
+            return new Job(run.tableFqn, run.groupName, run.algorithm, access);
         });
         if (job == null) {
             return;
@@ -323,10 +460,15 @@ public class Training {
             if (!spec.enabled()) {
                 throw new IllegalArgumentException("the group is switched off (" + TimeSeries.disabledFqn(job.group()) + ") now");
             }
-            if (!TimeSeries.Algorithm.XGBOOST.tag.equals(spec.algorithm())) {
-                throw new IllegalArgumentException("datyx has no " + spec.algorithm()
-                    + " trainer yet: only XGBoost groups train (tag the table " + TimeSeries.Algorithm.XGBOOST.fqn(job.group())
-                    + " and set its timeSeriesHorizon to train this group with XGBoost)");
+            if (!TimeSeries.Algorithm.XGBOOST.tag.equals(job.algorithm())) {
+                throw new IllegalArgumentException("datyx has no " + job.algorithm() + " trainer yet: only XGBoost groups train"
+                    + (spec.has(TimeSeries.Algorithm.XGBOOST) ? " (this group's XGBoost run trains it with XGBoost)"
+                        : " (tag the table " + TimeSeries.Algorithm.XGBOOST.fqn(job.group())
+                            + " and set its timeSeriesHorizon to train this group with XGBoost)"));
+            }
+            if (!spec.has(TimeSeries.Algorithm.XGBOOST)) {
+                throw new IllegalArgumentException("the group isn't tagged for XGBoost (" + TimeSeries.Algorithm.XGBOOST.fqn(job.group())
+                    + ") now");
             }
             if (!spec.ready()) {
                 throw new IllegalArgumentException("the group isn't ready: " + String.join("; ", spec.problems()));
@@ -347,7 +489,7 @@ public class Training {
                 job.tableFqn(), job.group(), trained.result().dataset().examples(), test.mae(), test.naiveMae());
         } catch (Throwable e) {
             String error = reason(e);
-            LOG.warnf("training: run %d failed, %s group %s: %s", runId, job.tableFqn(), job.group(), error);
+            LOG.warnf("training: run %d failed, %s group %s (%s): %s", runId, job.tableFqn(), job.group(), job.algorithm(), error);
             QuarkusTransaction.requiringNew().run(() -> {
                 TrainingRun run = TrainingRun.findById(runId);
                 run.status = TrainingRun.Status.FAILED;
@@ -356,6 +498,7 @@ public class Training {
             });
         }
     }
+
 
     /** Why a run failed, in words. */
     static String reason(Throwable e) {

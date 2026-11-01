@@ -101,9 +101,22 @@ class FakeDatyxApi implements DatyxApi {
   Future<TrainingRunDetail> trainingRun(int id) async => runDetails[id]!;
 
   @override
-  Future<TrainingRunInfo> trainNow(int sourceId, String table, String group) async {
-    trainCalls.add('$sourceId $table $group');
+  Future<TrainingRunInfo> trainNow(int sourceId, String table, String group, {String? algorithm}) async {
+    trainCalls.add('$sourceId $table $group ${algorithm ?? '(the API\'s choice)'}');
     return TrainingRunInfo(id: 99, sourceId: sourceId, table: table, name: 'patient_days', group: group);
+  }
+
+  /// The groups switched on or off, newest first; enabling one through the
+  /// fake adds one, with a run queued per algorithm, as the API does.
+  List<GroupEvent> events = [];
+
+  /// Set to have `GET /api/catalog/events` fail, as an API without it would.
+  ApiException? eventsError;
+
+  @override
+  Future<List<GroupEvent>> groupEvents({int limit = 50}) async {
+    if (eventsError != null) throw eventsError!;
+    return events.take(limit).toList();
   }
 
   @override
@@ -199,7 +212,8 @@ class FakeDatyxApi implements DatyxApi {
         // group's Disabled tag, as the API answers them.
         tags: [
           for (final g in groups.values)
-            g.group == defaultGroup ? 'TimeSeries.${g.algorithm}' : 'TimeSeries.${g.group}.${g.algorithm}',
+            for (final a in g.algorithms)
+              g.group == defaultGroup ? 'TimeSeries.$a' : 'TimeSeries.${g.group}.$a',
           for (final g in groups.values)
             if (!g.enabled) disabledTag(g.group),
         ],
@@ -237,6 +251,7 @@ class FakeDatyxApi implements DatyxApi {
       name: 'admissions_hourly',
       group: roles.group,
       algorithm: roles.algorithm ?? deepArAlgorithm,
+      algorithms: roles.algorithms == null ? null : inAlgorithmOrder(roles.algorithms!),
       columns: {for (final e in roles.columns.entries) e.key: List.of(e.value)},
       frequency: roles.frequency,
       horizon: roles.horizon,
@@ -260,11 +275,32 @@ class FakeDatyxApi implements DatyxApi {
     enabledCalls.add('$table $group $enabled');
     final g = groups[group];
     if (g == null) throw ApiException('PUT /api/datasources/$sourceId/timeseries/enabled answered 404', status: 404);
+    if (enabled && !g.enabled) {
+      final first = 20 + events.length * 10;
+      events.insert(
+        0,
+        GroupEvent(
+          id: events.length + 1,
+          sourceId: sourceId,
+          source: 'HealthHub',
+          table: table,
+          name: g.name,
+          group: group,
+          enabled: true,
+          via: 'datyx-api',
+          version: '0.${events.length + 2}',
+          by: 'tests@example.com',
+          at: DateTime(2026, 11, 1, 12),
+          runIds: [for (var i = 0; i < g.algorithms.length; i++) first + i],
+        ),
+      );
+    }
     return groups[group] = TimeSeriesSpec(
       table: g.table,
       name: g.name,
       group: g.group,
       algorithm: g.algorithm,
+      algorithms: g.algorithms,
       columns: g.columns,
       frequency: g.frequency,
       horizon: g.horizon,
@@ -557,6 +593,7 @@ void main() {
     expect(sent['missing'], 'zero');
     expect(sent['group'], 'default');
     expect(sent['algorithm'], 'DeepAR', reason: 'DeepAR unless XGBoost is picked, said explicitly');
+    expect(sent['algorithms'], ['DeepAR']);
     expect(sent['horizon'], isNull);
     expect(find.text('DeepAR · default'), findsOneWidget);
     expect(find.text('default: DeepAR'), findsOneWidget);
@@ -586,7 +623,11 @@ void main() {
     await tester.tap(find.text('Tag for training'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('group')), 'care');
+    // Several can be picked: XGBoost added, then DeepAR taken off.
     await tester.tap(find.text('XGBoost'));
+    await tester.pump();
+    expect(find.text('Tag public.admissions_hourly for XGBoost + DeepAR'), findsOneWidget);
+    await tester.tap(find.text('DeepAR'));
     await tester.pump();
     expect(find.text('Tag public.admissions_hourly for XGBoost'), findsOneWidget);
     expect(find.text('Horizon (required)'), findsOneWidget);
@@ -605,6 +646,7 @@ void main() {
     final sent = api.lastRoles!.toJson();
     expect(sent['group'], 'care');
     expect(sent['algorithm'], 'XGBoost');
+    expect(sent['algorithms'], ['XGBoost']);
     expect(sent['horizon'], '30D');
     expect(sent['target'], 'admissions');
     // The table says who trains the group, collapsed and open.
@@ -616,7 +658,7 @@ void main() {
     expect(find.text('horizon = 30D'), findsOneWidget);
     expect(find.text('care: Target · label: sum over the horizon'), findsOneWidget);
     Color chip(Key key) => (tester.widget<Container>(find.byKey(key)).decoration! as BoxDecoration).border!.top.color;
-    expect(chip(const ValueKey('algorithm-tag-care')), chip(const ValueKey('tag-care-Target')),
+    expect(chip(const ValueKey('algorithm-tag-care-XGBoost')), chip(const ValueKey('tag-care-Target')),
         reason: 'the algorithm in its group\'s color');
 
     // Editing it starts from XGBoost and the table's horizon.
@@ -768,7 +810,8 @@ void main() {
     expect(
       find.byTooltip(
         'Disabled: datyx doesn\'t train this group. Enabling removes its TimeSeries.chronic.Disabled tag in '
-        'OpenMetadata, which triggers a training run with its algorithm (DeepAR).',
+        'OpenMetadata, and datyx queues a training run of it (DeepAR); removing the tag in OpenMetadata itself '
+        'does the same.',
       ),
       findsOneWidget,
     );
@@ -897,7 +940,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('train-now-$fqn-care')));
     await tester.pumpAndSettle();
-    expect(api.trainCalls, ['1 $fqn care']);
+    expect(api.trainCalls, ['1 $fqn care XGBoost'], reason: 'the model\'s algorithm, said explicitly');
     expect(find.text('Queued: training now.'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('retrain-never')));
@@ -976,6 +1019,283 @@ void main() {
       tester.widget<FilledButton>(find.byKey(const ValueKey('train-now-$fqn-chronic'))).onPressed,
       isNotNull,
     );
+  });
+
+  test('reads a group\'s algorithms, and sends them', () {
+    const fqn = 'datyx-ds-1.healthhub.public.patient_days';
+    final both = TimeSeriesSpec.fromJson(const {
+      'table': fqn,
+      'group': 'care',
+      'algorithm': 'XGBoost',
+      'algorithms': ['XGBoost', 'DeepAR'],
+    });
+    expect(both.algorithms, ['XGBoost', 'DeepAR']);
+    expect(both.algorithm, 'XGBoost');
+    expect(both.xgBoost, isTrue);
+    // An API that only says algorithm: that one; one that says neither: DeepAR.
+    expect(TimeSeriesSpec.fromJson(const {'table': fqn, 'algorithm': 'XGBoost'}).algorithms, ['XGBoost']);
+    final none = TimeSeriesSpec.fromJson(const {'table': fqn});
+    expect(none.algorithms, ['DeepAR']);
+    expect(none.xgBoost, isFalse);
+    expect(TimeSeriesRole.target.toEach(both.algorithms), 'label: sum over the horizon / target');
+    expect(TimeSeriesRole.target.toEach(const ['DeepAR']), 'target');
+    expect(inAlgorithmOrder({'DeepAR', 'XGBoost'}), ['XGBoost', 'DeepAR']);
+
+    // Roles send algorithms, the first as algorithm for an API that takes one.
+    final sent = const TimeSeriesRoles(table: fqn, group: 'care', algorithms: ['XGBoost', 'DeepAR']).toJson();
+    expect(sent['algorithms'], ['XGBoost', 'DeepAR']);
+    expect(sent['algorithm'], 'XGBoost');
+    final untagged = const TimeSeriesRoles(table: fqn, algorithms: []).toJson();
+    expect(untagged['algorithms'], isEmpty);
+    expect(untagged['algorithm'], isNull);
+    final old = const TimeSeriesRoles(table: fqn, algorithm: 'DeepAR').toJson();
+    expect(old.containsKey('algorithms'), isFalse);
+    expect(old['algorithm'], 'DeepAR');
+
+    // A switch, and a run it queued.
+    final event = GroupEvent.fromJson(const {
+      'id': 5,
+      'sourceId': 1,
+      'source': 'HealthHub',
+      'table': 'datyx-ds-1.healthhub.public.admissions_hourly',
+      'name': 'admissions_hourly',
+      'group': 'chronic',
+      'enabled': true,
+      'via': 'openmetadata-webhook',
+      'version': 0.9,
+      'by': 'admin',
+      'at': '2026-11-01T12:00:00Z',
+      'receivedAt': '2026-11-01T12:00:01Z',
+      'runIds': [12, 13],
+    });
+    expect(event.version, '0.9');
+    expect(event.runIds, [12, 13]);
+    expect(event.viaWords, 'OpenMetadata\'s webhook');
+    expect(event.at, DateTime.utc(2026, 11, 1, 12));
+    expect(GroupEvent.fromJson(const {'id': 6, 'group': 'acute', 'enabled': false}).runIds, isEmpty);
+    expect(TrainingRunInfo.fromJson(const {'id': 12, 'eventId': 5}).eventId, 5);
+    expect(TrainingRunInfo.fromJson(const {'id': 11}).eventId, isNull);
+  });
+
+  testWidgets('tags a group for XGBoost and DeepAR, and enabling it queues a run of each', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    const fqn = 'datyx-ds-1.healthhub.public.admissions_hourly';
+    final api = FakeDatyxApi();
+    await api.addDataSource(
+      const NewDataSource(
+        name: 'HealthHub',
+        type: DataSourceType.database,
+        details: {'engine': 'postgresql', 'host': 'localhost', 'port': 9803, 'database': 'healthhub'},
+      ),
+    );
+    await api.syncCatalog(1);
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tab-catalog')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('public.admissions_hourly'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Tag for training'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('group')), 'care');
+    await tester.tap(find.text('XGBoost'));
+    await tester.pump();
+    expect(find.text('Tag public.admissions_hourly for XGBoost + DeepAR'), findsOneWidget);
+    expect(find.text('Horizon (required)'), findsOneWidget, reason: 'XGBoost is among them');
+    expect(find.text('label: sum over the horizon / target, one'), findsOneWidget, reason: 'the roles in both\'s terms');
+    // One at least: the last one picked stays.
+    await tester.tap(find.text('XGBoost'));
+    await tester.pump();
+    await tester.tap(find.text('DeepAR'));
+    await tester.pump();
+    expect(find.text('Tag public.admissions_hourly for DeepAR'), findsOneWidget);
+    await tester.tap(find.text('XGBoost'));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('Timestamp-hour_start')));
+    await tester.tap(find.byKey(const ValueKey('Target-admissions')));
+    await tester.tap(find.byKey(const ValueKey('SeriesKey-hospital_id')));
+    await tester.tap(find.byKey(const ValueKey('frequency-1h')));
+    await tester.tap(find.byKey(const ValueKey('horizon-30D')));
+    await tester.tap(find.text('Save tags'));
+    await tester.pumpAndSettle();
+
+    final sent = api.lastRoles!.toJson();
+    expect(sent['algorithms'], ['XGBoost', 'DeepAR'], reason: 'in the API\'s order, XGBoost first');
+    expect(sent['algorithm'], 'XGBoost');
+    // Every algorithm of the group shows: closed, on its box and as its tags.
+    expect(find.text('care: XGBoost + DeepAR, 30D ahead'), findsOneWidget);
+    expect(find.text('XGBoost + DeepAR · care'), findsOneWidget);
+    expect(find.text('care: trained by XGBoost'), findsOneWidget);
+    expect(find.text('care: trained by DeepAR'), findsOneWidget);
+    expect(find.byKey(const ValueKey('algorithm-tag-care-DeepAR')), findsOneWidget);
+    expect(find.text('care: Target · label: sum over the horizon / target'), findsOneWidget);
+    expect(find.text('label: sum over the horizon / target = admissions'), findsOneWidget);
+    expect(find.text('scores admissions summed over the next 30D, per hospital_id'), findsOneWidget);
+    expect(
+      find.byTooltip(
+        'Enabled: datyx trains this group with each of its algorithms (XGBoost, DeepAR). Disabling adds the tag '
+        'TimeSeries.care.Disabled to the table in OpenMetadata, and datyx stops training it.',
+      ),
+      findsOneWidget,
+    );
+
+    // Off, then on: the switch says a run is queued for each algorithm.
+    await tester.tap(find.byKey(const ValueKey('enabled-$fqn-care')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byTooltip(
+        'Disabled: datyx doesn\'t train this group. Enabling removes its TimeSeries.care.Disabled tag in '
+        'OpenMetadata, and datyx queues a run for each of its algorithms: XGBoost, DeepAR; removing the tag in '
+        'OpenMetadata itself does the same.',
+      ),
+      findsOneWidget,
+    );
+    // The disabling's snack bar goes first.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('enabled-$fqn-care')));
+    await tester.pumpAndSettle();
+    expect(api.enabledCalls, ['$fqn care false', '$fqn care true']);
+    expect(
+      find.text('care enabled: datyx queues a run for each of its algorithms: XGBoost, DeepAR; see the Training tab.'),
+      findsOneWidget,
+    );
+    expect(api.events.single.runIds, hasLength(2));
+
+    // Editing starts from both.
+    await tester.tap(find.byKey(const ValueKey('edit-group-$fqn-care')));
+    await tester.pumpAndSettle();
+    expect(find.text('Tag public.admissions_hourly for XGBoost + DeepAR: care'), findsOneWidget);
+  });
+
+  testWidgets('lists the group switches, and links each run to the switch that queued it', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    const fqn = 'datyx-ds-1.healthhub.public.patient_days';
+    const note = 'TimeSeries.care.Disabled removed in OpenMetadata (table version 0.9, by admin, 2026-11-01 12:00 UTC; webhook)';
+    TrainingRunInfo run(int id, String algorithm, String status) => TrainingRunInfo.fromJson({
+      'id': id,
+      'sourceId': 1,
+      'table': fqn,
+      'name': 'patient_days',
+      'group': 'care',
+      'algorithm': algorithm,
+      'trigger': 'enabled',
+      'triggerNote': note,
+      'eventId': 5,
+      'status': status,
+      if (algorithm == 'DeepAR') 'error': 'datyx has no DeepAR trainer yet: only XGBoost groups train',
+    });
+    final xgb = run(12, 'XGBoost', 'queued');
+    final deepAr = run(13, 'DeepAR', 'failed');
+    final api = FakeDatyxApi()
+      ..trainingOverview = TrainingOverview(
+        models: [
+          TrainingModel(
+            sourceId: 1,
+            source: 'HealthHub',
+            table: fqn,
+            schema: 'public',
+            name: 'patient_days',
+            group: 'care',
+            ready: true,
+            latest: xgb,
+          ),
+        ],
+        runs: [deepAr, xgb],
+      )
+      ..events = [
+        GroupEvent(
+          id: 5,
+          sourceId: 1,
+          source: 'HealthHub',
+          table: fqn,
+          name: 'patient_days',
+          group: 'care',
+          enabled: true,
+          via: 'openmetadata-webhook',
+          version: '0.9',
+          by: 'admin',
+          at: DateTime(2026, 11, 1, 12),
+          runIds: const [12, 13],
+        ),
+        GroupEvent(
+          id: 4,
+          sourceId: 1,
+          source: 'HealthHub',
+          table: fqn,
+          name: 'patient_days',
+          group: 'care',
+          enabled: false,
+          via: 'datyx-api',
+          version: '0.8',
+          by: 'tests@example.com',
+          at: DateTime(2026, 11, 1, 11),
+        ),
+      ];
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tab-training')));
+    // A run is queued: the tab asks again every 3 s, so it never settles.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    // Each run says its algorithm, and links to the switch that queued it.
+    expect(find.descendant(of: find.byKey(const ValueKey('run-12')), matching: find.text('XGBoost')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('run-13')), matching: find.text('DeepAR')), findsOneWidget);
+    expect(find.textContaining('no DeepAR trainer yet'), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('run-event-12')), matching: find.text('switch #5')), findsOneWidget);
+
+    // The switches, newest first: on and off, how datyx heard, by whom, the version and the runs.
+    final on = find.byKey(const ValueKey('event-5'));
+    final off = find.byKey(const ValueKey('event-4'));
+    expect(find.descendant(of: on, matching: find.text('switched on')), findsOneWidget);
+    expect(find.descendant(of: on, matching: find.text('via OpenMetadata\'s webhook')), findsOneWidget);
+    expect(find.descendant(of: on, matching: find.text('by admin')), findsOneWidget);
+    expect(find.descendant(of: on, matching: find.text('table version 0.9')), findsOneWidget);
+    expect(find.descendant(of: on, matching: find.text('queued runs 12, 13')), findsOneWidget);
+    expect(find.descendant(of: off, matching: find.text('switched off')), findsOneWidget);
+    expect(find.descendant(of: off, matching: find.text('via the datyx API')), findsOneWidget);
+    expect(find.descendant(of: off, matching: find.text('not trained while off')), findsOneWidget);
+    expect(tester.getTopLeft(on).dy, lessThan(tester.getTopLeft(off).dy));
+
+    // Following a run's link highlights its switch.
+    Color border(Finder f) => (tester.widget<Container>(f).decoration! as BoxDecoration).border!.top.color;
+    expect(border(on), Colors.transparent);
+    await tester.tap(find.byKey(const ValueKey('run-event-13')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(border(on), isNot(Colors.transparent));
+    expect(border(off), Colors.transparent);
+    // Leave no timer behind.
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('shows the training when the group switches can\'t be read', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeDatyxApi()
+      ..eventsError = ApiException('GET /api/catalog/events answered 404', status: 404);
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tab-training')));
+    await tester.pumpAndSettle();
+    expect(find.text('GET /api/catalog/events answered 404'), findsOneWidget);
+    expect(find.textContaining('No group is tagged for XGBoost yet'), findsOneWidget);
+
+    api
+      ..eventsError = null
+      ..events = const [GroupEvent(id: 1, group: 'chronic', enabled: true, name: 'admissions_hourly', via: 'poll')];
+    await tester.tap(find.byKey(const ValueKey('training-reload')));
+    await tester.pumpAndSettle();
+    expect(find.text('via datyx\'s minute check'), findsOneWidget);
+    expect(find.text('no run queued'), findsOneWidget);
   });
 
   testWidgets('accounts for inference calls, and scores a series by its key or all still observed', (tester) async {

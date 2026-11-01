@@ -7,7 +7,6 @@ import java.util.Optional;
 import com.fasterxml.jackson.databind.JsonNode;
 import datyx.catalog.Catalog;
 import datyx.catalog.TimeSeries;
-import datyx.datasource.DataSource;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
@@ -23,7 +22,8 @@ import jakarta.ws.rs.core.Response;
 
 /**
  * A source's training, within the caller's profile:
- * POST /api/datasources/{id}/training queues a run of a table's group now;
+ * POST /api/datasources/{id}/training queues a run of a table's group now,
+ * with one of its algorithms (XGBoost, the one datyx trains);
  * PUT /api/datasources/{id}/training sets how often a table's groups are
  * trained again (its timeSeriesRetrain in OpenMetadata). Its own class,
  * under the longest path: a request goes to the resource whose path
@@ -46,8 +46,8 @@ public class SourceTrainingResource {
     public record Schedule(String table, String retrain) {
     }
 
-    /** What POST takes: a table and its group (default when none). */
-    public record Request(String table, String group) {
+    /** What POST takes: a table, its group (default when none) and the algorithm (XGBoost when none). */
+    public record Request(String table, String group, String algorithm) {
     }
 
     @POST
@@ -61,8 +61,10 @@ public class SourceTrainingResource {
             return TrainingResource.error(Response.Status.NOT_FOUND, "no data source with id " + id);
         }
         TimeSeries.Spec spec;
+        TimeSeries.Algorithm algorithm;
         try {
             String group = TimeSeries.group(request.group());
+            algorithm = TimeSeries.Algorithm.named(request.algorithm());
             Optional<JsonNode> table = table(id, request.table());
             if (table.isEmpty()) {
                 return TrainingResource.error(Response.Status.NOT_FOUND, "the catalogue of data source " + id + " has no table " + request.table());
@@ -73,19 +75,34 @@ public class SourceTrainingResource {
         } catch (WebApplicationException | ProcessingException | IllegalStateException e) {
             return TrainingResource.error(Response.Status.BAD_GATEWAY, Training.reason(e));
         }
+        String cant = "the group " + spec.group() + " of " + spec.name() + " can't be trained";
+        if (algorithm == null) {
+            algorithm = spec.has(TimeSeries.Algorithm.XGBOOST) ? TimeSeries.Algorithm.XGBOOST : TimeSeries.Algorithm.named(spec.algorithm());
+        }
+        if (!spec.enabled()) {
+            return TrainingResource.error(Response.Status.CONFLICT, cant + ": it is switched off (" + TimeSeries.disabledFqn(spec.group())
+                + "); switch it on, which trains it");
+        }
+        if (!spec.has(algorithm)) {
+            return TrainingResource.error(Response.Status.CONFLICT, cant + " with " + algorithm.tag + ": it isn't tagged for it ("
+                + algorithm.fqn(spec.group()) + "); its algorithms are " + String.join(" and ", spec.algorithms()));
+        }
+        if (algorithm != TimeSeries.Algorithm.XGBOOST) {
+            return TrainingResource.error(Response.Status.CONFLICT, cant + " with " + algorithm.tag + ": datyx has no "
+                + algorithm.tag + " trainer yet, only XGBoost's");
+        }
         if (!Training.trainable(spec)) {
-            return TrainingResource.error(Response.Status.CONFLICT, "the group " + spec.group() + " of " + spec.name() + " can't be trained: "
-                + (!spec.enabled() ? "it is switched off (" + TimeSeries.disabledFqn(spec.group()) + "); switch it on, which trains it"
-                    : TimeSeries.Algorithm.XGBOOST.tag.equals(spec.algorithm()) ? String.join("; ", spec.problems())
-                    : "it isn't tagged for XGBoost"));
+            return TrainingResource.error(Response.Status.CONFLICT, cant + ": " + String.join("; ", spec.problems()));
         }
-        Optional<TrainingResource.RunView> queued = QuarkusTransaction.requiringNew().call(
-            () -> training.queueManual(DataSource.findById(id), spec).map(trainingResource::view));
-        if (queued.isEmpty()) {
-            return TrainingResource.error(Response.Status.CONFLICT, "the group " + spec.group() + " of " + spec.name() + " is being trained already");
+        Optional<Long> runId = training.queueManual(id, spec, algorithm);
+        if (runId.isEmpty()) {
+            return TrainingResource.error(Response.Status.CONFLICT, "the group " + spec.group() + " of " + spec.name()
+                + " is being trained already with " + algorithm.tag);
         }
-        training.submit(queued.get().id());
-        return Response.accepted(queued.get()).build();
+        TrainingResource.RunView queued = QuarkusTransaction.requiringNew().call(
+            () -> trainingResource.view(TrainingRun.findById(runId.get())));
+        training.submit(queued.id());
+        return Response.accepted(queued).build();
     }
 
     @PUT

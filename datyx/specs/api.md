@@ -13,7 +13,8 @@ a folder of its own) only calls it.
   `datyx`), and Flyway for the schema: the migrations in `db/migration`
   (`V1__data_sources.sql`, `V2__profiles_and_encrypted_access.sql`,
   `V3__drop_hibernate_unique_name.sql`, `V4__kafka_sources.sql`, `V5__training_runs.sql`,
-`V6__inference_calls.sql`, `V7__training_trigger_note.sql`, `V8__group_events.sql`)
+`V6__inference_calls.sql`, `V7__training_trigger_note.sql`, `V8__group_events.sql`,
+`V9__aityx_calls.sql`)
   run at every start in every profile (a fresh database, under Docker
   alone or a jar or native build, gets its tables), tests and the dev
   profile clean the schema first (`clean-at-start`: every start drops
@@ -88,6 +89,9 @@ a folder of its own) only calls it.
   `/api/datasources/{id}/training`: see [training.md](training.md).
 - `/api/inference` and `/api/datasources/{id}/inference`: see
   [inference.md](inference.md).
+- `/api/aityx/v1/systemone` (the gateway to aityx, for signed-in users
+  and for services with the service token), `/api/aityx` and
+  `/api/aityx/calls/{id}`: see [aityx.md](aityx.md).
 - `/api/auth/config` and `/api/me`: see [auth.md](auth.md).
 - `/api/profile`: see [profiles.md](profiles.md).
 
@@ -99,6 +103,7 @@ a folder of its own) only calls it.
 - `GroupEvent` (table `group_event`): see [catalog.md](catalog.md).
 - `TrainingRun` (table `training_run`): see [training.md](training.md).
 - `InferenceCall` (table `inference_call`): see [inference.md](inference.md).
+- `AityxCall` (table `aityx_call`): see [aityx.md](aityx.md).
 
 ## Settings
 
@@ -118,7 +123,11 @@ none in prod), `DATYX_OPENMETADATA_WEBHOOK_SECRET` (the webhook's
 signing secret; drawn at start when unset; tests use a fixed one) and
 `DATYX_OPENMETADATA_SUBSCRIPTION` (`datyx-catalog-events`)
 ([catalog.md](catalog.md)), `DATYX_TRAINING_ENABLED` (true; tests false,
-[training.md](training.md)). Tests set no database URL
+[training.md](training.md)), `AITYX_API_KEY`, `DATYX_AITYX_URL`
+(`https://api.aityx.ai`), `DATYX_SERVICE_TOKEN` and
+`DATYX_AITYX_SHARE_SERVICE_CALLS` (true in dev mode)
+([aityx.md](aityx.md); tests have no key, no token and aityx on a
+closed port, unless a test profile sets them). Tests set no database URL
 and get a Postgres test container from Dev Services, and point the
 OpenMetadata client at a closed port (`localhost:1`) so its check fails
 predictably whether or not the stack runs; Quarkus's own compose Dev
@@ -134,7 +143,8 @@ Services and Keycloak Dev Services are off.
 `CatalogEventsTest`, `StreamReaderTest`, `TimeSeriesTest`, `PiiTest` and `QualityTest` ([catalog.md](catalog.md)),
 `CurationTest` ([curation.md](curation.md)), `XgbTrainerTest` and
 `TrainingTest` ([training.md](training.md)), `InferenceTest`
-([inference.md](inference.md)), `ProfileTest` and
+([inference.md](inference.md)), `AityxGatewayTest`, `AityxAuthTest` and
+`AityxNoKeyTest` ([aityx.md](aityx.md)), `ProfileTest` and
 `CryptoTest` ([profiles.md](profiles.md)), and `DevDataTest`, which adds
 `db/devdata` to the test's locations and reads the HealthHub data source
 back through the API.

@@ -5,10 +5,15 @@
 _root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # load_env <NAME>...: exports each variable from .env when it isn't set.
 load_env() {
-  local name value
+  load_env_from "$_root/.env" "$@"
+}
+# load_env_from <file> <NAME>...: the same, from another file.
+load_env_from() {
+  local file="$1" name value
+  shift
   for name in "$@"; do
-    if [[ -z "${!name:-}" && -f "$_root/.env" ]]; then
-      value="$(sed -n "s/^${name}=//p" "$_root/.env" | tail -1)"
+    if [[ -z "${!name:-}" && -f "$file" ]]; then
+      value="$(sed -n "s/^${name}=//p" "$file" | tail -1)"
       value="${value%%#*}"
       value="${value%"${value##*[![:space:]]}"}"
       [[ -n "$value" ]] && export "$name=$value"
@@ -21,7 +26,11 @@ load_env API_PORT DATYX_BIND_HOST DATYX_API_PORT DATYX_DB_PORT DATYX_OPENMETADAT
   DATYX_DB_ADMIN_PASSWORD DATYX_DB_PASSWORD OPENMETADATA_DB_PASSWORD API_MODE \
   OIDC_ISSUER OIDC_CLIENT_ID OIDC_EXTRA_AUDIENCES DATYX_MASTER_KEY \
   DATYX_OPENMETADATA_TOKEN DATYX_OPENMETADATA_EMAIL DATYX_OPENMETADATA_PASSWORD \
-  DATYX_OPENMETADATA_CALLBACK_URL DATYX_OPENMETADATA_WEBHOOK_SECRET
+  DATYX_OPENMETADATA_CALLBACK_URL DATYX_OPENMETADATA_WEBHOOK_SECRET \
+  AITYX_API_KEY AITYX_URL DATYX_AITYX_URL DATYX_SERVICE_TOKEN DATYX_AITYX_SHARE_SERVICE_CALLS
+# The aityx key and the service token, shared with HealthHub: else from the
+# repository root's .env, the one HealthHub reads (see .env.example).
+load_env_from "$_root/../.env" AITYX_API_KEY AITYX_URL DATYX_SERVICE_TOKEN
 unset _root
 export DATYX_BIND_HOST="${DATYX_BIND_HOST:-127.0.0.1}"
 # API_PORT is the name the repository's start-all.sh and process-compose.yaml
@@ -44,3 +53,10 @@ export OIDC_ISSUER="${OIDC_ISSUER:-https://accounts.google.com}"
 export OIDC_CLIENT_ID="${OIDC_CLIENT_ID:-}" OIDC_EXTRA_AUDIENCES="${OIDC_EXTRA_AUDIENCES:-}"
 # Encryption at rest (see .env.example): empty, the API's development key in dev mode.
 export DATYX_MASTER_KEY="${DATYX_MASTER_KEY:-}"
+# aityx (see .env.example): datyx's key, empty for none (the gateway
+# answers 503); its URL, else AITYX_URL, else the API's default; the token
+# services present, empty to refuse them.
+export AITYX_API_KEY="${AITYX_API_KEY:-}" DATYX_SERVICE_TOKEN="${DATYX_SERVICE_TOKEN:-}"
+[[ -z "${DATYX_AITYX_URL:-}" && -n "${AITYX_URL:-}" ]] && export DATYX_AITYX_URL="$AITYX_URL"
+[[ -n "${DATYX_AITYX_SHARE_SERVICE_CALLS:-}" ]] && export DATYX_AITYX_SHARE_SERVICE_CALLS
+true

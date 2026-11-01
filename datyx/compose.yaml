@@ -163,6 +163,13 @@ services:
       # Encryption at rest (see .env.example): required, the API refuses to
       # start without it outside dev mode.
       DATYX_MASTER_KEY: ${DATYX_MASTER_KEY:-}
+      # aityx (see .env.example): datyx's key (none: the gateway answers
+      # 503), aityx's URL, the token services present (none: refused) and
+      # whether every profile sees the services' calls.
+      AITYX_API_KEY: ${AITYX_API_KEY:-}
+      DATYX_AITYX_URL: ${DATYX_AITYX_URL:-https://api.aityx.ai}
+      DATYX_SERVICE_TOKEN: ${DATYX_SERVICE_TOKEN:-}
+      DATYX_AITYX_SHARE_SERVICE_CALLS: ${DATYX_AITYX_SHARE_SERVICE_CALLS:-true}
     ports:
       # API_PORT is the name .env.example, the demos and the repository's
       # start-all.sh use for this port (Compose can't nest a second default).

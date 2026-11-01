@@ -11,6 +11,7 @@ import 'package:datyx_dashboard/main.dart';
 import 'package:datyx_dashboard/persist/address.dart';
 import 'package:datyx_dashboard/persist/address_memory.dart' as address;
 import 'package:datyx_dashboard/persist/session_store.dart';
+import 'package:datyx_dashboard/dashboard/health_tab.dart' show openMetadataLinks;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -365,6 +366,19 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('link-API')));
     await tester.tap(find.byKey(const ValueKey('link-Dashboard')));
     expect(address.opened, ['http://localhost:9902', Uri.base.resolve('/api/health').toString(), Address.page.toString()]);
+
+    // OpenMetadata's card also links where datyx's tagging is seen there.
+    address.opened.clear();
+    await tester.tap(find.text('TimeSeries tags, and the tables that carry them'));
+    await tester.tap(find.text('Alerts: datyx-catalog-events tells datyx of tag changes'));
+    expect(address.opened, [
+      'http://localhost:9902/tags/TimeSeries',
+      'http://localhost:9902/settings/notifications/alerts',
+    ]);
+    expect(openMetadataLinks('http://om.example/base/').map((l) => '${l.$2}'), [
+      'http://om.example/base/tags/TimeSeries',
+      'http://om.example/base/settings/notifications/alerts',
+    ]);
   });
 
   testWidgets('audits every call', (tester) async {

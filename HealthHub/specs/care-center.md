@@ -35,7 +35,7 @@ theirs, and the person in a triage's detail is a link too.
 
 ## The view
 
-`CareCenterScreen`, at most 960 px wide, read again every 5 seconds while
+`CareCenterScreen`, the window's full width (less a 16 px margin), read again every 5 seconds while
 shown (a failed read after a good one keeps what is shown), in this
 order:
 

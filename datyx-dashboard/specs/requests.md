@@ -4,6 +4,23 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: Kafka sources, a Streams section, and cards apart
+
+Asked: add Kafka to the data sources, with HealthHub's Kafka in the dev
+profile, and show it in the Catalog in a section of its own; the
+Catalog's cards were glued vertically: put some distance between them.
+Kafka sources and their catalogue are the API's
+([../../datyx/specs/requests.md](../../datyx/specs/requests.md)).
+
+Changed: a Kafka kind in the dialog (bootstrap servers, security
+protocol, SASL mechanism, username and password) and in the list
+(`kafka://...`, a stream icon); before, a type the dashboard didn't know
+showed as a folder. The Catalog groups its cards under Databases,
+Streams and Not read yet, with a title and room above each section and
+16 px between cards. A Kafka source's card (`StreamCatalog`) reads its
+topics and shows each with its settings and the fields of its records,
+nested ones indented. `DatyxApi.topics`; the fake's topics; tests.
+
 ## 2026-11-01: a color per group of tags
 
 Asked: give the groups of tags (each a time series here, but they could

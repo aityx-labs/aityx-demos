@@ -26,13 +26,16 @@ reload).
   `GET /api/datasources`, newest first, one row each with the kind's
   icon, the name and kind, where it points on one line
   (`engine://host:port/database as user`, `s3://bucket/prefix (region)
-  at endpoint`, or the path), the description, when and by whom it was
+  at endpoint`, the path, or `kafka://servers (protocol, mechanism) as
+  user`, the protocol left out when plain text), the description, when and by whom it was
   added, and a remove button, which confirms and then `DELETE`s. An Add
   button opens `AddDataSourceDialog`: the kind (Database, S3 bucket,
-  Filesystem), name and description, then the fields of that kind
+  Filesystem, Kafka), name and description, then the fields of that kind
   (engine and port, host, database, username and password; bucket,
-  region and prefix, endpoint, access key id and secret access key; or
-  the path), the required ones checked before the `POST`; secrets go as
+  region and prefix, endpoint, access key id and secret access key; the
+  path; or the bootstrap servers, the security protocol and SASL
+  mechanism picked from the API's lists, and with a SASL protocol the
+  username and password), the required ones checked before the `POST`; secrets go as
   typed, the rest trimmed. Errors the API answers show in a snack bar.
   With authentication on and nobody signed in, the card says to sign in
   and the list isn't asked. A line in red above the card when the API
@@ -40,8 +43,12 @@ reload).
 
 - **Catalog** (`CatalogTab`): what datyx makes of the data in each
   source, as the catalogue (OpenMetadata) has it
-  ([../../datyx/specs/catalog.md](../../datyx/specs/catalog.md)). Each
-  database source is a card (`SourceCatalog`) that loads
+  ([../../datyx/specs/catalog.md](../../datyx/specs/catalog.md)). Under
+  an intro card, the sources come in sections, each with a title (an
+  icon, its name and what its cards show) and room above it, and 16 px
+  between cards: **Databases**, **Streams** (Kafka sources) and **Not
+  read yet** (S3 and folder sources), a section only when it has a
+  source. Each database source is a card (`SourceCatalog`) that loads
   `GET /api/datasources/{id}/catalog` and `.../timeseries`: "Not
   catalogued yet" before a first read; **Read schema** (then **Read
   again**) calls `POST .../catalog` and says how many tables and columns
@@ -79,9 +86,20 @@ reload).
   API's problems. **Remove group**, pressed twice, sends the group with
   no roles, which takes it off the table. The tab only shows what the API
   answers: which columns fit a role, and whether the table is ready,
-  are the API's to say. S3 and folder sources are listed as not read
-  yet; with authentication on and nobody signed in, the tab says to sign
-  in. An error answer shows the API's own words (`{"error":...}`).
+  are the API's to say. Each Kafka source is a card (`StreamCatalog`)
+  that loads `GET .../catalog`'s topics: "Not catalogued yet" before a
+  first read; **Read topics** (then **Read again**) calls `POST
+  .../catalog` and says how many topics and fields it read, and from how
+  many topics with records. Each topic is a tile with its name, how many
+  fields (or "no fields read") and its cleanup policies; it opens on its
+  partitions, replication and retention (`1 partition · replication 1 ·
+  kept 1 day`, and the size kept when limited), its description and
+  tags, and its records' fields: name, OpenMetadata's type and tags, a
+  record's own fields indented under it; a topic without fields says
+  there was no JSON record to learn them from. S3 and folder sources are
+  listed as not read yet; with authentication on and nobody signed in,
+  the tab says to sign in. An error answer shows the API's own words
+  (`{"error":...}`).
 
 - **Audit** (`CallsPanel`): every call made, newest first, up to 100
   (the tab's label counts them): method, path with its query, status (or
@@ -158,7 +176,10 @@ tokens live an hour. Signing in or out refreshes the screen.
 
 `DatyxApi` (`lib/api/datyx_api.dart`): `authConfig()`, `me()`,
 `profile()`, `status()`, `dataSources(limit)`, `addDataSource(NewDataSource)`,
-`removeDataSource(id)`, and the `CallLog` the Audit tab listens to.
+`removeDataSource(id)`, `syncCatalog(id)`, `catalog(id)` (a database's
+tables), `topics(id)` (a Kafka source's topics, `CatalogTopic` and
+`CatalogField`), `timeSeries(id)`, `setTimeSeries(id, roles)`, and the
+`CallLog` the Audit tab listens to.
 `HttpDatyxApi` is the real one, over `package:http`, with a token
 provider for the bearer and one for a refresh after a 401, a 20 s timeout
 on every call, and request bodies logged with their secrets (`password`,
@@ -208,7 +229,12 @@ identities; a filesystem data source added through the dialog appears
 with its path and author, is counted on the Health tab, its `POST` is in
 the Audit tab, and it is gone after the remove button and its
 confirmation; the tabs stand in their order and the Catalog lists a
-folder source as not read yet; a database source's schema is read and
+folder source as not read yet, under its section; a Kafka source added
+through the dialog sends its servers trimmed and plain text, shows as
+`kafka://`, sits in Streams below Databases with room between the
+cards, and its topics are read and opened on their settings, fields,
+a nested field indented and a tag, an empty topic saying it has no
+fields; a database source's schema is read and
 its hourly table tagged for DeepAR, the dialog showing the API's problem
 until a target is picked, then sending the roles, frequency and missing
 rows in the default group; a tagged table gets a second group, named

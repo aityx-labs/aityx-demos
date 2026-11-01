@@ -97,11 +97,36 @@ class FakeDatyxApi implements DatyxApi {
     ],
   );
 
+  /// A Kafka source's topics: empty until a sync, then HealthHub's hourly topic and an empty one.
+  List<CatalogTopic> topicsCatalogued = [];
+
+  static const hourlyTopic = CatalogTopic(
+    fqn: 'datyx-ds-2."healthhub.admissions.hourly"',
+    name: 'healthhub.admissions.hourly',
+    partitions: 1,
+    replicationFactor: 1,
+    cleanupPolicies: ['compact', 'delete'],
+    retentionTime: 86400000,
+    schemaType: 'JSON',
+    fields: [
+      CatalogField(name: 'hospital_id', dataType: 'INT', tags: ['PII.None']),
+      CatalogField(name: 'hour_start', dataType: 'STRING'),
+      CatalogField(name: 'where', dataType: 'RECORD', children: [CatalogField(name: 'city', dataType: 'STRING')]),
+    ],
+  );
+
   @override
   Future<CatalogSync> syncCatalog(int sourceId) async {
+    if (_sources.firstWhere((s) => s.id == sourceId).type == DataSourceType.kafka) {
+      topicsCatalogued = [hourlyTopic, const CatalogTopic(fqn: 'datyx-ds-2.quiet', name: 'quiet', partitions: 3)];
+      return const CatalogSync(topics: 2, fields: 3, sampled: 1);
+    }
     catalogued = [hourly];
     return const CatalogSync(tables: 1, columns: 4);
   }
+
+  @override
+  Future<List<CatalogTopic>> topics(int sourceId) async => topicsCatalogued;
 
   @override
   Future<List<CatalogTable>> catalog(int sourceId) async => [
@@ -312,7 +337,65 @@ void main() {
     await tester.tap(find.byTooltip('Refresh'));
     await tester.pumpAndSettle();
     expect(find.text('exports'), findsOneWidget);
-    expect(find.text('not read yet: only databases so far'), findsOneWidget);
+    expect(find.text('not read yet: only databases and Kafka so far'), findsOneWidget);
+    expect(find.text('Not read yet'), findsOneWidget);
+  });
+
+  testWidgets('adds a Kafka source and reads its topics in the Streams section', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeDatyxApi();
+    await api.addDataSource(
+      const NewDataSource(
+        name: 'HealthHub',
+        type: DataSourceType.database,
+        details: {'engine': 'postgresql', 'host': 'localhost', 'port': 9803, 'database': 'healthhub'},
+      ),
+    );
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('ds-add')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kafka'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('ds-name')), 'HealthHub Kafka');
+    await tester.enterText(find.byKey(const Key('ds-bootstrap')), ' localhost:9804 ');
+    await tester.tap(find.byKey(const Key('ds-submit')));
+    await tester.pumpAndSettle();
+    final added = api._sources.last;
+    expect(added.type, DataSourceType.kafka);
+    expect(added.details, {'bootstrapServers': 'localhost:9804', 'securityProtocol': 'PLAINTEXT'});
+    expect(find.text('kafka://localhost:9804'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('tab-catalog')));
+    await tester.pumpAndSettle();
+    // Databases above Streams, each source a card of its own, apart.
+    expect(tester.getTopLeft(find.text('Databases')).dy, lessThan(tester.getTopLeft(find.text('Streams')).dy));
+    final database = tester.getRect(find.byKey(const ValueKey('catalog-1')));
+    final stream = tester.getRect(find.byKey(const ValueKey('catalog-2')));
+    expect(stream.top - database.bottom, greaterThanOrEqualTo(28));
+    expect(find.textContaining('Read topics reads its topics'), findsOneWidget);
+
+    await tester.tap(find.text('Read topics'));
+    await tester.pumpAndSettle();
+    expect(find.text('Read 2 topics, 3 fields from the 1 with records.'), findsOneWidget);
+    expect(find.text('3 fields'), findsOneWidget);
+    expect(find.text('no fields read'), findsOneWidget);
+    await tester.tap(find.text('healthhub.admissions.hourly'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 partition · replication 1 · kept 1 day'), findsOneWidget);
+    expect(find.text('hospital_id'), findsOneWidget);
+    expect(find.text('PII.None'), findsOneWidget);
+    expect(find.text('city'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('city')).dx,
+      greaterThan(tester.getTopLeft(find.text('hour_start')).dx),
+    );
+    await tester.tap(find.text('quiet'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('No record to learn the fields from'), findsOneWidget);
   });
 
   testWidgets('reads a database\'s schema and tags a table for DeepAR', (tester) async {

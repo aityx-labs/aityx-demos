@@ -230,9 +230,9 @@ void main() {
     await tester.pumpWidget(DatyxDashApp(api: api));
     await tester.pumpAndSettle();
 
-    // The tab counts the calls made so far: the sign-in config, the status,
-    // the data sources and the profile.
-    expect(find.text('Audit (4)'), findsOneWidget);
+    // The calls made so far: the sign-in config, the status, the data
+    // sources and the profile. The tab's label doesn't count them.
+    expect(find.text('Audit'), findsOneWidget);
     await tester.tap(find.byKey(const Key('tab-audit')));
     await tester.pumpAndSettle();
     expect(find.text('/api/auth/config'), findsOneWidget);
@@ -244,7 +244,6 @@ void main() {
     await tester.tap(find.byTooltip('Clear'));
     await tester.pumpAndSettle();
     expect(find.text('No calls yet.'), findsOneWidget);
-    expect(find.text('Audit (0)'), findsOneWidget);
   });
 
   testWidgets('shows the profile and its identities', (tester) async {

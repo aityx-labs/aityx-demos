@@ -50,6 +50,16 @@ twice). The API client's `TimeSeriesSpec` and `TimeSeriesRoles` carry
 the `group`, and `TimeSeriesTag` reads a tag's group and role (it
 replaces `TimeSeriesRole.ofTag`). The fake keeps groups; a widget test
 adds, refuses and removes one.
+## 2026-11-01: the Audit tab without the count
+
+Asked: the Audit tab's label read *Audit (100)*; remove the number, and
+say where it came from.
+
+Changed: the label is *Audit*. The number was the calls in the log:
+the dashboard asks the API for the health, the sources and the profile
+every 15 seconds, and the log keeps the latest 100 (`CallLog.keep`)
+across reloads, so it soon read 100 and stayed there. The panel still
+says how many it keeps. The widget test no longer looks for the count.
 
 ## 2026-10-31: the catalogue and DeepAR tags on the Catalog tab
 

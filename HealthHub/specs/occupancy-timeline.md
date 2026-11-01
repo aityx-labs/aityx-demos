@@ -3,7 +3,8 @@
 The time series of the [care center view](care-center.md): how many
 people were in care at the care center in each simulated hour up to now
 ([Occupancy per hour](occupancy-hourly.md)), and how many datyx's DeepAR
-model expects in each of the next 24. App in
+model expects in each of the next 24, its forecast kept over the hours
+as they pass, to compare with what happened. App in
 [occupancy_timeline.dart](../healthhub_app/lib/care_centers/occupancy_timeline.dart),
 API in [routes.dart](../healthhub_api/lib/routes.dart),
 [db.dart](../healthhub_api/lib/db.dart) and
@@ -25,6 +26,17 @@ view under the map and the capacity, as wide as the view:
   in a faint band from the 10th to the 90th percentile of its sample
   paths. A faint dashed line marks where the past ends and the forecast
   begins.
+- **The forecast kept, over the past**: as the hours pass, the forecast
+  stays where it was drawn, over the solid line of what happened, in the
+  same dashed line, hollow points and band, so each hour shows what was
+  in care and what DeepAR expected. Each hour keeps the last forecast
+  made of it before it was counted: a forecast only reaches past its
+  series' end, so the reads after can't replace it (with a read every 10
+  seconds, about ten simulated hours, an hour is forecast from 1 to about
+  10 hours ahead). The forecast ahead goes on from the last hour's.
+  Hours from before the view opened have none; a new run starts again
+  from nothing. Kept by the card, not stored: closing the view, or
+  reloading, forgets them.
 - **The capacity**: the care center's places in the simulation, a faint
   dotted line labelled "8 beds" (none when the view doesn't know it).
 - The axes: whole people on y, from 0 to a whole number above the
@@ -32,16 +44,19 @@ view under the map and the capacity, as wide as the view:
   midnight as its day ("Day 154"), and noon when there is room. The
   points get smaller when the hours are close together.
 - Hovering an hour, or touching it, shows its numbers: "Day 154, 09:00 ·
-  3 in care of 8 beds", or for a forecast hour the mean and the 80%
-  range.
+  3 in care of 8 beds", with "forecast 2.4, 1 to 4 (80%)" when it was
+  forecast, or for a forecast hour the mean and the 80% range.
 - Above the chart, the run ("run 1349d576, now") and a line: how many
   are in care at the latest hour and the most in the hours shown, of the
   capacity; then what datyx expects on average over the next 24 and at
   most, and from which training run, or why there is no forecast (datyx's
   own words: no model of the group trained yet, not signed in, datyx not
-  answering). The hours show either way.
-- Under it, the key: "In care", "DeepAR forecast (mean; the band, 10th to
-  90th percentile)" when there is one, and "Capacity, 8 beds".
+  answering); then, once hours forecast have been counted, how the
+  forecast did: "Of the 12 hours forecast and gone, 10 fell in the 80%
+  band; the mean was off by 0.6 on average." The hours show either way.
+- Under it, the key: "In care", "DeepAR forecast, kept as the hours pass
+  (mean; the band, 10th to 90th percentile)" when there is one, and
+  "Capacity, 8 beds".
 
 Both are asked for together when the view opens and every 10 seconds
 (a simulated hour is a real second, so each read moves the series about
@@ -90,6 +105,10 @@ live database, rolled back: each stay counted in every hour it covers,
 up to the run's latest arrival. `widget_test.dart`: the card with the
 hours solid and DeepAR's four hours after them, its status line, key
 (with the capacity) and semantics, an hour and a forecast hour touched;
+the forecast of two hours counted since kept over them (one in the band,
+one above it), compared in the status line and the semantics, shown when
+an hour is touched, none for an hour from before it, and dropped when
+the run changes;
 without a model the hours still show and the card says why; without a
 capacity no capacity line; a care center nobody was admitted to; and the
 care center view opened from home shows the card under the capacity and
@@ -105,5 +124,8 @@ above the people, asking for its id.
 - Occupancy is counted from the stays the conditions say, not from the
   moves: it can exceed the capacity, which the simulation doesn't
   enforce.
+- The forecast kept over the past lives in the card: it starts when the
+  view opens and is gone when it closes. A forecast stored as it is made
+  would keep it, for everyone, and could score the model.
 - The series are the run's: when the API restarts, a new run starts
   from day 1 and its hours from nothing.

@@ -21,13 +21,13 @@ import jakarta.persistence.Table;
 
 /**
  * A data source on record (table data_source): where data lives and how
- * to reach it, owned by a profile. One of three kinds so far, each with
- * its own access details: a database, an S3 bucket, or a filesystem
- * folder. The details ({@link Access}: hosts, names, users, passwords,
- * keys, paths) are one JSON document encrypted with the owning profile's
+ * to reach it, owned by a profile. One of four kinds so far, each with
+ * its own access details: a database, an S3 bucket, a filesystem folder,
+ * or a Kafka cluster. The details ({@link Access}: hosts, names, users,
+ * passwords, keys, paths) are one JSON document encrypted with the owning profile's
  * key (datyx.crypto.Crypto), the {@code access} column: nothing of them
  * is in clear in the database, and only the API decrypts them. Secrets
- * (a database password, an S3 secret key) are never answered back (see
+ * (a database or Kafka password, an S3 secret key) are never answered back (see
  * DataSourceResource). The name is unique within a profile whatever its
  * case: a unique index on (profile_id, lower(name)), made by the Flyway
  * migration (db/migration), which the resource turns into a 409.
@@ -37,9 +37,9 @@ import jakarta.persistence.Table;
 public class DataSource extends PanacheEntity {
 
     public enum Type {
-        DATABASE, S3, FILESYSTEM;
+        DATABASE, S3, FILESYSTEM, KAFKA;
 
-        /** JSON: "database", "s3", "filesystem". */
+        /** JSON: "database", "s3", "filesystem", "kafka". */
         @JsonValue
         public String json() {
             return name().toLowerCase();
@@ -95,7 +95,7 @@ public class DataSource extends PanacheEntity {
 
     /** The details of a source, the group of its type set: what the access column holds, encrypted. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record Access(DatabaseAccess database, S3Access s3, FilesystemAccess filesystem) {
+    public record Access(DatabaseAccess database, S3Access s3, FilesystemAccess filesystem, KafkaAccess kafka) {
     }
 
     /** A database: engine (postgresql, mysql, ...), host and port, the database, a user and its password. */
@@ -108,5 +108,15 @@ public class DataSource extends PanacheEntity {
 
     /** A folder the API can reach. */
     public record FilesystemAccess(String path) {
+    }
+
+    /**
+     * A Kafka cluster: its bootstrap servers (host:port, comma-separated),
+     * the security protocol (PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL), and
+     * for SASL its mechanism (PLAIN, SCRAM-SHA-256, SCRAM-SHA-512), a user
+     * and its password.
+     */
+    public record KafkaAccess(String bootstrapServers, String securityProtocol, String saslMechanism, String username,
+            String password) {
     }
 }

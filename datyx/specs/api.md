@@ -26,7 +26,9 @@ a folder of its own) only calls it.
   prod never runs. So far `R__HealthHub_data_source`, a repeatable
   migration that adds HealthHub's PostgreSQL (localhost, 9803, database
   `healthhub`, user `healthhub`, HealthHub's development defaults) as a
-  data source named HealthHub to every profile lacking one, the local
+  data source named HealthHub, and its Kafka (`localhost:9804`, plain
+  text) as one named HealthHub Kafka, to every profile lacking one of the
+  name, the local
   profile included (made when missing), encrypted as the API stores it
   (`AccessCodec`); it runs again when its `VERSION` constant changes, and
   skips, with a warning, a profile whose key another master key wrapped.
@@ -36,11 +38,14 @@ a folder of its own) only calls it.
 - A REST client for OpenMetadata (`OpenMetadataClient`, config key
   `openmetadata`, URL from `DATYX_OPENMETADATA_URL`): its public
   `/api/v1/system/version`, and the database services, databases,
-  schemas, tables, classifications, tags and custom properties the
-  catalogue writes and reads, signed in by `OpenMetadataSession`
+  schemas, tables, messaging services, topics, classifications, tags and
+  custom properties the catalogue writes and reads, signed in by `OpenMetadataSession`
   ([catalog.md](catalog.md)).
 - JDBC's `DatabaseMetaData`, on the PostgreSQL driver, to read a database
   source's tables (`SchemaReader`, [catalog.md](catalog.md)).
+- Kafka's client (`quarkus-kafka-client`, its Dev Services off: datyx
+  has no broker of its own), to read a Kafka source's topics and latest
+  records (`StreamReader`, [catalog.md](catalog.md)).
 - SmallRye Health: `/api/health`, `/api/health/live`, `/api/health/ready`
   (503 when a check is DOWN, the checks still in the body), the system as
   the API sees it and what the dashboard's Health tab shows:
@@ -101,8 +106,8 @@ Services and Keycloak Dev Services are off.
 (`/api/health` UP with the database; the `datyx` liveness check says the
 `test` profile and launch mode, `jvm`, a version and a start time),
 `DataSourceResourceTest` ([data-sources.md](data-sources.md)),
-`AuthOffTest` and `AuthOnTest` ([auth.md](auth.md)), `CatalogResourceTest`
-and `TimeSeriesTest` ([catalog.md](catalog.md)), `ProfileTest` and
+`AuthOffTest` and `AuthOnTest` ([auth.md](auth.md)), `CatalogResourceTest`,
+`StreamReaderTest` and `TimeSeriesTest` ([catalog.md](catalog.md)), `ProfileTest` and
 `CryptoTest` ([profiles.md](profiles.md)), and `DevDataTest`, which adds
 `db/devdata` to the test's locations and reads the HealthHub data source
 back through the API.

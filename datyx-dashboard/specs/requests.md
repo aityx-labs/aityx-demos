@@ -67,6 +67,15 @@ twice). The API client's `TimeSeriesSpec` and `TimeSeriesRoles` carry
 the `group`, and `TimeSeriesTag` reads a tag's group and role (it
 replaces `TimeSeriesRole.ofTag`). The fake keeps groups; a widget test
 adds, refuses and removes one.
+
+## 2026-11-01: the Audit panel's title without the count
+
+Asked: remove the count from the Audit panel's title too
+(*API calls · 4 of the latest 100 kept*): there's no point in it.
+
+Changed: the title is *API calls* alone, the Clear button at the right.
+The widget test no longer looks for the count.
+
 ## 2026-11-01: the Audit tab without the count
 
 Asked: the Audit tab's label read *Audit (100)*; remove the number, and

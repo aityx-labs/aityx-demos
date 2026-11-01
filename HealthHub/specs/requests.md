@@ -397,3 +397,24 @@ The feature files hold the current specification; see the
    [Simulation](simulation.md#people), [The map](map.md), [The care
    center view](care-center.md), [API](api.md), [Database](database.md)
    and [Admissions per hour](admissions-hourly.md).
+1. **In the care center view, plot a time series: for a start only the
+   admissions per hour, historically until now in simulation time, and
+   predicted for the next 24 hours in simulation time** (after an
+   earlier ask, "start by adding a timeline of admissions to the care
+   center view, the past solid and the future predictions dashed and a
+   bit transparent", whose card was written while the view was built
+   apart). The care center view now shows **Admissions per hour** under
+   its map and capacity (`AdmissionsTimelineCard`): the care center's
+   admissions in each of the last 72 simulated hours up to the run's
+   latest hour, solid, and datyx's DeepAR forecast of the next 24, dashed,
+   lighter, in the band of its 10th to 90th percentiles, with hover and
+   touch for each hour's numbers, refreshed every 10 seconds. Until datyx
+   has a model of the group, the card shows the hours and says why there
+   is no forecast. The API gains `GET /api/care-centers/{id}/admissions`
+   (from `admissions_hourly`, missing hours zero) and
+   `GET /api/care-centers/{id}/admissions/forecast` (datyx's inference of
+   the care center's series, group `default`, asked with the user's
+   token, as the person's prediction is, now through a shared
+   `_inference`). See [A care center's admissions per
+   hour](admissions-timeline.md), [The care center view](care-center.md)
+   and [API](api.md).

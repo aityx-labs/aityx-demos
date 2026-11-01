@@ -248,3 +248,17 @@ The feature files hold the current specification; see the
    DeepAR: datyx reads the table through OpenMetadata. See [Admissions
    per hour](admissions-hourly.md), [Database](database.md) and
    [Development environment](dev-environment.md).
+
+## 2026-11-01
+
+1. **Score each patient's hospital care in the next 30 days (the horizon
+   a parameter) with XGBoost, the dataset found by its tags in
+   OpenMetadata as datyx does for DeepAR, HealthHub being the customer.**
+   HealthHub's part is the data: the view `patient_days`, each person's
+   visits and hours of hospital care per run and simulated day (day 1
+   being 2026-01-01), with their age, sex, city, hospital and chronic
+   condition, made by the API at every start from `admissions` and
+   `medical_conditions`. The stay of a visit is its condition's, for a
+   first visit or a follow-up, as the simulation keeps people. Nothing in
+   HealthHub knows about datyx or XGBoost. See [Patient
+   days](patient-days.md) and [Database](database.md).

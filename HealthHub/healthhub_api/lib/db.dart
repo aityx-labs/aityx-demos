@@ -281,6 +281,35 @@ class Db {
         PRIMARY KEY (run_id, hospital_id, hour_start)
       )
     ''');
+    // Each person's days at the hospital, per run and simulated day (day 1
+    // being 2026-01-01, as in admissions_hourly): the visits of the day,
+    // the hours of care they take (each visit's stay, by its condition and
+    // kind, as the simulation keeps people) and the person's facts, the
+    // chronic condition being the one their run's admissions show. A view
+    // of the admissions, so it is always up to date; a day without visits
+    // has no row. Recreated at every start, as its definition may change.
+    await c.execute('DROP VIEW IF EXISTS patient_days');
+    await c.execute('''
+      CREATE VIEW patient_days AS
+      SELECT split_part(a.event_id, '-', 1) AS run_id,
+             a.person_id,
+             DATE '2026-01-01' + (a.sim_day - 1) AS day,
+             max(a.age) AS age,
+             max(a.sex) AS sex,
+             max(a.city) AS city,
+             max(a.hospital_id) AS hospital_id,
+             coalesce(max(max(a.condition_code) FILTER (WHERE a.condition_type = 'chronic'))
+               OVER (PARTITION BY split_part(a.event_id, '-', 1), a.person_id), 'none') AS chronic_condition,
+             count(*)::int AS visits,
+             (count(*) FILTER (WHERE a.condition_type = 'acute'))::int AS acute_visits,
+             (count(*) FILTER (WHERE a.condition_type = 'chronic'))::int AS chronic_visits,
+             sum(CASE WHEN a.visit = 'first' THEN m.stay_hours
+                      ELSE coalesce(m.follow_up_stay_hours, m.stay_hours) END)::int AS stay_hours
+      FROM admissions a
+      LEFT JOIN medical_conditions m ON m.code = a.condition_code
+      WHERE a.event_id ~ '^[0-9a-f]{8}-'
+      GROUP BY split_part(a.event_id, '-', 1), a.person_id, a.sim_day
+    ''');
   }
 
   /// Makes medical_conditions and complaint_templates hold exactly

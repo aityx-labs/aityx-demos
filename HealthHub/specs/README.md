@@ -43,12 +43,15 @@ be specified.
   counts the admissions per run, hospital and simulated hour from the
   stream into the `healthhub.admissions.hourly` topic and the
   `admissions_hourly` table, a time series per hospital.
+- [Patient days](patient-days.md): the view `patient_days`, each
+  person's visits and hours of hospital care per run and simulated day,
+  with their facts, a time series per person.
 - [Medical conditions](conditions.md): the common acute and chronic
   conditions, their treatment and duration, the visits they bring, and
   what a patient says on arrival.
 - [Database](database.md): PostgreSQL as a container, the `healthhub`
   database and user, the tables the API makes, among them the conditions,
-  the admissions and the admissions per hour.
+  the admissions and the admissions per hour, and the patient days view.
 - [Care centers](care-centers.md): the hospitals, clinics and health
   stations of seven cities, from official registries, seeded at start.
 

@@ -102,6 +102,8 @@ class _HealthHubAppState extends State<HealthHubApp> {
               person: _api.person,
               prediction: _api.prediction,
               careCenter: _api.careCenter,
+              careCenterAdmissions: _api.hospitalAdmissions,
+              admissionsForecast: _api.admissionsForecast,
               simulation: _api.pauseSimulation,
               showTiles: widget.showTiles,
             )

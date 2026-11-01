@@ -600,6 +600,55 @@ class Db {
     'hospitalName', 'day', 'simTime',
   ];
 
+  /// One hospital's admissions per hour in one run, from
+  /// admissions_hourly (the Flink job's): the run (the newest run with an
+  /// admission at the hospital when [run] is null; none: no rows, run
+  /// null), the run's latest hour at any hospital (where its series end),
+  /// and the hospital's rows of the [hours] hours up to it.
+  Future<({String? run, DateTime? end, List<Map<String, Object?>> rows})> hospitalHourly(
+    int hospitalId, {
+    String? run,
+    required int hours,
+  }) => _run((c) async {
+    var chosen = run;
+    if (chosen == null) {
+      final newest = await c.execute(
+        Sql.named(
+          "SELECT split_part(event_id, '-', 1) FROM admissions WHERE hospital_id = @id ORDER BY id DESC LIMIT 1",
+        ),
+        parameters: {'id': hospitalId},
+      );
+      if (newest.isEmpty) return (run: null, end: null, rows: const <Map<String, Object?>>[]);
+      chosen = newest.first[0] as String;
+    }
+    final ends = await c.execute(
+      Sql.named('SELECT max(hour_start) FROM admissions_hourly WHERE run_id = @run'),
+      parameters: {'run': chosen},
+    );
+    final end = ends.first[0] as DateTime?;
+    if (end == null) return (run: chosen, end: null, rows: const <Map<String, Object?>>[]);
+    final rows = await c.execute(
+      Sql.named('''
+        SELECT hour_start, admissions, acute_admissions, chronic_admissions FROM admissions_hourly
+        WHERE run_id = @run AND hospital_id = @id AND hour_start > @from AND hour_start <= @end
+        ORDER BY hour_start
+      '''),
+      parameters: {
+        'run': chosen,
+        'id': hospitalId,
+        'from': TypedValue(Type.timestampWithoutTimezone, end.subtract(Duration(hours: hours))),
+        'end': TypedValue(Type.timestampWithoutTimezone, end),
+      },
+    );
+    return (
+      run: chosen,
+      end: end,
+      rows: [
+        for (final row in rows) {'hour': row[0], 'admissions': row[1], 'acute': row[2], 'chronic': row[3]},
+      ],
+    );
+  });
+
   /// How many of a person's admissions, and of their days,
   /// [personHistory] answers at most.
   static const personLimit = 200;

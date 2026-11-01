@@ -107,9 +107,9 @@ which starts again from `HEALTHHUB_SIM_PEOPLE`.
   disease) or a failing heart or kidneys (heart failure, end-stage kidney
   disease), by the condition's name. With the seed's conditions, about
   one person in ten: half of them for their age, a third for depression.
-  A monitored person at home is an event once a day, their check-in
-  ([The stream](#the-stream)); their other moves at home and everyone
-  else's only count, and everyone is on the map either way.
+  Their moves say so (`monitored`, `monitoredFor`), and the events mark
+  them; like everyone's, only their changes of state are events
+  ([The stream](#the-stream)), and everyone is on the map either way.
 - **Travel mode**: by the straight-line distance from home to the care
   center of the trip, chosen again at every departure, at a door-to-door
   speed that includes waiting and getting to
@@ -308,18 +308,22 @@ recorder.
   class 22, a data exception, or 23, an integrity violation) would fail
   the same way forever: it is logged and dropped, and the rest go on.
   `GET /api/admissions` answers the latest from the table.
-- **Events**: the feed keeps the latest 100 moves and, apart, the latest
-  100 admissions, so the many moves never push the few admissions out,
-  each with its type, partition and offset: `GET /api/events` merges
-  them newest first by arrival (or one type with `?type=`), the events
-  under home's map, where admissions are highlighted ([Home](home.md)).
-  A move at home is kept only when the person is monitored (`"monitored":
-  true`; a record without it is not), and then once a simulated day, their
-  check-in: the first move at home of the day from their check-in hour on
-  (`PeopleFeed.checkInHour`, from their id, so the check-ins spread over
-  the day instead of all coming at midnight). Everyone else at home, and a
-  monitored person's other moves at home, are on the map but not among
-  the events. The feed counts every valid move and
+- **Events**: a move is an event only when it changes the person's state
+  from their previous move (left home, arrived, going home, back home):
+  everyone moves every turn, and every move would bury the admissions and
+  the alarms. The first move read of someone (after the API starts, or
+  they join) says no change. Everyone is on the map either way. The feed
+  keeps the latest 100 of those moves and, apart, the latest 100
+  admissions, each with its type, partition and offset, an admission
+  with aityx's triage level (`triage`, "red" to "blue") once the triage
+  is recorded ([Triage](triage.md); null until then, or when it failed):
+  `GET /api/events` gives them as one stream, newest first by simulated
+  time (day and time), the kinds among each other, a tie in the order
+  they were read (within a topic, by offset), or one type with `?type=`;
+  the events under home's map ([Home](home.md)). It also names the
+  busiest care center now, the one with the most people in care (at it
+  by their latest move; the lower id on a tie): `busiest`. The feed
+  counts every valid move and
   admission it reads, those left out too (a replayed admission once), and
   how many a second over the last minute, a moving average of one count
   per second (over the time since the first, before a minute has gone

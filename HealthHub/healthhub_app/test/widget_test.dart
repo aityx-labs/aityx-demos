@@ -31,8 +31,14 @@ class FakeApi implements HealthHubApi {
   /// How many times the map asked for the people.
   int peopleAsked = 0;
 
-  /// The types the events card asked for, in order.
+  /// The types the events card asked for, in order, and how many.
   final eventTypes = <StreamEventType?>[];
+  final eventLimits = <int>[];
+
+  /// The events the stream answers in place of the usual three, in the
+  /// API's order, and the busiest care center it names.
+  List<StreamEvent>? stream;
+  Map<String, Object?>? busiest;
 
   /// The event ids whose triage detail was asked for.
   final triageDetailsAsked = <String>[];
@@ -169,8 +175,9 @@ class FakeApi implements HealthHubApi {
   @override
   Future<StreamEvents> events({int limit = 20, StreamEventType? type}) async {
     eventTypes.add(type);
+    eventLimits.add(limit);
     if (!simulation) return const StreamEvents(enabled: false);
-    final all = [
+    final all = stream ?? [
       // Older than the moves, so it sorts below them.
       const StreamEvent(
         id: 'lisboa-3',
@@ -215,10 +222,14 @@ class FakeApi implements HealthHubApi {
       paused: paused,
       peoplePerCity: perCity,
       // The feed's counts; the answer read later counts more.
-      total: type == StreamEventType.admission ? 48213 : 48190,
-      perSecond: type == StreamEventType.admission ? 70.4 : 70.1,
+      total: type == StreamEventType.move ? 48190 : 48213,
+      perSecond: type == StreamEventType.move ? 70.1 : 70.4,
       alarms: OccupancyAlarms.fromJson(alarms),
-      topics: [type == StreamEventType.admission ? 'healthhub.admissions' : 'healthhub.people.moves'],
+      busiest: BusiestCareCenter.fromJson(busiest),
+      topics: [
+        if (type != StreamEventType.admission) 'healthhub.people.moves',
+        if (type != StreamEventType.move) 'healthhub.admissions',
+      ],
       events: [
         for (final event in all)
           if (type == null || event.type == type) event,
@@ -820,10 +831,13 @@ void main() {
     await tester.pumpWidget(app(api: api));
     await tester.pumpAndSettle();
 
-    // Moves and admissions are asked for apart, so moves can't push the
-    // admissions out.
-    expect(api.eventTypes, containsAll([StreamEventType.move, StreamEventType.admission]));
-    expect(find.text('1 admission · 2 moves'), findsOneWidget);
+    // One stream, every kind in one answer (no type), more than the rows
+    // shown, so a pill has rows to keep.
+    expect(api.eventTypes.toSet(), {null});
+    expect(api.eventLimits.toSet(), {60});
+    // No counts of what is shown.
+    expect(find.byKey(const Key('stream-events-counts')), findsNothing);
+    expect(find.textContaining('2 moves'), findsNothing);
     // Beside the title, every event the API read, hidden ones too, and a second over the last minute.
     expect(tester.widget<Text>(find.byKey(const Key('stream-events-total'))).data, '48,213 events · 70.4/s');
     // Ana is at home and monitored, so her move shows, marked, why on hover.
@@ -901,7 +915,7 @@ void main() {
     expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
   });
 
-  testWidgets('the events have no filter; beside the pause, the people a city, which anyone can change', (tester) async {
+  testWidgets('no condition filter nor counts; beside the pause, the people a city, which anyone can change', (tester) async {
     tester.view.physicalSize = const Size(1400, 2600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -910,8 +924,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('condition-filter')), findsNothing);
-    expect(find.byType(FilterChip), findsNothing);
-    expect(find.text('1 admission · 2 moves'), findsOneWidget);
+    expect(find.text('1 admission · 2 moves'), findsNothing);
     final picker = find.byKey(const Key('simulation-people'));
     expect(find.descendant(of: picker, matching: find.text('80 people a city')), findsOneWidget);
     expect(tester.getCenter(picker).dy, closeTo(tester.getCenter(find.byKey(const Key('simulation-pause'))).dy, 4));
@@ -1540,11 +1553,20 @@ void main() {
       ],
     };
 
-    Future<FakeApi> home(WidgetTester tester, {Map<String, Object?>? alarms}) async {
-      tester.view.physicalSize = const Size(1400, 2600);
+    Future<FakeApi> home(
+      WidgetTester tester, {
+      Map<String, Object?>? alarms,
+      List<StreamEvent>? stream,
+      Map<String, Object?>? busiest,
+      double height = 2600,
+    }) async {
+      tester.view.physicalSize = Size(1400, height);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
-      final api = FakeApi(auth: false, simulation: true)..alarms = alarms;
+      final api = FakeApi(auth: false, simulation: true)
+        ..alarms = alarms
+        ..stream = stream
+        ..busiest = busiest;
       final locations = FakeLocations();
       await tester.pumpWidget(app(api: api, locations: locations));
       locations.move(38.72, -9.14);
@@ -1740,16 +1762,193 @@ void main() {
       expect(find.textContaining("Occupancy alarms: datyx can't forecast yet (no model"), findsOneWidget);
     });
 
+    // As the API gives them, its order: newest first, but the client
+    // sorts by simulated time all the same.
+    StreamEvent admitted(String id, String eventId, String time, {int hospital = 1, ConditionType type = ConditionType.acute, TriageLevel? triage, int offset = 1}) => StreamEvent(
+      id: id,
+      type: StreamEventType.admission,
+      state: PersonState.atHospital,
+      name: 'Patient $id',
+      age: 50,
+      conditionName: type == ConditionType.acute ? 'Influenza' : 'COPD',
+      conditionType: type,
+      visit: VisitKind.first,
+      visitNumber: 1,
+      complaint: 'I feel unwell.',
+      hospitalId: hospital,
+      hospitalName: hospital == 2 ? 'Hospital Dona Estefânia' : 'Hospital de Santa Maria',
+      simTime: time,
+      day: 2,
+      partition: 0,
+      offset: offset,
+      eventId: eventId,
+      triage: triage,
+    );
+    StreamEvent moved(String id, PersonState state, String time, int offset, {int hospital = 1, ConditionType? type}) => StreamEvent(
+      id: id,
+      name: 'Person $id',
+      state: state,
+      conditionName: type == null ? null : (type == ConditionType.acute ? 'Influenza' : 'COPD'),
+      conditionType: type,
+      hospitalId: hospital,
+      hospitalName: hospital == 2 ? 'Hospital Dona Estefânia' : 'Hospital de Santa Maria',
+      simTime: time,
+      day: 2,
+      partition: 0,
+      offset: offset,
+    );
+    final mixed = [
+      moved('lisboa-1', PersonState.toHospital, '09:40', 42, type: ConditionType.chronic),
+      admitted('lisboa-4', 'r1-lisboa-4-d2-t41', '10:15', hospital: 2, triage: TriageLevel.red, offset: 8),
+      moved('lisboa-5', PersonState.atHospital, '09:40', 41, hospital: 2, type: ConditionType.acute),
+      // At home: the record names their usual hospital, the busiest, but they aren't there.
+      moved('lisboa-6', PersonState.home, '09:20', 40, hospital: 2),
+      admitted('lisboa-3', 'r1-lisboa-3-d2-t32', '08:00', type: ConditionType.chronic, triage: TriageLevel.green, offset: 7),
+      admitted('lisboa-7', 'r1-lisboa-7-d2-t30', '07:00', triage: TriageLevel.orange, offset: 6),
+    ];
+    const busiest = {'id': 2, 'name': 'Hospital Dona Estefânia', 'kind': 'hospital', 'inCare': 3};
+    const rowKeys = {
+      'a4': Key('admission-r1-lisboa-4-d2-t41'),
+      'm1': Key('move-lisboa-1-42'),
+      'm5': Key('move-lisboa-5-41'),
+      'm6': Key('move-lisboa-6-40'),
+      'e3': Key('alarm-row-e3'),
+      'e2': Key('alarm-row-e2'),
+      'e1': Key('alarm-row-e1'),
+      'a3': Key('admission-r1-lisboa-3-d2-t32'),
+      'a7': Key('admission-r1-lisboa-7-d2-t30'),
+    };
+    // The rows shown in the card, top to bottom.
+    List<String> shownRows(WidgetTester tester) {
+      final card = find.byKey(const Key('stream-events'));
+      final shown = [
+        for (final MapEntry(:key, :value) in rowKeys.entries)
+          if (find.descendant(of: card, matching: find.byKey(value)).evaluate().isNotEmpty) (key, tester.getRect(find.byKey(value)).top),
+      ]..sort((a, b) => a.$2.compareTo(b.$2));
+      return [for (final (key, _) in shown) key];
+    }
+
+    testWidgets('one stream newest first by simulated time, the kinds among each other', (tester) async {
+      final api = await home(tester, alarms: twoAlarms, stream: mixed, busiest: busiest, height: 3600);
+      expect(api.eventTypes.toSet(), {null});
+      // The 10:15 admission on top; the moves of 09:40 in the API's order (the
+      // order read); the alarms of the 09:00 check among them; the older
+      // admissions after.
+      expect(shownRows(tester), ['a4', 'm1', 'm5', 'm6', 'e3', 'e2', 'e1', 'a3', 'a7']);
+      // aityx's triage on an admission's row.
+      final mark = find.byKey(const Key('admission-triage-r1-lisboa-4-d2-t41'));
+      expect(find.descendant(of: mark, matching: find.text('Immediate')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(rowKeys['a3']!), matching: find.text('Standard')), findsOneWidget);
+      // No counts in the header: the simulated date and time, here the
+      // newest record's (this answer has no clock of its own).
+      expect(find.textContaining(RegExp(r'\d+ (admission|move)s?\b')), findsNothing);
+      expect(find.descendant(of: find.byKey(const Key('events-clock')), matching: find.text('Jan 2, 2026 10:15')), findsOneWidget);
+    });
+
+    testWidgets('pills filter the stream, one at a time, All first; the busiest named', (tester) async {
+      await home(tester, alarms: twoAlarms, stream: mixed, busiest: busiest, height: 3600);
+      final pills = find.byKey(const Key('events-filter'));
+      String labelOf(String name) => tester.widget<Text>(find.descendant(
+        of: find.byKey(Key('events-filter-$name')),
+        matching: find.byType(Text),
+      )).data!;
+      // Each with how many of the rows read it keeps; All without.
+      expect([for (final f in EventsFilter.values) labelOf(f.name)], [
+        'All',
+        'Busiest: Hospital Dona Estefânia · 3',
+        'Alarms 3',
+        'Urgent 2',
+        'Admissions 3',
+        'On the move 1',
+        'Acute 3',
+        'Chronic 2',
+      ]);
+      // How many are in care there, on hover.
+      expect(
+        tester.widget<Tooltip>(find.ancestor(of: find.byKey(const Key('events-filter-busiest')), matching: find.byType(Tooltip)).first).message,
+        startsWith('Hospital Dona Estefânia: the most people in care now, 3.'),
+      );
+      bool selected(String name) => tester.widget<ChoiceChip>(find.byKey(Key('events-filter-$name'))).selected;
+      expect(selected('all'), isTrue);
+      // Under the controls and the invitation, above the rows.
+      expect(tester.getRect(pills).top, greaterThan(tester.getRect(find.byKey(const Key('person-invite'))).bottom));
+      expect(tester.getRect(pills).bottom, lessThan(tester.getRect(find.byKey(rowKeys['a4']!)).top));
+
+      final expected = {
+        'busiest': ['a4', 'm5', 'e2'],
+        'alarms': ['e3', 'e2', 'e1'],
+        'urgent': ['a4', 'a7'],
+        'admissions': ['a4', 'a3', 'a7'],
+        'onTheMove': ['m1'],
+        'acute': ['a4', 'm5', 'a7'],
+        'chronic': ['m1', 'a3'],
+        'all': ['a4', 'm1', 'm5', 'm6', 'e3', 'e2', 'e1', 'a3', 'a7'],
+      };
+      for (final MapEntry(key: name, value: rows) in expected.entries) {
+        await tester.tap(find.byKey(Key('events-filter-$name')));
+        await tester.pump();
+        expect(shownRows(tester), rows, reason: name);
+        // One at a time.
+        for (final f in EventsFilter.values) {
+          expect(selected(f.name), f.name == name, reason: '$name: ${f.name}');
+        }
+      }
+      // The choice holds over the next reads.
+      await tester.tap(find.byKey(const Key('events-filter-urgent')));
+      await tester.pump(const Duration(seconds: 6));
+      expect(shownRows(tester), ['a4', 'a7']);
+    });
+
+    testWidgets('a pill that keeps nothing says so; no busiest pill until the API names one', (tester) async {
+      await home(tester);
+      expect(find.byKey(const Key('events-filter-busiest')), findsNothing);
+      expect(find.byKey(const Key('events-filter-all')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('events-filter-urgent')));
+      await tester.pump();
+      expect(find.text('No urgent event among the latest.'), findsOneWidget);
+      expect(find.byType(EventRow), findsNothing);
+      await tester.tap(find.byKey(const Key('events-filter-all')));
+      await tester.pump();
+      expect(find.byKey(const Key('events-filter-empty')), findsNothing);
+      expect(find.byType(EventRow), findsNWidgets(3));
+    });
+
+    test('the busiest keeps its care center: admissions, people going to, at or leaving it, its alarms', () {
+      const at = BusiestCareCenter(id: 2, name: 'Hospital Dona Estefânia', inCare: 3);
+      StreamRow row(StreamEvent event) => (event: event, alarm: null, minutes: 0);
+      bool kept(StreamEvent event) => keeps(EventsFilter.busiest, row(event), at);
+      expect(kept(admitted('a', 'x', '09:00', hospital: 2)), isTrue);
+      expect(kept(admitted('a', 'x', '09:00')), isFalse);
+      for (final state in [PersonState.toHospital, PersonState.atHospital, PersonState.toHome]) {
+        expect(kept(moved('b', state, '09:00', 1, hospital: 2)), isTrue, reason: '$state');
+      }
+      expect(kept(moved('b', PersonState.home, '09:00', 1, hospital: 2)), isFalse);
+      final alarm = OccupancyAlarm.fromJson(event('alarm', 'expected', hospital: 2))!;
+      expect(keeps(EventsFilter.busiest, (event: null, alarm: alarm, minutes: 0), at), isTrue);
+      // Without a busiest, nothing.
+      expect(keeps(EventsFilter.busiest, row(admitted('a', 'x', '09:00', hospital: 2)), null), isFalse);
+      // The answer names it; none without an id.
+      final named = StreamEvents.fromJson({'enabled': true, 'busiest': busiest, 'events': []}).busiest!;
+      expect((named.id, named.name, named.kind, named.inCare), (2, 'Hospital Dona Estefânia', CareCenterKind.hospital, 3));
+      expect(StreamEvents.fromJson({'enabled': true, 'busiest': {'name': 'x'}}).busiest, isNull);
+      // An admission's triage, as the API writes it.
+      final triaged = StreamEvent.fromJson({'type': 'admission', 'personId': 'p', 'triage': 'orange'});
+      expect((triaged.triage, triaged.isUrgent), (TriageLevel.orange, true));
+      expect(StreamEvent.fromJson({'type': 'admission', 'personId': 'p', 'triage': 'yellow'}).isUrgent, isFalse);
+    });
+
     testWidgets('the simulated date and time on top of the map and of the events, and Paused', (tester) async {
       final api = await home(tester);
       final mapClock = find.byKey(const Key('map-clock'));
       final eventsClock = find.byKey(const Key('events-clock'));
-      // On the map tile's header, beside its title; first in the events card.
+      // On the map tile's header, beside its title; beside the events' title too.
       expect(find.descendant(of: find.byKey(const Key('location-tile')), matching: mapClock), findsOneWidget);
       expect(find.descendant(of: mapClock, matching: find.text('Jan 2, 2026 09:40')), findsOneWidget);
       expect(find.descendant(of: find.byKey(const Key('stream-events')), matching: eventsClock), findsOneWidget);
       expect(find.descendant(of: eventsClock, matching: find.text('Jan 2, 2026 09:40')), findsOneWidget);
-      expect(tester.getRect(eventsClock).top, lessThan(tester.getRect(find.text('Latest events')).top));
+      final title = tester.getRect(find.text('Latest events'));
+      expect(tester.getRect(eventsClock).left, greaterThan(title.right));
+      expect(tester.getCenter(eventsClock).dy, closeTo(title.center.dy, 4));
       expect(find.text('Paused'), findsNothing);
 
       await tester.tap(find.byKey(const Key('simulation-pause')));

@@ -71,24 +71,28 @@ theirs; narrower, each goes under its row.
   can be audited).
 - **Latest events** (`StreamEventsCard`,
   [stream_events.dart](../healthhub_app/lib/events/stream_events.dart)),
-  under the map, in dev mode only. At its top, the simulated date and
-  time, as on the map's header, a little larger, with **Paused** while
-  paused. Then the latest records on the Kafka
-  streams, `healthhub.people.moves` and `healthhub.admissions`, asked
-  every 5 seconds. The card asks for them apart, the 12 latest moves
-  (`GET /api/events?type=move`) and the 8 latest admissions
-  (`GET /api/events?type=admission`), because every person moves every
-  second and the latest records of the stream are nearly always all
-  moves: asked together, an admission would scroll out before anyone saw
-  it. It shows them as one list, newest first by simulated day and time,
-  an admission before the moves of its own hour. Someone at home shows
-  only when monitored, the high-risk, and once a day, their check-in (the
-  API leaves the others out; [Simulation](simulation.md#people)). Beside the title, every event the
-  API read, those left out too, and how many a second over the last
-  minute, a moving average: "48,213 events · 70.4/s" (under the title
-  when narrow; nothing from an API that doesn't count). The header names
-  the topics and counts what is shown, "3 admissions · 12 moves". Under
-  it, the simulation's controls, in a row that wraps when narrow:
+  under the map, in dev mode only: the latest records on the Kafka
+  streams, `healthhub.people.moves`, `healthhub.admissions` and
+  `healthhub.alarms`, as **one stream, newest first by simulated time,
+  the kinds among each other**. One read, every 5 seconds, asks for the
+  60 latest events of every kind (`GET /api/events?limit=60`, no type);
+  the API already keeps only a person's changes of state among the moves
+  (left home, arrived, going home, back home; [Simulation](simulation.md#the-stream)),
+  not every turn's position, so the moves don't bury the admissions and
+  the alarms. The card sorts them by simulated day and time; at the same
+  minute, in the order the API gave them, the order they were read (a
+  record's offset within its topic), never by kind. At most 20 rows show.
+  The header: **Latest events**, and beside it, as on the map's header,
+  the simulated date and time ("Jan 19, 2026 17:00",
+  [The simulated clock](#the-simulated-clock)), with **Paused** while
+  paused, in place of any count of what is shown. Beside them, while
+  care centers have an occupancy alarm, a red badge with a warning, "2
+  alarms", then every event the API read, those left out too, and how
+  many a second over the last minute, a moving average: "48,213 events ·
+  70.4/s" (nothing from an API that doesn't count); all under the title
+  when narrow. Under it the topics, "On Kafka, healthhub.people.moves,
+  healthhub.admissions; every 5 seconds". Under the header, the
+  simulation's controls, in a row that wraps when narrow:
   **80 people a city**, a menu of 10, 20, 40, 80, 120, 160 and 200 that
   sets how many people each city has (`POST /api/simulation/people`;
   [Simulation](simulation.md#people)), showing what the API answered
@@ -99,9 +103,7 @@ theirs; narrower, each goes under its row.
   while paused the topics line reads "Paused: nobody moves, the clock
   stands", in amber. The button shows what the API answered until the
   next read says it too; a refusal shows in a snack bar ("Sign in to
-  pause the simulation." when the API wants a user). While care centers
-  have an occupancy alarm, the header has a red badge with a warning,
-  "2 alarms", beside the title.
+  pause the simulation." when the API wants a user).
   - **The occupancy alarms, pinned** under the header and the
     simulation's controls, above the rows: a banner per
     care center whose occupancy datyx's DeepAR forecast puts over its
@@ -119,7 +121,7 @@ theirs; narrower, each goes under its row.
       exceed its 3 places in 3 h", under it "Jun 3, 2026 12:00: 2.4
       expected in care of 3 places, 90% range up to 3.6 · peak …".
 
-    How far ahead ("in 7 h") is from the clock on top of the card, not
+    How far ahead ("in 7 h") is from the clock in the card's header, not
     from the check, which is hours behind it by then; "now, since Jun 3,
     2026 16:00" once the clock is past that hour. On hover, which level
     it is, the simulated time of the check and datyx's training run.
@@ -134,6 +136,30 @@ theirs; narrower, each goes under its row.
   - Under it, an invitation: "Open anyone by their name to see their
     data and statistics: their admissions, aityx's triage, their days of
     care and datyx's prediction."
+  - **Pills** over the rows (`events-filter`), styled as the app's chips
+    (compact, orange when chosen), one chosen at a time, **All** first and
+    chosen until another is; the choice holds over the reads. Each but All
+    says how many of the rows read it keeps ("Admissions 7"), and what it
+    keeps on hover:
+    - **Busiest: Hospital del Mar · 3**, with a flame: the events at the care
+      center with the most people in care now, which the API names
+      (`busiest`, from everyone's latest move; how many are in care there
+      on hover): its admissions, the people going to, at or leaving it
+      (not someone at home, whose record names their usual hospital), and
+      its alarm events. Only once the API names one; chosen while none is,
+      it reads as All.
+    - **Alarms**: the alarm events, raised, downgraded and cleared.
+    - **Urgent**: the admissions aityx triaged red (Immediate) or orange
+      (Very urgent).
+    - **Admissions**: every admission.
+    - **On the move**: the people who left home for a care center.
+    - **Acute** and **Chronic**: the moves and admissions of a condition
+      of that type.
+
+    A pill that keeps none of the rows read says so, "No urgent event
+    among the latest." ("Nothing at Hospital del Mar among the latest
+    events." for the busiest); before the first event, "Waiting for the
+    first event…".
   - **Every event is a row of the same shape and height** (`EventRow`,
     `AlarmRow`), whatever its kind: a bar on its left and a faint tint in its colour,
     a mark, and two lines that never wrap (cut with "…" when they don't
@@ -141,7 +167,9 @@ theirs; narrower, each goes under its row.
     view, [The person view](person.md); the id on hover), a heart
     monitor (`Icons.monitor_heart_outlined`) when they are monitored (why
     on hover: "Monitored at home: aged 84"), the condition
-    and whether it is acute or chronic, and when, a date and time on the
+    and whether it is acute or chronic, for an admission aityx has
+    triaged its level, a small pill in the level's colour ("Very urgent",
+    the level on hover), and when, a date and time on the
     simulation's calendar ("Jan 4, 2026 09:09", [Simulation](simulation.md#the-calendar)).
     The second: what happened and the record's partition and offset.
     The time and the offset end at the row's right edge, the one over
@@ -160,9 +188,9 @@ theirs; narrower, each goes under its row.
       the person over the next 30 days, with a bed icon ("9 h expected
       in 30 days"; the model and the hours of the last 30 days on hover).
       The link opens the person of that admission's run.
-    - **An alarm event** (`healthhub.alarms`, the 6 latest the events
+    - **An alarm event** (`healthhub.alarms`, the 10 latest the events
       carry, in time order among the others by the simulated time of the
-      check, before the records of its own minute): no person, the care
+      check, before the records of its own minute, which its check read): no person, the care
       center instead, a link to its view. **Raised**, red with a warning:
       "Alarm: over capacity expected · Hospital del Mar", then "in 7 h,
       Jun 3, 2026 16:00 · 10 in care of 8 beds (90% range up to 12.4)". **Downgraded** (expected
@@ -183,6 +211,19 @@ theirs; narrower, each goes under its row.
   The alarms and the clock come with the events (`GET /api/events`
   carries `alarms` and `now`): no other poll. Nothing shows in prod, nor
   before the API answers. A failed read keeps what is shown.
+
+  Tests in [widget_test.dart](../healthhub_app/test/widget_test.dart):
+  one read without a type; the rows in simulated time, the kinds among
+  each other, a tie in the API's order, the alarm events among them; no
+  counts in the header, the clock beside the title; each pill's rows and
+  count, one chosen at a time, the choice kept over reads, the busiest
+  named with how many are in care, a pill that keeps nothing; what the
+  busiest keeps (not someone at home); the triage pill on an admission.
+  The API's ([simulation_test.dart](../healthhub_api/test/simulation_test.dart),
+  [visits_test.dart](../healthhub_api/test/visits_test.dart),
+  [routes_test.dart](../healthhub_api/test/routes_test.dart)): only
+  changes of state kept, the merge by simulated time with ties in the
+  order read, the busiest care center, an admission's triage.
 - At the bottom, when the build has one, the version: `HealthHub X.Y.Z`.
 
 ## The simulated clock

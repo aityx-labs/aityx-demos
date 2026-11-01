@@ -392,6 +392,7 @@ class StreamEvent {
     this.complaint,
     this.hospitalId,
     this.eventId,
+    this.triage,
   });
 
   /// A move carries the person in `id`; an admission in `personId`. An
@@ -424,6 +425,7 @@ class StreamEvent {
       complaint: _string(json['complaint']),
       hospitalId: _int(json['hospitalId']),
       eventId: _string(json['eventId']),
+      triage: TriageLevel.parse(json['triage']),
     );
   }
 
@@ -466,7 +468,13 @@ class StreamEvent {
   final int? hospitalId;
   final String? eventId;
 
+  /// aityx's triage of an admission, once it has one.
+  final TriageLevel? triage;
+
   bool get isAdmission => type == StreamEventType.admission;
+
+  /// An admission aityx triaged red (Immediate) or orange (Very urgent).
+  bool get isUrgent => isAdmission && (triage == TriageLevel.red || triage == TriageLevel.orange);
 }
 
 /// What a record on the stream is: a move (`healthhub.people.moves`) or an
@@ -498,6 +506,7 @@ class StreamEvents {
     this.peoplePerCity,
     this.now,
     this.alarms = const OccupancyAlarms(),
+    this.busiest,
   });
 
   factory StreamEvents.fromJson(Map<String, Object?> json) => StreamEvents(
@@ -506,6 +515,7 @@ class StreamEvents {
     peoplePerCity: _int(json['peoplePerCity']),
     now: SimNow.fromJson(json['now']),
     alarms: OccupancyAlarms.fromJson(json['alarms']),
+    busiest: BusiestCareCenter.fromJson(json['busiest']),
     total: _int(json['total']),
     perSecond: json['perSecond'] is num ? (json['perSecond'] as num).toDouble() : null,
     topics: [
@@ -544,6 +554,10 @@ class StreamEvents {
   /// and the latest alarms raised and cleared: [OccupancyAlarms].
   final OccupancyAlarms alarms;
 
+  /// The care center with the most people in care now; null while nobody
+  /// is, or from an API that doesn't say.
+  final BusiestCareCenter? busiest;
+
   /// [now], or the time of the newest record read.
   SimNow? get clock {
     if (now != null) return now;
@@ -554,6 +568,32 @@ class StreamEvents {
     }
     return newest;
   }
+}
+
+/// The care center with the most people in care now, as `GET
+/// /api/events` names it (`busiest`).
+class BusiestCareCenter {
+  const BusiestCareCenter({required this.id, required this.name, this.kind, this.inCare});
+
+  /// `{"id", "name", "kind", "inCare"}`; null without an id.
+  static BusiestCareCenter? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final id = _int(json['id']);
+    if (id == null) return null;
+    return BusiestCareCenter(
+      id: id,
+      name: _string(json['name']) ?? 'Care center $id',
+      kind: _kindOf(json['kind']),
+      inCare: _int(json['inCare']),
+    );
+  }
+
+  final int id;
+  final String name;
+  final CareCenterKind? kind;
+
+  /// How many people are in care there now.
+  final int? inCare;
 }
 
 /// A moment of the simulation: its day (from 1), the time "HH:MM", and

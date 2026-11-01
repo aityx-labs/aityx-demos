@@ -607,3 +607,41 @@ The feature files hold the current specification; see the
    alarm events are always among the rows, there being no condition to
    choose. See [Home](home.md) and [Occupancy
    alarms](occupancy-alarms.md#the-app).
+
+1. **The events in time, not by kind.** "The event view on dashboard
+   should be time sorted, not grouped by event type, with different
+   types of events coming along." The panel asked for the moves and the
+   admissions apart (12 and 8), so the moves of the latest turn sat on
+   top in a block. Now one read asks for the 60 latest events of every
+   kind (`GET /api/events?limit=60`, no type), and they show as one
+   stream newest first by simulated time, moves, admissions and alarm
+   events among each other, a tie in the order the API read them (a
+   record's offset within its topic), never by kind; at most 20 rows. So
+   the moves don't bury the rest, the API keeps a move as an event only
+   when it changes the person's state (left home, arrived, going home,
+   back home), not every turn's position: the once-a-day check-in of a
+   monitored person at home is gone, and `GET /api/events` merges the
+   two kinds by simulated time instead of by arrival. See
+   [Home](home.md), [Simulation](simulation.md#the-stream) and
+   [API](api.md).
+
+1. **The simulated time, not counts, in the events' header.** "The
+   events view always shows '8 admissions, 12 moves': remove that.
+   Print simulation time instead." The counts are gone; the simulated
+   date and time ("Jan 19, 2026 17:00", with Paused while paused) sits
+   beside the title, as on the map's header, in place of the separate
+   line above it. See [Home](home.md).
+
+1. **Pills over the events.** "Add a few filters as clickable pills.
+   Cool ones like 'busiest hospital'." A row of pills, one at a time,
+   All first: **Busiest: <care center>** (its admissions, the people
+   going to, at or leaving it, its alarms), **Alarms**, **Urgent** (the
+   admissions aityx triaged red or orange), **Admissions**, **On the
+   move** (people who left home for care), **Acute** and **Chronic**,
+   each with how many of the rows read it keeps. The API names the
+   busiest care center, the one with the most people in care now from
+   everyone's latest move (`busiest` in `GET /api/events`), and an
+   admission carries aityx's triage level once recorded (`triage`),
+   which its row shows as a small pill in the level's colour. See
+   [Home](home.md), [Simulation](simulation.md#the-stream) and
+   [API](api.md).

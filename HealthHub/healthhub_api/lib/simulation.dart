@@ -546,8 +546,8 @@ class Person {
 
   /// Why they are monitored at home, the high-risk only: "aged 84",
   /// "pregnant", or their chronic condition's name when it is one of
-  /// [monitoredConditions]; null for everyone else, most people. Only a
-  /// monitored person's moves at home are events (PeopleFeed).
+  /// [monitoredConditions]; null for everyone else, most people. Their
+  /// moves say so, and the events mark them.
   String? get monitoredFor {
     if (profile.age >= monitoredFromAge) return 'aged ${profile.age}';
     if (pregnant) return 'pregnant';
@@ -1244,8 +1244,9 @@ class PeopleFeed {
 
   final _latest = <String, Map<String, Object?>>{};
 
-  /// The latest moves and admissions, apart, so the many moves never push
-  /// the few admissions out; each with its arrival number, to merge them.
+  /// The latest moves and admissions, apart, so the moves never push the
+  /// few admissions out; each with its arrival number, the order it was
+  /// read in, which breaks the ties of the simulated time.
   final _moves = ListQueue<(int, Map<String, Object?>)>();
   final _admissions = ListQueue<(int, Map<String, Object?>)>();
   int _arrivals = 0;
@@ -1269,16 +1270,6 @@ class PeopleFeed {
   /// many a second over the last minute.
   final counter = EventCounter();
 
-  /// The simulated day each monitored person at home last checked in, by
-  /// id: their first move at home of a day from their [checkInHour] on is
-  /// an event, the others only count, so the events aren't all people
-  /// sitting at home (once a day, about two in five of the moves kept).
-  final _checkedIn = <String, int>{};
-
-  /// The hour of the day a monitored person checks in, from their id, so
-  /// the check-ins spread over the day instead of all coming at midnight.
-  static int checkInHour(String id) => id.codeUnits.fold(0, (sum, unit) => sum * 31 + unit) % 24;
-
   /// The latest record of each person, by id.
   List<Map<String, Object?>> get people => List.unmodifiable(_latest.values);
 
@@ -1294,12 +1285,59 @@ class PeopleFeed {
     }
   }
 
-  /// The latest moves and admissions read from the streams, merged newest
-  /// first by arrival, each with its "type" (move or admission), partition
-  /// and offset: what GET /api/events answers.
+  /// The latest moves and admissions read from the streams as one stream,
+  /// newest first by simulated time, the kinds among each other; at the
+  /// same minute, the one read later first (the record's real order: its
+  /// offset within a topic). Each with its "type" (move or admission),
+  /// partition and offset: what GET /api/events answers.
   List<Map<String, Object?>> get recent {
-    final merged = [..._moves, ..._admissions]..sort((a, b) => b.$1.compareTo(a.$1));
-    return List.unmodifiable([for (final (_, event) in merged) event]);
+    final merged = [
+      for (final (read, event) in [..._moves, ..._admissions]) (simMinutesOf(event), read, event),
+    ]..sort((a, b) => a.$1 != b.$1 ? b.$1.compareTo(a.$1) : b.$2.compareTo(a.$2));
+    return List.unmodifiable([for (final (_, _, event) in merged) event]);
+  }
+
+  /// The simulated minutes of a kept record, from its day and time (both
+  /// checked when it was kept).
+  static int simMinutesOf(Map<String, Object?> event) {
+    final time = event['simTime'] as String;
+    return (event['day'] as int) * minutesPerDay + int.parse(time.substring(0, 2)) * 60 + int.parse(time.substring(3));
+  }
+
+  /// The care center with the most people in care now (their latest move
+  /// at it): `{"id", "name", "kind", "inCare"}`, the lower id on a tie;
+  /// null while nobody is in care.
+  Map<String, Object?>? get busiest {
+    final inCare = <int, int>{};
+    final named = <int, Map<String, Object?>>{};
+    for (final person in _latest.values) {
+      final id = person['hospitalId'];
+      if (person['state'] != PersonState.atHospital.json || id is! int) continue;
+      inCare[id] = (inCare[id] ?? 0) + 1;
+      named[id] ??= person;
+    }
+    int? best;
+    for (final MapEntry(key: id, value: n) in inCare.entries) {
+      if (best == null || n > inCare[best]! || (n == inCare[best]! && id < best)) best = id;
+    }
+    if (best == null) return null;
+    return {
+      'id': best,
+      'name': named[best]!['hospitalName'],
+      'kind': named[best]!['careCenterKind'],
+      'inCare': inCare[best],
+    };
+  }
+
+  /// aityx's triage of a kept admission: its level ("red" to "blue"), or
+  /// null when the triage failed; the admission carries it as "triage".
+  void triaged(Object? eventId, Object? level) {
+    for (final (_, admission) in _admissions) {
+      if (admission['eventId'] == eventId) {
+        admission['triage'] = level is String ? level : null;
+        return;
+      }
+    }
   }
 
   static final _hhmm = RegExp(r'^\d\d:\d\d$');
@@ -1341,14 +1379,13 @@ class PeopleFeed {
         [value['lat'], value['lon'], value['homeLat'], value['homeLon']].every((v) => v is num);
     if (!valid) return;
     counter.add();
+    final previous = _latest[id];
     _latest[id] = Map<String, Object?>.from(value);
-    // Someone at home shows among the events only when monitored, and
-    // then once a day, from their hour on; the map still has everyone.
-    if (value['state'] == PersonState.home.json) {
-      if (value['monitored'] != true || _checkedIn[id] == day) return;
-      if (int.parse(simTime.substring(0, 2)) < checkInHour(id)) return;
-      _checkedIn[id] = day;
-    }
+    // Only a change of state is an event (left home, arrived, going home,
+    // back home): a person moves every turn, and every move would bury
+    // the admissions and the alarms. The first record read of someone
+    // says no change; the map still has everyone.
+    if (previous == null || previous['state'] == value['state']) return;
     _keep(_moves, {...value, 'type': 'move', 'partition': partition, 'offset': offset});
   }
 

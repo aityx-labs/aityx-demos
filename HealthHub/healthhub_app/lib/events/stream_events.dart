@@ -8,10 +8,12 @@ import '../location/user_location_map.dart' show PersonLook;
 import '../people/person_screen.dart';
 import '../sim_clock.dart';
 import '../theme.dart';
+import '../triage/triage_card.dart' show levelColor;
 import 'simulated_clock.dart';
 
 /// Gives the latest records on the stream: the API's `GET /api/events`,
-/// only moves or only admissions with [type].
+/// the moves and the admissions as one stream, or only one kind with
+/// [type].
 typedef EventsLoader = Future<StreamEvents> Function({int limit, StreamEventType? type});
 
 /// Pauses the simulation (true) or resumes it, and says whether it is
@@ -25,34 +27,107 @@ typedef PopulationControl = Future<int> Function(int perCity);
 /// The people a city the events offer: the simulation takes up to 200.
 const peopleChoices = [10, 20, 40, 80, 120, 160, 200];
 
-/// The latest events on the Kafka stream, newest first: people's moves and
-/// their admissions at a hospital, each a row of the same shape, an
-/// admission marked in orange with what they said on arrival. Someone at
-/// home is an event only when monitored, the high-risk (the API leaves the
-/// others out); the header counts every event the API read, and how many a
-/// second over the last minute. Asked every 5 seconds while shown, like
-/// the map's people. Nothing shows until the API says the simulation runs
-/// (dev mode), and nothing in prod. Each row names its person, a link to
-/// their view, and the card invites opening anyone's; an admission also
-/// shows datyx's prediction of the person's hours of care over the next 30
-/// days, asked once per admission through [PersonOpener]. With
-/// [simulation], a button at the top pauses the simulation and resumes it;
-/// with [population], beside it, how many people each city has, which
-/// anyone signed in can change. Each record says when it happened as a
-/// date on the simulation's calendar.
+/// The pills over the events, one at a time: every row ([all]), those at
+/// the care center with the most people in care now ([busiest]), the
+/// occupancy alarms raised, downgraded and cleared ([alarms]), the
+/// admissions aityx triaged red or orange ([urgent]), every admission,
+/// the people on their way to care ([onTheMove]), and the rows of an
+/// acute or a chronic condition.
+enum EventsFilter {
+  all('All', 'Every event, newest first'),
+  busiest('Busiest', 'The events at the care center with the most people in care now'),
+  alarms('Alarms', 'The occupancy alarms raised, downgraded and cleared'),
+  urgent('Urgent', "The admissions aityx's triage put first: red (Immediate) or orange (Very urgent)"),
+  admissions('Admissions', 'The people admitted at a care center, with what they said'),
+  onTheMove('On the move', 'The people who left home for a care center'),
+  acute('Acute', 'The events of an acute condition, one that passes'),
+  chronic('Chronic', 'The events of a chronic condition, one that stays');
+
+  const EventsFilter(this.label, this.help);
+
+  final String label;
+  final String help;
+}
+
+/// One row of the stream: an [event] (a move or an admission) or an
+/// [alarm] event, at its simulated [minutes] (-1 without a time).
+typedef StreamRow = ({StreamEvent? event, OccupancyAlarm? alarm, int minutes});
+
+/// The [events] and the [alarms] events as one stream, newest first by
+/// simulated time, the kinds among each other. At the same minute, the
+/// order the API gave the events (the order they were read, a record's
+/// offset within its topic), and an alarm before them: its check read the
+/// clock once they were in. A record without a time sorts last.
+List<StreamRow> streamRows(List<StreamEvent> events, List<OccupancyAlarm> alarms) {
+  final rows = <StreamRow>[
+    for (final event in events) (event: event, alarm: null, minutes: SimNow.at(event.day, event.simTime)?.minutes ?? -1),
+    for (final alarm in alarms) (event: null, alarm: alarm, minutes: alarm.now?.minutes ?? -1),
+  ];
+  final order = {for (final (i, row) in rows.indexed) row: i};
+  rows.sort((a, b) {
+    if (a.minutes != b.minutes) return b.minutes.compareTo(a.minutes);
+    if ((a.alarm == null) != (b.alarm == null)) return a.alarm != null ? -1 : 1;
+    // The sort isn't stable: the order given breaks the ties.
+    return order[a]!.compareTo(order[b]!);
+  });
+  return rows;
+}
+
+/// Whether [row] is one [filter] keeps; [busiest] is the care center with
+/// the most people in care now. At the busiest, an admission there, a
+/// person going to, at or leaving it (not at home, where the record names
+/// their usual hospital), and its alarms.
+bool keeps(EventsFilter filter, StreamRow row, BusiestCareCenter? busiest) {
+  final event = row.event;
+  final alarm = row.alarm;
+  return switch (filter) {
+    EventsFilter.all => true,
+    EventsFilter.busiest =>
+      busiest != null &&
+          (alarm?.careCenterId == busiest.id ||
+              (event != null &&
+                  event.hospitalId == busiest.id &&
+                  (event.isAdmission || event.state != PersonState.home))),
+    EventsFilter.alarms => alarm != null,
+    EventsFilter.urgent => event?.isUrgent ?? false,
+    EventsFilter.admissions => event?.isAdmission ?? false,
+    EventsFilter.onTheMove => event != null && !event.isAdmission && event.state == PersonState.toHospital,
+    EventsFilter.acute => event?.conditionType == ConditionType.acute,
+    EventsFilter.chronic => event?.conditionType == ConditionType.chronic,
+  };
+}
+
+/// The latest events on the Kafka stream as one stream, newest first by
+/// simulated time, the kinds among each other: people's changes of state
+/// (left home, arrived, going home, back home), their admissions at a care
+/// center, marked in orange with what they said on arrival and aityx's
+/// triage once it has one, and the occupancy alarms raised, downgraded and
+/// cleared ([AlarmRow]); each a row of the same shape. One answer of the
+/// API has them all, asked every 5 seconds while shown, like the map's
+/// people; the alarms come with it (`GET /api/events` carries them): no
+/// other poll. Nothing shows until the API says the simulation runs (dev
+/// mode), and nothing in prod.
 ///
-/// At its top, the simulated date and time ([SimClockText]), "Paused"
-/// beside it while paused, reported to [clock] too. Then, pinned, a banner
-/// per care center whose occupancy datyx's forecast puts over its capacity
-/// ([OccupancyAlarm]): red when the forecast mean goes over ("Over
-/// capacity expected"), amber when only its 90th percentile does ("may
-/// exceed"); the header counts them in red. The alarms raised, downgraded
-/// and cleared are rows of the stream too ([AlarmRow]). They come with the
-/// events (`GET /api/events` carries them): no other poll.
+/// The header: the title, the simulated date and time beside it as the
+/// map's tile has it ([SimClockText], "Paused" beside it while paused,
+/// reported to [clock] too), the alarms now counted in red, and every
+/// event the API read, and how many a second over the last minute. With
+/// [simulation], a button pauses the simulation and resumes it; with
+/// [population], beside it, how many people each city has, which anyone
+/// signed in can change. Then, pinned, a banner per care center whose
+/// occupancy datyx's forecast puts over its capacity ([OccupancyAlarm]):
+/// red when the forecast mean goes over ("Over capacity expected"), amber
+/// when only its 90th percentile does ("may exceed"). Then a row of pills
+/// ([EventsFilter]), one at a time, All first, each with how many of the
+/// rows read it keeps: "Busiest: Hospital X" keeps the events at the care
+/// center with the most people in care now, which the API names. At most
+/// [limit] rows show, of the [fetch] latest events asked.
 ///
-/// Moves and admissions are asked for apart: every person moves every
-/// second, so the latest [limit] records of the stream are nearly always
-/// all moves and an admission would scroll out before it is ever seen.
+/// Each row names its person, a link to their view, and the card invites
+/// opening anyone's; an admission also shows datyx's prediction of the
+/// person's hours of care over the next 30 days, asked once per admission
+/// through [PersonOpener]. Each record says when it happened as a date on
+/// the simulation's calendar.
 class StreamEventsCard extends StatefulWidget {
   const StreamEventsCard({
     super.key,
@@ -60,9 +135,9 @@ class StreamEventsCard extends StatefulWidget {
     this.simulation,
     this.population,
     this.clock,
-    this.limit = 12,
-    this.admissionsLimit = 8,
-    this.alarmsLimit = 6,
+    this.limit = 20,
+    this.fetch = 60,
+    this.alarmsLimit = 10,
   });
 
   final EventsLoader events;
@@ -73,9 +148,12 @@ class StreamEventsCard extends StatefulWidget {
   /// simulation is paused, for the other headers that show it.
   final SimClock? clock;
 
-  /// How many moves and how many admissions are shown at most.
+  /// How many rows show at most, whatever the pill.
   final int limit;
-  final int admissionsLimit;
+
+  /// How many of the latest events are asked for: more than [limit], so a
+  /// pill has rows to keep.
+  final int fetch;
 
   /// How many of the latest alarm events are rows of the stream at most.
   final int alarmsLimit;
@@ -88,6 +166,9 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
   StreamEvents _events = const StreamEvents(enabled: false);
   Timer? _poll;
   bool _asking = false;
+
+  /// The pill chosen, All until another is.
+  EventsFilter _filter = EventsFilter.all;
 
   /// While a pause or resume is under way, and what it said: shown until
   /// the next events say it too.
@@ -173,11 +254,8 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
     if (_asking) return;
     _asking = true;
     try {
-      final answers = await Future.wait([
-        widget.events(limit: widget.limit, type: StreamEventType.move),
-        widget.events(limit: widget.admissionsLimit, type: StreamEventType.admission),
-      ]);
-      final events = mergeEvents(answers[0], answers[1]);
+      // One stream, every kind in it: no type.
+      final events = await widget.events(limit: widget.fetch);
       if (mounted) {
         setState(() {
           _events = events;
@@ -198,14 +276,15 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
   @override
   Widget build(BuildContext context) {
     if (!_events.enabled) return const SizedBox.shrink();
-    final shown = _events.events;
-    final admissions = shown.where((event) => event.isAdmission).length;
-    final moves = shown.length - admissions;
     final total = _events.total;
     final perSecond = _events.perSecond;
     final alarms = _events.alarms;
     final active = alarms.active;
-    final rows = _rows(shown);
+    final busiest = _events.busiest;
+    final stream = streamRows(_events.events, alarms.recent.take(widget.alarmsLimit).toList());
+    // The busiest pill goes with the care center it names: All again once none is.
+    final filter = _filter == EventsFilter.busiest && busiest == null ? EventsFilter.all : _filter;
+    final kept = [for (final row in stream) if (keeps(filter, row, busiest)) row];
     return Card(
       key: const Key('stream-events'),
       child: Padding(
@@ -213,12 +292,6 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // The simulated date and time, first: what every event below is about.
-            if (_events.clock != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: SimClockText(_events.clock, key: const Key('events-clock'), paused: _paused, size: 17),
-              ),
             Row(
               children: [
                 const Icon(Icons.stream, color: Aityx.orange, size: 20),
@@ -227,31 +300,29 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // The total and what is shown beside the title, under it when narrow.
+                      // The title, the simulated date and time beside it as on the
+                      // map's tile, the alarms and the total; under it when narrow.
                       Wrap(
-                        spacing: 10,
+                        spacing: 16,
+                        runSpacing: 2,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           const Text('Latest events', style: TextStyle(fontWeight: FontWeight.w700)),
+                          if (_events.clock != null)
+                            SimClockText(_events.clock, key: const Key('events-clock'), paused: _paused),
                           if (active.isNotEmpty) _AlarmsBadge(active.length),
                           if (total != null)
                             Tooltip(
                               message:
-                                  'Every move and admission the API read since it started, those of people '
-                                  "at home who aren't monitored too, and how many a second over the last "
-                                  'minute, a moving average',
+                                  'Every move and admission the API read since it started, those the events '
+                                  'leave out too, and how many a second over the last minute, a moving average',
                               child: Text(
                                 '${_thousands(total)} ${total == 1 ? 'event' : 'events'}'
                                 '${perSecond == null ? '' : ' · ${perSecond.toStringAsFixed(1)}/s'}',
                                 key: const Key('stream-events-total'),
-                                style: const TextStyle(color: Aityx.fg, fontSize: 12, fontWeight: FontWeight.w600),
+                                style: const TextStyle(color: Aityx.muted, fontSize: 12, fontWeight: FontWeight.w600),
                               ),
                             ),
-                          Text(
-                            '${_count(admissions, 'admission')} · ${_count(moves, 'move')}',
-                            key: const Key('stream-events-counts'),
-                            style: const TextStyle(color: Aityx.muted, fontSize: 12),
-                          ),
                         ],
                       ),
                       Text(
@@ -342,33 +413,105 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
               ],
             ),
             const SizedBox(height: 8),
-            if (rows.isEmpty)
+            // The pills, one at a time.
+            _FilterPills(
+              selected: filter,
+              busiest: busiest,
+              count: (pill) => pill == EventsFilter.all ? null : stream.where((row) => keeps(pill, row, busiest)).length,
+              onSelected: (pill) => setState(() => _filter = pill),
+            ),
+            const SizedBox(height: 8),
+            if (stream.isEmpty)
               const Text('Waiting for the first event…', style: TextStyle(color: Aityx.muted))
+            else if (kept.isEmpty)
+              Text(
+                switch (filter) {
+                  EventsFilter.busiest => 'Nothing at ${busiest!.name} among the latest events.',
+                  _ => 'No ${filter.label.toLowerCase()} event among the latest.',
+                },
+                key: const Key('events-filter-empty'),
+                style: const TextStyle(color: Aityx.muted),
+              )
             else
-              ...rows,
+              for (final row in kept.take(widget.limit))
+                if (row.alarm case final alarm?)
+                  AlarmRow(alarm)
+                else
+                  EventRow(row.event!, prediction: _predictionOf(row.event!)),
           ],
         ),
       ),
     );
   }
+}
 
-  /// The rows of the stream, newest first by simulated time: the [shown]
-  /// events, and the latest alarm events, an alarm before the events of
-  /// its own minute.
-  List<Widget> _rows(List<StreamEvent> shown) {
-    final alarms = _events.alarms.recent.take(widget.alarmsLimit).toList();
-    final rows = <Widget>[];
-    var a = 0;
-    for (final event in shown) {
-      while (a < alarms.length && (alarms[a].now?.minutes ?? -1) >= _minutes(event)) {
-        rows.add(AlarmRow(alarms[a++]));
-      }
-      rows.add(EventRow(event, prediction: _predictionOf(event)));
+/// The pills over the events ([EventsFilter]), styled as the app's chips,
+/// one [selected] at a time, each but All with how many of the rows read
+/// it keeps ([count]). The busiest names its care center, "Busiest:
+/// Hospital del Mar", and how many are in care there on hover; it shows
+/// only once the API names one.
+class _FilterPills extends StatelessWidget {
+  const _FilterPills({required this.selected, required this.busiest, required this.count, required this.onSelected});
+
+  final EventsFilter selected;
+  final BusiestCareCenter? busiest;
+  final int? Function(EventsFilter pill) count;
+  final ValueChanged<EventsFilter> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget pill(EventsFilter filter) {
+      final on = filter == selected;
+      final n = count(filter);
+      final label = filter == EventsFilter.busiest ? 'Busiest: ${busiest!.name}' : filter.label;
+      final inCare = busiest?.inCare;
+      return Tooltip(
+        message: filter == EventsFilter.busiest
+            ? '${busiest!.name}: the most people in care now${inCare == null ? '' : ', $inCare'}. Its events: '
+                  'the people going to, at or leaving it, its admissions and its alarms'
+            : filter.help,
+        child: ChoiceChip(
+          key: Key('events-filter-${filter.name}'),
+          avatar: filter == EventsFilter.busiest
+              ? Icon(Icons.local_fire_department, size: 16, color: on ? Aityx.orange : Aityx.muted)
+              : null,
+          // The busiest's count apart from its name: "Busiest: Hospital del Mar · 3".
+          label: Text(
+            n == null ? label : '$label${filter == EventsFilter.busiest ? ' ·' : ''} $n',
+            style: const TextStyle(fontSize: 12),
+          ),
+          selected: on,
+          onSelected: (_) => onSelected(filter),
+          showCheckmark: false,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          selectedColor: Aityx.orange.withValues(alpha: 0.25),
+          side: BorderSide(color: on ? Aityx.orange : Aityx.border),
+        ),
+      );
     }
-    while (a < alarms.length) {
-      rows.add(AlarmRow(alarms[a++]));
-    }
-    return rows;
+
+    return Row(
+      key: const Key('events-filter'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 6),
+          child: Icon(Icons.filter_list, color: Aityx.muted, size: 18),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final filter in EventsFilter.values)
+                if (filter != EventsFilter.busiest || busiest != null) pill(filter),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -422,47 +565,6 @@ String _count(int n, String noun) => '$n ${n == 1 ? noun : '${noun}s'}';
 /// [n] with its thousands apart: "48,213".
 String _thousands(int n) => n.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+$)'), (_) => ',');
 
-/// The moves and the admissions as one stream, newest first by simulated
-/// time. An admission comes before the moves of its own hour: the person
-/// arrived, then the others moved on. A record without a time sorts last.
-/// Either answer may hold both kinds when the API doesn't filter by type,
-/// so each keeps only its own.
-StreamEvents mergeEvents(StreamEvents moves, StreamEvents admissions) {
-  final events = [
-    ...admissions.events.where((event) => event.isAdmission),
-    ...moves.events.where((event) => !event.isAdmission),
-  ];
-  final order = {for (final (i, event) in events.indexed) event: i};
-  events.sort((a, b) {
-    final byTime = _minutes(b).compareTo(_minutes(a));
-    // The sort isn't stable: the order each answer gave breaks the ties.
-    return byTime != 0 ? byTime : order[a]!.compareTo(order[b]!);
-  });
-  // Both answers count the same feed: the later one, with more, holds.
-  final counts = (admissions.total ?? -1) > (moves.total ?? -1) ? admissions : moves;
-  // The clock: the newer of the two; the alarms: of the answer that has them.
-  final clocks = [?moves.now, ?admissions.now]..sort((a, b) => (b.minutes ?? -1).compareTo(a.minutes ?? -1));
-  return StreamEvents(
-    enabled: moves.enabled || admissions.enabled,
-    paused: moves.paused || admissions.paused,
-    topics: {...moves.topics, ...admissions.topics}.toList(),
-    events: events,
-    total: counts.total,
-    perSecond: counts.perSecond,
-    peoplePerCity: counts.peoplePerCity ?? moves.peoplePerCity ?? admissions.peoplePerCity,
-    now: clocks.firstOrNull,
-    alarms: admissions.alarms.reported ? admissions.alarms : moves.alarms,
-  );
-}
-
-/// The simulated minutes since day 0 at 00:00, or -1 without a time.
-int _minutes(StreamEvent event) {
-  final parts = event.simTime?.split(':');
-  final hours = parts?.length == 2 ? int.tryParse(parts![0]) : null;
-  final minutes = parts?.length == 2 ? int.tryParse(parts![1]) : null;
-  if (event.day == null || hours == null || minutes == null) return -1;
-  return event.day! * 24 * 60 + hours * 60 + minutes;
-}
 
 /// When a record happened, "Jan 2, 2026 09:40".
 String _when(StreamEvent event) => simWhen(event.day, event.simTime);
@@ -500,7 +602,8 @@ String _where(StreamEvent event) => event.offset == null ? '' : 'p${event.partit
 /// faint tint in its colour, a mark (a dot in the person's state colour,
 /// the map's, or the orange hospital of an admission), then two lines,
 /// never more: who (a link to their view, with a heart monitor when
-/// monitored, why on hover) with the condition and the simulated time;
+/// monitored, why on hover) with the condition, aityx's triage of an
+/// admission once it has one ([_TriageMark]), and the simulated time;
 /// what happened, at which hospital, with the record's partition and
 /// offset. An admission's second line says which visit it is, in italics
 /// as much of what the person said as fits (all of it on hover), and the
@@ -585,6 +688,7 @@ class EventRow extends StatelessWidget {
                           ],
                         ),
                       ),
+                      if (admission && event.triage != null) _TriageMark(event.triage!, eventId: event.eventId ?? event.id),
                       if (event.monitored)
                         Padding(
                           padding: const EdgeInsets.only(left: 6),
@@ -633,6 +737,36 @@ class EventRow extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// aityx's triage of an admission, a small pill in the level's colour on
+/// its first line: "Very urgent".
+class _TriageMark extends StatelessWidget {
+  const _TriageMark(this.level, {required this.eventId});
+
+  final TriageLevel level;
+  final String eventId;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = levelColor(level);
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: Tooltip(
+        message: "aityx's triage at the desk: ${level.name}, ${level.label}",
+        child: Container(
+          key: Key('admission-triage-$eventId'),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.16),
+            border: Border.all(color: color.withValues(alpha: 0.6)),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(level.label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
         ),
       ),
     );

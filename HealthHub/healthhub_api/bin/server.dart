@@ -32,11 +32,13 @@
 ///                       [...]}: the simulated people's latest moves, read
 ///                       back from Kafka (lib/simulation.dart), open to all
 ///   GET  /api/events?limit=20&type=admission|move
-///                       {"enabled", "paused", "topic", "topics", "events":
-///                       [...]}: the latest moves and admissions read from
-///                       the streams, newest first, each with its "type"
-///                       (dev mode), and whether the simulation is paused,
-///                       for home's events; open to all
+///                       {"enabled", "paused", "topic", "topics", "busiest",
+///                       "events": [...]}: the latest changes of state and
+///                       admissions read from the streams, newest first by
+///                       simulated time, each with its "type" (dev mode),
+///                       whether the simulation is paused, and the care
+///                       center with the most people in care now, for
+///                       home's events; open to all
 ///   POST /api/simulation/pause, POST /api/simulation/resume
 ///                       {"paused": true|false}, the state after the call:
 ///                       freezes or resumes the simulation, the same one
@@ -348,8 +350,13 @@ Future<void> _simulate(Db db, _Live live) async {
   }
   // Each admission recorded the first time is triaged with aityx, in the
   // background; a triage the database can't record is logged and lost.
+  // The events carry its level once it is recorded.
   final triager = live.triage
-      ? live.triager = Triager((admission) async => db.recordTriage(await triageAdmission(live.aityx, admission)))
+      ? live.triager = Triager((admission) async {
+          final triage = await triageAdmission(live.aityx, admission);
+          await db.recordTriage(triage);
+          live.feed?.triaged(triage['eventId'], triage['level']);
+        })
       : null;
   // Bad data the database refuses is dropped, not retried forever.
   final recorder = live.recorder = AdmissionRecorder(
@@ -517,6 +524,7 @@ Future<void> _handle(
         paused: live.simulation?.paused ?? false,
         peoplePerCity: live.simulation?.peoplePerCity,
         events: live.feed?.recent ?? const [],
+        busiest: live.feed?.busiest,
         eventsTotal: live.feed?.counter.total ?? 0,
         eventsPerSecond: live.feed?.counter.perSecond ?? 0,
         people: live.feed?.people ?? const [],

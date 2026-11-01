@@ -233,8 +233,8 @@ the day's date is 2026-01-01 plus the day less one.
 
 The events panel ([stream_events.dart](../healthhub_app/lib/events/stream_events.dart))
 reads the alarms from the events it already asks for every 5 seconds
-(`alarms` and `now` of `GET /api/events`, the later of its two reads'
-alarms): no other poll; it doesn't call `GET /api/alarms`. The client
+(`alarms` and `now` of `GET /api/events`, its one read of the stream):
+no other poll; it doesn't call `GET /api/alarms`. The client
 ([health_hub_api.dart](../healthhub_app/lib/api/health_hub_api.dart),
 `OccupancyAlarms`, `OccupancyAlarm`, `SimNow`) reads them leniently: an
 entry without a care center is left out, an active alarm without a level
@@ -252,7 +252,7 @@ or `cleared`.
   care of 3 places, 90% range up to 3.6"; a 2 px border and a glow in
   the colour; the care center a link to its view. Numbers within 0.05 of
   a whole one are whole. The lead is from the panel's clock (the events'
-  `now`, the time on top of the panel), not from the check, which is
+  `now`, the time in the panel's header), not from the check, which is
   hours behind it by then: `overflowAt` less the clock, "in 6 h 20 min",
   and "now, since Jun 3, 2026 16:00" once the clock is past it; `leadHours`
   only without a clock. When the alarm may be out of date (the answer's
@@ -261,20 +261,21 @@ or `cleared`.
   simulation's calendar, as the rest of the app writes it
   ([sim_clock.dart](../healthhub_app/lib/sim_clock.dart)).
 - **The header** has a red badge, "2 alarms", while any is active.
-- **The rows**: the latest 6 alarm events among the stream's records by
+- **The rows**: the latest 10 alarm events among the stream's records by
   the check's simulated time (an alarm first in its minute), of the
   rows' shape: raised in red, downgraded in amber, cleared in green
   ("Cleared: no longer over capacity", "datyx's forecast stays within 8
   beds"), the care center a link; their lead is from the check's own
   `now`, the time the row shows ("Jun 3, 2026 09:00", as an event
-  row's).
+  row's). The **Alarms** pill keeps only them, the **Busiest** pill those
+  of the busiest care center ([Home](home.md)).
 - **datyx can't forecast** (`note`, alarms enabled, none active): one
   muted line says why. With alarms active and the answer `stale` or a
   `note`, a line in amber under the banners: "Occupancy alarms may be
   out of date · last checked Jun 3, 2026 09:00 · the datyx API is not
   answering" (the newest `now` of the active ones, and the note).
-- **The clock**, "Jun 3, 2026 16:00" with **Paused**, on
-  top of the panel and of the map's tile, and under the index's welcome:
+- **The clock**, "Jun 3, 2026 16:00" with **Paused**, beside the
+  panel's title and the map tile's, and under the index's welcome:
   [Home](home.md#the-simulated-clock).
 
 Tests in [widget_test.dart](../healthhub_app/test/widget_test.dart)

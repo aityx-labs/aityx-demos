@@ -148,12 +148,23 @@ void main() {
     ];
     final all = (route('GET', '/api/events', dev: true, events: events).body as Map)['events'] as List;
     expect([for (final e in all) (e as Map)['type']], ['move', 'admission', 'move']);
-    expect(all[1], {...admissionOf(3), 'id': 'reus-1'});
+    // aityx's triage, null until it has one.
+    expect(all[1], {...admissionOf(3), 'id': 'reus-1', 'triage': null});
     final admissions = (route('GET', '/api/events', dev: true, events: events, query: {'type': 'admission'}).body as Map)['events'] as List;
-    expect(admissions, [{...admissionOf(3), 'id': 'reus-1'}]);
+    expect(admissions, [{...admissionOf(3), 'id': 'reus-1', 'triage': null}]);
+    final triaged = (route('GET', '/api/events', dev: true, events: [{...admissionOf(3), 'triage': 'orange'}]).body as Map);
+    expect(((triaged['events'] as List).single as Map)['triage'], 'orange');
     final moves = (route('GET', '/api/events', dev: true, events: events, query: {'type': 'move', 'limit': '1'}).body as Map)['events'] as List;
     expect([for (final e in moves) (e as Map)['turn']], [4]);
     expect(route('GET', '/api/events', dev: true, query: {'type': 'arrival'}).status, 400);
+  });
+
+  test('events name the busiest care center now, in dev mode only', () {
+    const busiest = {'id': 7, 'name': 'Hospital Sant Joan', 'kind': 'hospital', 'inCare': 12, 'other': 'x'};
+    expect((route('GET', '/api/events', dev: true, busiest: busiest).body as Map)['busiest'],
+        {'id': 7, 'name': 'Hospital Sant Joan', 'kind': 'hospital', 'inCare': 12});
+    expect((route('GET', '/api/events', dev: true).body as Map)['busiest'], isNull);
+    expect((route('GET', '/api/events', busiest: busiest).body as Map)['busiest'], isNull);
   });
 
   test('admissions answer the database\'s latest, 400 for a bad limit, 503 without it', () {

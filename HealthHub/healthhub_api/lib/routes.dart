@@ -65,6 +65,8 @@ class Forwarded {
 /// [people]: the latest move of each simulated person, as read back from
 /// Kafka by the server (lib/simulation.dart's PeopleFeed).
 /// [events]: the latest moves and admissions the feed read, newest first.
+/// [busiest]: the care center with the most people in care now (the
+/// feed's), for GET /api/events.
 /// [eventsTotal], [eventsPerSecond]: every event the feed read, those
 /// [events] leaves out too, and how many a second over the last minute.
 /// [admissions]: what GET /api/admissions answers, the latest admissions
@@ -107,6 +109,7 @@ Answer route(
   Forwarded? datyx,
   Map<String, String> query = const {},
   List<Map<String, Object?>> events = const [],
+  Map<String, Object?>? busiest,
   int eventsTotal = 0,
   double eventsPerSecond = 0,
   List<Map<String, Object?>>? careCenters,
@@ -282,6 +285,7 @@ Answer route(
             total: eventsTotal,
             perSecond: eventsPerSecond,
             peoplePerCity: peoplePerCity,
+            busiest: busiest,
             now: simNowOf(people),
             // datyx's forecast, as the forecast route: for a signed-in user only.
             alarms: auth.enabled && identity == null ? AlarmsSnapshot.signIn(alarms) : alarms,
@@ -678,9 +682,11 @@ const eventsMax = 100;
 /// What GET /api/events answers: in dev mode, the latest [events] read
 /// from the streams (newest first, only those of [type] when given, at
 /// most [limit], never more than [eventsMax]), each with its type and
-/// where it sits in its topic, whether the simulation is [paused], and its
-/// [peoplePerCity] (null when unknown); in prod, nothing. "topic" is the moves' topic, as before admissions;
-/// "topics" names both.
+/// where it sits in its topic, an admission with aityx's triage level
+/// once it has one, whether the simulation is [paused], its
+/// [peoplePerCity] (null when unknown), and the [busiest] care center now
+/// (null while nobody is in care); in prod, nothing. "topic" is the moves'
+/// topic, as before admissions; "topics" names both.
 Map<String, Object?> eventsAnswer(
   bool dev,
   List<Map<String, Object?>> events, {
@@ -690,6 +696,7 @@ Map<String, Object?> eventsAnswer(
   int total = 0,
   double perSecond = 0,
   int? peoplePerCity,
+  Map<String, Object?>? busiest,
   Map<String, Object?>? now,
   AlarmsSnapshot alarms = AlarmsSnapshot.off,
 }) {
@@ -697,7 +704,7 @@ Map<String, Object?> eventsAnswer(
   if (!dev) {
     return {
       'enabled': false, 'paused': false, 'topic': movesTopic, 'topics': topics, 'total': 0, 'perSecond': 0, 'events': [],
-      'now': null, 'alarms': _eventsAlarms(false, alarms),
+      'now': null, 'busiest': null, 'alarms': _eventsAlarms(false, alarms),
     };
   }
   return {
@@ -709,6 +716,7 @@ Map<String, Object?> eventsAnswer(
     'topic': movesTopic,
     'topics': topics,
     'now': now,
+    'busiest': busiest == null ? null : {for (final field in const ['id', 'name', 'kind', 'inCare']) field: busiest[field]},
     'alarms': _eventsAlarms(true, alarms),
     'events': [
       for (final event in events.where((e) => type == null || _typeOf(e) == type).take(limit.clamp(1, eventsMax)))
@@ -789,7 +797,7 @@ const _moveEventFields = [
 const _admissionEventFields = [
   'type', 'eventId', 'personId', 'name', 'age', 'sex', 'occupation', 'city', 'conditionCode',
   'conditionName', 'conditionType', 'visit', 'visitNumber', 'complaint', 'hospitalId',
-  'hospitalName', 'careCenterKind', 'simTime', 'day', 'at', 'turn', 'partition', 'offset',
+  'hospitalName', 'careCenterKind', 'simTime', 'day', 'at', 'turn', 'partition', 'offset', 'triage',
 ];
 
 /// How many admissions GET /api/admissions answers unless asked, and at

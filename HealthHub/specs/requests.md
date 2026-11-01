@@ -585,6 +585,206 @@ The feature files hold the current specification; see the
    a simulated date and time, "Now · Jan 19, 2026 12:00" (or "Ended …"
    for a past run), and no longer the run's id. See
    [A care center's occupancy per hour](occupancy-timeline.md).
+
+1. **The simulation date and time on the top of the simulation, and on
+   the top of the event panel.** Home's map tile shows, beside its title
+   "Where you are", the simulated date and time, large and bold with a
+   clock, "Jun 3, 2026 16:00" (the calendar starting on Jan 1, 2026), and
+   **Paused** in amber while the simulation is paused; the events card
+   has the same at its top, and the index under its welcome. It updates
+   with each read (every 5 seconds): the events' `now` and `paused`, the
+   map's people's `day` and `simTime`, the newest of them. The events
+   card also now keeps the API's `paused` across its two reads (it was
+   dropped when the moves and admissions were merged, so a pause made
+   elsewhere didn't show). The app part of the occupancy alarms (the
+   banners pinned at the top of the events, the badge, the alarm rows)
+   is in [Occupancy alarms](occupancy-alarms.md#the-app). See
+   [Home](home.md#the-simulated-clock) and [Index](index.md).
+
+1. **Now that we have predictions on occupancy, fire an alarm, an event,
+   and highlight it pretty evidently in the events panel, when the
+   expected occupancy in the future surpasses the limit for the care
+   center, which is a pretty bad thing to happen, so warn as much as
+   possible in advance.** The API keeps an alarm per care center of the
+   run going on from datyx's DeepAR forecast of `occupancy_hourly`
+   against its capacity in the simulation: `expected` when the forecast's
+   mean is over it at some hour of the horizon, `possible` (the early
+   warning) when only its 90th percentile is, with the earliest hour over
+   it, how many hours ahead, the forecast there and the peak. datyx's
+   inference scores the run's care centers, named, 100 a call, asked
+   with the token of the request that set the check off (`GET
+   /api/events`, the events panel's poll, or `GET /api/alarms`), at most
+   every `HEALTHHUB_ALARM_EVERY_MS` (5000; 0 turns them off), in the
+   background; the token is used for that call and kept nowhere. A level
+   rising fires an `alarm` event, falling a `downgraded` one, back to
+   none a `cleared` one: each stored in the new table `occupancy_alarm`
+   and published to the new topic `healthhub.alarms` (the `kafka`
+   health check makes it), both retried until they succeed. `GET
+   /api/alarms` answers the active alarms, worst and soonest first, and
+   the latest events; `GET /api/events` carries them too, with `now`,
+   the simulated day, time and date, for the clock. The events panel pins
+   the active alarms at its top. After review: the run's care centers are
+   asked for by name, 100 a call (datyx without series scores only the
+   series ending latest in the whole table, an older, longer run's, and
+   the highest 100); a fall waits three checks lower (DeepAR's samples
+   change every call, so a forecast at the capacity flapped); a care
+   center left out of an answer is kept, marked stale, never cleared; no
+   check while paused once one has read the run; the first datyx source
+   that answered is kept, another's answers ignored; the answer says when
+   the alarms may be out of date (`stale`), and the panel says so, with
+   the lead counted from its own clock ("now, since …" once past); with
+   sign-in on, `/api/alarms` and the alarms of `/api/events` are for a
+   signed-in user only, as the forecast is. See [Occupancy
+   alarms](occupancy-alarms.md), [API](api.md), [Database](database.md),
+   [Home](home.md) and [Development environment](dev-environment.md).
+
+1. **Merge the occupancy alarms with the real dates and the people
+   picker.** The alarms and the simulated clock came from a branch before
+   the calendar dates, the people picker and the end of the condition
+   chips; merged, every time they show is a date on the simulation's
+   calendar as the rest of the app writes it (`sim_clock.dart`): the
+   clock "Jun 3, 2026 16:00", the banners' hour, peak and "Not current:
+   last checked Jun 3, 2026 09:00", the stale line, and an alarm row's
+   time, as an event row's. The app's `SimNow` counts days from
+   `sim_clock`'s `simEpoch`. The banners sit under the simulation's
+   controls (the people picker and the pause), above the rows, and the
+   alarm events are always among the rows, there being no condition to
+   choose. See [Home](home.md) and [Occupancy
+   alarms](occupancy-alarms.md#the-app).
+
+1. **The events in time, not by kind.** "The event view on dashboard
+   should be time sorted, not grouped by event type, with different
+   types of events coming along." The panel asked for the moves and the
+   admissions apart (12 and 8), so the moves of the latest turn sat on
+   top in a block. Now one read asks for the 60 latest events of every
+   kind (`GET /api/events?limit=60`, no type), and they show as one
+   stream newest first by simulated time, moves, admissions and alarm
+   events among each other, a tie in the order the API read them (a
+   record's offset within its topic), never by kind; at most 20 rows. So
+   the moves don't bury the rest, the API keeps a move as an event only
+   when it changes the person's state (left home, arrived, going home,
+   back home), not every turn's position: the once-a-day check-in of a
+   monitored person at home is gone, and `GET /api/events` merges the
+   two kinds by simulated time instead of by arrival. See
+   [Home](home.md), [Simulation](simulation.md#the-stream) and
+   [API](api.md).
+
+1. **The simulated time, not counts, in the events' header.** "The
+   events view always shows '8 admissions, 12 moves': remove that.
+   Print simulation time instead." The counts are gone; the simulated
+   date and time ("Jan 19, 2026 17:00", with Paused while paused) sits
+   beside the title, as on the map's header, in place of the separate
+   line above it. See [Home](home.md).
+
+1. **Pills over the events.** "Add a few filters as clickable pills.
+   Cool ones like 'busiest hospital'." A row of pills, one at a time,
+   All first: **Busiest: <care center>** (its admissions, the people
+   going to, at or leaving it, its alarms), **Alarms**, **Urgent** (the
+   admissions aityx triaged red or orange), **Admissions**, **On the
+   move** (people who left home for care), **Acute** and **Chronic**,
+   each with how many of the rows read it keeps. The API names the
+   busiest care center, the one with the most people in care now from
+   everyone's latest move (`busiest` in `GET /api/events`), and an
+   admission carries aityx's triage level once recorded (`triage`),
+   which its row shows as a small pill in the level's colour. See
+   [Home](home.md), [Simulation](simulation.md#the-stream) and
+   [API](api.md).
+
+1. **The occupancy chart: now, both series, the threshold; retrained in
+   time; alarms at 90%.** "In the occupancy per hour time series view,
+   put a vertical divider indicating current time and always show the
+   two time series: the actual observed occupancy and the predicted
+   one." "Make sure data is re-trained in time. Run the simulation slower
+   if needed to allow time for prediction to be trained." "When
+   predicted or actual hit a threshold — let's set a default of 90%
+   occupancy — raise an alarm. Make sure that point is marked and
+   highlighted in the time series graph."
+   - **The chart** draws a solid vertical line at the simulated clock,
+     labelled "Now Jan 19 12:40", and both series always: the occupancy
+     observed (solid orange) and what DeepAR predicted of every hour
+     (dashed blue, in its band), over the past hours too. The API keeps
+     what datyx forecast of each care center's hours, from the alarms'
+     checks and the view's own forecasts, in a new table,
+     `occupancy_forecast` (run, care center and hour; a forecast from a
+     later series' end replaces an earlier one's, so each hour keeps the
+     one made closest to it), and answers it with the occupancy per hour
+     as `predicted`, with the alarms' `threshold` and the clock `now`.
+     The capacity line has a red threshold line beside it ("90% · 7.2"),
+     every hour observed or predicted at or above it is marked (red
+     filled with a halo, red hollow), and the first hour ahead is ringed
+     and labelled ("90% expected at Jan 19 16:00"). The status line says
+     how far off datyx's predictions of the hours shown were. See [A care
+     center's occupancy per hour](occupancy-timeline.md).
+   - **The pace**: measured on the development machine, datyx trains
+     `occupancy_hourly` in 106 s and answers a forecast for 33 care
+     centers in about 7 s, seven simulated hours at a second an hour. The
+     simulation now runs a simulated hour every 10 s
+     (`HEALTHHUB_SIM_TURN_MS` 2500, `HEALTHHUB_SIM_MINUTES_PER_TURN` 15,
+     both still settings), so a forecast comes within the hour, the
+     alarms' checks read every care center about once a simulated hour,
+     and the 24 hours ahead are 4 real minutes of warning; datyx's
+     development catalogue retrains `occupancy_hourly` every 15 minutes
+     (`retrain`: `15min`, 90 simulated hours). See
+     [The simulation](simulation.md#pace) and [Development
+     environment](dev-environment.md).
+   - **The alarms** are against `HEALTHHUB_ALARM_THRESHOLD` (0.9, or
+     `90%`; above 0 and at most 2, else the server stops) of each care
+     center's capacity, at or above it: a new level, **actual**, the
+     worst, when the occupancy observed at the run's latest hour reaches
+     it ("Occupancy now at 92%"), checked even while datyx can't
+     forecast; **expected** when the forecast's mean does, **possible**
+     when its 90th percentile does, each with its earliest hour and lead
+     from now. Events, transitions and the three-checks hysteresis are as
+     before; the events carry the threshold and the occupancy, which
+     `occupancy_alarm` stores in new columns (its level checks take
+     `actual`). The banners and rows use the threshold's wording ("90%
+     occupancy expected at ...", "Alarm: 90% reached now", "Cleared:
+     below 90%"). See [Occupancy alarms](occupancy-alarms.md),
+     [Database](database.md), [Home](home.md) and [API](api.md).
+1. **On the care unit view, beside the top card, add a button to double
+   population flow and to halve the population flow in a given care
+   unit.** Each care center has a flow factor for the simulation's run,
+   1 unless changed, doubled or halved at each press from 1/8 to 8, and
+   reset on a new run: the visits headed there come that many times as
+   often. A chronic visit's wait (its interval, a course's gap) is
+   divided by the factor of its care center, still in the daytime; acute
+   onsets come at the highest factor among a person's care centers and
+   an episode is kept with its first visit's factor over it (Poisson
+   thinning); a press brings the planned visits forward or puts them
+   off, and draws the next onsets again, so it shows at once. In a
+   seeded run the admissions there went ×1.75 to ×1.94 at ×2, ×0.48 to
+   ×0.62 at ×1/2, ×6.6 at ×8, the daily profile kept. The API takes
+   `POST /api/care-centers/{id}/flow` (`{"action": "double" | "halve" |
+   "reset"}`, answering the factor; sign-in as for pausing, 409 when the
+   simulation doesn't run), says the factor in `GET
+   /api/care-centers/{id}` (`flow`) and logs every change. The care
+   center view has a **Flow of people** card beside its header, "Flow
+   ×2", with **Double the flow** and **Halve the flow** (icons,
+   tooltips; disabled at the bounds and while a press is under way) and a
+   reset, refusals in a snack bar ("Sign in to change the flow."). See
+   [The simulation](simulation.md#the-flow-at-a-care-center), [The care
+   center view](care-center.md#the-flow) and [API](api.md).
+1. **Review of the operations views.** Fixes from a review of the merged
+   branch: the occupancy chart no longer fails when datyx's forecast
+   starts an hour or more after the last hour observed (datyx reads the
+   table seconds after the history, at a simulated hour every 10 s): the
+   hours between are slots without a point, the line goes on across them,
+   and the crossing reads only the hours with a step. A run that has
+   ended has no now line nor "Now" in the key (its header says "Ended
+   ..."). The first crossing's label goes just above its ring, or just
+   below it near the top of the axis, never over the point. The
+   occupancy alarms: an `actual` alarm falls (after three checks lower)
+   to what a forecast says, or to none without one, when the occupancy
+   read is below the threshold, even while datyx can't forecast; a failed
+   read of the occupancy is no reading, so an `actual` alarm is kept,
+   stale, instead of falling. `occupancy_forecast`: the same forecast
+   asked again writes nothing, the API prunes it to the three runs
+   forecast last and their last 744 hours, and the care center view's
+   forecast is kept only from the datyx source the alarms' checks settled
+   on, of the run going on (nothing before, or with the alarms off). See
+   [A care center's occupancy per hour](occupancy-timeline.md),
+   [Occupancy alarms](occupancy-alarms.md) and [Database](database.md).
+
 1. **In the datyx dashboard add an aityx tab showing the requests routed
    to aityx, and in the future personalize them.** (HealthHub's part.)
    The triage's calls to aityx go through datyx's new aityx gateway
@@ -610,3 +810,28 @@ The feature files hold the current specification; see the
    desk](triage.md#which-way-through-datyx-or-directly), [API](api.md),
    [Database](database.md), [Home](home.md) and [Development
    environment](dev-environment.md).
+
+1. **Merge the operations views with main: the forecast kept over the
+   hours, the admissions history, the aityx gateway.** Both sides drew
+   what DeepAR predicted of the past hours over the observed line: main
+   kept, in the card, the last forecast it was given of each hour while
+   the view is open; this branch keeps it in the API (`occupancy_forecast`,
+   from the alarms' datyx source), which survives a reload and is
+   everyone's. One chart now: the API's prediction of an hour comes first,
+   the card's own fills only the hours the API has none of (the alarms
+   off, or before a check settled on a source), both drawn alike (dashed
+   blue, hollow points, the 10th to 90th percentile band, the one band of
+   the chart), the tooltip saying what was predicted of the hour and how
+   many hours before, on the calendar's dates; the status line says how
+   many hours were predicted before they came, how far off on average,
+   and how many fell in the 80% band (main's `ForecastCheck`); the now
+   line, the threshold, the marks and the first crossing as before. The
+   simulation keeps main's daily profile of arrivals (peaking at 13:00)
+   under the flow factors: a visit moved by the flow keeps its day and
+   takes an hour of the profile (`visitSlotFrom`), and an acute onset at a
+   person's flow rate falls on an hour of it too (`acuteOnsetAfter`), so
+   the midday peak holds at any flow. The settings are both sides':
+   `HEALTHHUB_HISTORY_DAYS`, the alarms' and the gateway's, at this
+   branch's pace (2500 ms a turn of 15 minutes). See [A care center's
+   occupancy per hour](occupancy-timeline.md) and [The
+   simulation](simulation.md#the-flow-at-a-care-center).

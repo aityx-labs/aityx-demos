@@ -1,5 +1,5 @@
 /// The simulation's calendar: day 1 is 2026-01-01, and its clock runs
-/// from there, a simulated hour every real second unless set otherwise.
+/// from there, a simulated hour every 10 real seconds unless set otherwise.
 /// The app shows every simulated time as a date on it, "Jan 19, 2026
 /// 09:40", never as a day number.
 library;
@@ -36,6 +36,9 @@ String simDateOf(String date) {
 
 /// "Jan 19": a day on a chart's axis.
 String simDayLabel(DateTime t) => '${_months[t.month - 1]} ${t.day}';
+
+/// "Jan 19 16:00": a moment labelled on a chart, its year the axis's.
+String simDayTime(DateTime t) => '${simDayLabel(t)} ${_two(t.hour)}:${_two(t.minute)}';
 
 /// When a record says it happened, "Jan 19, 2026 09:40"; just its time
 /// without a day, and nothing without a time.

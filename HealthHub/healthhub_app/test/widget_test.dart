@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:healthhub_app/api/health_hub_api.dart';
 import 'package:healthhub_app/auth/auth_controller.dart';
 import 'package:healthhub_app/care_centers/care_center_screen.dart';
+import 'package:healthhub_app/events/simulated_clock.dart';
 import 'package:healthhub_app/events/stream_events.dart';
 import 'package:healthhub_app/care_centers/occupancy_timeline.dart';
 import 'package:healthhub_app/sim_clock.dart';
@@ -30,11 +31,21 @@ class FakeApi implements HealthHubApi {
   /// How many times the map asked for the people.
   int peopleAsked = 0;
 
-  /// The types the events card asked for, in order.
+  /// The types the events card asked for, in order, and how many.
   final eventTypes = <StreamEventType?>[];
+  final eventLimits = <int>[];
+
+  /// The events the stream answers in place of the usual three, in the
+  /// API's order, and the busiest care center it names.
+  List<StreamEvent>? stream;
+  Map<String, Object?>? busiest;
 
   /// The event ids whose triage detail was asked for.
   final triageDetailsAsked = <String>[];
+
+  /// The occupancy alarms the events carry, as the API writes them
+  /// (`alarms` of `GET /api/events`); none without.
+  Map<String, Object?>? alarms;
 
   /// Whether the simulation is paused, and every pause (true) or resume asked.
   bool paused = false;
@@ -54,6 +65,25 @@ class FakeApi implements HealthHubApi {
   Future<int> setPeoplePerCity(int perCity) async {
     perCityAsked.add(perCity);
     return this.perCity = perCity;
+  }
+
+  /// The hospital's flow factor, every change asked, and, while set, what
+  /// holds the answer back; with [flowRefused], the API's refusal.
+  double flow = 1;
+  final flowAsked = <(int, FlowAction)>[];
+  Completer<void>? flowGate;
+  ApiException? flowRefused;
+
+  @override
+  Future<double> changeFlow(int id, FlowAction action) async {
+    flowAsked.add((id, action));
+    await flowGate?.future;
+    if (flowRefused case final refused?) throw refused;
+    return flow = switch (action) {
+      FlowAction.doubled => flow * 2,
+      FlowAction.halved => flow / 2,
+      FlowAction.reset => 1.0,
+    }.clamp(flowMin, flowMax).toDouble();
   }
 
   static const _signs = {
@@ -165,8 +195,9 @@ class FakeApi implements HealthHubApi {
   @override
   Future<StreamEvents> events({int limit = 20, StreamEventType? type}) async {
     eventTypes.add(type);
+    eventLimits.add(limit);
     if (!simulation) return const StreamEvents(enabled: false);
-    final all = [
+    final all = stream ?? [
       // Older than the moves, so it sorts below them.
       const StreamEvent(
         id: 'lisboa-3',
@@ -211,9 +242,14 @@ class FakeApi implements HealthHubApi {
       paused: paused,
       peoplePerCity: perCity,
       // The feed's counts; the answer read later counts more.
-      total: type == StreamEventType.admission ? 48213 : 48190,
-      perSecond: type == StreamEventType.admission ? 70.4 : 70.1,
-      topics: [type == StreamEventType.admission ? 'healthhub.admissions' : 'healthhub.people.moves'],
+      total: type == StreamEventType.move ? 48190 : 48213,
+      perSecond: type == StreamEventType.move ? 70.1 : 70.4,
+      alarms: OccupancyAlarms.fromJson(alarms),
+      busiest: BusiestCareCenter.fromJson(busiest),
+      topics: [
+        if (type != StreamEventType.admission) 'healthhub.people.moves',
+        if (type != StreamEventType.move) 'healthhub.admissions',
+      ],
       events: [
         for (final event in all)
           if (type == null || event.type == type) event,
@@ -381,7 +417,7 @@ class FakeApi implements HealthHubApi {
     if (id == 2) {
       return CareCenterDetail.fromJson({
         'id': 2, 'name': 'Clínica do Campo', 'kind': 'clinic', 'subtype': 'Policlínica', 'city': 'Lisboa',
-        'country': 'PT', 'lat': 38.722, 'lon': -9.141, 'capacity': {'places': 3, 'unit': 'places'},
+        'country': 'PT', 'lat': 38.722, 'lon': -9.141, 'capacity': {'places': 3, 'unit': 'places'}, 'flow': 1,
         'now': {'enabled': true, 'inUse': 0, 'usage': 0, 'assigned': 0, 'here': [], 'onTheWay': []},
         'admissions': {'thisRun': 0, 'total': 0, 'latest': []},
       });
@@ -402,6 +438,8 @@ class FakeApi implements HealthHubApi {
       'ownership': 'public',
       'source': 'sns',
       'capacity': {'places': 8, 'unit': 'beds', 'simulated': true},
+      'serves': ['hospital', 'urgent_care', 'dialysis'],
+      'flow': flow,
       'now': {
         'enabled': true,
         'run': 'cafe0001',
@@ -448,22 +486,36 @@ class FakeApi implements HealthHubApi {
 
   /// The care centers whose people in care per hour, and whose forecast, were asked for.
   final hourlyAsked = <(int, String?, int?)>[];
+
+  /// Whether the occupancy's run is going on; when not, it ended at day 19, 12:00.
+  bool occupancyCurrent = true;
   final forecastAsked = <(int, String?)>[];
 
   /// Care centers 1 and 2 had 0, 1, 3, 2, 2 and 1 people in care from 07:00 to 12:00 of day 19, run 1349d576
-  /// (current); 7, nobody.
+  /// (current), the clock at 12:40, and datyx had predicted 2.8, 2.2, 1.6 and 1.2 of 09:00 to 12:00 before
+  /// them (nothing of 07:00 and 08:00); 7, nobody.
   @override
   Future<HourlyOccupancy> careCenterOccupancy(int id, {String? run, int? hours}) async {
     hourlyAsked.add((id, run, hours));
     if (id != 1 && id != 2) return HourlyOccupancy(hospitalId: id);
     const inCare = [0, 1, 3, 2, 2, 1];
+    const predicted = [null, null, 2.8, 2.2, 1.6, 1.2];
     return HourlyOccupancy.fromJson({
       'hospitalId': id,
       'run': '1349d576',
-      'current': true,
+      'current': occupancyCurrent,
       'end': '2026-01-19T12:00',
+      'threshold': 0.9,
+      'now': {'day': 19, 'simTime': '12:40', 'date': '2026-01-19'},
       'hours': [
-        for (var h = 7; h <= 12; h++) {'hour': '2026-01-19T${'$h'.padLeft(2, '0')}:00', 'occupancy': inCare[h - 7]},
+        for (var h = 7; h <= 12; h++)
+          {
+            'hour': '2026-01-19T${'$h'.padLeft(2, '0')}:00',
+            'occupancy': inCare[h - 7],
+            'predicted': predicted[h - 7] == null
+                ? null
+                : {'mean': predicted[h - 7], 'p10': 1.0, 'p90': 3.5, 'leadHours': 1},
+          },
       ],
     });
   }
@@ -815,10 +867,13 @@ void main() {
     await tester.pumpWidget(app(api: api));
     await tester.pumpAndSettle();
 
-    // Moves and admissions are asked for apart, so moves can't push the
-    // admissions out.
-    expect(api.eventTypes, containsAll([StreamEventType.move, StreamEventType.admission]));
-    expect(find.text('1 admission · 2 moves'), findsOneWidget);
+    // One stream, every kind in one answer (no type), more than the rows
+    // shown, so a pill has rows to keep.
+    expect(api.eventTypes.toSet(), {null});
+    expect(api.eventLimits.toSet(), {60});
+    // No counts of what is shown.
+    expect(find.byKey(const Key('stream-events-counts')), findsNothing);
+    expect(find.textContaining('2 moves'), findsNothing);
     // Beside the title, every event the API read, hidden ones too, and a second over the last minute.
     expect(tester.widget<Text>(find.byKey(const Key('stream-events-total'))).data, '48,213 events · 70.4/s');
     // Ana is at home and monitored, so her move shows, marked, why on hover.
@@ -896,7 +951,7 @@ void main() {
     expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
   });
 
-  testWidgets('the events have no filter; beside the pause, the people a city, which anyone can change', (tester) async {
+  testWidgets('no condition filter nor counts; beside the pause, the people a city, which anyone can change', (tester) async {
     tester.view.physicalSize = const Size(1400, 2600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -905,8 +960,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('condition-filter')), findsNothing);
-    expect(find.byType(FilterChip), findsNothing);
-    expect(find.text('1 admission · 2 moves'), findsOneWidget);
+    expect(find.text('1 admission · 2 moves'), findsNothing);
     final picker = find.byKey(const Key('simulation-people'));
     expect(find.descendant(of: picker, matching: find.text('80 people a city')), findsOneWidget);
     expect(tester.getCenter(picker).dy, closeTo(tester.getCenter(find.byKey(const Key('simulation-pause'))).dy, 4));
@@ -1132,19 +1186,123 @@ void main() {
     expect(find.byType(PersonScreen), findsOneWidget);
   });
 
+  testWidgets("a care center's view doubles and halves the flow of people there, beside what it is", (tester) async {
+    tester.view.physicalSize = const Size(1200, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeApi(auth: false, simulation: true);
+    await tester.pumpWidget(MaterialApp(
+      home: CareCenterScreen(id: 1, load: api.careCenter, flow: api.changeFlow, showTiles: false),
+    ));
+    await tester.pumpAndSettle();
+    String factor() => tester.widget<Text>(find.byKey(const Key('flow-factor'))).data!;
+    bool enabled(String key) => tester.widget<ButtonStyleButton>(find.byKey(Key(key))).onPressed != null;
+
+    // Beside the header, on its right, at the normal flow.
+    final card = find.byKey(const Key('flow-card'));
+    expect(card, findsOneWidget);
+    final header = find.ancestor(of: find.text('Hospital · Hospital Central'), matching: find.byType(Card));
+    expect(tester.getTopLeft(card).dy, tester.getTopLeft(header).dy);
+    expect(tester.getTopLeft(card).dx, greaterThan(tester.getTopRight(header).dx));
+    expect(factor(), 'Flow ×1');
+    final height = tester.getSize(card).height;
+    expect(find.text('Double the flow'), findsOneWidget);
+    expect(find.text('Halve the flow'), findsOneWidget);
+    expect(find.byKey(const Key('flow-reset')), findsNothing);
+    expect(find.byTooltip('Twice as many arrivals here: the visits headed here come twice as often (up to ×8)'),
+        findsOneWidget);
+
+    // A press asks the API, both buttons disabled until it answers, then says the factor.
+    api.flowGate = Completer<void>();
+    await tester.tap(find.byKey(const Key('flow-double')));
+    await tester.pump();
+    expect(api.flowAsked, [(1, FlowAction.doubled)]);
+    expect(enabled('flow-double'), isFalse);
+    expect(enabled('flow-halve'), isFalse);
+    api.flowGate!.complete();
+    api.flowGate = null;
+    await tester.pumpAndSettle();
+    expect(factor(), 'Flow ×2');
+    expect(find.text('The visits headed here come twice as often.'), findsOneWidget);
+    expect(enabled('flow-double'), isTrue);
+    // The reset shows, and the card keeps its height.
+    expect(find.byKey(const Key('flow-reset')), findsOneWidget);
+    expect(tester.getSize(card).height, height);
+
+    // Up to ×8, where doubling stops; halved, and back to normal.
+    await tester.tap(find.byKey(const Key('flow-double')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('flow-double')));
+    await tester.pumpAndSettle();
+    expect(factor(), 'Flow ×8');
+    expect(enabled('flow-double'), isFalse);
+    for (var i = 0; i < 5; i++) {
+      await tester.tap(find.byKey(const Key('flow-halve')));
+      await tester.pumpAndSettle();
+    }
+    expect(factor(), 'Flow ×1/4');
+    expect(find.text('The visits headed here come a quarter as often.'), findsOneWidget);
+    // A read of the care center says the same.
+    await tester.pump(CareCenterScreen.refresh);
+    await tester.pumpAndSettle();
+    expect(factor(), 'Flow ×1/4');
+    await tester.tap(find.byKey(const Key('flow-reset')));
+    await tester.pumpAndSettle();
+    expect(factor(), 'Flow ×1');
+    expect(api.flowAsked.last, (1, FlowAction.reset));
+
+    // Refused: the reason in a snack bar, the factor as it was.
+    api.flowRefused = const ApiException(401, 'sign in first');
+    await tester.tap(find.byKey(const Key('flow-halve')));
+    await tester.pumpAndSettle();
+    expect(find.text('Sign in to change the flow.'), findsOneWidget);
+    expect(factor(), 'Flow ×1');
+
+    // Without the control, or a flow (prod, no simulation), no buttons.
+    await tester.pumpWidget(MaterialApp(home: CareCenterScreen(key: const Key('no-flow'), id: 1, load: api.careCenter, showTiles: false)));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('flow-card')), findsNothing);
+  });
+
+  testWidgets("on a narrow window the flow's buttons are under what it is", (tester) async {
+    tester.view.physicalSize = const Size(400, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeApi(auth: false, simulation: true);
+    await tester.pumpWidget(MaterialApp(
+      home: CareCenterScreen(id: 1, load: api.careCenter, flow: api.changeFlow, showTiles: false),
+    ));
+    await tester.pumpAndSettle();
+    final header = find.ancestor(of: find.text('Hospital · Hospital Central'), matching: find.byType(Card));
+    expect(tester.getTopLeft(find.byKey(const Key('flow-card'))).dy, greaterThan(tester.getBottomLeft(header).dy));
+    expect(find.text('Double the flow'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('a care center says its flow factor in the simulation, none in prod', () {
+    expect(CareCenterDetail.fromJson({'id': 1, 'flow': 2}).flow, 2);
+    expect(CareCenterDetail.fromJson({'id': 1, 'flow': 0.125}).flow, 0.125);
+    expect(CareCenterDetail.fromJson({'id': 1, 'flow': null}).flow, isNull);
+    expect(flowLabel(1), '×1');
+    expect(flowLabel(0.5), '×1/2');
+    expect(flowLabel(8), '×8');
+  });
+
   testWidgets("a clinic's view says the simulation sends nobody there; none is a 404", (tester) async {
     tester.view.physicalSize = const Size(1200, 2600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     final api = FakeApi();
     await tester.pumpWidget(
-      MaterialApp(home: CareCenterScreen(id: 2, load: api.careCenter, showTiles: false)),
+      MaterialApp(home: CareCenterScreen(id: 2, load: api.careCenter, flow: api.changeFlow, showTiles: false)),
     );
     await tester.pumpAndSettle();
     expect(find.text('Clinic · Policlínica'), findsOneWidget);
     expect(tester.widget<Text>(find.byKey(const Key('usage-capacity'))).data, 'of 3 places');
     // A kind of clinic the simulation routes nobody to.
     expect(find.textContaining('The simulation sends nobody to a Policlínica'), findsOneWidget);
+    // Nor buttons for its flow.
+    expect(find.byKey(const Key('flow-card')), findsNothing);
     expect(find.text('No admissions recorded here.'), findsOneWidget);
 
     await tester.pumpWidget(
@@ -1406,7 +1564,7 @@ void main() {
       ),
     );
 
-    testWidgets('the hours solid with their points, then DeepAR\'s forecast dashed after them', (tester) async {
+    testWidgets('both series, observed and predicted, the now line, the threshold and its crossings', (tester) async {
       final semantics = tester.ensureSemantics();
       final api = FakeApi();
       await tester.pumpWidget(card(api, 2));
@@ -1414,36 +1572,169 @@ void main() {
       expect(api.hourlyAsked, [(2, null, 72)]);
       expect(api.forecastAsked, [(2, null)]);
       expect(find.text('Occupancy per hour'), findsOneWidget);
-      // The series' end as a simulated date and time, never the run's id.
-      expect(find.byKey(const Key('occupancy-now')), findsOneWidget);
-      expect(tester.widget<Text>(find.byKey(const Key('occupancy-now'))).data, 'Now · Jan 19, 2026 12:00');
+      // Now, the simulated clock as a date and time, never the run's id.
+      expect(tester.widget<Text>(find.byKey(const Key('occupancy-now'))).data, 'Now · Jan 19, 2026 12:40');
       expect(find.textContaining('1349d576'), findsNothing);
-      expect(find.textContaining('1 in care at Jan 19, 2026 12:00; at most 3 of 8 beds in the last 6 hours.'), findsOneWidget);
-      expect(
-        find.textContaining("datyx's DeepAR expects 1.5 on average over the next 4 hours, 2.0 at most (model of training run 5)"),
-        findsOneWidget,
-      );
-      expect(find.text('In care'), findsOneWidget);
-      expect(find.text('DeepAR forecast, kept as the hours pass (mean; the band, 10th to 90th percentile)'), findsOneWidget);
+      final status = tester.widget<Text>(find.byKey(const Key('occupancy-status'))).data!;
+      expect(status, contains('1 in care at Jan 19, 2026 12:00; at most 3 of 8 beds in the last 6 hours.'));
+      // How far off datyx was of the hours it predicted: |3-2.8|, |2-2.2|, |2-1.6|, |1-1.2|; how many in the band.
+      expect(status, contains('datyx predicted 4 of them before they came, off by 0.25 on average; '));
+      expect(status, matches(RegExp(r'; \d fell in its 80% band\.')));
+      expect(status, contains("datyx's DeepAR expects 1.5 on average over the next 4 hours, 2.0 at most (model of training run 5)"));
+      // Of 8 beds, 90% is 7.2: nothing reaches it.
+      expect(status, isNot(contains('90% of the capacity')));
+      expect(find.text('In care (observed)'), findsOneWidget);
+      expect(find.text('Predicted by DeepAR before each hour and ahead (mean; the band, 10th to 90th percentile)'), findsOneWidget);
+      expect(find.text('Now'), findsOneWidget);
       expect(find.text('Capacity, 8 beds'), findsOneWidget);
+      expect(find.text('Alarm threshold, 90% (7.2)'), findsOneWidget);
+      expect(find.text('In care at or above it'), findsOneWidget);
+      expect(find.text('Predicted at or above it'), findsOneWidget);
       expect(
         find.bySemanticsLabel(
-          'Occupancy per hour: 1 in care now, at most 3 in the last 6 hours, of a capacity of 8; '
-          '1.5 on average forecast over the next 4',
+          'Occupancy per hour: 1 in care now (Jan 19, 2026 12:40), at most 3 in the last 6 hours, of a capacity of 8; '
+          '4 of them predicted before; 1.5 on average forecast over the next 4; '
+          'alarm threshold 90%, 7.2: 0 hours in care and 0 predicted at or above it',
         ),
         findsOneWidget,
       );
 
-      // Touching an hour shows its numbers: three in care, then a forecast hour.
+      // Touching an hour shows its numbers: three in care and what was predicted of them, then a forecast hour.
       final chart = tester.getRect(find.byType(OccupancyTimelineChart));
       double xOf(int index) => chart.left + 28 + index / 9 * (chart.width - 36);
       await tester.tapAt(Offset(xOf(2), chart.center.dy));
       await tester.pump();
-      expect(find.text('Jan 19, 2026 09:00\n3 in care of 8 beds'), findsOneWidget);
+      expect(find.text('Jan 19, 2026 09:00\n3 in care of 8 beds (38%)\npredicted 2.8, 1 h before\n1 to 3.5 (80%)'), findsOneWidget);
+      await tester.tapAt(Offset(xOf(1), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Jan 19, 2026 08:00\n1 in care of 8 beds (13%)'), findsOneWidget);
       await tester.tapAt(Offset(xOf(8), chart.center.dy));
       await tester.pump();
-      expect(find.text('Jan 19, 2026 15:00, forecast\n2.0 expected of 8 beds\n0 to 3 (80%)'), findsOneWidget);
+      expect(find.text('Jan 19, 2026 15:00, forecast\n2.0 expected of 8 beds (25%)\n0 to 3 (80%)'), findsOneWidget);
       semantics.dispose();
+    });
+
+    testWidgets('every hour at or above the threshold is marked, and the first ahead labelled', (tester) async {
+      final semantics = tester.ensureSemantics();
+      // Of 3 beds, 90% is 2.7: 3 in care at 09:00 and its 2.8 predicted reach it; ahead, the 90th percentile (3) from 13:00.
+      await tester.pumpWidget(card(FakeApi(), 2, capacity: 3));
+      await tester.pumpAndSettle();
+      expect(find.text('Alarm threshold, 90% (2.7)'), findsOneWidget);
+      final status = tester.widget<Text>(find.byKey(const Key('occupancy-status'))).data!;
+      expect(status, endsWith('90% of the capacity possible at Jan 19, 2026 13:00.'));
+      expect(
+        find.bySemanticsLabel(RegExp(
+          r'alarm threshold 90%, 2\.7: 1 hours in care and 1 predicted at or above it; 90% possible at Jan 19, 2026 13:00$',
+        )),
+        findsOneWidget,
+      );
+      final chart = tester.getRect(find.byType(OccupancyTimelineChart));
+      double xOf(int index) => chart.left + 28 + index / 9 * (chart.width - 36);
+      await tester.tapAt(Offset(xOf(2), chart.center.dy));
+      await tester.pump();
+      expect(find.textContaining('3 in care of 3 beds (100%)\npredicted 2.8, 1 h before\n1 to 3.5 (80%)\nat or above the 90% threshold'),
+          findsOneWidget);
+      await tester.tapAt(Offset(xOf(6), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Jan 19, 2026 13:00, forecast\n1.0 expected of 3 beds (33%)\n0 to 3 (80%)\n90% threshold possible'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    test('the first crossing ahead: by the mean, else by the 90th percentile', () {
+      ForecastStep step(int h, double mean, double p90) =>
+          ForecastStep(at: DateTime.utc(2026, 1, 19, h), mean: mean, p10: 0, p50: mean, p90: p90);
+      expect(firstCrossing([step(13, 5, 8), step(14, 7.2, 9), step(15, 8, 9)], 7.2), (at: DateTime.utc(2026, 1, 19, 14), expected: true, index: 1));
+      expect(firstCrossing([step(13, 5, 7.1), step(14, 6, 7.2)], 7.2), (at: DateTime.utc(2026, 1, 19, 14), expected: false, index: 1));
+      expect(firstCrossing([step(13, 5, 7.1)], 7.2), isNull);
+      // 90% of 10 is 9, reached by 9.
+      expect(reachesThreshold(9, 0.9 * 10), isTrue);
+      expect(percentText(0.9), '90%');
+      expect(simDayTime(DateTime.utc(2026, 1, 19, 16)), 'Jan 19 16:00');
+    });
+
+    testWidgets('the now line is at the clock, the series\' end without one, and the predicted line over the past', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final hours = [
+        for (var h = 7; h <= 12; h++)
+          HourOccupancy(hour: DateTime.utc(2026, 1, 19, h), occupancy: 9, predicted: h >= 10 ? PredictedHour(mean: 9.5, p10: 8, p90: 11) : null),
+      ];
+      await tester.pumpWidget(MaterialApp(
+        theme: aityxDarkTheme(),
+        home: Scaffold(body: SizedBox(width: 600, child: OccupancyTimelineChart(hours: hours, capacity: 10, unit: 'beds'))),
+      ));
+      // Without a clock (a run that has ended), no now: the last hour; without a forecast the predicted past still shows, and its marks.
+      expect(
+        find.bySemanticsLabel(RegExp(r'^Occupancy per hour: 9 in care at the end \(Jan 19, 2026 12:00\).*; 3 of them predicted before; '
+            r'alarm threshold 90%, 9: 6 hours in care and 3 predicted at or above it$')),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(MaterialApp(
+        theme: aityxDarkTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 600,
+            child: OccupancyTimelineChart(hours: hours, capacity: 10, unit: 'beds', threshold: 0.95, now: DateTime.utc(2026, 1, 19, 12, 30)),
+          ),
+        ),
+      ));
+      expect(find.bySemanticsLabel(RegExp(r'9 in care now \(Jan 19, 2026 12:30\).*alarm threshold 95%, 9\.5: 0 hours in care and 3 predicted')), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('a run that has ended: its end in the header, no now line and no "Now" in the key', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final api = FakeApi()..occupancyCurrent = false;
+      await tester.pumpWidget(card(api, 2));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(find.byKey(const Key('occupancy-now'))).data, 'Ended Jan 19, 2026 12:00');
+      expect(find.text('Now'), findsNothing);
+      expect(find.text('In care (observed)'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp(r'^Occupancy per hour: 1 in care at the end \(Jan 19, 2026 12:00\)')), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('a forecast starting hours after the last hour observed is drawn from its first step, without failing', (tester) async {
+      final semantics = tester.ensureSemantics();
+      // Observed 07:00 to 12:00; datyx read a longer series, so its first step is 14:00, the third reaching 90% of 8.
+      final hours = [for (var h = 7; h <= 12; h++) HourOccupancy(hour: DateTime.utc(2026, 1, 19, h), occupancy: 3)];
+      final steps = [
+        for (final (h, mean) in [(14, 4.0), (15, 6.0), (16, 7.5)])
+          ForecastStep(at: DateTime.utc(2026, 1, 19, h), mean: mean, p10: mean - 1, p50: mean, p90: mean + 1),
+      ];
+      await tester.pumpWidget(MaterialApp(
+        theme: aityxDarkTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 600,
+            child: OccupancyTimelineChart(hours: hours, forecast: steps, capacity: 8, unit: 'beds', now: DateTime.utc(2026, 1, 19, 12, 40)),
+          ),
+        ),
+      ));
+      expect(tester.takeException(), isNull);
+      expect(
+        find.bySemanticsLabel(RegExp(r'5\.8 on average forecast over the next 3; .*; 90% expected at Jan 19, 2026 16:00$')),
+        findsOneWidget,
+      );
+      // The hour between, 13:00, has a slot and no forecast.
+      final chart = tester.getRect(find.byType(OccupancyTimelineChart));
+      double xOf(int index) => chart.left + 28 + index / 9 * (chart.width - 36);
+      await tester.tapAt(Offset(xOf(6), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Jan 19, 2026 13:00, forecast'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    test('the label of the first crossing goes above its ring when there is room, else below it: never over the point', () {
+      // A point low enough: the pill ends 3 px above its ring.
+      expect(crossingLabelTop(pointY: 120, ring: 11, pill: 17), 120 - 11 - 3 - 17);
+      // Just under the threshold line near the top (capacity 10, 9.2 at y ≈ 38): below the ring.
+      expect(crossingLabelTop(pointY: 38, ring: 11, pill: 17), 38 + 11 + 3);
+      for (final y in [24.0, 41.0, 60.0, 198.0]) {
+        final top = crossingLabelTop(pointY: y, ring: 11, pill: 17);
+        // The pill [top, top + 17] never covers the ring [y - 11, y + 11], nor reaches the now label.
+        expect(top + 17 <= y - 11 || top >= y + 11, isTrue, reason: '$y');
+        expect(top, greaterThanOrEqualTo(22));
+      }
     });
 
     testWidgets('the forecast of the hours gone stays over them, to compare, until the run changes', (tester) async {
@@ -1489,21 +1780,23 @@ void main() {
         ),
       ));
       await tester.pumpAndSettle();
-      expect(find.textContaining('forecast and gone'), findsNothing);
+      expect(find.textContaining('before they came'), findsNothing);
 
-      // 13:00 and 14:00 were counted: 2 in care, in the band, and 5, above it; the first forecast stays over them.
+      // 13:00 and 14:00 were counted: 2 in care, in the band, and 5, above it; the first forecast stays over them
+      // (the API keeps no prediction of them here, so the view's own are shown).
       await tester.pump(const Duration(seconds: 10));
       await tester.pumpAndSettle();
       expect(
         find.textContaining(
-          'Of the 2 hours forecast and gone, 1 fell in the 80% band; the mean was off by ${expectedText(2.25)} on average.',
+          'datyx predicted 2 of them before they came, off by ${expectedText(2.25)} on average; 1 fell in its 80% band.',
         ),
         findsOneWidget,
       );
       expect(
         find.bySemanticsLabel(
-          'Occupancy per hour: 5 in care now, at most 5 in the last 6 hours, of a capacity of 8; '
-          '2.0 on average forecast over the next 4; the forecast kept over 2 of them',
+          'Occupancy per hour: 5 in care now (Jan 19, 2026 14:00), at most 5 in the last 6 hours, of a capacity of 8; '
+          '2 of them predicted before; 2.0 on average forecast over the next 4; '
+          'alarm threshold 90%, 7.2: 0 hours in care and 0 predicted at or above it',
         ),
         findsOneWidget,
       );
@@ -1512,19 +1805,81 @@ void main() {
       double xOf(int index) => chart.left + 28 + index / 9 * (chart.width - 36);
       await tester.tapAt(Offset(xOf(4), chart.center.dy));
       await tester.pump();
-      expect(find.text('Jan 19, 2026 13:00\n2 in care of 8 beds\nforecast 1.0, 0 to 3 (80%)'), findsOneWidget);
+      // Forecast from 12:00's series' end: 13:00 an hour ahead.
+      expect(find.text('Jan 19, 2026 13:00\n2 in care of 8 beds (25%)\npredicted 1.0, 1 h before\n0 to 3 (80%)'), findsOneWidget);
       // An hour from before any forecast has none.
       await tester.tapAt(Offset(xOf(1), chart.center.dy));
       await tester.pump();
-      expect(find.text('Jan 19, 2026 10:00\n2 in care of 8 beds'), findsOneWidget);
+      expect(find.text('Jan 19, 2026 10:00\n2 in care of 8 beds (25%)'), findsOneWidget);
 
       // A new run starts again: nothing of the old forecast is kept.
       await tester.pump(const Duration(seconds: 10));
       await tester.pumpAndSettle();
       expect(find.textContaining('5eed0002'), findsNothing); // the run's id isn't shown: the simulated time is
       expect(tester.widget<Text>(find.byKey(const Key('occupancy-now'))).data, startsWith('Now · '));
-      expect(find.textContaining('forecast and gone'), findsNothing);
+      expect(find.textContaining('before they came'), findsNothing);
       semantics.dispose();
+    });
+
+    testWidgets("the API's prediction of an hour comes first, the view's own only where the API has none", (tester) async {
+      // Day 19, 07:00 to 12:00, forecast 13:00 to 16:00; then 09:00 to 14:00, the API keeping a prediction of 13:00 only.
+      var read = 0;
+      HourlyOccupancy series(int from, List<int> inCare, {Map<int, Map<String, Object?>> predicted = const {}}) =>
+          HourlyOccupancy.fromJson({
+            'hospitalId': 2,
+            'run': '1349d576',
+            'current': true,
+            'end': '2026-01-19T${'${from + inCare.length - 1}'.padLeft(2, '0')}:00',
+            'hours': [
+              for (var k = 0; k < inCare.length; k++)
+                {
+                  'hour': '2026-01-19T${'${from + k}'.padLeft(2, '0')}:00',
+                  'occupancy': inCare[k],
+                  if (predicted[from + k] != null) 'predicted': predicted[from + k],
+                },
+            ],
+          });
+      final forecast = HourlyForecast.fromJson({
+        'trainingRunId': 5,
+        'forecast': [
+          for (var k = 0; k < 4; k++) {'at': '2026-01-19T${13 + k}:00', 'mean': 1.0 + k / 2, 'p10': 0, 'p50': 1, 'p90': 3},
+        ],
+      });
+      await tester.pumpWidget(MaterialApp(
+        theme: aityxDarkTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 720,
+            child: OccupancyTimelineCard(
+              occupancy: (id, {run, hours}) async => read++ == 0
+                  ? series(7, [0, 1, 3, 2, 2, 1])
+                  : series(9, [3, 2, 2, 1, 2, 5], predicted: {13: {'mean': 2.5, 'p10': 2, 'p90': 3, 'leadHours': 3}}),
+              forecast: (id, {run}) async => forecast,
+              hospitalId: 2,
+              capacity: 8,
+              unit: 'beds',
+              refresh: const Duration(seconds: 10),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+      // 13:00: the API's 2.5, 3 h before (in its band); 14:00: the view's own 1.5, 2 h before (5 is above its band).
+      expect(
+        find.textContaining('datyx predicted 2 of them before they came, off by ${expectedText((0.5 + 3.5) / 2)} on average; '
+            '1 fell in its 80% band.'),
+        findsOneWidget,
+      );
+      final chart = tester.getRect(find.byType(OccupancyTimelineChart));
+      double xOf(int index) => chart.left + 28 + index / 7 * (chart.width - 36);
+      await tester.tapAt(Offset(xOf(4), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Jan 19, 2026 13:00\n2 in care of 8 beds (25%)\npredicted 2.5, 3 h before\n2 to 3 (80%)'), findsOneWidget);
+      await tester.tapAt(Offset(xOf(5), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Jan 19, 2026 14:00\n5 in care of 8 beds (63%)\npredicted 1.5, 2 h before\n0 to 3 (80%)'), findsOneWidget);
     });
 
     testWidgets('without a model the hours still show, and the card says why', (tester) async {
@@ -1534,8 +1889,9 @@ void main() {
       expect(find.textContaining('No forecast: no model of the group default of public.occupancy_hourly has been trained yet'),
           findsOneWidget);
       expect(find.byType(OccupancyTimelineChart), findsOneWidget);
-      expect(find.text('In care'), findsOneWidget);
-      expect(find.textContaining('DeepAR forecast'), findsNothing);
+      expect(find.text('In care (observed)'), findsOneWidget);
+      // What datyx predicted before is still shown, and keyed.
+      expect(find.textContaining('Predicted by DeepAR'), findsOneWidget);
     });
 
     testWidgets('without a capacity there is no capacity line, nor its key', (tester) async {
@@ -1560,6 +1916,545 @@ void main() {
       expect(simDayLabel(DateTime.utc(2026, 3, 9)), 'Mar 9');
       expect(simDateOf('2026-01-19'), 'Jan 19, 2026');
       expect(simDateOf('not a date'), 'not a date');
+    });
+  });
+
+  group('occupancy alarms and the simulated clock', () {
+    // As the API writes them (specs/occupancy-alarms.md).
+    Map<String, Object?> event(String kind, String? level, {String? id, int hospital = 1, String name = 'Hospital de Santa Maria'}) => {
+      'kind': kind,
+      'id': id ?? 'cafe0001-$hospital-$kind',
+      'run': 'cafe0001',
+      'hospitalId': hospital,
+      'hospitalName': name,
+      'careCenterKind': 'hospital',
+      'level': level,
+      'previous': kind == 'cleared' ? 'possible' : null,
+      'threshold': 0.9,
+      'thresholdPlaces': 7.2,
+      'occupancy': level == 'actual' ? 8 : 6,
+      'occupancyShare': level == 'actual' ? 1.0 : 0.75,
+      'observedAt': '2026-01-02T09:00',
+      'overflowAt': kind == 'cleared' ? null : (level == 'actual' ? '2026-01-02T09:00' : '2026-01-02T16:00'),
+      'overflowDay': kind == 'cleared' ? null : 2,
+      'leadHours': kind == 'cleared' ? null : 7,
+      'mean': kind == 'cleared' ? null : (level == 'expected' ? 10.0 : 6.6),
+      'p90': kind == 'cleared' ? null : 12.4,
+      'peak': {'at': '2026-01-02T18:00', 'day': 2, 'mean': 11.3, 'p90': 13.0},
+      'capacity': 8,
+      'unit': 'beds',
+      'end': '2026-01-02T09:00',
+      'horizonHours': 24,
+      'trainingRun': 4,
+      'now': {'day': 2, 'simTime': '09:00', 'date': '2026-01-02'},
+      'raisedAt': '2026-11-01T14:03:05.120Z',
+    };
+    Map<String, Object?> active(
+      String level, {
+      int hospital = 1,
+      String name = 'Hospital de Santa Maria',
+      int lead = 7,
+      String overflowAt = '2026-01-02T16:00',
+    }) => {
+      ...event('alarm', level, hospital: hospital, name: name)..remove('kind')..remove('id'),
+      'leadHours': lead,
+      'overflowAt': overflowAt,
+      'since': '2026-11-01T14:03:05.120Z',
+      'checkedAt': '2026-11-01T14:03:10.120Z',
+    };
+    final twoAlarms = {
+      'enabled': true,
+      'checkedAt': '2026-11-01T14:03:10.120Z',
+      'status': 200,
+      'note': null,
+      'active': [
+        active('expected'),
+        active('possible', hospital: 2, name: 'Clínica do Campo', lead: 4, overflowAt: '2026-01-02T13:00'),
+      ],
+      'recent': [
+        event('alarm', 'expected', id: 'e3'),
+        event('alarm', 'possible', id: 'e2', hospital: 2, name: 'Clínica do Campo'),
+        event('cleared', null, id: 'e1', hospital: 3, name: 'Centro de Saúde'),
+      ],
+    };
+
+    Future<FakeApi> home(
+      WidgetTester tester, {
+      Map<String, Object?>? alarms,
+      List<StreamEvent>? stream,
+      Map<String, Object?>? busiest,
+      double height = 2600,
+    }) async {
+      tester.view.physicalSize = Size(1400, height);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      final api = FakeApi(auth: false, simulation: true)
+        ..alarms = alarms
+        ..stream = stream
+        ..busiest = busiest;
+      final locations = FakeLocations();
+      await tester.pumpWidget(app(api: api, locations: locations));
+      locations.move(38.72, -9.14);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      return api;
+    }
+
+    Color borderOf(WidgetTester tester, Key key) {
+      final decoration = tester.widget<Container>(find.byKey(key)).decoration! as BoxDecoration;
+      return switch (decoration.border) {
+        final Border border when border.left.width == 4 && border.top == BorderSide.none => border.left.color,
+        final Border border => border.top.color,
+        _ => Colors.transparent,
+      };
+    }
+
+    test('the API answer is read: the clock, the alarms now and the events', () {
+      final events = StreamEvents.fromJson({
+        'enabled': true,
+        'now': {'day': 154, 'simTime': '16:00', 'date': '2026-06-03'},
+        'alarms': {
+          ...twoAlarms,
+          'active': [...twoAlarms['active']! as List, 'not an alarm', {'level': 'expected'}],
+        },
+        'events': [],
+      });
+      expect(events.clock!.day, 154);
+      expect(simClockLabel(events.clock!), 'Jun 3, 2026 16:00');
+      // Without the date, it is counted from day 1, Jan 1, 2026.
+      expect(simClockLabel(const SimNow(day: 2, simTime: '09:40')), 'Jan 2, 2026 09:40');
+      expect(simClockLabel(SimNow.fromJson({'date': '2026-01-03', 'simTime': '00:00'})!), 'Jan 3, 2026 00:00');
+
+      final alarms = events.alarms;
+      expect(alarms.reported, isTrue);
+      expect(alarms.active.map((a) => a.careCenterId), [1, 2]); // the entries it can't read are left out
+      final expected = alarms.active.first;
+      expect(expected.level, AlarmLevel.expected);
+      expect(expected.kind, AlarmKind.alarm);
+      expect(expected.careCenterName, 'Hospital de Santa Maria');
+      expect(expected.careCenterKind, CareCenterKind.hospital);
+      expect(expected.overflowAt, DateTime.utc(2026, 1, 2, 16));
+      expect((expected.leadHours, expected.mean, expected.p90, expected.capacity, expected.unit), (7.0, 10.0, 12.4, 8, 'beds'));
+      expect((expected.peakAt, expected.peakMean, expected.peakP90), (DateTime.utc(2026, 1, 2, 18), 11.3, 13.0));
+      expect((expected.trainingRun, expected.now!.simTime), (4, '09:00'));
+      expect((expected.threshold, expected.thresholdPlaces, expected.occupancy, expected.occupancyShare), (0.9, 7.2, 6, 0.75));
+      expect(expected.observedAt, DateTime.utc(2026, 1, 2, 9));
+      expect(AlarmLevel.named('actual'), AlarmLevel.actual);
+      expect(OccupancyAlarms.fromJson({...twoAlarms, 'threshold': 0.9}).threshold, 0.9);
+      expect(alarms.recent.map((a) => (a.id, a.kind, a.level)), [
+        ('e3', AlarmKind.alarm, AlarmLevel.expected),
+        ('e2', AlarmKind.alarm, AlarmLevel.possible),
+        ('e1', AlarmKind.cleared, null),
+      ]);
+
+      // Without `now`, the clock is the newest record's; without `alarms`, none.
+      final older = StreamEvents.fromJson({
+        'enabled': true,
+        'events': [
+          {'id': 'a', 'simTime': '08:00', 'day': 3},
+          {'id': 'b', 'simTime': '09:40', 'day': 3},
+        ],
+      });
+      expect((older.clock!.day, older.clock!.simTime), (3, '09:40'));
+      expect(older.alarms.reported, isFalse);
+      expect(older.alarms.active, isEmpty);
+    });
+
+    testWidgets('the alarms are pinned at the top of the events: expected in red, possible in amber', (tester) async {
+      await home(tester, alarms: twoAlarms);
+      final card = find.byKey(const Key('stream-events'));
+
+      // The header counts them, in red.
+      final badge = find.descendant(of: card, matching: find.byKey(const Key('alarms-badge')));
+      expect(find.descendant(of: badge, matching: find.text('2 alarms')), findsOneWidget);
+      expect((tester.widget<Container>(badge).decoration! as BoxDecoration).color, Aityx.red);
+
+      final expected = find.byKey(const Key('alarm-banner-1'));
+      final possible = find.byKey(const Key('alarm-banner-2'));
+      expect(find.descendant(of: expected, matching: find.text('90% occupancy expected at ')), findsOneWidget);
+      expect(find.descendant(of: expected, matching: find.text('Hospital de Santa Maria')), findsOneWidget);
+      // How far ahead from the clock above, Jan 2, 2026 09:40, not from the check (7 h then).
+      expect(find.descendant(of: expected, matching: find.text(' in 6 h 20 min')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: expected,
+          matching: find.text('Jan 2, 2026 16:00: 10 in care of 8 beds (90% range up to 12.4) · peak 11.3 at Jan 2, 2026 18:00 (90% range up to 13)'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.descendant(of: expected, matching: find.byIcon(Icons.crisis_alert)), findsOneWidget);
+      expect(borderOf(tester, const Key('alarm-banner-1')), Aityx.red);
+
+      expect(find.descendant(of: possible, matching: find.text('90% occupancy possible: ')), findsOneWidget);
+      expect(find.descendant(of: possible, matching: find.text(' may reach 90% of its 8 beds in 3 h 20 min')), findsOneWidget);
+      expect(
+        find.descendant(of: possible, matching: find.textContaining('Jan 2, 2026 13:00: 6.6 expected in care of 8 beds, 90% range up to 12.4')),
+        findsOneWidget,
+      );
+      expect(find.descendant(of: possible, matching: find.byIcon(Icons.warning_amber)), findsOneWidget);
+      expect(borderOf(tester, const Key('alarm-banner-2')), Aityx.amber);
+      // Up to date: nothing says otherwise.
+      expect(find.byKey(const Key('alarm-stale')), findsNothing);
+      expect(find.byKey(const Key('alarms-stale')), findsNothing);
+
+      // Pinned at the top: under the simulation's controls, above every row, expected first.
+      final invite = tester.getRect(find.byKey(const Key('person-invite')));
+      expect(tester.getRect(find.byKey(const Key('simulation-pause'))).bottom, lessThanOrEqualTo(tester.getRect(expected).top));
+      expect(tester.getRect(expected).bottom, lessThanOrEqualTo(tester.getRect(possible).top));
+      expect(tester.getRect(possible).bottom, lessThan(invite.top));
+    });
+
+    testWidgets('the occupancy now at the threshold: a red banner first, "now at 100%", current though datyx is not', (tester) async {
+      await home(tester, alarms: {
+        ...twoAlarms,
+        'stale': true,
+        'note': 'the datyx API is not answering',
+        'active': [
+          active('actual', overflowAt: '2026-01-02T09:00', lead: 0),
+          active('possible', hospital: 2, name: 'Clínica do Campo', lead: 4, overflowAt: '2026-01-02T13:00'),
+        ],
+        'recent': [event('alarm', 'actual', id: 'e4')],
+      });
+      final actual = find.byKey(const Key('alarm-banner-1'));
+      expect(find.descendant(of: actual, matching: find.text('Occupancy now at 100% at ')), findsOneWidget);
+      expect(find.descendant(of: actual, matching: find.text('Hospital de Santa Maria')), findsOneWidget);
+      expect(
+        find.descendant(of: actual, matching: find.textContaining('Jan 2, 2026 09:00: 8 in care of 8 beds (100%)')),
+        findsOneWidget,
+      );
+      expect(find.descendant(of: actual, matching: find.byIcon(Icons.emergency)), findsOneWidget);
+      expect(borderOf(tester, const Key('alarm-banner-1')), Aityx.red);
+      // The occupancy observed isn't datyx's: not out of date with it; the forecast's alarm is.
+      expect(find.descendant(of: actual, matching: find.byKey(const Key('alarm-stale'))), findsNothing);
+      expect(find.descendant(of: find.byKey(const Key('alarm-banner-2')), matching: find.byKey(const Key('alarm-stale'))), findsOneWidget);
+      expect(tester.getRect(actual).bottom, lessThanOrEqualTo(tester.getRect(find.byKey(const Key('alarm-banner-2'))).top));
+      final row = find.byKey(const Key('alarm-row-e4'));
+      expect(find.descendant(of: row, matching: find.text('Alarm: 90% reached now · ')), findsOneWidget);
+      expect(find.descendant(of: row, matching: find.textContaining('8 in care of 8 beds (100%)')), findsOneWidget);
+      expect(borderOf(tester, const Key('alarm-row-e4')), Aityx.red);
+    });
+
+    testWidgets("an alarm's care center opens its view", (tester) async {
+      final api = await home(tester, alarms: twoAlarms);
+      await tester.tap(find.descendant(of: find.byKey(const Key('alarm-banner-1')), matching: find.byKey(const Key('care-center-link-1'))));
+      await tester.pumpAndSettle();
+      expect(find.byType(CareCenterScreen), findsOneWidget);
+      expect(api.careCenterAsked, [1]);
+    });
+
+    testWidgets('the alarms raised and cleared are rows of the stream: red, amber, green', (tester) async {
+      await home(tester, alarms: {
+        ...twoAlarms,
+        'recent': [...twoAlarms['recent']! as List, event('downgraded', 'possible', id: 'e0', hospital: 4, name: 'Hospital Dona Estefânia')],
+      });
+      final card = find.byKey(const Key('stream-events'));
+      final raised = find.byKey(const Key('alarm-row-e3'));
+      expect(find.descendant(of: card, matching: raised), findsOneWidget);
+      expect(find.descendant(of: raised, matching: find.text('Alarm: 90% expected · ')), findsOneWidget);
+      expect(find.descendant(of: raised, matching: find.text('in 7 h, Jan 2, 2026 16:00 · 10 in care of 8 beds (90% range up to 12.4)')), findsOneWidget);
+      expect(find.descendant(of: raised, matching: find.text('Jan 2, 2026 09:00')), findsOneWidget);
+      expect(borderOf(tester, const Key('alarm-row-e3')), Aityx.red);
+      expect(find.descendant(of: find.byKey(const Key('alarm-row-e2')), matching: find.text('Alarm: 90% possible · ')), findsOneWidget);
+
+      final cleared = find.byKey(const Key('alarm-row-e1'));
+      expect(find.descendant(of: cleared, matching: find.text('Cleared: below 90% · ')), findsOneWidget);
+      expect(find.descendant(of: cleared, matching: find.text('Centro de Saúde')), findsOneWidget);
+      expect(find.descendant(of: cleared, matching: find.text('In care and forecast below 90% of 8 beds')), findsOneWidget);
+      expect(borderOf(tester, const Key('alarm-row-e1')), Aityx.green);
+      expect(borderOf(tester, const Key('alarm-row-e0')), Aityx.amber);
+
+      // Of the same shape as the others, and in time order: after the 09:40 moves, before the 08:00 admission.
+      final rowHeight = tester.getSize(find.byKey(const Key('move-lisboa-1-42'))).height;
+      expect(tester.getSize(raised).height, rowHeight);
+      expect(tester.getRect(raised).top, greaterThan(tester.getRect(find.byKey(const Key('move-lisboa-1-42'))).top));
+      expect(tester.getRect(cleared).top, lessThan(tester.getRect(find.byKey(const Key('admission-a1b2c3d4-lisboa-3-d2-t32'))).top));
+    });
+
+    testWidgets('an overflow the clock has passed reads now, since its hour', (tester) async {
+      await home(tester, alarms: {
+        ...twoAlarms,
+        'active': [active('expected', lead: 1, overflowAt: '2026-01-02T08:00')],
+      });
+      final banner = find.byKey(const Key('alarm-banner-1'));
+      expect(find.descendant(of: banner, matching: find.text(' now, since Jan 2, 2026 08:00')), findsOneWidget);
+      expect(find.descendant(of: banner, matching: find.textContaining('in 1 h')), findsNothing);
+    });
+
+    testWidgets('alarms datyx no longer refreshes say so, and since when', (tester) async {
+      await home(tester, alarms: {
+        ...twoAlarms,
+        'status': 502,
+        'note': 'the datyx API is not answering',
+        'stale': true,
+        'active': [{...active('expected'), 'stale': true}],
+      });
+      final banner = find.byKey(const Key('alarm-banner-1'));
+      // Still pinned, still red, but marked.
+      expect(borderOf(tester, const Key('alarm-banner-1')), Aityx.red);
+      expect(
+        find.descendant(of: banner, matching: find.text('Not current: last checked Jan 2, 2026 09:00')),
+        findsOneWidget,
+      );
+      // And the panel says why, though alarms are up.
+      expect(
+        find.text('Occupancy alarms may be out of date · last checked Jan 2, 2026 09:00 · the datyx API is not answering'),
+        findsOneWidget,
+      );
+      expect(find.textContaining("datyx can't forecast yet"), findsNothing);
+    });
+
+    testWidgets('one alarm left out of the latest answer is marked alone', (tester) async {
+      await home(tester, alarms: {
+        ...twoAlarms,
+        'active': [{...active('expected'), 'stale': true}, active('possible', hospital: 2, name: 'Clínica do Campo')],
+      });
+      expect(find.descendant(of: find.byKey(const Key('alarm-banner-1')), matching: find.byKey(const Key('alarm-stale'))), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('alarm-banner-2')), matching: find.byKey(const Key('alarm-stale'))), findsNothing);
+    });
+
+    testWidgets('no alarm, no banner nor badge; why when datyx cannot forecast', (tester) async {
+      await home(tester, alarms: {'enabled': true, 'checkedAt': null, 'status': 404, 'note': 'no model of the group default has been trained yet', 'active': [], 'recent': []});
+      expect(find.byKey(const Key('alarms-badge')), findsNothing);
+      expect(find.byType(AlarmBanner), findsNothing);
+      expect(find.byType(AlarmRow), findsNothing);
+      expect(find.textContaining("Occupancy alarms: datyx can't forecast yet, only the occupancy now is checked (no model"), findsOneWidget);
+    });
+
+    // As the API gives them, its order: newest first, but the client
+    // sorts by simulated time all the same.
+    StreamEvent admitted(String id, String eventId, String time, {int hospital = 1, ConditionType type = ConditionType.acute, TriageLevel? triage, int offset = 1}) => StreamEvent(
+      id: id,
+      type: StreamEventType.admission,
+      state: PersonState.atHospital,
+      name: 'Patient $id',
+      age: 50,
+      conditionName: type == ConditionType.acute ? 'Influenza' : 'COPD',
+      conditionType: type,
+      visit: VisitKind.first,
+      visitNumber: 1,
+      complaint: 'I feel unwell.',
+      hospitalId: hospital,
+      hospitalName: hospital == 2 ? 'Hospital Dona Estefânia' : 'Hospital de Santa Maria',
+      simTime: time,
+      day: 2,
+      partition: 0,
+      offset: offset,
+      eventId: eventId,
+      triage: triage,
+    );
+    StreamEvent moved(String id, PersonState state, String time, int offset, {int hospital = 1, ConditionType? type}) => StreamEvent(
+      id: id,
+      name: 'Person $id',
+      state: state,
+      conditionName: type == null ? null : (type == ConditionType.acute ? 'Influenza' : 'COPD'),
+      conditionType: type,
+      hospitalId: hospital,
+      hospitalName: hospital == 2 ? 'Hospital Dona Estefânia' : 'Hospital de Santa Maria',
+      simTime: time,
+      day: 2,
+      partition: 0,
+      offset: offset,
+    );
+    final mixed = [
+      moved('lisboa-1', PersonState.toHospital, '09:40', 42, type: ConditionType.chronic),
+      admitted('lisboa-4', 'r1-lisboa-4-d2-t41', '10:15', hospital: 2, triage: TriageLevel.red, offset: 8),
+      moved('lisboa-5', PersonState.atHospital, '09:40', 41, hospital: 2, type: ConditionType.acute),
+      // At home: the record names their usual hospital, the busiest, but they aren't there.
+      moved('lisboa-6', PersonState.home, '09:20', 40, hospital: 2),
+      admitted('lisboa-3', 'r1-lisboa-3-d2-t32', '08:00', type: ConditionType.chronic, triage: TriageLevel.green, offset: 7),
+      admitted('lisboa-7', 'r1-lisboa-7-d2-t30', '07:00', triage: TriageLevel.orange, offset: 6),
+    ];
+    const busiest = {'id': 2, 'name': 'Hospital Dona Estefânia', 'kind': 'hospital', 'inCare': 3};
+    const rowKeys = {
+      'a4': Key('admission-r1-lisboa-4-d2-t41'),
+      'm1': Key('move-lisboa-1-42'),
+      'm5': Key('move-lisboa-5-41'),
+      'm6': Key('move-lisboa-6-40'),
+      'e3': Key('alarm-row-e3'),
+      'e2': Key('alarm-row-e2'),
+      'e1': Key('alarm-row-e1'),
+      'a3': Key('admission-r1-lisboa-3-d2-t32'),
+      'a7': Key('admission-r1-lisboa-7-d2-t30'),
+    };
+    // The rows shown in the card, top to bottom.
+    List<String> shownRows(WidgetTester tester) {
+      final card = find.byKey(const Key('stream-events'));
+      final shown = [
+        for (final MapEntry(:key, :value) in rowKeys.entries)
+          if (find.descendant(of: card, matching: find.byKey(value)).evaluate().isNotEmpty) (key, tester.getRect(find.byKey(value)).top),
+      ]..sort((a, b) => a.$2.compareTo(b.$2));
+      return [for (final (key, _) in shown) key];
+    }
+
+    testWidgets('one stream newest first by simulated time, the kinds among each other', (tester) async {
+      final api = await home(tester, alarms: twoAlarms, stream: mixed, busiest: busiest, height: 3600);
+      expect(api.eventTypes.toSet(), {null});
+      // The 10:15 admission on top; the moves of 09:40 in the API's order (the
+      // order read); the alarms of the 09:00 check among them; the older
+      // admissions after.
+      expect(shownRows(tester), ['a4', 'm1', 'm5', 'm6', 'e3', 'e2', 'e1', 'a3', 'a7']);
+      // aityx's triage on an admission's row.
+      final mark = find.byKey(const Key('admission-triage-r1-lisboa-4-d2-t41'));
+      expect(find.descendant(of: mark, matching: find.text('Immediate')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(rowKeys['a3']!), matching: find.text('Standard')), findsOneWidget);
+      // No counts in the header: the simulated date and time, here the
+      // newest record's (this answer has no clock of its own).
+      expect(find.textContaining(RegExp(r'\d+ (admission|move)s?\b')), findsNothing);
+      expect(find.descendant(of: find.byKey(const Key('events-clock')), matching: find.text('Jan 2, 2026 10:15')), findsOneWidget);
+    });
+
+    testWidgets('pills filter the stream, one at a time, All first; the busiest named', (tester) async {
+      await home(tester, alarms: twoAlarms, stream: mixed, busiest: busiest, height: 3600);
+      final pills = find.byKey(const Key('events-filter'));
+      String labelOf(String name) => tester.widget<Text>(find.descendant(
+        of: find.byKey(Key('events-filter-$name')),
+        matching: find.byType(Text),
+      )).data!;
+      // Each with how many of the rows read it keeps; All without.
+      expect([for (final f in EventsFilter.values) labelOf(f.name)], [
+        'All',
+        'Busiest: Hospital Dona Estefânia · 3',
+        'Alarms 3',
+        'Urgent 2',
+        'Admissions 3',
+        'On the move 1',
+        'Acute 3',
+        'Chronic 2',
+      ]);
+      // How many are in care there, on hover.
+      expect(
+        tester.widget<Tooltip>(find.ancestor(of: find.byKey(const Key('events-filter-busiest')), matching: find.byType(Tooltip)).first).message,
+        startsWith('Hospital Dona Estefânia: the most people in care now, 3.'),
+      );
+      bool selected(String name) => tester.widget<ChoiceChip>(find.byKey(Key('events-filter-$name'))).selected;
+      expect(selected('all'), isTrue);
+      // Under the controls and the invitation, above the rows.
+      expect(tester.getRect(pills).top, greaterThan(tester.getRect(find.byKey(const Key('person-invite'))).bottom));
+      expect(tester.getRect(pills).bottom, lessThan(tester.getRect(find.byKey(rowKeys['a4']!)).top));
+
+      final expected = {
+        'busiest': ['a4', 'm5', 'e2'],
+        'alarms': ['e3', 'e2', 'e1'],
+        'urgent': ['a4', 'a7'],
+        'admissions': ['a4', 'a3', 'a7'],
+        'onTheMove': ['m1'],
+        'acute': ['a4', 'm5', 'a7'],
+        'chronic': ['m1', 'a3'],
+        'all': ['a4', 'm1', 'm5', 'm6', 'e3', 'e2', 'e1', 'a3', 'a7'],
+      };
+      for (final MapEntry(key: name, value: rows) in expected.entries) {
+        await tester.tap(find.byKey(Key('events-filter-$name')));
+        await tester.pump();
+        expect(shownRows(tester), rows, reason: name);
+        // One at a time.
+        for (final f in EventsFilter.values) {
+          expect(selected(f.name), f.name == name, reason: '$name: ${f.name}');
+        }
+      }
+      // The choice holds over the next reads.
+      await tester.tap(find.byKey(const Key('events-filter-urgent')));
+      await tester.pump(const Duration(seconds: 6));
+      expect(shownRows(tester), ['a4', 'a7']);
+    });
+
+    testWidgets('a pill that keeps nothing says so; no busiest pill until the API names one', (tester) async {
+      await home(tester);
+      expect(find.byKey(const Key('events-filter-busiest')), findsNothing);
+      expect(find.byKey(const Key('events-filter-all')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('events-filter-urgent')));
+      await tester.pump();
+      expect(find.text('No urgent event among the latest.'), findsOneWidget);
+      expect(find.byType(EventRow), findsNothing);
+      await tester.tap(find.byKey(const Key('events-filter-all')));
+      await tester.pump();
+      expect(find.byKey(const Key('events-filter-empty')), findsNothing);
+      expect(find.byType(EventRow), findsNWidgets(3));
+    });
+
+    test('the busiest keeps its care center: admissions, people going to, at or leaving it, its alarms', () {
+      const at = BusiestCareCenter(id: 2, name: 'Hospital Dona Estefânia', inCare: 3);
+      StreamRow row(StreamEvent event) => (event: event, alarm: null, minutes: 0);
+      bool kept(StreamEvent event) => keeps(EventsFilter.busiest, row(event), at);
+      expect(kept(admitted('a', 'x', '09:00', hospital: 2)), isTrue);
+      expect(kept(admitted('a', 'x', '09:00')), isFalse);
+      for (final state in [PersonState.toHospital, PersonState.atHospital, PersonState.toHome]) {
+        expect(kept(moved('b', state, '09:00', 1, hospital: 2)), isTrue, reason: '$state');
+      }
+      expect(kept(moved('b', PersonState.home, '09:00', 1, hospital: 2)), isFalse);
+      final alarm = OccupancyAlarm.fromJson(event('alarm', 'expected', hospital: 2))!;
+      expect(keeps(EventsFilter.busiest, (event: null, alarm: alarm, minutes: 0), at), isTrue);
+      // Without a busiest, nothing.
+      expect(keeps(EventsFilter.busiest, row(admitted('a', 'x', '09:00', hospital: 2)), null), isFalse);
+      // The answer names it; none without an id.
+      final named = StreamEvents.fromJson({'enabled': true, 'busiest': busiest, 'events': []}).busiest!;
+      expect((named.id, named.name, named.kind, named.inCare), (2, 'Hospital Dona Estefânia', CareCenterKind.hospital, 3));
+      expect(StreamEvents.fromJson({'enabled': true, 'busiest': {'name': 'x'}}).busiest, isNull);
+      // An admission's triage, as the API writes it.
+      final triaged = StreamEvent.fromJson({'type': 'admission', 'personId': 'p', 'triage': 'orange'});
+      expect((triaged.triage, triaged.isUrgent), (TriageLevel.orange, true));
+      expect(StreamEvent.fromJson({'type': 'admission', 'personId': 'p', 'triage': 'yellow'}).isUrgent, isFalse);
+    });
+
+    testWidgets('the simulated date and time on top of the map and of the events, and Paused', (tester) async {
+      final api = await home(tester);
+      final mapClock = find.byKey(const Key('map-clock'));
+      final eventsClock = find.byKey(const Key('events-clock'));
+      // On the map tile's header, beside its title; beside the events' title too.
+      expect(find.descendant(of: find.byKey(const Key('location-tile')), matching: mapClock), findsOneWidget);
+      expect(find.descendant(of: mapClock, matching: find.text('Jan 2, 2026 09:40')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('stream-events')), matching: eventsClock), findsOneWidget);
+      expect(find.descendant(of: eventsClock, matching: find.text('Jan 2, 2026 09:40')), findsOneWidget);
+      final title = tester.getRect(find.text('Latest events'));
+      expect(tester.getRect(eventsClock).left, greaterThan(title.right));
+      expect(tester.getCenter(eventsClock).dy, closeTo(title.center.dy, 4));
+      expect(find.text('Paused'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('simulation-pause')));
+      await tester.pump();
+      expect(api.pausesAsked, [true]);
+      expect(find.descendant(of: mapClock, matching: find.text('Paused')), findsOneWidget);
+      expect(find.descendant(of: eventsClock, matching: find.text('Paused')), findsOneWidget);
+
+      // The next read says it too; resumed, it goes.
+      await tester.pump(const Duration(seconds: 5));
+      expect(find.descendant(of: eventsClock, matching: find.text('Paused')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('simulation-pause')));
+      await tester.pump();
+      expect(find.text('Paused'), findsNothing);
+    });
+
+    testWidgets('the index shows the simulated date and time under the welcome', (tester) async {
+      final locations = FakeLocations();
+      await tester.pumpWidget(app(api: FakeApi(simulation: true), locations: locations));
+      locations.move(38.72, -9.14);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      final clock = find.byKey(const Key('index-clock'));
+      expect(find.descendant(of: clock, matching: find.text('Jan 2, 2026 09:40')), findsOneWidget);
+      expect(tester.getRect(clock).top, greaterThan(tester.getRect(find.byKey(const Key('welcome'))).bottom - 1));
+    });
+
+    testWidgets('nothing of the clock before the simulation says its time', (tester) async {
+      await tester.pumpWidget(app(api: FakeApi()));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('index-clock')), findsNothing);
+      expect(find.byType(SimClockText), findsNothing);
+    });
+
+    test('the clock keeps the newest reading, but follows a new run back', () {
+      final clock = SimClock();
+      var told = 0;
+      clock.addListener(() => told++);
+      clock.report(const SimNow(day: 2, simTime: '09:40'));
+      clock.report(const SimNow(day: 2, simTime: '09:12')); // a slower poll's
+      expect(clock.now!.simTime, '09:40');
+      clock.report(null, paused: true);
+      expect((clock.paused, told), (true, 2));
+      clock.report(const SimNow(day: 1, simTime: '00:00')); // a new run
+      expect((clock.now!.day, told), (1, 3));
+      clock.dispose();
     });
   });
 }

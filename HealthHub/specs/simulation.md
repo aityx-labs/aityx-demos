@@ -115,9 +115,9 @@ the history doesn't cover.
   disease) or a failing heart or kidneys (heart failure, end-stage kidney
   disease), by the condition's name. With the seed's conditions, about
   one person in ten: half of them for their age, a third for depression.
-  A monitored person at home is an event once a day, their check-in
-  ([The stream](#the-stream)); their other moves at home and everyone
-  else's only count, and everyone is on the map either way.
+  Their moves say so (`monitored`, `monitoredFor`), and the events mark
+  them; like everyone's, only their changes of state are events
+  ([The stream](#the-stream)), and everyone is on the map either way.
 - **Travel mode**: by the straight-line distance from home to the care
   center of the trip, chosen again at every departure, at a door-to-door
   speed that includes waiting and getting to
@@ -125,20 +125,22 @@ the history doesn't cover.
   transport (`transit`) up to 15 km at 20 km/h, and by car (`car`)
   beyond, at 50 km/h. Each turn a traveller moves at most that speed
   times the turn's simulated time, in a straight line, stopping exactly
-  at the destination. With an hour a turn, a walk or a city trip ends in
-  the turn it starts; Cornudella de Montsant to Reus, about 20 km by car,
-  too; with shorter turns the trips take several. The arrival is timed to
+  at the destination. With the default quarter of an hour a turn, a
+  walk of up to 1.25 km, a city trip of up to 5 km or a drive of up to
+  12.5 km ends in the turn it starts, and longer ones take several:
+  Cornudella de Montsant to Reus, about 20 km by car, two turns; a 2 km
+  walk two, a 15 km city trip three. The map shows them on the way. The arrival is timed to
   the minute: the departure plus the distance at that speed (a 1 km walk
   that leaves at 09:00 arrives at 09:13).
 
 ## Turns and the clock
 
 The simulated clock starts at 06:00 on day 1 and advances
-`HEALTHHUB_SIM_MINUTES_PER_TURN` minutes (60) every turn, a turn every
-`HEALTHHUB_SIM_TURN_MS` real milliseconds (1000): a real second is a
-simulated hour, a simulated day 24 seconds, a simulated month about 12
-minutes. Each turn every person does one thing, in the state `home`,
-`to_hospital`, `at_hospital` or `to_home`:
+`HEALTHHUB_SIM_MINUTES_PER_TURN` minutes (15) every turn, a turn every
+`HEALTHHUB_SIM_TURN_MS` real milliseconds (2500): a simulated hour every
+10 real seconds, a simulated day 4 minutes, a simulated month about 2
+hours ([The pace](#pace) says why). Each turn every person does one
+thing, in the state `home`, `to_hospital`, `at_hospital` or `to_home`:
 
 - **home**: nothing, until a visit is due; then they leave at the
   turn's time, and travel in the same turn.
@@ -157,10 +159,49 @@ everyone. The loops agree on the clock because each derives its turn from
 the time since the simulation started; a loop that overran a turn (a slow
 publish) skips to the current one instead of falling behind.
 
+## Pace
+
+A simulated hour takes 10 real seconds by default (a turn of 15
+simulated minutes every 2.5 s), so that datyx's forecasts stay
+meaningful for the live run: the [occupancy alarms](occupancy-alarms.md)
+warn before a care center fills, and the [care center
+view](occupancy-timeline.md) keeps what was predicted of each hour
+before it came. Measured on the development machine (datyx's
+`training_run` and `inference_call`, 2026-11-01):
+
+| | Real time | At 1 s an hour (before) | At 10 s an hour (now) |
+| --- | --- | --- | --- |
+| datyx's DeepAR inference, 33 care centers | about 7 s a call (two calls past 100 care centers) | 7 simulated hours | 0.7 h |
+| The alarms' check interval | 5 s at least, a check at a time | 5 h | half an hour |
+| A forecast's horizon, 24 h | | 24 s of warning | 4 minutes |
+| A DeepAR training of `occupancy_hourly` | 106 s (`admissions_hourly`'s first, 182 s) | 106 h | 11 h |
+| datyx's retraining of it (`15min`) | 15 minutes | 900 h | 90 h, almost 4 days |
+| The care center card's refresh | 10 s | 10 h | 1 h |
+
+At a second an hour a forecast arrived 7 simulated hours after the hour
+it started from, a third of its horizon gone, and the alarms' checks
+kept one forecast in every five or more hours: what was predicted of an
+hour was mostly made many hours before it. At 10 s an hour the
+forecast comes within the hour, a check reads every care center about
+once a simulated hour, so the prediction kept of each hour is the one
+made an hour before it, and an alarm warns up to 4 real minutes ahead.
+datyx retrains the occupancy model every 15 minutes
+([datyx's curation](../../datyx/specs/curation.md), its development
+document), 90 simulated hours of the run's new data each time, and
+the model reads the run's latest 48 hours at every forecast anyway.
+The quarter-hour turns also move people on the map four times a
+simulated hour, with fewer records a real second than before (one turn
+every 2.5 s, not every second).
+
+Both stay settings: `HEALTHHUB_SIM_TURN_MS=1000` and
+`HEALTHHUB_SIM_MINUTES_PER_TURN=60` run it at the old pace (an `.env`
+copied from an older `.env.example` has them: remove them for the new
+one).
+
 ## The calendar
 
 Simulated time is a calendar that starts on 2026-01-01 at 00:00 (day 1)
-and runs from there, a simulated hour every real second with the
+and runs from there, a simulated hour every 10 real seconds with the
 defaults: a run's day 4 at 09:09 is 2026-01-04 09:09, its day 554
 2027-07-08. Every record carries its `day` and `simTime` and the same
 moment as `at`, ISO 8601 without a zone (`simAt`); the admissions table
@@ -191,6 +232,83 @@ every app watching sees it stand still, and anyone can resume it.
 in prod, and before the simulation has started, both calls answer 409.
 Restarting the API starts a new run, not paused. `Simulation.stop` ends
 the loops of a paused simulation too.
+
+## The flow at a care center
+
+Anyone signed in (anyone while authentication is off) can double or
+halve the flow of people to a care center, from its view ([The care
+center view](care-center.md#the-flow)): `POST
+/api/care-centers/{id}/flow` with `{"action": "double"}`, `"halve"` or
+`"reset"` ([API](api.md)). Each care center has a flow factor for the
+run, 1 (the normal flow) unless changed, doubled or halved at each press
+from 1/8 to 8 (`flowMin`, `flowMax`; a press past them leaves it there),
+and set back to 1 by a reset. The factor scales the arrivals there: the
+visits headed to that care center come that many times as often, made
+by the same people (nobody joins, nobody is sent elsewhere), so its
+admissions per hour are about the factor times what they would have
+been, and the other care centers keep about theirs. How, by the kind of
+visit (`Simulation.changeFlow`, `retime`, `Person.acuteRate`):
+
+- **Chronic visits** come at intervals: the wait before a visit whose
+  care center has factor f (the interval after the last visit, or a
+  course's gap), counted from when the person is home again, is divided
+  by f, and the visit is put at a visit's slot on the day that gives
+  (`visitSlotFrom`): an hour drawn from the daily profile
+  ([Visits](#visits)), that day, or the next day's at the same hour when
+  it has passed, never in the past. Twice as often at ×2, half as often
+  at ×1/2.
+- **Acute episodes** start as a Poisson process (a gap with a mean of 90
+  days), the condition, and with it the care center of the first visit,
+  drawn at the onset. Under the factors a person's onsets come at F times
+  the rate, F the highest factor among the care centers their visits may
+  go to (their hospital and the nearest of each setting), and an episode
+  whose first visit goes to a care center of factor f is kept with
+  probability f / F; one not kept starts nothing, and the next gap
+  begins. That is Poisson thinning: the episodes that start at each care
+  center come at its factor times their normal rate, exactly, and those
+  of the others as before. An episode's visits after the first are as
+  usual.
+- **The hours** don't change: an onset, at a person's rate F, still
+  falls on an hour of the daily profile (`acuteOnsetAfter`; on the day
+  the gap gives, or the next day's at that hour when the gap, under a day
+  at F above 1, leaves an hour already gone), and a planned visit moved
+  by the flow keeps to the profile too, so the profile of the admissions
+  there stays the same, peaking at 13:00, only taller or flatter.
+
+A press shows at once, not only after the visits already planned: the
+people whose next chronic visit goes to that care center have it brought
+forward or put off, the time left until it times the old factor over the
+new (at a visit's slot; an urgent one at the hour of the profile drawn
+for that day, or now when it has passed), and those whose F changed have
+their next acute onset drawn again from now at the new rate (the gaps
+are exponential, so drawing again from now is the same process). A visit under way is left as it is. Newcomers
+([People](#people)) join under the factors as they are. At the normal
+flow nothing changes, not even the random draws, so a run nobody touched
+is the run it was. The API logs every change, with the care center, the
+factor and the one before, the run, the turn and how many people were
+retimed (`simulation: flow at care center 13 (CAP Llibertat) ×2, was
+×1, run 3f9c0a7e at turn 412, 96 people retimed`). The factors are the
+run's: a new run (an API restart) starts at the normal flow everywhere.
+`GET /api/care-centers/{id}` says the care center's factor (`flow`).
+
+How close to the factor, in a seeded run of 400 people of Reus over 120
+days (`test/flow_test.dart`), whose primary care and mental health visits
+go to a health station and the rest to a hospital, the factor set from
+the start: at the hospital, ×2 made 2.06 times its admissions, ×1/2 0.52
+and ×8 6.4; at the health station, ×2 1.82 and ×1/2 0.53 (with the
+daily profile of arrivals; before it, with planned visits from 08:00 to
+17:00, 1.75, 0.48, 6.6, 1.94 and 0.62). Off the factor because an acute
+episode that started elsewhere still has its follow-ups there as before
+(a pneumonia admitted at the hospital and checked at the health
+station), and a planned visit keeps to its slot, on the hour of the
+profile, so one due every day or two (dialysis) comes at most about once
+a day whatever the factor. The other care center kept about its own,
+but the follow-ups move with the episodes (the health station had 7%
+more with the hospital at ×2, 42% more at ×8), and a person has one
+acute episode at a time, so more of them at one care center leaves a
+little less time for the others'. The share of the hospital's
+admissions from 07:00 to 19:00 stayed the same at ×2 (85% against 87%),
+the peak at about 13:00.
 
 ## Visits
 
@@ -334,18 +452,22 @@ recorder.
   class 22, a data exception, or 23, an integrity violation) would fail
   the same way forever: it is logged and dropped, and the rest go on.
   `GET /api/admissions` answers the latest from the table.
-- **Events**: the feed keeps the latest 100 moves and, apart, the latest
-  100 admissions, so the many moves never push the few admissions out,
-  each with its type, partition and offset: `GET /api/events` merges
-  them newest first by arrival (or one type with `?type=`), the events
-  under home's map, where admissions are highlighted ([Home](home.md)).
-  A move at home is kept only when the person is monitored (`"monitored":
-  true`; a record without it is not), and then once a simulated day, their
-  check-in: the first move at home of the day from their check-in hour on
-  (`PeopleFeed.checkInHour`, from their id, so the check-ins spread over
-  the day instead of all coming at midnight). Everyone else at home, and a
-  monitored person's other moves at home, are on the map but not among
-  the events. The feed counts every valid move and
+- **Events**: a move is an event only when it changes the person's state
+  from their previous move (left home, arrived, going home, back home):
+  everyone moves every turn, and every move would bury the admissions and
+  the alarms. The first move read of someone (after the API starts, or
+  they join) says no change. Everyone is on the map either way. The feed
+  keeps the latest 100 of those moves and, apart, the latest 100
+  admissions, each with its type, partition and offset, an admission
+  with aityx's triage level (`triage`, "red" to "blue") once the triage
+  is recorded ([Triage](triage.md); null until then, or when it failed):
+  `GET /api/events` gives them as one stream, newest first by simulated
+  time (day and time), the kinds among each other, a tie in the order
+  they were read (within a topic, by offset), or one type with `?type=`;
+  the events under home's map ([Home](home.md)). It also names the
+  busiest care center now, the one with the most people in care (at it
+  by their latest move; the lower id on a tie): `busiest`. The feed
+  counts every valid move and
   admission it reads, those left out too (a replayed admission once), and
   how many a second over the last minute, a moving average of one count
   per second (over the time since the first, before a minute has gone
@@ -378,7 +500,9 @@ whether the proxy answered its last ping (every 5 s).
   sea. The speeds are door-to-door averages, with no traffic or timetable.
 - Everyone goes to the nearest care center of the visit's setting and is
   admitted on arrival, whatever its queue or capacity; nothing routes
-  them by load yet. The settings a care center serves, and the
+  them by load yet. A care center's flow factor changes how often its
+  visits come, not where people go: halving it doesn't send anyone
+  elsewhere, and doubling it doesn't bring anyone from elsewhere. The settings a care center serves, and the
   specialised hospitals, are told apart by keywords in their subtype and
   name, which a new data source may word differently. Only Florida lists
   dialysis centers; elsewhere dialysis is at the hospital.

@@ -216,3 +216,84 @@ FROM bounded,
                      least(arrived + make_interval(hours => stay_hours) - INTERVAL '1 second', run_hour),
                      INTERVAL '1 hour') AS hour_start
 GROUP BY run_id, hospital_id, hour_start;
+
+-- The occupancy alarms' events, as the API makes the table: created, then
+-- the threshold, the occupancy observed and its hour added, and the
+-- levels' checks made again by name. A run whose threshold is 50% (a
+-- health station of 2 places reaching it with 1 person in care): a
+-- possible alarm at Jackson Memorial rising to expected and falling back,
+-- an actual one at Reus cleared.
+CREATE TABLE occupancy_alarm (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('alarm', 'downgraded', 'cleared')),
+  run_id TEXT NOT NULL,
+  hospital_id INT NOT NULL,
+  hospital_name TEXT NOT NULL,
+  care_center_kind TEXT NOT NULL,
+  level TEXT,
+  previous_level TEXT,
+  overflow_at TIMESTAMP,
+  lead_hours INT,
+  mean DOUBLE PRECISION,
+  p90 DOUBLE PRECISION,
+  peak_at TIMESTAMP,
+  peak_mean DOUBLE PRECISION,
+  peak_p90 DOUBLE PRECISION,
+  capacity INT NOT NULL,
+  unit TEXT NOT NULL,
+  series_end TIMESTAMP,
+  horizon_hours INT NOT NULL,
+  training_run BIGINT,
+  sim_day INT,
+  sim_time TEXT,
+  raised_at TIMESTAMPTZ NOT NULL,
+  CHECK ((kind = 'cleared') = (level IS NULL))
+);
+ALTER TABLE occupancy_alarm ADD COLUMN threshold DOUBLE PRECISION;
+ALTER TABLE occupancy_alarm ADD COLUMN occupancy INT;
+ALTER TABLE occupancy_alarm ADD COLUMN observed_at TIMESTAMP;
+ALTER TABLE occupancy_alarm ADD CONSTRAINT occupancy_alarm_level_check
+  CHECK (level IN ('possible', 'expected', 'actual'));
+ALTER TABLE occupancy_alarm ADD CONSTRAINT occupancy_alarm_previous_level_check
+  CHECK (previous_level IN ('possible', 'expected', 'actual'));
+INSERT INTO occupancy_alarm (id, kind, run_id, hospital_id, hospital_name, care_center_kind, level, previous_level,
+    threshold, occupancy, observed_at, overflow_at, lead_hours, mean, p90, peak_at, peak_mean, peak_p90, capacity, unit,
+    series_end, horizon_hours, training_run, sim_day, sim_time, raised_at) VALUES
+  ('a1b2c3d4-2-1', 'alarm', 'a1b2c3d4', 2, 'Centre Mq Reus', 'health_station', 'actual', NULL, 0.5, 1,
+    '2026-01-03 11:00', '2026-01-03 11:00', 0, NULL, NULL, NULL, NULL, NULL, 2, 'places', '2026-01-03 11:00', 0, NULL,
+    3, '11:40', now() - INTERVAL '50 minutes'),
+  ('a1b2c3d4-3-2', 'alarm', 'a1b2c3d4', 3, 'JACKSON MEMORIAL HOSPITAL', 'hospital', 'possible', NULL, 0.5, 1,
+    '2026-01-05 08:00', '2026-01-05 14:00', 6, 1.9, 2.8, '2026-01-05 15:00', 2.1, 3.0, 5, 'beds', '2026-01-05 08:00',
+    24, 4, 5, '08:20', now() - INTERVAL '40 minutes'),
+  ('a1b2c3d4-3-3', 'alarm', 'a1b2c3d4', 3, 'JACKSON MEMORIAL HOSPITAL', 'hospital', 'expected', 'possible', 0.5, 1,
+    '2026-01-05 08:00', '2026-01-05 12:00', 4, 2.6, 3.5, '2026-01-05 13:00', 2.9, 3.9, 5, 'beds', '2026-01-05 08:00',
+    24, 4, 5, '08:40', now() - INTERVAL '30 minutes'),
+  ('a1b2c3d4-2-4', 'cleared', 'a1b2c3d4', 2, 'Centre Mq Reus', 'health_station', NULL, 'actual', 0.5, 0,
+    '2026-01-05 08:00', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, 'places', '2026-01-05 08:00', 0, NULL,
+    5, '08:40', now() - INTERVAL '30 minutes'),
+  ('a1b2c3d4-3-5', 'downgraded', 'a1b2c3d4', 3, 'JACKSON MEMORIAL HOSPITAL', 'hospital', 'possible', 'expected', 0.5,
+    1, '2026-01-05 08:00', '2026-01-05 16:00', 8, 2.0, 2.7, '2026-01-05 16:00', 2.0, 2.7, 5, 'beds', '2026-01-05 08:00',
+    24, 5, 5, '08:55', now() - INTERVAL '20 minutes');
+
+-- What datyx's DeepAR predicted of each hour before it was observed, the
+-- latest forecast before it: an hour settled (Reus, 2026-01-03 11:00,
+-- observed 1, in the band) and the hours from the run's latest.
+CREATE TABLE occupancy_forecast (
+  run_id TEXT NOT NULL,
+  hospital_id INT NOT NULL,
+  hour_start TIMESTAMP NOT NULL,
+  series_end TIMESTAMP NOT NULL,
+  lead_hours INT NOT NULL,
+  mean DOUBLE PRECISION NOT NULL,
+  p10 DOUBLE PRECISION NOT NULL,
+  p90 DOUBLE PRECISION NOT NULL,
+  training_run BIGINT,
+  forecast_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (run_id, hospital_id, hour_start),
+  CHECK (hour_start > series_end)
+);
+INSERT INTO occupancy_forecast VALUES
+  ('a1b2c3d4', 2, '2026-01-03 11:00', '2026-01-03 10:00', 1, 0.6, 0, 1.4, 4, now() - INTERVAL '55 minutes'),
+  ('a1b2c3d4', 3, '2026-01-05 08:00', '2026-01-05 07:00', 1, 0.8, 0, 2, 4, now() - INTERVAL '45 minutes'),
+  ('a1b2c3d4', 3, '2026-01-05 09:00', '2026-01-05 08:00', 1, 1.2, 0, 2.3, 5, now() - INTERVAL '20 minutes'),
+  ('a1b2c3d4', 3, '2026-01-05 10:00', '2026-01-05 08:00', 2, 1.5, 1, 2.6, 5, now() - INTERVAL '20 minutes');

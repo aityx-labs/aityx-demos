@@ -192,6 +192,62 @@ const schemaComments = <String, TableComments>{
       'occupancy': 'The people in care at the care center at any minute of the hour, at least 1.',
     },
   ),
+  'occupancy_alarm': (
+    table:
+        'Each occupancy alarm event: a care center\'s level rising, falling or clearing, from its occupancy per '
+        'hour (occupancy_hourly), observed and as datyx\'s DeepAR forecasts it, against a threshold of its '
+        'capacity in the simulation (90% unless HEALTHHUB_ALARM_THRESHOLD says). actual: the occupancy observed at '
+        'the latest hour reaches it; expected: the forecast\'s mean reaches it at some hour ahead; possible: its '
+        '90th percentile does. Written by the API once per event, also published to the healthhub.alarms topic.',
+    columns: {
+      'id': 'The event\'s id: the run, the care center and the API\'s counter.',
+      'kind': 'alarm (the level rose), downgraded (to a lower level) or cleared (back to none).',
+      'run_id': 'The run, as occupancy_hourly names it.',
+      'hospital_id': 'The care center (care_centers.id).',
+      'hospital_name': 'The care center\'s name.',
+      'care_center_kind': 'hospital, clinic or health_station.',
+      'level': 'The level after the event: possible, expected or actual (the worst); null when cleared.',
+      'previous_level': 'The level before the event; null for a new alarm.',
+      'threshold': 'The share of the capacity whose reaching is an alarm, 0.9 for 90%; null in events before it.',
+      'occupancy': 'The people in care at the care center at observed_at, the run\'s latest hour.',
+      'observed_at': 'The run\'s latest hour, whose occupancy the check read (simulated, day 1 is 2026-01-01).',
+      'overflow_at': 'The earliest simulated hour at or above the threshold for the level (day 1 is 2026-01-01): '
+          'observed_at for actual; null when cleared.',
+      'lead_hours': 'The simulated hours from the series\' end to overflow_at, 0 for actual.',
+      'mean': 'The forecast\'s mean at overflow_at, in people.',
+      'p90': 'The forecast\'s 90th percentile at overflow_at, in people.',
+      'peak_at': 'The hour of the horizon with the highest mean (the highest p90 for possible).',
+      'peak_mean': 'The forecast\'s mean at peak_at.',
+      'peak_p90': 'The forecast\'s 90th percentile at peak_at.',
+      'capacity': 'The care center\'s capacity in the simulation, in beds or places.',
+      'unit': 'beds (a hospital) or places (a clinic, a health station).',
+      'series_end': 'The series\' end, the run\'s latest hour, where the forecast starts from.',
+      'horizon_hours': 'How many hours the forecast covers.',
+      'training_run': 'datyx\'s training run whose model answered.',
+      'sim_day': 'The simulated day of the check, from 1.',
+      'sim_time': 'The simulated time of the check, HH:MM.',
+      'raised_at': 'When the check found it, real time.',
+    },
+  ),
+  'occupancy_forecast': (
+    table:
+        'What datyx\'s DeepAR model predicted of each care center\'s occupancy (occupancy_hourly) in each simulated '
+        'hour of a run before the hour was observed: the forecast made closest to the hour (from the latest series\' '
+        'end before it) wins. Written by the API from the occupancy alarms\' checks and the care center view\'s '
+        'forecasts, so the predicted line goes on over the past hours.',
+    columns: {
+      'run_id': 'The run, as occupancy_hourly names it.',
+      'hospital_id': 'The care center (care_centers.id).',
+      'hour_start': 'The simulated hour predicted (day 1 is 2026-01-01).',
+      'series_end': 'The series\' end the forecast started from, the run\'s latest hour then, before hour_start.',
+      'lead_hours': 'The simulated hours from series_end to hour_start, 1 for the next hour.',
+      'mean': 'The forecast\'s mean of the people in care in the hour.',
+      'p10': 'The forecast\'s 10th percentile.',
+      'p90': 'The forecast\'s 90th percentile.',
+      'training_run': 'datyx\'s training run whose model answered.',
+      'forecast_at': 'When the API got the forecast, real time.',
+    },
+  ),
 };
 
 /// The relations of [schemaComments] that are views, commented as such.

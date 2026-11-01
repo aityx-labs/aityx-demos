@@ -388,19 +388,60 @@ int _between((int, int) range, Random random) => range.$1 + random.nextInt(range
 
 /// The minutes from the end of an acute episode (or the start) to the
 /// next one: exponential, with a mean of [acuteMeanGapDays], and at least
-/// a day.
-int acuteGapMinutes(Random random) =>
-    max(minutesPerDay, (-log(1 - random.nextDouble()) * acuteMeanGapDays * minutesPerDay).round());
+/// a day; divided by [rate], the person's onsets' pace under the care
+/// centers' flow factors ([Person.acuteRate]), 1 normally.
+int acuteGapMinutes(Random random, [double rate = 1]) {
+  final gap = max(minutesPerDay, (-log(1 - random.nextDouble()) * acuteMeanGapDays * minutesPerDay).round());
+  return rate == 1 ? gap : (gap / rate).round();
+}
+
+/// The bounds of a care center's flow factor ([Simulation.changeFlow]):
+/// halved or doubled three times at most, 1 being the normal flow.
+const flowMin = 0.125;
+const flowMax = 8.0;
+
+/// What a press of the care center view does to its flow factor: doubles
+/// it, halves it, or sets it back to normal.
+const flowActions = ['double', 'halve', 'reset'];
+
+/// The flow factor after [action] on [factor], within [flowMin] and
+/// [flowMax]; null for an action that isn't one of [flowActions].
+double? flowAfter(double factor, String action) => switch (action) {
+  'double' => min(factor * 2, flowMax),
+  'halve' => max(factor / 2, flowMin),
+  'reset' => 1.0,
+  _ => null,
+};
+
+/// The flow factor at [place] in [flow] (care center id to factor): 1,
+/// the normal flow, unless it was changed.
+double flowAt(Map<int, double> flow, Place place) => flow[place.id] ?? 1;
+
+/// [factor] as the log says it: ×2, ×1/4.
+String flowLabel(double factor) => factor >= 1 ? '×${factor.round()}' : '×1/${(1 / factor).round()}';
+
+/// A planned visit moved by the flow to about [minutes]: on the day of
+/// [minutes], on the hour drawn from the daily profile ([arrivalHour]), or
+/// the first day after on which that hour is later than [after] (now), as
+/// [nextVisitStart] gives: the day moves with the flow, the hours keep to
+/// the profile, and none is in the past.
+int visitSlotFrom(int minutes, int after, Random random) => nextVisitStart(simDay(minutes), after, random);
 
 /// When the next acute episode starts after [after]: on the day
-/// [acuteGapMinutes] from it gives, a later day, on the hour, the hour
-/// from the daily profile ([arrivalHour]), so an emergency, made at once,
-/// comes mostly around midday too; never before [after]. On the hour, as
-/// a planned visit: with hour-long turns the person leaves at the turn of
-/// the onset and arrives within its hour, not the next.
-int acuteOnsetAfter(int after, Random random) {
-  final day = simDay(after + acuteGapMinutes(random));
-  return max(after, dayStart(day) + arrivalHour(random) * 60);
+/// [acuteGapMinutes] (at [rate], [Person.acuteRate]) from it gives, on the
+/// hour, the hour from the daily profile ([arrivalHour]), so an emergency,
+/// made at once, comes mostly around midday too; the next day at that
+/// hour when it is not later than [after] (only at a rate above 1 can the
+/// gap leave the day), so never before [after]. On the hour, as a planned
+/// visit: with hour-long turns the person leaves at the turn of the onset
+/// and arrives within its hour, not the next.
+int acuteOnsetAfter(int after, Random random, [double rate = 1]) {
+  final day = simDay(after + acuteGapMinutes(random, rate));
+  final hour = arrivalHour(random);
+  for (var d = day; ; d++) {
+    final start = dayStart(d) + hour * 60;
+    if (start > after) return start;
+  }
 }
 
 /// The minutes a trip of [meters] by [mode] takes, rounded up.
@@ -422,11 +463,19 @@ String citySlug(String city) {
 ///   HEALTHHUB_SIM_PEOPLE            people per city at start (default
 ///                                   80; the events can change it, up to
 ///                                   [maxPeoplePerCity])
-///   HEALTHHUB_SIM_TURN_MS           real milliseconds per turn (default 1000)
+///   HEALTHHUB_SIM_TURN_MS           real milliseconds per turn (default 2500)
 ///   HEALTHHUB_SIM_MINUTES_PER_TURN  simulated minutes per turn (default
-///                                   60: a real second is a simulated hour)
+///                                   15: a simulated hour every 10 real
+///                                   seconds, so datyx's forecast, some 7 s
+///                                   a call, comes within a simulated hour,
+///                                   and its 24 hours ahead are 4 real
+///                                   minutes of warning; specs/simulation.md)
 class SimulationSettings {
-  const SimulationSettings({this.peoplePerCity = 80, this.turn = const Duration(seconds: 1), this.minutesPerTurn = 60});
+  const SimulationSettings({
+    this.peoplePerCity = 80,
+    this.turn = const Duration(milliseconds: 2500),
+    this.minutesPerTurn = 15,
+  });
 
   factory SimulationSettings.fromEnvironment([Map<String, String>? env]) {
     env ??= Platform.environment;
@@ -437,8 +486,8 @@ class SimulationSettings {
 
     return SimulationSettings(
       peoplePerCity: min(setting('HEALTHHUB_SIM_PEOPLE', 80), maxPeoplePerCity),
-      turn: Duration(milliseconds: setting('HEALTHHUB_SIM_TURN_MS', 1000)),
-      minutesPerTurn: setting('HEALTHHUB_SIM_MINUTES_PER_TURN', 60),
+      turn: Duration(milliseconds: setting('HEALTHHUB_SIM_TURN_MS', 2500)),
+      minutesPerTurn: setting('HEALTHHUB_SIM_MINUTES_PER_TURN', 15),
     );
   }
 
@@ -542,6 +591,23 @@ class Person {
   /// Where a visit made in [setting] goes.
   Place careCenterFor(CareSetting setting) => careCenters[setting] ?? hospital;
 
+  /// Where the next visit of [course] goes, by its kind's setting.
+  Place nextDestination(Course course) => careCenterFor(course.condition.settingOf(course.nextKind));
+
+  /// Every care center their visits may go to: the hospital and those of
+  /// each setting.
+  Iterable<Place> get reachable => {hospital, ...careCenters.values};
+
+  /// The pace of their acute onsets under [flow]: the highest flow factor
+  /// among the care centers their visits may go to ([reachable]), 1 when
+  /// none was changed. Onsets come at this rate, and an episode whose
+  /// first visit goes to a care center of factor f is kept with
+  /// probability f over it ([beginAcute]): Poisson thinning, so the
+  /// episodes that start at each care center come at its factor times
+  /// their normal rate.
+  double acuteRate(Map<int, double> flow) =>
+      flow.isEmpty ? 1 : reachable.map((place) => flowAt(flow, place)).reduce(max);
+
   /// The care center the moves name: the visit's, else the hospital.
   Place get shownCareCenter => destination ?? hospital;
 
@@ -585,8 +651,8 @@ class Person {
 
   /// Why they are monitored at home, the high-risk only: "aged 84",
   /// "pregnant", or their chronic condition's name when it is one of
-  /// [monitoredConditions]; null for everyone else, most people. Only a
-  /// monitored person's moves at home are events (PeopleFeed).
+  /// [monitoredConditions]; null for everyone else, most people. Their
+  /// moves say so, and the events mark them.
   String? get monitoredFor {
     if (profile.age >= monitoredFromAge) return 'aged ${profile.age}';
     if (pregnant) return 'pregnant';
@@ -616,9 +682,17 @@ class Person {
   /// Starts an acute episode of [condition] at [onset]: its first visit
   /// then when it is urgent, else at the next visit's slot. A null
   /// [condition] (none fits) starts none, and waits for the next onset.
-  void beginAcute(MedicalCondition? condition, int onset, Random random) {
+  /// Under [flow], the episode is kept with probability the flow factor at
+  /// its first visit's care center over [acuteRate] (always at the normal
+  /// flow); one not kept starts none either.
+  void beginAcute(MedicalCondition? condition, int onset, Random random, {Map<int, double> flow = const {}}) {
+    final rate = acuteRate(flow);
+    if (condition != null && flow.isNotEmpty) {
+      final keep = flowAt(flow, careCenterFor(condition.settingOf(VisitKind.first))) / rate;
+      if (keep < 1 && random.nextDouble() >= keep) condition = null;
+    }
     if (condition == null) {
-      acuteOnsetAt = acuteOnsetAfter(onset, random);
+      acuteOnsetAt = acuteOnsetAfter(onset, random, rate);
       return;
     }
     acuteOnsetAt = null;
@@ -666,7 +740,9 @@ class Person {
 /// [Person.step] meters a turn. Returns the admission event when they
 /// arrive this turn ([admissionEvent]), else null. A new acute episode is drawn
 /// from the acute ones among [conditions]; [run] is the simulation's run
-/// id, part of every event id.
+/// id, part of every event id. [flow] holds the care centers' flow factors
+/// that are not 1 ([Simulation.changeFlow]): the visits headed to one come
+/// that many times as often ([Person.beginAcute], [_scheduleNext]).
 Map<String, Object?>? advance(
   Person person, {
   required int turn,
@@ -674,6 +750,7 @@ Map<String, Object?>? advance(
   required Random random,
   required List<MedicalCondition> conditions,
   required String run,
+  Map<int, double> flow = const {},
 }) {
   final now = simMinutes(turn, minutesPerTurn);
   // An episode starts wherever the person is: one that starts during a
@@ -685,6 +762,7 @@ Map<String, Object?>? advance(
       pickCondition(acute, person.profile.age, random, sex: person.profile.sex),
       onset,
       random,
+      flow: flow,
     );
   }
   if (person.state == PersonState.home) {
@@ -719,7 +797,7 @@ Map<String, Object?>? advance(
   person.at = stepTowards(person.at, person.home, person.step);
   if (person.at == person.home) {
     person.state = PersonState.home;
-    _backHome(person, now, random);
+    _backHome(person, now, random, flow);
   }
   return null;
 }
@@ -770,12 +848,12 @@ Map<String, Object?> _admit(Person person, int turn, int minutes, Random random,
 /// Home again at [now] after a visit: the next visit of its course, and
 /// any visit that fell due while they were out moved to when they are
 /// back, at once for an emergency, else the next visit's slot.
-void _backHome(Person person, int now, Random random) {
+void _backHome(Person person, int now, Random random, Map<int, double> flow) {
   final course = person.visiting;
   person
     ..visiting = null
     ..destination = null;
-  if (course != null) _scheduleNext(person, course, now, random);
+  if (course != null) _scheduleNext(person, course, now, random, flow);
   for (final waiting in [?person.chronic, ?person.acute]) {
     final due = waiting.dueAt;
     if (due == null || due > now) continue;
@@ -788,15 +866,19 @@ void _backHome(Person person, int now, Random random) {
 /// course's last visit, a chronic condition's next course after its gap
 /// ([MedicalCondition.courseGapDays], or [chronicGapDays]), or, for an
 /// acute episode, its end, and the next episode's onset
-/// ([acuteOnsetAfter]).
-void _scheduleNext(Person person, Course course, int now, Random random) {
+/// ([acuteOnsetAfter]), at the person's rate under [flow]
+/// ([Person.acuteRate]). A chronic visit's wait from [now] is divided by
+/// the flow factor at its care center ([_flowed]).
+void _scheduleNext(Person person, Course course, int now, Random random, Map<int, double> flow) {
   final condition = course.condition;
   final lastDay = course.lastVisitDay!;
+  final chronic = identical(course, person.chronic);
+  int flowed(int due) => chronic ? _flowed(person, course, now, due, flow, random) : due;
   if (course.courseVisits < condition.visitCount) {
-    course.dueAt = nextVisitStart(lastDay + condition.visitIntervalDays, now, random);
+    course.dueAt = flowed(nextVisitStart(lastDay + condition.visitIntervalDays, now, random));
     return;
   }
-  if (identical(course, person.chronic)) {
+  if (chronic) {
     final gap = condition.courseGapDays;
     final days = switch (gap) {
       null => _between(chronicGapDays, random),
@@ -804,14 +886,59 @@ void _scheduleNext(Person person, Course course, int now, Random random) {
       0 => condition.visitIntervalDays,
       _ => gap,
     };
-    course
-      ..courseVisits = 0
-      ..dueAt = nextVisitStart(lastDay + days, now, random);
+    course.courseVisits = 0;
+    course.dueAt = flowed(nextVisitStart(lastDay + days, now, random));
   } else if (identical(course, person.acute)) {
     person
       ..acute = null
-      ..acuteOnsetAt = acuteOnsetAfter(now, random);
+      ..acuteOnsetAt = acuteOnsetAfter(now, random, person.acuteRate(flow));
   }
+}
+
+/// [due], the next visit of [person]'s [course] planned at [now], under
+/// the flow factor f at its care center ([Person.nextDestination]): the
+/// wait divided by f, at a visit's slot of the daily profile
+/// ([visitSlotFrom]); [due] itself at the normal flow.
+int _flowed(Person person, Course course, int now, int due, Map<int, double> flow, Random random) {
+  final factor = flowAt(flow, person.nextDestination(course));
+  return factor == 1 ? due : visitSlotFrom(now + ((due - now) / factor).round(), now, random);
+}
+
+/// Retimes [person] at [now] for the care centers' flow factors going from
+/// [before] to [after], so a change shows at once rather than after the
+/// visits already planned: their chronic condition's next visit, when its
+/// care center's factor changed, is brought forward or put off, the time
+/// left until it times the old factor over the new (at a visit's slot,
+/// [visitSlotFrom], or for an urgent one at the hour from the daily
+/// profile that day, as [Person.giveChronic] puts it; never in the past);
+/// the next acute onset, when their [Person.acuteRate] changed, is drawn
+/// again from now at the new rate ([acuteOnsetAfter]; the gaps are
+/// exponential, so drawing again from now is the same process). The hours
+/// keep to the daily profile ([arrivalHour]) either way. Says whether
+/// anything moved.
+bool retime(Person person, int now, Map<int, double> before, Map<int, double> after, Random random) {
+  var moved = false;
+  final chronic = person.chronic;
+  final due = chronic?.dueAt;
+  if (chronic != null && due != null && due > now) {
+    final place = person.nextDestination(chronic);
+    final was = flowAt(before, place);
+    final factor = flowAt(after, place);
+    if (was != factor) {
+      final at = now + ((due - now) * was / factor).round();
+      chronic.dueAt = chronic.nextIsUrgent
+          ? max(now, dayStart(simDay(at)) + arrivalHour(random) * 60)
+          : visitSlotFrom(at, now, random);
+      moved = true;
+    }
+  }
+  final onset = person.acuteOnsetAt;
+  final rate = person.acuteRate(after);
+  if (person.acute == null && onset != null && onset > now && person.acuteRate(before) != rate) {
+    person.acuteOnsetAt = acuteOnsetAfter(now, random, rate);
+    moved = true;
+  }
+  return moved;
 }
 
 /// What the placeholders of a complaint template stand for, for [person]
@@ -1031,6 +1158,8 @@ class Simulation {
         final person = newPerson(city, n, centers, places, settings.minutesPerTurn, _random,
             conditions: conditions, from: from);
         if (person == null) break;
+        // Their visits under the flow factors as they are now.
+        if (_flow.isNotEmpty) retime(person, from, const {}, _flow, _random);
         _next[city] = n + 1;
         _count[city] = (_count[city] ?? 0) + 1;
         people.add(person);
@@ -1057,6 +1186,55 @@ class Simulation {
   /// What a person's next condition is drawn from.
   final List<MedicalCondition> conditions;
   final Random _random;
+
+  /// The care centers' flow factors this run, by id, those that aren't 1
+  /// ([changeFlow]).
+  final _flow = <int, double>{};
+
+  /// The flow factor at care center [id] this run: 1, the normal flow,
+  /// unless [changeFlow] changed it.
+  double flowOf(int id) => _flow[id] ?? 1;
+
+  /// The care centers whose flow factor isn't 1, by id.
+  Map<int, double> get flow => Map.unmodifiable(_flow);
+
+  /// Doubles, halves or resets ([flowActions], [flowAfter]) the flow at
+  /// care center [id], within [flowMin] and [flowMax], for the rest of the
+  /// run: the visits headed there come that many times as often, the
+  /// people whose visits go there retimed at once ([retime]); logged.
+  /// Returns the factor now; null when the simulation sends nobody to a
+  /// care center of that id (one without a location), or for an action
+  /// that isn't one.
+  double? changeFlow(int id, String action) {
+    Place? place;
+    for (final p in places) {
+      if (p.id == id) {
+        place = p;
+        break;
+      }
+    }
+    final was = flowOf(id);
+    final factor = flowAfter(was, action);
+    if (place == null || factor == null) return null;
+    if (factor == was) return factor;
+    final before = Map.of(_flow);
+    if (factor == 1) {
+      _flow.remove(id);
+    } else {
+      _flow[id] = factor;
+    }
+    final turn = _turnNow();
+    final now = simMinutes(turn, settings.minutesPerTurn);
+    var moved = 0;
+    for (final person in people) {
+      if (retime(person, now, before, _flow, _random)) moved++;
+    }
+    stdout.writeln(
+      'simulation: flow at care center $id (${place.name}) ${flowLabel(factor)}, was ${flowLabel(was)}, '
+      'run $_run at turn $turn, $moved people retimed',
+    );
+    return factor;
+  }
 
   final _stopwatch = Stopwatch();
   bool _running = false;
@@ -1092,6 +1270,8 @@ class Simulation {
   void start() {
     if (_running) return;
     _running = true;
+    // A new run starts at the normal flow everywhere.
+    _flow.clear();
     final generation = ++_generation;
     do {
       _run = _hex(Random.secure());
@@ -1170,6 +1350,7 @@ class Simulation {
         random: _random,
         conditions: conditions,
         run: run,
+        flow: _flow,
       );
       if (admission != null) {
         person.unpublished.add(admission);
@@ -1292,8 +1473,9 @@ class PeopleFeed {
 
   final _latest = <String, Map<String, Object?>>{};
 
-  /// The latest moves and admissions, apart, so the many moves never push
-  /// the few admissions out; each with its arrival number, to merge them.
+  /// The latest moves and admissions, apart, so the moves never push the
+  /// few admissions out; each with its arrival number, the order it was
+  /// read in, which breaks the ties of the simulated time.
   final _moves = ListQueue<(int, Map<String, Object?>)>();
   final _admissions = ListQueue<(int, Map<String, Object?>)>();
   int _arrivals = 0;
@@ -1317,16 +1499,6 @@ class PeopleFeed {
   /// many a second over the last minute.
   final counter = EventCounter();
 
-  /// The simulated day each monitored person at home last checked in, by
-  /// id: their first move at home of a day from their [checkInHour] on is
-  /// an event, the others only count, so the events aren't all people
-  /// sitting at home (once a day, about two in five of the moves kept).
-  final _checkedIn = <String, int>{};
-
-  /// The hour of the day a monitored person checks in, from their id, so
-  /// the check-ins spread over the day instead of all coming at midnight.
-  static int checkInHour(String id) => id.codeUnits.fold(0, (sum, unit) => sum * 31 + unit) % 24;
-
   /// The latest record of each person, by id.
   List<Map<String, Object?>> get people => List.unmodifiable(_latest.values);
 
@@ -1342,12 +1514,59 @@ class PeopleFeed {
     }
   }
 
-  /// The latest moves and admissions read from the streams, merged newest
-  /// first by arrival, each with its "type" (move or admission), partition
-  /// and offset: what GET /api/events answers.
+  /// The latest moves and admissions read from the streams as one stream,
+  /// newest first by simulated time, the kinds among each other; at the
+  /// same minute, the one read later first (the record's real order: its
+  /// offset within a topic). Each with its "type" (move or admission),
+  /// partition and offset: what GET /api/events answers.
   List<Map<String, Object?>> get recent {
-    final merged = [..._moves, ..._admissions]..sort((a, b) => b.$1.compareTo(a.$1));
-    return List.unmodifiable([for (final (_, event) in merged) event]);
+    final merged = [
+      for (final (read, event) in [..._moves, ..._admissions]) (simMinutesOf(event), read, event),
+    ]..sort((a, b) => a.$1 != b.$1 ? b.$1.compareTo(a.$1) : b.$2.compareTo(a.$2));
+    return List.unmodifiable([for (final (_, _, event) in merged) event]);
+  }
+
+  /// The simulated minutes of a kept record, from its day and time (both
+  /// checked when it was kept).
+  static int simMinutesOf(Map<String, Object?> event) {
+    final time = event['simTime'] as String;
+    return (event['day'] as int) * minutesPerDay + int.parse(time.substring(0, 2)) * 60 + int.parse(time.substring(3));
+  }
+
+  /// The care center with the most people in care now (their latest move
+  /// at it): `{"id", "name", "kind", "inCare"}`, the lower id on a tie;
+  /// null while nobody is in care.
+  Map<String, Object?>? get busiest {
+    final inCare = <int, int>{};
+    final named = <int, Map<String, Object?>>{};
+    for (final person in _latest.values) {
+      final id = person['hospitalId'];
+      if (person['state'] != PersonState.atHospital.json || id is! int) continue;
+      inCare[id] = (inCare[id] ?? 0) + 1;
+      named[id] ??= person;
+    }
+    int? best;
+    for (final MapEntry(key: id, value: n) in inCare.entries) {
+      if (best == null || n > inCare[best]! || (n == inCare[best]! && id < best)) best = id;
+    }
+    if (best == null) return null;
+    return {
+      'id': best,
+      'name': named[best]!['hospitalName'],
+      'kind': named[best]!['careCenterKind'],
+      'inCare': inCare[best],
+    };
+  }
+
+  /// aityx's triage of a kept admission: its level ("red" to "blue"), or
+  /// null when the triage failed; the admission carries it as "triage".
+  void triaged(Object? eventId, Object? level) {
+    for (final (_, admission) in _admissions) {
+      if (admission['eventId'] == eventId) {
+        admission['triage'] = level is String ? level : null;
+        return;
+      }
+    }
   }
 
   static final _hhmm = RegExp(r'^\d\d:\d\d$');
@@ -1389,14 +1608,13 @@ class PeopleFeed {
         [value['lat'], value['lon'], value['homeLat'], value['homeLon']].every((v) => v is num);
     if (!valid) return;
     counter.add();
+    final previous = _latest[id];
     _latest[id] = Map<String, Object?>.from(value);
-    // Someone at home shows among the events only when monitored, and
-    // then once a day, from their hour on; the map still has everyone.
-    if (value['state'] == PersonState.home.json) {
-      if (value['monitored'] != true || _checkedIn[id] == day) return;
-      if (int.parse(simTime.substring(0, 2)) < checkInHour(id)) return;
-      _checkedIn[id] = day;
-    }
+    // Only a change of state is an event (left home, arrived, going home,
+    // back home): a person moves every turn, and every move would bury
+    // the admissions and the alarms. The first record read of someone
+    // says no change; the map still has everyone.
+    if (previous == null || previous['state'] == value['state']) return;
     _keep(_moves, {...value, 'type': 'move', 'partition': partition, 'offset': offset});
   }
 

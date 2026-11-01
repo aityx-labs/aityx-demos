@@ -62,10 +62,19 @@ does in HealthHub is described feature by feature in
   in the simulation and how much is in use now, its occupancy per hour
   with datyx's forecast, who is there and on the way, its admissions.
 - [A care center's occupancy per hour](occupancy-timeline.md): the
-  care center view's time series, the people in care up to now as a
-  solid line with its points and datyx's DeepAR forecast of the next 24
-  dashed and lighter, in its band, under the capacity, kept over the
-  hours as they pass to compare with what happened.
+  care center view's time series, both always: the people in care up to
+  now as a solid line with its points, and what datyx's DeepAR predicted
+  of every hour (of each past hour before it came, kept in
+  `occupancy_forecast`, else as the view kept it while open, and of the
+  next 24) dashed in its band, to compare with what happened; a line at
+  now, the capacity and the alarm threshold, every hour at or above it
+  marked and the first ahead labelled.
+- [Occupancy alarms](occupancy-alarms.md): when a care center's
+  occupancy reaches the threshold, 90% of its capacity (observed now,
+  actual; by datyx's DeepAR forecast's mean, expected; by its 90th
+  percentile, possible), an alarm as early as the data allows: an event stored in `occupancy_alarm` and streamed on
+  `healthhub.alarms`, `GET /api/alarms`, and a banner pinned at the top
+  of home's events.
 - [Triage at the desk](triage.md): each admission triaged by aityx from
   what the patient said and their age (Jev reads the danger signs, a
   decision gives the level, the wait, the area and a nurse's check, with

@@ -317,7 +317,7 @@ void main() {
   test('the feed keeps the latest move of each of its people', () {
     final feed = PeopleFeed(throwingKafka, people: ['reus-1', 'reus-2'], random: Random(4));
     expect(feed.group, startsWith('healthhub-api-'));
-    Map<String, Object?> at(String id, int turn) => {
+    Map<String, Object?> at(String id, int turn, [String state = 'to_hospital']) => {
       'id': id,
       'city': 'Reus',
       'lat': 41.1,
@@ -326,13 +326,13 @@ void main() {
       'homeLon': 1.2,
       'hospitalId': 1,
       'hospitalName': 'Hospital Sant Joan',
-      'state': 'to_hospital',
+      'state': state,
       'simTime': '09:10',
       'day': 1,
       'turn': turn,
     };
     feed
-      ..add(at('reus-1', 1))
+      ..add(at('reus-1', 1, 'home'))
       ..add(at('reus-2', 1))
       ..add(at('reus-1', 2))
       ..add('not a move')
@@ -344,54 +344,99 @@ void main() {
       ..add({...at('reus-2', 3), 'day': 0})
       ..add(Map.of(at('reus-2', 3))..remove('hospitalName'));
     expect(feed.people, [at('reus-1', 2), at('reus-2', 1)]);
-    // Only the kept moves are recent events, newest first.
-    expect([for (final event in feed.recent) event['turn']], [2, 1, 1]);
+    // Only the kept moves that change a state are events: reus-1 left home.
+    expect([for (final event in feed.recent) (event['id'], event['turn'])], [('reus-1', 2)]);
   });
 
-  test('someone at home is an event only when monitored, and every event counts', () {
+  test('only a change of state is an event, and every move counts', () {
     final feed = PeopleFeed(throwingKafka, people: ['reus-1', 'reus-2']);
     Map<String, Object?> move(String id, String state, int turn, {bool? monitored}) => {
       'id': id, 'city': 'Reus', 'lat': 41.1, 'lon': 1.1, 'homeLat': 41.2, 'homeLon': 1.2,
-      // Late in the day: past anyone's check-in hour.
-      'hospitalName': 'H', 'state': state, 'monitored': ?monitored, 'simTime': '23:00', 'day': 1, 'turn': turn,
+      'hospitalName': 'H', 'state': state, 'monitored': ?monitored, 'simTime': '0$turn:00', 'day': 1, 'turn': turn,
     };
     feed
+      // The first record of someone says no change.
       ..add(move('reus-1', 'home', 1, monitored: true))
-      // Still home, the same day: it only counts.
       ..add(move('reus-1', 'home', 2, monitored: true))
+      ..add(move('reus-1', 'to_hospital', 3))
+      ..add(move('reus-1', 'to_hospital', 4))
+      ..add(move('reus-1', 'at_hospital', 5))
+      ..add(move('reus-1', 'to_home', 6))
+      ..add(move('reus-1', 'home', 7))
+      // Monitored or not, staying home is no event.
       ..add(move('reus-2', 'home', 1, monitored: false))
-      // A record from before people were monitored, or not: not monitored.
       ..add(move('reus-2', 'home', 2))
-      ..add(move('reus-2', 'to_hospital', 3, monitored: false))
-      ..add(move('miami-1', 'home', 3, monitored: true));
-    expect([for (final e in feed.recent) (e['id'], e['turn'])], [('reus-2', 3), ('reus-1', 1)]);
-    // The map still has everyone, at home or not.
-    expect([for (final p in feed.people) (p['id'], p['turn'])], [('reus-1', 2), ('reus-2', 3)]);
-    // Hidden or shown, every move of the feed's people counts; another's doesn't.
-    expect(feed.counter.total, 5);
+      ..add(move('miami-1', 'to_hospital', 3, monitored: true));
+    // Left home, arrived, going home, back home.
+    expect([for (final e in feed.recent) (e['id'], e['state'])], [
+      ('reus-1', 'home'),
+      ('reus-1', 'to_home'),
+      ('reus-1', 'at_hospital'),
+      ('reus-1', 'to_hospital'),
+    ]);
+    // The map has everyone, at home or not.
+    expect([for (final p in feed.people) (p['id'], p['turn'])], [('reus-1', 7), ('reus-2', 2)]);
+    // Shown or not, every move of the feed's people counts; another's doesn't.
+    expect(feed.counter.total, 9);
   });
 
-  test('a monitored person at home checks in once a simulated day, from their hour', () {
-    // Each person's hour, from their id: spread over the day.
-    final hours = {for (var n = 1; n <= 20; n++) PeopleFeed.checkInHour('reus-$n')};
-    expect(hours.length, greaterThan(10));
-    expect(hours.every((h) => h >= 0 && h < 24), isTrue);
-    final hour = PeopleFeed.checkInHour('reus-1');
-    String two(int n) => n.toString().padLeft(2, '0');
-    final feed = PeopleFeed(throwingKafka, people: ['reus-1']);
-    var turn = 0;
-    void at(int day, String time) => feed.add({
-      'id': 'reus-1', 'city': 'Reus', 'lat': 41.1, 'lon': 1.1, 'homeLat': 41.2, 'homeLon': 1.2,
-      'hospitalName': 'H', 'state': 'home', 'monitored': true, 'simTime': time, 'day': day, 'turn': turn++,
-    });
-    for (var h = 0; h < 24; h++) {
-      at(1, '${two(h)}:00');
+  test('the stream goes by simulated time, the kinds among each other, a tie in the order read', () {
+    final feed = PeopleFeed(throwingKafka, people: ['reus-1', 'reus-2', 'reus-3']);
+    Map<String, Object?> move(String id, String state, String time) => {
+      'id': id, 'city': 'Reus', 'lat': 41.1, 'lon': 1.1, 'homeLat': 41.2, 'homeLon': 1.2,
+      'hospitalName': 'H', 'state': state, 'simTime': time, 'day': 2, 'turn': 1,
+    };
+    Map<String, Object?> admission(String id, String time) => {
+      'type': 'admission', 'eventId': 'r-$id-$time', 'personId': id, 'name': 'Núria Puig', 'age': 54, 'sex': 'woman',
+      'occupation': 'teacher', 'city': 'Reus', 'conditionCode': 'flu', 'conditionName': 'Influenza',
+      'conditionType': 'acute', 'visit': 'first', 'visitNumber': 1, 'complaint': 'I have a fever.', 'hospitalId': 7,
+      'hospitalName': 'H', 'simTime': time, 'day': 2, 'turn': 1,
+    };
+    for (final id in ['reus-1', 'reus-2', 'reus-3']) {
+      feed.add(move(id, 'home', '08:00'));
     }
-    at(2, '${two(hour)}:30');
-    at(2, '23:00');
-    // The first move at home from their hour on, once a day; every one counts.
-    expect([for (final e in feed.recent) '${e['day']} ${e['simTime']}'], ['2 ${two(hour)}:30', '1 ${two(hour)}:00']);
-    expect(feed.counter.total, 26);
+    feed
+      ..add(move('reus-1', 'to_hospital', '09:00'), partition: 0, offset: 10)
+      ..add(move('reus-2', 'to_hospital', '09:00'), partition: 0, offset: 11)
+      // Read after the moves of 10:00, but of 09:40: it goes between.
+      ..add(move('reus-1', 'at_hospital', '10:00'), partition: 0, offset: 12)
+      ..addAdmission(admission('reus-1', '09:40'), partition: 0, offset: 3)
+      // The same minute as a move read before it: first.
+      ..add(move('reus-3', 'to_hospital', '11:00'), partition: 0, offset: 13)
+      ..addAdmission(admission('reus-2', '11:00'), partition: 0, offset: 4);
+    expect([for (final e in feed.recent) (e['type'], e['simTime'], e['offset'])], [
+      ('admission', '11:00', 4),
+      ('move', '11:00', 13),
+      ('move', '10:00', 12),
+      ('admission', '09:40', 3),
+      // reus-2's move was read after reus-1's.
+      ('move', '09:00', 11),
+      ('move', '09:00', 10),
+    ]);
+  });
+
+  test('the busiest care center has the most people in care now, the lower id on a tie', () {
+    final feed = PeopleFeed(throwingKafka, people: [for (var n = 1; n <= 6; n++) 'reus-$n']);
+    expect(feed.busiest, isNull);
+    void at(String id, String state, int hospital) => feed.add({
+      'id': id, 'city': 'Reus', 'lat': 41.1, 'lon': 1.1, 'homeLat': 41.2, 'homeLon': 1.2, 'hospitalId': hospital,
+      'hospitalName': 'Hospital $hospital', 'careCenterKind': 'hospital', 'state': state, 'simTime': '09:00', 'day': 1,
+      'turn': 1,
+    });
+    at('reus-1', 'at_hospital', 7);
+    at('reus-2', 'at_hospital', 7);
+    at('reus-3', 'at_hospital', 9);
+    // On the way, or home: not in care.
+    at('reus-4', 'to_hospital', 9);
+    at('reus-5', 'home', 9);
+    expect(feed.busiest, {'id': 7, 'name': 'Hospital 7', 'kind': 'hospital', 'inCare': 2});
+    at('reus-6', 'at_hospital', 3);
+    at('reus-4', 'at_hospital', 3);
+    expect(feed.busiest, {'id': 3, 'name': 'Hospital 3', 'kind': 'hospital', 'inCare': 2});
+    // Their latest move counts: reus-1 left.
+    at('reus-1', 'to_home', 7);
+    at('reus-3', 'at_hospital', 3);
+    expect(feed.busiest, {'id': 3, 'name': 'Hospital 3', 'kind': 'hospital', 'inCare': 3});
   });
 
   test('the event counter averages the last minute, a second at a time', () {
@@ -419,14 +464,15 @@ void main() {
 
   test('the feed keeps the latest records as events, up to its limit', () {
     final feed = PeopleFeed(throwingKafka, people: ['reus-1']);
-    for (var turn = 0; turn < PeopleFeed.recentLimit + 5; turn++) {
+    // Every turn a change: home, then on the way, then home again.
+    for (var turn = 0; turn < PeopleFeed.recentLimit + 6; turn++) {
       feed.add({
         'id': 'reus-1', 'city': 'Reus', 'lat': 41.1, 'lon': 1.1, 'homeLat': 41.2, 'homeLon': 1.2,
-        'hospitalName': 'H', 'state': 'to_hospital', 'simTime': '06:00', 'day': 1, 'turn': turn,
+        'hospitalName': 'H', 'state': turn.isEven ? 'home' : 'to_hospital', 'simTime': '06:00', 'day': 1, 'turn': turn,
       }, partition: 0, offset: turn);
     }
     expect(feed.recent, hasLength(PeopleFeed.recentLimit));
-    expect(feed.recent.first['offset'], PeopleFeed.recentLimit + 4);
+    expect(feed.recent.first['offset'], PeopleFeed.recentLimit + 5);
     expect(feed.recent.first['partition'], 0);
   });
 
@@ -540,8 +586,11 @@ void main() {
   test('settings fall back to the defaults', () {
     final settings = SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '0', 'HEALTHHUB_SIM_TURN_MS': 'x'});
     expect(settings.peoplePerCity, 80);
-    expect(settings.turn, const Duration(seconds: 1));
-    expect(settings.minutesPerTurn, 60);
+    // A simulated hour every 10 real seconds.
+    expect(settings.turn, const Duration(milliseconds: 2500));
+    expect(settings.minutesPerTurn, 15);
+    final custom = SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_TURN_MS': '1000', 'HEALTHHUB_SIM_MINUTES_PER_TURN': '60'});
+    expect((custom.turn, custom.minutesPerTurn), (const Duration(seconds: 1), 60));
     expect(SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '3'}).peoplePerCity, 3);
     expect(SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '5000'}).peoplePerCity, maxPeoplePerCity);
   });

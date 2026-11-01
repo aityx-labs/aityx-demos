@@ -8,9 +8,12 @@ import '../location/user_location_map.dart' show PersonLook;
 import '../people/person_screen.dart';
 import '../sim_clock.dart';
 import '../theme.dart';
+import '../triage/triage_card.dart' show levelColor;
+import 'simulated_clock.dart';
 
 /// Gives the latest records on the stream: the API's `GET /api/events`,
-/// only moves or only admissions with [type].
+/// the moves and the admissions as one stream, or only one kind with
+/// [type].
 typedef EventsLoader = Future<StreamEvents> Function({int limit, StreamEventType? type});
 
 /// Pauses the simulation (true) or resumes it, and says whether it is
@@ -24,42 +27,137 @@ typedef PopulationControl = Future<int> Function(int perCity);
 /// The people a city the events offer: the simulation takes up to 200.
 const peopleChoices = [10, 20, 40, 80, 120, 160, 200];
 
-/// The latest events on the Kafka stream, newest first: people's moves and
-/// their admissions at a hospital, each a row of the same shape, an
-/// admission marked in orange with what they said on arrival. Someone at
-/// home is an event only when monitored, the high-risk (the API leaves the
-/// others out); the header counts every event the API read, and how many a
-/// second over the last minute. Asked every 5 seconds while shown, like
-/// the map's people. Nothing shows until the API says the simulation runs
-/// (dev mode), and nothing in prod. Each row names its person, a link to
-/// their view, and the card invites opening anyone's; an admission also
-/// shows datyx's prediction of the person's hours of care over the next 30
-/// days, asked once per admission through [PersonOpener]. With
-/// [simulation], a button at the top pauses the simulation and resumes it;
-/// with [population], beside it, how many people each city has, which
-/// anyone signed in can change. Each record says when it happened as a
-/// date on the simulation's calendar.
+/// The pills over the events, one at a time: every row ([all]), those at
+/// the care center with the most people in care now ([busiest]), the
+/// occupancy alarms raised, downgraded and cleared ([alarms]), the
+/// admissions aityx triaged red or orange ([urgent]), every admission,
+/// the people on their way to care ([onTheMove]), and the rows of an
+/// acute or a chronic condition.
+enum EventsFilter {
+  all('All', 'Every event, newest first'),
+  busiest('Busiest', 'The events at the care center with the most people in care now'),
+  alarms('Alarms', 'The occupancy alarms raised, downgraded and cleared'),
+  urgent('Urgent', "The admissions aityx's triage put first: red (Immediate) or orange (Very urgent)"),
+  admissions('Admissions', 'The people admitted at a care center, with what they said'),
+  onTheMove('On the move', 'The people who left home for a care center'),
+  acute('Acute', 'The events of an acute condition, one that passes'),
+  chronic('Chronic', 'The events of a chronic condition, one that stays');
+
+  const EventsFilter(this.label, this.help);
+
+  final String label;
+  final String help;
+}
+
+/// One row of the stream: an [event] (a move or an admission) or an
+/// [alarm] event, at its simulated [minutes] (-1 without a time).
+typedef StreamRow = ({StreamEvent? event, OccupancyAlarm? alarm, int minutes});
+
+/// The [events] and the [alarms] events as one stream, newest first by
+/// simulated time, the kinds among each other. At the same minute, the
+/// order the API gave the events (the order they were read, a record's
+/// offset within its topic), and an alarm before them: its check read the
+/// clock once they were in. A record without a time sorts last.
+List<StreamRow> streamRows(List<StreamEvent> events, List<OccupancyAlarm> alarms) {
+  final rows = <StreamRow>[
+    for (final event in events) (event: event, alarm: null, minutes: SimNow.at(event.day, event.simTime)?.minutes ?? -1),
+    for (final alarm in alarms) (event: null, alarm: alarm, minutes: alarm.now?.minutes ?? -1),
+  ];
+  final order = {for (final (i, row) in rows.indexed) row: i};
+  rows.sort((a, b) {
+    if (a.minutes != b.minutes) return b.minutes.compareTo(a.minutes);
+    if ((a.alarm == null) != (b.alarm == null)) return a.alarm != null ? -1 : 1;
+    // The sort isn't stable: the order given breaks the ties.
+    return order[a]!.compareTo(order[b]!);
+  });
+  return rows;
+}
+
+/// Whether [row] is one [filter] keeps; [busiest] is the care center with
+/// the most people in care now. At the busiest, an admission there, a
+/// person going to, at or leaving it (not at home, where the record names
+/// their usual hospital), and its alarms.
+bool keeps(EventsFilter filter, StreamRow row, BusiestCareCenter? busiest) {
+  final event = row.event;
+  final alarm = row.alarm;
+  return switch (filter) {
+    EventsFilter.all => true,
+    EventsFilter.busiest =>
+      busiest != null &&
+          (alarm?.careCenterId == busiest.id ||
+              (event != null &&
+                  event.hospitalId == busiest.id &&
+                  (event.isAdmission || event.state != PersonState.home))),
+    EventsFilter.alarms => alarm != null,
+    EventsFilter.urgent => event?.isUrgent ?? false,
+    EventsFilter.admissions => event?.isAdmission ?? false,
+    EventsFilter.onTheMove => event != null && !event.isAdmission && event.state == PersonState.toHospital,
+    EventsFilter.acute => event?.conditionType == ConditionType.acute,
+    EventsFilter.chronic => event?.conditionType == ConditionType.chronic,
+  };
+}
+
+/// The latest events on the Kafka stream as one stream, newest first by
+/// simulated time, the kinds among each other: people's changes of state
+/// (left home, arrived, going home, back home), their admissions at a care
+/// center, marked in orange with what they said on arrival and aityx's
+/// triage once it has one, and the occupancy alarms raised, downgraded and
+/// cleared ([AlarmRow]); each a row of the same shape. One answer of the
+/// API has them all, asked every 5 seconds while shown, like the map's
+/// people; the alarms come with it (`GET /api/events` carries them): no
+/// other poll. Nothing shows until the API says the simulation runs (dev
+/// mode), and nothing in prod.
 ///
-/// Moves and admissions are asked for apart: every person moves every
-/// second, so the latest [limit] records of the stream are nearly always
-/// all moves and an admission would scroll out before it is ever seen.
+/// The header: the title, the simulated date and time beside it as the
+/// map's tile has it ([SimClockText], "Paused" beside it while paused,
+/// reported to [clock] too), the alarms now counted in red, and every
+/// event the API read, and how many a second over the last minute. With
+/// [simulation], a button pauses the simulation and resumes it; with
+/// [population], beside it, how many people each city has, which anyone
+/// signed in can change. Then, pinned, a banner per care center whose
+/// occupancy reaches the alarm threshold, 90% of its capacity
+/// ([OccupancyAlarm]): red when it does now ("Occupancy now at 92%") or
+/// the forecast mean does ("90% occupancy expected"), amber when only its
+/// 90th percentile does ("may reach"). Then a row of pills
+/// ([EventsFilter]), one at a time, All first, each with how many of the
+/// rows read it keeps: "Busiest: Hospital X" keeps the events at the care
+/// center with the most people in care now, which the API names. At most
+/// [limit] rows show, of the [fetch] latest events asked.
+///
+/// Each row names its person, a link to their view, and the card invites
+/// opening anyone's; an admission also shows datyx's prediction of the
+/// person's hours of care over the next 30 days, asked once per admission
+/// through [PersonOpener]. Each record says when it happened as a date on
+/// the simulation's calendar.
 class StreamEventsCard extends StatefulWidget {
   const StreamEventsCard({
     super.key,
     required this.events,
     this.simulation,
     this.population,
-    this.limit = 12,
-    this.admissionsLimit = 8,
+    this.clock,
+    this.limit = 20,
+    this.fetch = 60,
+    this.alarmsLimit = 10,
   });
 
   final EventsLoader events;
   final SimulationControl? simulation;
   final PopulationControl? population;
 
-  /// How many moves and how many admissions are shown at most.
+  /// Where the card reports the simulated time it reads, and whether the
+  /// simulation is paused, for the other headers that show it.
+  final SimClock? clock;
+
+  /// How many rows show at most, whatever the pill.
   final int limit;
-  final int admissionsLimit;
+
+  /// How many of the latest events are asked for: more than [limit], so a
+  /// pill has rows to keep.
+  final int fetch;
+
+  /// How many of the latest alarm events are rows of the stream at most.
+  final int alarmsLimit;
 
   @override
   State<StreamEventsCard> createState() => _StreamEventsCardState();
@@ -69,6 +167,9 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
   StreamEvents _events = const StreamEvents(enabled: false);
   Timer? _poll;
   bool _asking = false;
+
+  /// The pill chosen, All until another is.
+  EventsFilter _filter = EventsFilter.all;
 
   /// While a pause or resume is under way, and what it said: shown until
   /// the next events say it too.
@@ -105,6 +206,7 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
     try {
       final paused = await control(!_paused);
       if (mounted) setState(() => _pausedNow = paused);
+      widget.clock?.report(null, paused: paused);
     } catch (error) {
       if (!mounted) return;
       final message = error is ApiException && error.status == 401
@@ -153,18 +255,17 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
     if (_asking) return;
     _asking = true;
     try {
-      final answers = await Future.wait([
-        widget.events(limit: widget.limit, type: StreamEventType.move),
-        widget.events(limit: widget.admissionsLimit, type: StreamEventType.admission),
-      ]);
+      // One stream, every kind in it: no type.
+      final events = await widget.events(limit: widget.fetch);
       if (mounted) {
         setState(() {
-          _events = mergeEvents(answers[0], answers[1]);
+          _events = events;
           final read = {for (final event in _events.events) ?event.eventId};
           _predictions.removeWhere((eventId, _) => !read.contains(eventId));
           if (_pausedNow == _events.paused) _pausedNow = null;
           if (_perCityNow == _events.peoplePerCity) _perCityNow = null;
         });
+        widget.clock?.report(events.clock, paused: _paused);
       }
     } catch (_) {
       // The API or Kafka may be down for a moment: keep what is shown.
@@ -176,11 +277,15 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
   @override
   Widget build(BuildContext context) {
     if (!_events.enabled) return const SizedBox.shrink();
-    final shown = _events.events;
-    final admissions = shown.where((event) => event.isAdmission).length;
-    final moves = shown.length - admissions;
     final total = _events.total;
     final perSecond = _events.perSecond;
+    final alarms = _events.alarms;
+    final active = alarms.active;
+    final busiest = _events.busiest;
+    final stream = streamRows(_events.events, alarms.recent.take(widget.alarmsLimit).toList());
+    // The busiest pill goes with the care center it names: All again once none is.
+    final filter = _filter == EventsFilter.busiest && busiest == null ? EventsFilter.all : _filter;
+    final kept = [for (final row in stream) if (keeps(filter, row, busiest)) row];
     return Card(
       key: const Key('stream-events'),
       child: Padding(
@@ -196,30 +301,29 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // The total and what is shown beside the title, under it when narrow.
+                      // The title, the simulated date and time beside it as on the
+                      // map's tile, the alarms and the total; under it when narrow.
                       Wrap(
-                        spacing: 10,
+                        spacing: 16,
+                        runSpacing: 2,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           const Text('Latest events', style: TextStyle(fontWeight: FontWeight.w700)),
+                          if (_events.clock != null)
+                            SimClockText(_events.clock, key: const Key('events-clock'), paused: _paused),
+                          if (active.isNotEmpty) _AlarmsBadge(active.length),
                           if (total != null)
                             Tooltip(
                               message:
-                                  'Every move and admission the API read since it started, those of people '
-                                  "at home who aren't monitored too, and how many a second over the last "
-                                  'minute, a moving average',
+                                  'Every move and admission the API read since it started, those the events '
+                                  'leave out too, and how many a second over the last minute, a moving average',
                               child: Text(
                                 '${_thousands(total)} ${total == 1 ? 'event' : 'events'}'
                                 '${perSecond == null ? '' : ' · ${perSecond.toStringAsFixed(1)}/s'}',
                                 key: const Key('stream-events-total'),
-                                style: const TextStyle(color: Aityx.fg, fontSize: 12, fontWeight: FontWeight.w600),
+                                style: const TextStyle(color: Aityx.muted, fontSize: 12, fontWeight: FontWeight.w600),
                               ),
                             ),
-                          Text(
-                            '${_count(admissions, 'admission')} · ${_count(moves, 'move')}',
-                            key: const Key('stream-events-counts'),
-                            style: const TextStyle(color: Aityx.muted, fontSize: 12),
-                          ),
                         ],
                       ),
                       Text(
@@ -253,6 +357,48 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
                 ],
               ),
             ],
+            // The alarms now, pinned at the top; how far ahead, from the
+            // clock above.
+            for (final alarm in active) AlarmBanner(alarm, clock: _events.clock, stale: alarms.stale),
+            // Out of date: when they were last read, and why. Not of an
+            // actual alarm, the occupancy observed, which datyx doesn't say.
+            if (active.any((alarm) => !alarm.actual) && alarms.enabled && (alarms.stale || alarms.note != null))
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: [
+                    const Icon(Icons.history, color: Aityx.amber, size: 16),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        [
+                          'Occupancy alarms may be out of date',
+                          if (_lastRead(active) case final read?) 'last checked ${simDateTime(read)}',
+                          alarms.note ?? 'no check has read a forecast since',
+                        ].join(' · '),
+                        key: const Key('alarms-stale'),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Aityx.amber, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (active.isEmpty && alarms.enabled && alarms.note != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Tooltip(
+                  message: alarms.note!,
+                  child: Text(
+                    "Occupancy alarms: datyx can't forecast yet, only the occupancy now is checked (${alarms.note})",
+                    key: const Key('alarms-note'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Aityx.muted, fontSize: 12),
+                  ),
+                ),
+              ),
             const SizedBox(height: 8),
             const Row(
               children: [
@@ -269,13 +415,104 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
               ],
             ),
             const SizedBox(height: 8),
-            if (shown.isEmpty)
+            // The pills, one at a time.
+            _FilterPills(
+              selected: filter,
+              busiest: busiest,
+              count: (pill) => pill == EventsFilter.all ? null : stream.where((row) => keeps(pill, row, busiest)).length,
+              onSelected: (pill) => setState(() => _filter = pill),
+            ),
+            const SizedBox(height: 8),
+            if (stream.isEmpty)
               const Text('Waiting for the first event…', style: TextStyle(color: Aityx.muted))
+            else if (kept.isEmpty)
+              Text(
+                switch (filter) {
+                  EventsFilter.busiest => 'Nothing at ${busiest!.name} among the latest events.',
+                  _ => 'No ${filter.label.toLowerCase()} event among the latest.',
+                },
+                key: const Key('events-filter-empty'),
+                style: const TextStyle(color: Aityx.muted),
+              )
             else
-              for (final event in shown) EventRow(event, prediction: _predictionOf(event)),
+              for (final row in kept.take(widget.limit))
+                if (row.alarm case final alarm?)
+                  AlarmRow(alarm)
+                else
+                  EventRow(row.event!, prediction: _predictionOf(row.event!)),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The pills over the events ([EventsFilter]), styled as the app's chips,
+/// one [selected] at a time, each but All with how many of the rows read
+/// it keeps ([count]). The busiest names its care center, "Busiest:
+/// Hospital del Mar", and how many are in care there on hover; it shows
+/// only once the API names one.
+class _FilterPills extends StatelessWidget {
+  const _FilterPills({required this.selected, required this.busiest, required this.count, required this.onSelected});
+
+  final EventsFilter selected;
+  final BusiestCareCenter? busiest;
+  final int? Function(EventsFilter pill) count;
+  final ValueChanged<EventsFilter> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget pill(EventsFilter filter) {
+      final on = filter == selected;
+      final n = count(filter);
+      final label = filter == EventsFilter.busiest ? 'Busiest: ${busiest!.name}' : filter.label;
+      final inCare = busiest?.inCare;
+      return Tooltip(
+        message: filter == EventsFilter.busiest
+            ? '${busiest!.name}: the most people in care now${inCare == null ? '' : ', $inCare'}. Its events: '
+                  'the people going to, at or leaving it, its admissions and its alarms'
+            : filter.help,
+        child: ChoiceChip(
+          key: Key('events-filter-${filter.name}'),
+          avatar: filter == EventsFilter.busiest
+              ? Icon(Icons.local_fire_department, size: 16, color: on ? Aityx.orange : Aityx.muted)
+              : null,
+          // The busiest's count apart from its name: "Busiest: Hospital del Mar · 3".
+          label: Text(
+            n == null ? label : '$label${filter == EventsFilter.busiest ? ' ·' : ''} $n',
+            style: const TextStyle(fontSize: 12),
+          ),
+          selected: on,
+          onSelected: (_) => onSelected(filter),
+          showCheckmark: false,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          selectedColor: Aityx.orange.withValues(alpha: 0.25),
+          side: BorderSide(color: on ? Aityx.orange : Aityx.border),
+        ),
+      );
+    }
+
+    return Row(
+      key: const Key('events-filter'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 6),
+          child: Icon(Icons.filter_list, color: Aityx.muted, size: 18),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final filter in EventsFilter.values)
+                if (filter != EventsFilter.busiest || busiest != null) pill(filter),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -330,42 +567,6 @@ String _count(int n, String noun) => '$n ${n == 1 ? noun : '${noun}s'}';
 /// [n] with its thousands apart: "48,213".
 String _thousands(int n) => n.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+$)'), (_) => ',');
 
-/// The moves and the admissions as one stream, newest first by simulated
-/// time. An admission comes before the moves of its own hour: the person
-/// arrived, then the others moved on. A record without a time sorts last.
-/// Either answer may hold both kinds when the API doesn't filter by type,
-/// so each keeps only its own.
-StreamEvents mergeEvents(StreamEvents moves, StreamEvents admissions) {
-  final events = [
-    ...admissions.events.where((event) => event.isAdmission),
-    ...moves.events.where((event) => !event.isAdmission),
-  ];
-  final order = {for (final (i, event) in events.indexed) event: i};
-  events.sort((a, b) {
-    final byTime = _minutes(b).compareTo(_minutes(a));
-    // The sort isn't stable: the order each answer gave breaks the ties.
-    return byTime != 0 ? byTime : order[a]!.compareTo(order[b]!);
-  });
-  // Both answers count the same feed: the later one, with more, holds.
-  final counts = (admissions.total ?? -1) > (moves.total ?? -1) ? admissions : moves;
-  return StreamEvents(
-    enabled: moves.enabled || admissions.enabled,
-    topics: {...moves.topics, ...admissions.topics}.toList(),
-    events: events,
-    total: counts.total,
-    perSecond: counts.perSecond,
-    peoplePerCity: counts.peoplePerCity ?? moves.peoplePerCity ?? admissions.peoplePerCity,
-  );
-}
-
-/// The simulated minutes since day 0 at 00:00, or -1 without a time.
-int _minutes(StreamEvent event) {
-  final parts = event.simTime?.split(':');
-  final hours = parts?.length == 2 ? int.tryParse(parts![0]) : null;
-  final minutes = parts?.length == 2 ? int.tryParse(parts![1]) : null;
-  if (event.day == null || hours == null || minutes == null) return -1;
-  return event.day! * 24 * 60 + hours * 60 + minutes;
-}
 
 /// When a record happened, "Jan 2, 2026 09:40".
 String _when(StreamEvent event) => simWhen(event.day, event.simTime);
@@ -403,7 +604,8 @@ String _where(StreamEvent event) => event.offset == null ? '' : 'p${event.partit
 /// faint tint in its colour, a mark (a dot in the person's state colour,
 /// the map's, or the orange hospital of an admission), then two lines,
 /// never more: who (a link to their view, with a heart monitor when
-/// monitored, why on hover) with the condition and the simulated time;
+/// monitored, why on hover) with the condition, aityx's triage of an
+/// admission once it has one ([_TriageMark]), and the simulated time;
 /// what happened, at which hospital, with the record's partition and
 /// offset. An admission's second line says which visit it is, in italics
 /// as much of what the person said as fits (all of it on hover), and the
@@ -488,6 +690,7 @@ class EventRow extends StatelessWidget {
                           ],
                         ),
                       ),
+                      if (admission && event.triage != null) _TriageMark(event.triage!, eventId: event.eventId ?? event.id),
                       if (event.monitored)
                         Padding(
                           padding: const EdgeInsets.only(left: 6),
@@ -536,6 +739,36 @@ class EventRow extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// aityx's triage of an admission, a small pill in the level's colour on
+/// its first line: "Very urgent".
+class _TriageMark extends StatelessWidget {
+  const _TriageMark(this.level, {required this.eventId});
+
+  final TriageLevel level;
+  final String eventId;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = levelColor(level);
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: Tooltip(
+        message: "aityx's triage at the desk: ${level.name}, ${level.label}",
+        child: Container(
+          key: Key('admission-triage-$eventId'),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.16),
+            border: Border.all(color: color.withValues(alpha: 0.6)),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(level.label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
         ),
       ),
     );
@@ -611,4 +844,335 @@ String _ordinal(int n) {
           _ => 'th',
         };
   return '$n$suffix';
+}
+
+/// A number of people as datyx forecasts it: whole when it is nearly
+/// whole, "10", else to a tenth, "8.4".
+String _people(double n) => (n - n.round()).abs() < 0.05 ? '${n.round()}' : n.toStringAsFixed(1);
+
+/// How far ahead of [from] (a simulated moment) an alarm's overflow is:
+/// "in 7 h", "in 6 h 20 min"; "now, since Jan 2, 2026 16:00" once [from] has
+/// reached it. Without [from], the API's lead from the series' end.
+String _lead(OccupancyAlarm alarm, SimNow? from) {
+  final at = alarm.overflowAt;
+  final fromMinutes = from?.minutes;
+  if (at != null && fromMinutes != null) {
+    final minutes = SimNow.ofHour(at)!.minutes! - fromMinutes;
+    if (minutes <= 0) return 'now, since ${simDateTime(at)}';
+    final (h, m) = (minutes ~/ 60, minutes % 60);
+    return 'in ${[if (h > 0) '$h h', if (m > 0) '$m min'].join(' ')}';
+  }
+  final hours = alarm.leadHours;
+  if (hours == null) return '';
+  if (hours <= 0) return 'now';
+  return 'in ${_people(hours)} h';
+}
+
+/// The latest simulated moment any of [active] was read at, as an hour.
+DateTime? _lastRead(List<OccupancyAlarm> active) {
+  int? newest;
+  for (final alarm in active) {
+    final minutes = alarm.now?.minutes;
+    if (minutes != null && (newest == null || minutes > newest)) newest = minutes;
+  }
+  return newest == null ? null : simEpoch.add(Duration(minutes: newest - 24 * 60));
+}
+
+/// The alarm's threshold as a share of the capacity, "90%"; "100%" from
+/// an API before the threshold, which alarmed over the capacity.
+String thresholdText(double? threshold) => '${((threshold ?? 1) * 100).round()}%';
+
+/// What the alarm says at the hour reached: "11 in care of 12 beds (92%)"
+/// when actual; "10 in care of 8 beds (90% range up to 12)" when
+/// expected; "7 expected in care of 8 beds, 90% range up to 12" when
+/// possible.
+String _forecastAt(OccupancyAlarm alarm) {
+  final of = alarm.capacity == null ? '' : ' of ${alarm.capacity} ${alarm.unit ?? 'beds'}';
+  final mean = alarm.mean;
+  final p90 = alarm.p90;
+  if (alarm.actual) {
+    final share = alarm.occupancyShare;
+    return [
+      if (alarm.occupancy != null) '${alarm.occupancy} in care$of',
+      if (share != null) '(${(share * 100).round()}%)',
+    ].join(' ');
+  }
+  if (alarm.expected) {
+    return [
+      if (mean != null) '${_people(mean)} in care$of',
+      if (p90 != null) '(90% range up to ${_people(p90)})',
+    ].join(' ');
+  }
+  return [
+    if (mean != null) '${_people(mean)} expected in care$of',
+    if (p90 != null) '90% range up to ${_people(p90)}',
+  ].join(', ');
+}
+
+/// The peak over the horizon: "peak 11 at Jun 3, 2026 18:00 (90% range
+/// up to 13)"; null without one.
+String? _peak(OccupancyAlarm alarm) {
+  final mean = alarm.peakMean;
+  final p90 = alarm.peakP90;
+  if (mean == null && p90 == null) return null;
+  return [
+    'peak',
+    if (mean != null) _people(mean) else 'up to ${_people(p90!)}',
+    if (alarm.peakAt != null) 'at ${simDateTime(alarm.peakAt!)}',
+    if (mean != null && p90 != null) '(90% range up to ${_people(p90)})',
+  ].join(' ');
+}
+
+/// The colour of an alarm's level: red when the occupancy or the forecast
+/// mean reaches the threshold, amber when only its 90th percentile does.
+Color _levelColor(AlarmLevel? level) => level == AlarmLevel.possible || level == null ? Aityx.amber : Aityx.red;
+
+/// The icon of an alarm's level: an emergency now, a crisis expected, a
+/// warning possible.
+IconData _levelIcon(AlarmLevel? level) => switch (level) {
+  AlarmLevel.actual => Icons.emergency,
+  AlarmLevel.expected => Icons.crisis_alert,
+  _ => Icons.warning_amber,
+};
+
+/// The header's count of the alarms now, in red: "2 alarms".
+class _AlarmsBadge extends StatelessWidget {
+  const _AlarmsBadge(this.count);
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: const Key('alarms-badge'),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    decoration: BoxDecoration(color: Aityx.red, borderRadius: BorderRadius.circular(10)),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.warning_amber, color: Aityx.fg0, size: 14),
+        const SizedBox(width: 4),
+        Text(
+          _count(count, 'alarm'),
+          style: const TextStyle(color: Aityx.fg0, fontSize: 12, fontWeight: FontWeight.w800),
+        ),
+      ],
+    ),
+  );
+}
+
+/// A care center whose occupancy reaches the alarm threshold (90% of its
+/// capacity), now or by datyx's forecast, pinned at the top of the
+/// events, unmistakable: a banner with a strong border and glow in the
+/// level's colour, an icon, and in bold "Occupancy now at 92% at Hospital
+/// X" (red, observed), "90% occupancy expected at Hospital X in 7 h" (red,
+/// the forecast mean) or "90% occupancy possible: Hospital X may reach 90%
+/// of its 8 beds in 7 h" (amber, only the 90th percentile), the care
+/// center a link to its view; under it, the hour and what was observed or
+/// forecast there, "Jun 3, 2026 16:00: 10 in care of 8 beds (90% range up
+/// to 12)", and the forecast's peak. How far ahead is from [clock], the
+/// simulation's time now ("now, since ..." once it is past); when it may
+/// be out of date ([stale], or the alarm's own), "Not current: last
+/// checked Jun 3, 2026 09:00".
+class AlarmBanner extends StatelessWidget {
+  const AlarmBanner(this.alarm, {super.key, this.clock, this.stale = false});
+
+  final OccupancyAlarm alarm;
+  final SimNow? clock;
+  final bool stale;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _levelColor(alarm.level);
+    final actual = alarm.actual;
+    final lead = _lead(alarm, clock);
+    // An actual alarm isn't stale by datyx's answer, only by its own.
+    final outOfDate = (stale && !actual) || alarm.stale;
+    const bold = TextStyle(color: Aityx.fg0, fontSize: 15, fontWeight: FontWeight.w800);
+    final capacity = alarm.capacity == null ? 'its capacity' : 'its ${alarm.capacity} ${alarm.unit ?? 'beds'}';
+    final threshold = thresholdText(alarm.threshold);
+    final share = alarm.occupancyShare;
+    final detail = [
+      [
+        if (alarm.overflowAt != null) simDateTime(alarm.overflowAt!),
+        _forecastAt(alarm),
+      ].where((part) => part.isNotEmpty).join(': '),
+      ?_peak(alarm),
+    ].where((part) => part.isNotEmpty).join(' · ');
+    final model = [
+      actual ? 'The people in care at the latest hour' : "datyx's DeepAR forecast of the people in care per hour",
+      if (alarm.now != null) 'checked at ${simClockLabel(alarm.now!)}',
+      if (!actual && alarm.trainingRun != null) 'training run ${alarm.trainingRun}',
+    ].join(', ');
+    final why = switch (alarm.level) {
+      AlarmLevel.actual => 'The occupancy observed reaches $threshold of the capacity',
+      AlarmLevel.expected => 'The forecast mean reaches $threshold of the capacity',
+      _ => "The forecast's 90th percentile reaches $threshold of the capacity",
+    };
+    final (before, after) = switch (alarm.level) {
+      AlarmLevel.actual => ('Occupancy now at ${share == null ? threshold : '${(share * 100).round()}%'} at ', ''),
+      AlarmLevel.expected => ('$threshold occupancy expected at ', lead.isEmpty ? '' : ' $lead'),
+      _ => ('$threshold occupancy possible: ', ' may reach $threshold of $capacity${lead.isEmpty ? '' : ' $lead'}'),
+    };
+    return Tooltip(
+      message: '$why\n$model',
+      child: Container(
+        key: Key('alarm-banner-${alarm.careCenterId ?? alarm.careCenterName}'),
+        margin: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.18),
+          border: Border.all(color: color, width: 2),
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 14)],
+        ),
+        child: Row(
+          children: [
+            Icon(
+              _levelIcon(alarm.level),
+              key: Key('alarm-icon-${alarm.level?.name}'),
+              color: color,
+              size: 32,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(before, style: bold),
+                      CareCenterLink(alarm.careCenterId, alarm.careCenterName, style: bold.copyWith(color: color)),
+                      if (after.isNotEmpty) Text(after, style: bold),
+                    ],
+                  ),
+                  if (detail.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      detail,
+                      key: const Key('alarm-detail'),
+                      style: const TextStyle(color: Aityx.fg, fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                  if (outOfDate) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Not current: ${alarm.now == null ? 'not checked again since' : 'last checked ${simClockLabel(alarm.now!)}'}',
+                      key: const Key('alarm-stale'),
+                      style: const TextStyle(color: Aityx.amber, fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// An alarm event of the stream (`healthhub.alarms`), a row of the same
+/// shape as the others ([EventRow]): red when an alarm was raised, amber
+/// when its level fell, green when it cleared. The first line says which,
+/// against the threshold ("Alarm: 90% reached now", "Alarm: 90%
+/// expected", "Downgraded: 90% possible", "Cleared: below 90%"), at which
+/// care center (a link to its view), and the simulated time of the check;
+/// the second, the hour reached and what was observed or forecast there.
+class AlarmRow extends StatelessWidget {
+  const AlarmRow(this.alarm, {super.key});
+
+  final OccupancyAlarm alarm;
+
+  @override
+  Widget build(BuildContext context) {
+    const muted = TextStyle(color: Aityx.muted, fontSize: 12);
+    final threshold = thresholdText(alarm.threshold);
+    final level = switch (alarm.level) {
+      AlarmLevel.actual => '$threshold reached now',
+      AlarmLevel.expected => '$threshold expected',
+      _ => '$threshold possible',
+    };
+    final (color, icon, title) = switch (alarm.kind) {
+      AlarmKind.alarm => (Aityx.red, _levelIcon(alarm.level), 'Alarm: $level'),
+      AlarmKind.downgraded => (Aityx.amber, Icons.trending_down, 'Downgraded: $level'),
+      AlarmKind.cleared => (Aityx.green, Icons.check_circle_outline, 'Cleared: below $threshold'),
+    };
+    final what = alarm.kind == AlarmKind.cleared
+        ? 'In care and forecast below $threshold of '
+            '${alarm.capacity == null ? 'the capacity' : '${alarm.capacity} ${alarm.unit ?? 'beds'}'}'
+        : [
+            // How far ahead of the check that raised it, then the hour.
+            [
+              _lead(alarm, alarm.now).startsWith('now') ? 'now' : _lead(alarm, alarm.now),
+              if (alarm.overflowAt != null) simDateTime(alarm.overflowAt!),
+            ].where((p) => p.isNotEmpty).join(', '),
+            _forecastAt(alarm),
+          ].where((p) => p.isNotEmpty).join(' · ');
+    final now = alarm.now;
+    final when = now == null ? '' : simClockLabel(now);
+    final where = alarm.offset == null ? 'healthhub.alarms' : 'p${alarm.partition ?? 0} · #${alarm.offset}';
+    return Container(
+      key: Key('alarm-row-${alarm.id ?? '${alarm.careCenterId}-${now?.minutes}'}'),
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        border: Border(left: BorderSide(color: color, width: 4)),
+        borderRadius: const BorderRadius.horizontal(right: Radius.circular(6)),
+      ),
+      child: DefaultTextStyle.merge(
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
+        child: Row(
+          children: [
+            SizedBox(width: 20, child: Icon(icon, color: color, size: 18)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '$title · ',
+                                style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 13),
+                              ),
+                            ),
+                            Flexible(
+                              child: CareCenterLink(
+                                alarm.careCenterId,
+                                alarm.careCenterName,
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(when, style: muted.copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Expanded(child: Text(what, style: muted.copyWith(color: Aityx.fg))),
+                      const SizedBox(width: 8),
+                      Text(where, style: muted.copyWith(fontFamily: 'monospace')),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

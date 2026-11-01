@@ -39,16 +39,18 @@
       {"name": "Patient Day", "description": "A simulated person's visits and hours of hospital care on a simulated day, with their facts: the series datyx scores with XGBoost for each patient's care in the next 30 days.", "synonyms": ["Person day"], "related": ["Stay Hours", "Simulated Person"]},
       {"name": "Stay Hours", "description": "The hours of hospital care a visit takes: its condition's stay for a first visit, its follow-up stay after.", "synonyms": ["Length of stay", "Hours of care"], "related": ["Patient Day", "Visit"]},
       {"name": "Move", "description": "A simulated person's position and state each turn: at home, on the way to the hospital, there, or on the way back.", "synonyms": ["Movement"], "related": ["Simulated Person"]},
-      {"name": "Hourly Occupancy", "description": "The people in care at a care center in a simulated hour of a run, each admission's stay counted in every hour it covers: the time series datyx forecasts with DeepAR for the care center view. Sparse: an hour nobody is in care has no row, and means zero.", "synonyms": ["Occupancy per hour", "People in care"], "related": ["Stay Hours", "Care Center"]}
+      {"name": "Hourly Occupancy", "description": "The people in care at a care center in a simulated hour of a run, each admission's stay counted in every hour it covers: the time series datyx forecasts with DeepAR for the care center view. Sparse: an hour nobody is in care has no row, and means zero.", "synonyms": ["Occupancy per hour", "People in care"], "related": ["Stay Hours", "Care Center"]},
+      {"name": "Occupancy Forecast", "description": "What datyx's DeepAR model, trained on a care center's hourly occupancy, predicts of each hour ahead of the run's latest: a mean and a band from the 10th to the 90th percentile of its sample paths. HealthHub keeps the forecast made closest to each hour, to draw what was predicted beside what was observed.", "synonyms": ["Predicted occupancy"], "related": ["Hourly Occupancy", "Care Center"]},
+      {"name": "Occupancy Alarm", "description": "A care center filling up: its occupancy reaching a threshold of its capacity in the simulation (90% unless set), at one of three levels, worst first: actual (the occupancy observed at the run's latest hour reaches it), expected (the forecast's mean does at some hour ahead) and possible (its 90th percentile does). An event when the level rises, falls or clears.", "synonyms": ["Capacity alarm", "Overflow alarm"], "related": ["Hourly Occupancy", "Occupancy Forecast", "Care Center"]}
     ]
   },
   "certification": "Certification.Gold",
   "termsOfUse": "HealthHub's data is simulated: no row is about a real person, and none may be joined with real people's data. Use it to build and test analytics, forecasts and models; treat the columns tagged PII Sensitive and PersonalData SpecialCategory as if they were real (GDPR Art. 9), in access, retention and sharing.",
   "database": {
-    "description": "HealthHub's PostgreSQL database: the care centers and medical conditions it is seeded with, the admissions its feed records from Kafka with their triage at the desk, the hourly admissions its Flink job counts, and the patient days view. HealthHub's API makes and describes the schema at every start. The people in it are simulated.",
+    "description": "HealthHub's PostgreSQL database: the care centers and medical conditions it is seeded with, the admissions its feed records from Kafka with their triage at the desk, the hourly admissions its Flink job counts, the patient days and occupancy views, and the occupancy alarms with the forecasts they read. HealthHub's API makes and describes the schema at every start. The people in it are simulated.",
     "tier": "Tier.Tier1",
     "schemas": {
-      "public": "HealthHub's one schema: reference data (care_centers, medical_conditions, complaint_templates, greetings), events (admissions, admission_triage) and series (admissions_hourly, patient_days, occupancy_hourly)."
+      "public": "HealthHub's one schema: reference data (care_centers, medical_conditions, complaint_templates, greetings), events (admissions, admission_triage, occupancy_alarm) and series (admissions_hourly, patient_days, occupancy_hourly, occupancy_forecast)."
     }
   },
   "tables": {
@@ -227,6 +229,75 @@
         {"test": "tableCustomSQLQuery", "key": "hours_above_capacity", "parameters": {"sqlExpression": "SELECT count(*) FROM occupancy_hourly o JOIN care_centers c ON c.id = o.hospital_id WHERE o.occupancy > CASE c.kind WHEN 'hospital' THEN 12 WHEN 'health_station' THEN 5 ELSE 6 END", "strategy": "COUNT", "operator": ">=", "threshold": 0}, "description": "Information, never a failure: how many hours a care center had more people in care than the largest capacity of its kind in the simulation (12 beds at a hospital, 6 places at a clinic, 5 at a health station). The occupancy alarms are about such hours; a care center's own capacity, drawn from its key, is often smaller."}
       ]
     },
+    "public.occupancy_alarm": {
+      "tier": "Tier.Tier2",
+      "terms": ["Occupancy Alarm"],
+      "columns": {
+        "run_id": ["Run"],
+        "hospital_id": ["Care Center"],
+        "hospital_name": ["Care Center"],
+        "level": ["Occupancy Alarm"],
+        "previous_level": ["Occupancy Alarm"],
+        "occupancy": ["Hourly Occupancy"],
+        "observed_at": ["Simulated Time"],
+        "overflow_at": ["Simulated Time"],
+        "peak_at": ["Simulated Time"],
+        "series_end": ["Simulated Time"],
+        "mean": ["Occupancy Forecast"],
+        "p90": ["Occupancy Forecast"],
+        "peak_mean": ["Occupancy Forecast"],
+        "peak_p90": ["Occupancy Forecast"]
+      },
+      "checks": [
+        {"test": "columnValuesToMatchRegex", "column": "id", "parameters": {"regex": "^[0-9a-f]{8}-[0-9]+-[0-9]+$"}, "description": "Every event id has the API's shape: the run, the care center and the API's counter."},
+        {"test": "columnValuesToMatchRegex", "column": "run_id", "parameters": {"regex": "^[0-9a-f]{8}$"}, "description": "Every run id is 8 hex digits."},
+        {"test": "columnValuesToBeInSet", "column": "kind", "parameters": {"allowedValues": ["alarm", "downgraded", "cleared"]}, "description": "Every event is an alarm (the level rose), a downgrade or a clearing."},
+        {"test": "columnValuesToBeInSet", "column": "level", "parameters": {"allowedValues": ["possible", "expected", "actual"]}, "description": "Every level is one of the three: possible, expected or actual."},
+        {"test": "columnValuesToBeInSet", "column": "previous_level", "parameters": {"allowedValues": ["possible", "expected", "actual"]}, "description": "Every level before the event is one of the three: possible, expected or actual."},
+        {"test": "columnValuesToBeInSet", "column": "care_center_kind", "parameters": {"allowedValues": ["hospital", "clinic", "health_station"]}, "description": "Every care center is a hospital, a clinic or a health station."},
+        {"test": "columnValuesToBeInSet", "column": "unit", "parameters": {"allowedValues": ["beds", "places"]}, "description": "Every capacity is in beds (a hospital) or places (a clinic, a health station)."},
+        {"test": "columnValuesToBeBetween", "column": "threshold", "parameters": {"minValue": 0, "maxValue": 2}, "description": "Every threshold is a share of the capacity HEALTHHUB_ALARM_THRESHOLD allows, above 0 and at most 2 (200%)."},
+        {"test": "columnValuesToBeBetween", "column": "occupancy", "parameters": {"minValue": 0}, "description": "The occupancy observed is a count of people, never negative."},
+        {"test": "columnValuesToBeBetween", "column": "horizon_hours", "parameters": {"minValue": 0}, "description": "The forecast's steps, 0 when the check had none (an actual level needs none)."},
+        {"test": "columnValuesToBeBetween", "column": "sim_day", "parameters": {"minValue": 1}, "description": "Every simulated day is from 1, the run's first."},
+        {"test": "columnValuesToMatchRegex", "column": "sim_time", "parameters": {"regex": "^([01][0-9]|2[0-3]):[0-5][0-9]$"}, "description": "Every simulated time of a check is a time of day, HH:MM."},
+        {"test": "tableCustomSQLQuery", "key": "id_is_its_rows", "parameters": {"sqlExpression": "SELECT id FROM occupancy_alarm WHERE id NOT LIKE run_id || '-' || hospital_id || '-%'"}, "description": "Every event id starts with its row's run and care center: a failure is an event filed under another care center's alarm."},
+        {"test": "tableCustomSQLQuery", "key": "kind_follows_the_levels", "parameters": {"sqlExpression": "SELECT id FROM occupancy_alarm WHERE NOT coalesce(CASE kind WHEN 'alarm' THEN level IS NOT NULL AND (previous_level IS NULL OR array_position(ARRAY['possible', 'expected', 'actual'], previous_level) < array_position(ARRAY['possible', 'expected', 'actual'], level)) WHEN 'downgraded' THEN level IS NOT NULL AND array_position(ARRAY['possible', 'expected', 'actual'], level) < array_position(ARRAY['possible', 'expected', 'actual'], previous_level) WHEN 'cleared' THEN level IS NULL AND previous_level IS NOT NULL END, false)"}, "description": "Every event's kind is what its levels did: an alarm rises (from none, or a lower level), a downgrade falls to a lower level, a clearing falls from a level to none."},
+        {"test": "tableCustomSQLQuery", "key": "capacity_of_its_kind", "parameters": {"sqlExpression": "SELECT id FROM occupancy_alarm WHERE NOT coalesce(CASE care_center_kind WHEN 'hospital' THEN unit = 'beds' AND capacity BETWEEN 4 AND 12 WHEN 'clinic' THEN unit = 'places' AND capacity BETWEEN 2 AND 6 WHEN 'health_station' THEN unit = 'places' AND capacity BETWEEN 2 AND 5 END, false)"}, "description": "Every capacity is its kind's in the simulation: 4 to 12 beds at a hospital, 2 to 6 places at a clinic, 2 to 5 at a health station."},
+        {"test": "tableCustomSQLQuery", "key": "hospital_is_a_care_center", "parameters": {"sqlExpression": "SELECT o.id FROM occupancy_alarm o LEFT JOIN care_centers c ON c.id = o.hospital_id WHERE c.id IS NULL OR c.name <> o.hospital_name OR c.kind <> o.care_center_kind"}, "description": "Every alarm's care center is one of care_centers, by id, under its name and of its kind."},
+        {"test": "tableCustomSQLQuery", "key": "care_center_of_the_run", "parameters": {"sqlExpression": "SELECT o.id FROM occupancy_alarm o WHERE NOT EXISTS (SELECT 1 FROM admissions a WHERE split_part(a.event_id, '-', 1) = o.run_id AND a.hospital_id = o.hospital_id)"}, "description": "Every alarm is about a care center of its run, one with an admission in it, as the checks read them: a failure is an alarm of a care center nobody went to."},
+        {"test": "tableCustomSQLQuery", "key": "level_reaches_the_threshold", "parameters": {"sqlExpression": "SELECT id FROM occupancy_alarm WHERE threshold IS NOT NULL AND NOT coalesce(CASE level WHEN 'actual' THEN occupancy >= threshold * capacity - 1e-6 WHEN 'expected' THEN mean >= threshold * capacity - 1e-6 WHEN 'possible' THEN p90 >= threshold * capacity - 1e-6 AND mean < threshold * capacity ELSE true END, false)"}, "description": "Every level reaches the threshold in people (its share times the capacity) by its own measure: actual the occupancy observed, expected the forecast's mean, possible its 90th percentile while the mean doesn't. A failure is an alarm its numbers don't bear out. Events from before the threshold was stored aren't judged."},
+        {"test": "tableCustomSQLQuery", "key": "overflow_is_its_levels", "parameters": {"sqlExpression": "SELECT id FROM occupancy_alarm WHERE NOT coalesce(CASE WHEN level IS NULL THEN overflow_at IS NULL AND lead_hours IS NULL AND mean IS NULL AND p90 IS NULL WHEN level = 'actual' THEN lead_hours = 0 AND mean IS NULL AND p90 IS NULL AND (observed_at IS NULL OR overflow_at = observed_at) ELSE lead_hours BETWEEN 1 AND horizon_hours AND overflow_at = series_end + make_interval(hours => lead_hours) END, false)"}, "description": "The hour reaching the threshold is its level's: none when cleared; for actual the hour observed, 0 hours ahead, no forecast; for expected and possible a step of the forecast, its lead hours after the series' end, within the horizon."},
+        {"test": "tableCustomSQLQuery", "key": "peak_within_the_horizon", "parameters": {"sqlExpression": "SELECT id FROM occupancy_alarm WHERE level IN ('expected', 'possible') AND NOT coalesce(peak_at > series_end AND peak_at <= series_end + make_interval(hours => horizon_hours) AND CASE level WHEN 'expected' THEN peak_mean >= mean ELSE peak_p90 >= p90 END, false)"}, "description": "A forecast's alarm has its peak: a step of the horizon, as high as the hour reaching the threshold or higher (the mean for expected, the 90th percentile for possible)."},
+        {"test": "tableCustomSQLQuery", "key": "on_the_hour", "parameters": {"sqlExpression": "SELECT id FROM occupancy_alarm WHERE observed_at <> date_trunc('hour', observed_at) OR overflow_at <> date_trunc('hour', overflow_at) OR peak_at <> date_trunc('hour', peak_at) OR series_end <> date_trunc('hour', series_end) OR least(observed_at, overflow_at, peak_at, series_end) < TIMESTAMP '2026-01-01'"}, "description": "Every simulated hour (observed, reaching the threshold, the peak, the series' end) starts on the hour, on or after day 1 (2026-01-01): the hourly series' steps."},
+        {"test": "tableCustomSQLQuery", "key": "occupancy_not_beyond_the_view", "parameters": {"sqlExpression": "SELECT o.id FROM occupancy_alarm o LEFT JOIN occupancy_hourly h ON h.run_id = o.run_id AND h.hospital_id = o.hospital_id AND h.hour_start = o.observed_at WHERE o.observed_at IS NOT NULL AND o.occupancy > coalesce(h.occupancy, 0)"}, "description": "The occupancy a check observed is at most what occupancy_hourly counts in that hour now: arrivals later in the hour only add to it. A failure is an alarm raised on people the view doesn't have."},
+        {"test": "tableCustomSQLQuery", "key": "actual_alarms", "parameters": {"sqlExpression": "SELECT count(*) FROM occupancy_alarm WHERE kind = 'alarm' AND level = 'actual'", "strategy": "COUNT", "operator": ">=", "threshold": 0}, "description": "Information, never a failure: how many times a care center's occupancy observed reached the threshold of its capacity."}
+      ]
+    },
+    "public.occupancy_forecast": {
+      "tier": "Tier.Tier3",
+      "terms": ["Occupancy Forecast"],
+      "columns": {
+        "run_id": ["Run"],
+        "hospital_id": ["Care Center"],
+        "hour_start": ["Simulated Time"],
+        "series_end": ["Simulated Time"],
+        "mean": ["Occupancy Forecast"],
+        "p10": ["Occupancy Forecast"],
+        "p90": ["Occupancy Forecast"]
+      },
+      "checks": [
+        {"test": "columnValuesToMatchRegex", "column": "run_id", "parameters": {"regex": "^[0-9a-f]{8}$"}, "description": "Every run id is 8 hex digits."},
+        {"test": "columnValuesToBeBetween", "column": "lead_hours", "parameters": {"minValue": 1}, "description": "Every hour was predicted ahead of its series' end, 1 hour or more."},
+        {"test": "columnValueMaxToBeBetween", "column": "mean", "parameters": {"maxValueForMaxInCol": 100}, "description": "No forecast's mean is above 100 people in care, more than any city's simulated people: a higher one is a model gone wrong."},
+        {"test": "tableCustomSQLQuery", "key": "quantiles_in_order", "parameters": {"sqlExpression": "SELECT run_id, hospital_id, hour_start FROM occupancy_forecast WHERE p10 < 0 OR mean < 0 OR p10 > p90"}, "description": "A count's forecast (DeepAR's negative binomial) is never negative, and its 10th percentile is at most its 90th."},
+        {"test": "tableCustomSQLQuery", "key": "lead_is_its_hours", "parameters": {"sqlExpression": "SELECT run_id, hospital_id, hour_start FROM occupancy_forecast WHERE hour_start <> series_end + make_interval(hours => lead_hours)"}, "description": "Every row's lead is the hours from its series' end to its hour."},
+        {"test": "tableCustomSQLQuery", "key": "on_the_hour", "parameters": {"sqlExpression": "SELECT run_id, hospital_id, hour_start FROM occupancy_forecast WHERE hour_start <> date_trunc('hour', hour_start) OR series_end <> date_trunc('hour', series_end) OR series_end < TIMESTAMP '2026-01-01'"}, "description": "Every hour and series' end starts on the hour, on or after day 1 (2026-01-01): the hourly series' steps."},
+        {"test": "tableCustomSQLQuery", "key": "hospital_is_a_care_center", "parameters": {"sqlExpression": "SELECT f.run_id, f.hospital_id, f.hour_start FROM occupancy_forecast f LEFT JOIN care_centers c ON c.id = f.hospital_id WHERE c.id IS NULL"}, "description": "Every row's care center is one of care_centers."},
+        {"test": "tableCustomSQLQuery", "key": "care_center_of_the_run", "parameters": {"sqlExpression": "SELECT f.run_id, f.hospital_id, f.hour_start FROM occupancy_forecast f WHERE NOT EXISTS (SELECT 1 FROM admissions a WHERE split_part(a.event_id, '-', 1) = f.run_id AND a.hospital_id = f.hospital_id)"}, "description": "Every forecast is of a care center of its run, one with an admission in it, whose occupancy_hourly series datyx forecasts."},
+        {"test": "tableCustomSQLQuery", "key": "hours_outside_the_band", "parameters": {"sqlExpression": "SELECT count(*) FROM occupancy_forecast f JOIN (SELECT run_id, max(hour_start) AS latest FROM occupancy_hourly GROUP BY run_id) r ON r.run_id = f.run_id LEFT JOIN occupancy_hourly o ON o.run_id = f.run_id AND o.hospital_id = f.hospital_id AND o.hour_start = f.hour_start WHERE f.hour_start < r.latest AND coalesce(o.occupancy, 0) NOT BETWEEN f.p10 AND f.p90", "strategy": "COUNT", "operator": ">=", "threshold": 0}, "description": "Information, never a failure: how many settled hours (before the run's latest) the occupancy observed fell outside the forecast's band, its 10th to 90th percentile; about one in five is a band as wide as it says."}
+      ]
+    },
     "public.care_centers": {
       "tier": "Tier.Tier1",
       "terms": ["Care Center"],
@@ -381,6 +452,47 @@
         "turn": "The simulation's turn."
       }
     },
+    "healthhub.alarms": {
+      "description": "Every occupancy alarm event, as HealthHub's API publishes it through Kafka's REST proxy, keyed by the care center's id: a care center's level rising, falling or clearing against a threshold of its capacity, by its occupancy observed or datyx's DeepAR forecast of it. The same events as the occupancy_alarm table, with a few numbers more. Dev mode only, while a run goes on.",
+      "tier": "Tier.Tier2",
+      "terms": ["Occupancy Alarm"],
+      "fields": {
+        "kind": "alarm (the level rose), downgraded (to a lower level) or cleared (back to none).",
+        "id": "The event's id: the run, the care center and the API's counter, unique.",
+        "run": "The run, 8 hex digits.",
+        "hospitalId": "The care center (care_centers.id), also the record's key.",
+        "hospitalName": "The care center's name.",
+        "careCenterKind": "hospital, clinic or health_station.",
+        "level": "The level after the event: possible, expected or actual (the worst); null when cleared.",
+        "previous": "The level before the event; null for a new alarm.",
+        "threshold": "The share of the capacity whose reaching is an alarm, 0.9 for 90%.",
+        "thresholdPlaces": "The threshold in people, the share times the capacity, to a hundredth.",
+        "occupancy": "The people in care at observedAt; null when the check couldn't read it.",
+        "occupancyShare": "The occupancy's share of the capacity, to a thousandth.",
+        "observedAt": "The run's latest hour, whose occupancy the check read: simulated, YYYY-MM-DDTHH:MM, day 1 being 2026-01-01.",
+        "overflowAt": "The earliest simulated hour reaching the threshold for the level: observedAt for actual; null when cleared.",
+        "overflowDay": "overflowAt's simulated day, from 1.",
+        "leadHours": "The simulated hours from the series' end to overflowAt, 0 for actual.",
+        "leadFromNowHours": "The simulated hours from the clock at the check to overflowAt, to a tenth; negative once past.",
+        "mean": "The forecast's mean at overflowAt, in people; null for actual.",
+        "p90": "The forecast's 90th percentile at overflowAt, in people; null for actual.",
+        "peak": "The forecast's highest step (the highest mean, the highest p90 for possible); null without a forecast.",
+        "peak.at": "The peak's simulated hour.",
+        "peak.day": "The peak's simulated day, from 1.",
+        "peak.mean": "The forecast's mean at the peak.",
+        "peak.p90": "The forecast's 90th percentile at the peak.",
+        "capacity": "The care center's capacity in the simulation, in beds or places.",
+        "unit": "beds (a hospital) or places (a clinic, a health station).",
+        "end": "The series' end, the run's latest hour, where the forecast starts from.",
+        "horizonHours": "How many hours the forecast covers, 0 without one.",
+        "trainingRun": "datyx's training run whose model answered.",
+        "now": "The simulated clock at the check; null before the first move.",
+        "now.day": "The simulated day, from 1 at each run's start.",
+        "now.simTime": "The simulated time, HH:MM.",
+        "now.date": "The simulated day as a date, day 1 being 2026-01-01.",
+        "raisedAt": "When the check found it, real time, ISO 8601 UTC."
+      }
+    },
     "healthhub.test": {
       "description": "The topic of HealthHub's live Kafka test (healthhub_api/test/kafka_rest_live_test.dart): a record produced through the REST proxy and consumed back, apart from the simulation's topics so a test never writes into what a running API reads. Made by the kafka service's health check. No business data.",
       "tier": "Tier.Tier5",
@@ -393,14 +505,14 @@
   },
   "timeSeries": [
     {"roles": {"table": "public.admissions_hourly", "group": "default", "timestamp": "hour_start", "target": "admissions", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}},
-    {"roles": {"table": "public.occupancy_hourly", "group": "default", "timestamp": "hour_start", "target": "occupancy", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}},
+    {"roles": {"table": "public.occupancy_hourly", "group": "default", "timestamp": "hour_start", "target": "occupancy", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}, "retrain": "15min"},
     {"roles": {"table": "public.admissions_hourly", "group": "acute", "timestamp": "hour_start", "target": "acute_admissions", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}},
     {"roles": {"table": "public.admissions_hourly", "group": "chronic", "timestamp": "hour_start", "target": "chronic_admissions", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}},
     {"roles": {"table": "public.patient_days", "group": "care", "timestamp": "day", "target": "stay_hours", "seriesKey": ["run_id", "person_id"], "staticCategorical": ["sex", "city", "hospital_id", "chronic_condition"], "staticReal": ["age"], "pastCovariates": ["visits", "acute_visits", "chronic_visits"], "frequency": "1D", "missing": "zero", "algorithm": "XGBoost", "horizon": "30D"}, "retrain": "1h"}
   ],
   "pipelines": [
     {
-      "service": {"name": "healthhub-api", "displayName": "HealthHub API", "description": "HealthHub's API (Dart): it runs the simulation of people, records what it publishes, and triages each admission with aityx."},
+      "service": {"name": "healthhub-api", "displayName": "HealthHub API", "description": "HealthHub's API (Dart): it runs the simulation of people, records what it publishes, and triages each admission with aityx, and raises the occupancy alarms."},
       "serviceType": "CustomPipeline",
       "name": "simulation",
       "tier": "Tier.Tier1",
@@ -413,7 +525,7 @@
       }
     },
     {
-      "service": {"name": "healthhub-api", "displayName": "HealthHub API", "description": "HealthHub's API (Dart): it runs the simulation of people, records what it publishes, and triages each admission with aityx."},
+      "service": {"name": "healthhub-api", "displayName": "HealthHub API", "description": "HealthHub's API (Dart): it runs the simulation of people, records what it publishes, and triages each admission with aityx, and raises the occupancy alarms."},
       "serviceType": "CustomPipeline",
       "name": "admissions-feed",
       "tier": "Tier.Tier1",
@@ -425,7 +537,7 @@
       }
     },
     {
-      "service": {"name": "healthhub-api", "displayName": "HealthHub API", "description": "HealthHub's API (Dart): it runs the simulation of people, records what it publishes, and triages each admission with aityx."},
+      "service": {"name": "healthhub-api", "displayName": "HealthHub API", "description": "HealthHub's API (Dart): it runs the simulation of people, records what it publishes, and triages each admission with aityx, and raises the occupancy alarms."},
       "serviceType": "CustomPipeline",
       "name": "triage",
       "tier": "Tier.Tier1",
@@ -434,6 +546,20 @@
       "tasks": {
         "ask": "One call to aityx per admission, four at a time.",
         "record": "Keeps the triage, its rules and aityx's receipt, or why it failed."
+      }
+    },
+    {
+      "service": {"name": "healthhub-api", "displayName": "HealthHub API", "description": "HealthHub's API (Dart): it runs the simulation of people, records what it publishes, triages each admission with aityx, and raises the occupancy alarms."},
+      "serviceType": "CustomPipeline",
+      "name": "occupancy-alarms",
+      "tier": "Tier.Tier2",
+      "displayName": "Occupancy alarms",
+      "description": "In dev mode, while a run goes on, at most every 5 s: reads each care center's occupancy at the run's latest hour (occupancy_hourly) and datyx's DeepAR forecast of it, puts each against a threshold of its capacity (90% unless HEALTHHUB_ALARM_THRESHOLD says), keeps an alarm per care center at its level (actual, expected or possible), and records each event as the level rises, falls or clears. Keeps what each forecast predicted of each hour in occupancy_forecast.",
+      "tasks": {
+        "observe": "Reads the run's care centers and their occupancy at the run's latest hour.",
+        "forecast": "Asks datyx for each care center's DeepAR forecast, and keeps its steps in occupancy_forecast.",
+        "check": "Puts the occupancy and the forecast against the threshold: a rise fires at once, a fall after three checks in a row.",
+        "record": "Inserts each event in occupancy_alarm, once by its id, and publishes it to healthhub.alarms, both retried until they succeed."
       }
     },
     {
@@ -465,6 +591,10 @@
     {"from": "table:public.admissions", "to": "table:public.patient_days", "description": "The view groups each person's admissions by run and simulated day."},
     {"from": "table:public.medical_conditions", "to": "table:public.patient_days", "description": "The view takes each visit's hours of care from its condition."},
     {"from": "table:public.admissions", "to": "table:public.occupancy_hourly", "description": "The view counts each admission's stay in every simulated hour it covers."},
-    {"from": "table:public.medical_conditions", "to": "table:public.occupancy_hourly", "description": "The view takes each stay's hours from its condition."}
+    {"from": "table:public.medical_conditions", "to": "table:public.occupancy_hourly", "description": "The view takes each stay's hours from its condition."},
+    {"from": "table:public.occupancy_hourly", "to": "table:public.occupancy_forecast", "pipeline": "healthhub-api.occupancy-alarms", "description": "datyx's DeepAR, trained on the view, predicts each care center's hours ahead; the API keeps the forecast made closest to each hour."},
+    {"from": "table:public.occupancy_hourly", "to": "table:public.occupancy_alarm", "pipeline": "healthhub-api.occupancy-alarms", "description": "The checks put each care center's occupancy, observed and forecast, against its threshold."},
+    {"from": "table:public.care_centers", "to": "table:public.occupancy_alarm", "pipeline": "healthhub-api.occupancy-alarms", "description": "A care center's capacity in the simulation is drawn from its key and kind."},
+    {"from": "table:public.occupancy_hourly", "to": "topic:healthhub.alarms", "pipeline": "healthhub-api.occupancy-alarms", "description": "Each alarm event is published too, keyed by the care center."}
   ]
 }

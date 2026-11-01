@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../sim_clock.dart' show simEpoch;
+
 /// What GET /api/hello answers: the greeting kept in the database, when it
 /// was written, the PostgreSQL server's version, and who the API says is
 /// signed in (the greeting is addressed to them).
@@ -324,10 +326,11 @@ int? _int(Object? value) => value is num ? value.toInt() : null;
 /// What `GET /api/people` answers: whether the simulation runs (dev mode
 /// only), its clock, and where everyone is.
 class People {
-  const People({required this.enabled, this.simTime, this.day, this.people = const []});
+  const People({required this.enabled, this.simTime, this.day, this.paused, this.people = const []});
 
   factory People.fromJson(Map<String, Object?> json) => People(
     enabled: json['enabled'] == true,
+    paused: json['paused'] is bool ? json['paused'] as bool : null,
     simTime: json['simTime'] as String?,
     day: (json['day'] as num?)?.toInt(),
     people: [
@@ -354,6 +357,9 @@ class People {
   /// first record arrives.
   final String? simTime;
   final int? day;
+
+  /// Whether the simulation is paused; null when the API doesn't say.
+  final bool? paused;
   final List<Person> people;
 }
 
@@ -386,6 +392,7 @@ class StreamEvent {
     this.complaint,
     this.hospitalId,
     this.eventId,
+    this.triage,
   });
 
   /// A move carries the person in `id`; an admission in `personId`. An
@@ -418,6 +425,7 @@ class StreamEvent {
       complaint: _string(json['complaint']),
       hospitalId: _int(json['hospitalId']),
       eventId: _string(json['eventId']),
+      triage: TriageLevel.parse(json['triage']),
     );
   }
 
@@ -460,7 +468,13 @@ class StreamEvent {
   final int? hospitalId;
   final String? eventId;
 
+  /// aityx's triage of an admission, once it has one.
+  final TriageLevel? triage;
+
   bool get isAdmission => type == StreamEventType.admission;
+
+  /// An admission aityx triaged red (Immediate) or orange (Very urgent).
+  bool get isUrgent => isAdmission && (triage == TriageLevel.red || triage == TriageLevel.orange);
 }
 
 /// What a record on the stream is: a move (`healthhub.people.moves`) or an
@@ -490,12 +504,18 @@ class StreamEvents {
     this.total,
     this.perSecond,
     this.peoplePerCity,
+    this.now,
+    this.alarms = const OccupancyAlarms(),
+    this.busiest,
   });
 
   factory StreamEvents.fromJson(Map<String, Object?> json) => StreamEvents(
     enabled: json['enabled'] == true,
     paused: json['paused'] == true,
     peoplePerCity: _int(json['peoplePerCity']),
+    now: SimNow.fromJson(json['now']),
+    alarms: OccupancyAlarms.fromJson(json['alarms']),
+    busiest: BusiestCareCenter.fromJson(json['busiest']),
     total: _int(json['total']),
     perSecond: json['perSecond'] is num ? (json['perSecond'] as num).toDouble() : null,
     topics: [
@@ -525,6 +545,377 @@ class StreamEvents {
   /// The people each city of the simulation has now; null from an API
   /// that doesn't say.
   final int? peoplePerCity;
+
+  /// The simulated day and time of the newest move, the simulation's
+  /// clock; from the newest record when the API doesn't say.
+  final SimNow? now;
+
+  /// The care centers whose occupancy datyx expects over their capacity,
+  /// and the latest alarms raised and cleared: [OccupancyAlarms].
+  final OccupancyAlarms alarms;
+
+  /// The care center with the most people in care now; null while nobody
+  /// is, or from an API that doesn't say.
+  final BusiestCareCenter? busiest;
+
+  /// [now], or the time of the newest record read.
+  SimNow? get clock {
+    if (now != null) return now;
+    SimNow? newest;
+    for (final event in events) {
+      final at = SimNow.at(event.day, event.simTime);
+      if (at != null && (newest == null || at.minutes! > newest.minutes!)) newest = at;
+    }
+    return newest;
+  }
+}
+
+/// The care center with the most people in care now, as `GET
+/// /api/events` names it (`busiest`).
+class BusiestCareCenter {
+  const BusiestCareCenter({required this.id, required this.name, this.kind, this.inCare});
+
+  /// `{"id", "name", "kind", "inCare"}`; null without an id.
+  static BusiestCareCenter? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final id = _int(json['id']);
+    if (id == null) return null;
+    return BusiestCareCenter(
+      id: id,
+      name: _string(json['name']) ?? 'Care center $id',
+      kind: _kindOf(json['kind']),
+      inCare: _int(json['inCare']),
+    );
+  }
+
+  final int id;
+  final String name;
+  final CareCenterKind? kind;
+
+  /// How many people are in care there now.
+  final int? inCare;
+}
+
+/// A moment of the simulation: its day (from 1), the time "HH:MM", and
+/// the date of that day, which the API may give (`YYYY-MM-DD`) and is
+/// otherwise counted from day 1.
+class SimNow {
+  const SimNow({this.day, this.simTime, this.date});
+
+  /// `{"day", "simTime", "date"}`, leniently; null when it holds no day.
+  static SimNow? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final date = _date(json['date']);
+    final day = _int(json['day']) ?? (date == null ? null : date.difference(simEpoch).inDays + 1);
+    if (day == null) return null;
+    return SimNow(day: day, simTime: _string(json['simTime']) ?? _string(json['time']), date: date);
+  }
+
+  /// A record's [day] and [simTime], or null without a day.
+  static SimNow? at(int? day, String? simTime) => day == null ? null : SimNow(day: day, simTime: simTime);
+
+  /// A simulated hour as the API writes it, `YYYY-MM-DDTHH:MM`.
+  static SimNow? ofHour(DateTime? hour) {
+    if (hour == null) return null;
+    final date = DateTime.utc(hour.year, hour.month, hour.day);
+    String two(int n) => n.toString().padLeft(2, '0');
+    return SimNow(
+      day: date.difference(simEpoch).inDays + 1,
+      simTime: '${two(hour.hour)}:${two(hour.minute)}',
+      date: date,
+    );
+  }
+
+  final int? day;
+  final String? simTime;
+  final DateTime? date;
+
+  /// The date of [day]: as given, or counted from day 1.
+  DateTime? get calendarDate => date ?? (day == null ? null : simEpoch.add(Duration(days: day! - 1)));
+
+  /// The simulated minutes since day 0 at 00:00; null without a day.
+  int? get minutes {
+    if (day == null) return null;
+    final parts = simTime?.split(':');
+    final hours = parts?.length == 2 ? int.tryParse(parts![0]) ?? 0 : 0;
+    final mins = parts?.length == 2 ? int.tryParse(parts![1]) ?? 0 : 0;
+    return day! * 24 * 60 + hours * 60 + mins;
+  }
+}
+
+DateTime? _date(Object? value) {
+  if (value is! String || value.length < 10) return null;
+  final parsed = DateTime.tryParse('${value.substring(0, 10)}T00:00:00Z');
+  return parsed;
+}
+
+/// A simulated hour, `YYYY-MM-DDTHH:MM` (UTC, with or without the zone),
+/// or `{"day", "simTime"}`; null when it is neither.
+DateTime? _simHour(Object? value) {
+  if (value is String) {
+    return DateTime.tryParse(value.endsWith('Z') || value.contains('+') ? value : '${value}Z');
+  }
+  final now = SimNow.fromJson(value);
+  final minutes = now?.minutes;
+  return minutes == null ? null : simEpoch.add(Duration(minutes: minutes - 24 * 60));
+}
+
+double? _double(Object? value) => value is num ? value.toDouble() : null;
+
+/// How bad an occupancy alarm is, against its threshold (90% of the
+/// capacity): the occupancy observed now reaches it ([actual], the worst),
+/// datyx's forecast mean does at some hour ahead ([expected]), or only its
+/// 90th percentile ([possible]).
+enum AlarmLevel {
+  actual,
+  expected,
+  possible;
+
+  static AlarmLevel? named(Object? name) => switch (name) {
+    'actual' => actual,
+    'expected' => expected,
+    'possible' => possible,
+    _ => null,
+  };
+}
+
+/// What an alarm event says happened: an [alarm] raised (or escalated), a
+/// level [downgraded], or the alarm [cleared].
+enum AlarmKind {
+  alarm,
+  downgraded,
+  cleared;
+
+  static AlarmKind named(Object? name) => switch (name) {
+    'downgraded' => downgraded,
+    'cleared' => cleared,
+    _ => alarm,
+  };
+}
+
+/// One care center's occupancy alarm, now ([OccupancyAlarms.active]) or
+/// as an event on `healthhub.alarms` ([OccupancyAlarms.recent]): its
+/// people in care, observed and as datyx's DeepAR forecasts them, against
+/// a [threshold] of its capacity. The earliest hour at or above it
+/// ([overflowAt]: the hour observed for [AlarmLevel.actual]), how many
+/// simulated hours ahead ([leadHours]), the forecast mean and 90th
+/// percentile there, the peak over the horizon, the occupancy observed,
+/// and when it was checked ([now]).
+class OccupancyAlarm {
+  const OccupancyAlarm({
+    required this.careCenterId,
+    required this.careCenterName,
+    this.careCenterKind,
+    this.id,
+    this.kind = AlarmKind.alarm,
+    this.level,
+    this.run,
+    this.threshold,
+    this.thresholdPlaces,
+    this.occupancy,
+    this.occupancyShare,
+    this.observedAt,
+    this.overflowAt,
+    this.leadHours,
+    this.mean,
+    this.p90,
+    this.peakAt,
+    this.peakMean,
+    this.peakP90,
+    this.capacity,
+    this.unit,
+    this.trainingRun,
+    this.now,
+    this.raisedAt,
+    this.partition,
+    this.offset,
+    this.stale = false,
+  });
+
+  /// Leniently: the care center as `hospitalId`/`hospitalName` (as the
+  /// API writes it), `careCenterId`/`careCenterName`, or nested in
+  /// `careCenter`; null without a care center. An active alarm has no
+  /// `kind` and reads as an [AlarmKind.alarm].
+  static OccupancyAlarm? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final center = json['careCenter'] is Map ? json['careCenter'] as Map : const {};
+    final id = _int(json['careCenterId']) ?? _int(json['hospitalId']) ?? _int(center['id']);
+    final name =
+        _string(json['careCenterName']) ?? _string(json['hospitalName']) ?? _string(center['name']) ?? _string(json['name']);
+    if (id == null && name == null) return null;
+    final peak = json['peak'] is Map ? json['peak'] as Map : const {};
+    // `kind` is the event's (alarm, downgraded, cleared), or else the care center's.
+    final kind = json['kind'];
+    final eventKind = AlarmKind.values.any((k) => k.name == kind);
+    return OccupancyAlarm(
+      careCenterId: id,
+      careCenterName: name ?? 'Care center $id',
+      careCenterKind: _kindOf(json['careCenterKind'] ?? center['kind'] ?? (eventKind ? null : kind)),
+      id: _string(json['id']) ?? _string(json['alarmId']) ?? _string(json['eventId']),
+      kind: AlarmKind.named(eventKind ? kind : json['event'] ?? json['type']),
+      level: AlarmLevel.named(json['level']),
+      run: _string(json['run']),
+      threshold: _double(json['threshold']),
+      thresholdPlaces: _double(json['thresholdPlaces']),
+      occupancy: _int(json['occupancy']),
+      occupancyShare: _double(json['occupancyShare']),
+      observedAt: _simHour(json['observedAt']),
+      overflowAt: _simHour(json['overflowAt']),
+      leadHours: _double(json['leadHours']),
+      mean: _double(json['mean']),
+      p90: _double(json['p90']),
+      peakAt: _simHour(peak['at']),
+      peakMean: _double(peak['mean']),
+      peakP90: _double(peak['p90']),
+      capacity: _int(json['capacity']),
+      unit: _string(json['unit']),
+      trainingRun: _int(json['trainingRun']) ?? _int(json['trainingRunId']),
+      now: SimNow.fromJson(json['now']) ?? SimNow.at(_int(json['day']), _string(json['simTime'])),
+      raisedAt: json['raisedAt'] is String ? DateTime.tryParse(json['raisedAt'] as String) : null,
+      partition: _int(json['partition']),
+      offset: _int(json['offset']),
+      stale: json['stale'] == true,
+    );
+  }
+
+  final int? careCenterId;
+  final String careCenterName;
+  final CareCenterKind? careCenterKind;
+
+  /// The event's id; an active alarm may have none.
+  final String? id;
+  final AlarmKind kind;
+
+  /// The level now (null once cleared).
+  final AlarmLevel? level;
+  final String? run;
+
+  /// The share of the capacity whose reaching is an alarm (0.9), and that
+  /// share of [capacity] in people (7.2 of 8 beds); null from an API
+  /// before them, which alarmed over the capacity.
+  final double? threshold;
+  final double? thresholdPlaces;
+
+  /// The people in care at [observedAt], the run's latest hour at the
+  /// check, and their share of the capacity (0.92).
+  final int? occupancy;
+  final double? occupancyShare;
+  final DateTime? observedAt;
+
+  /// The earliest simulated hour at or above the threshold at [level] (the
+  /// one observed for actual), and how many simulated hours after the
+  /// series' end (the run's latest hour, where the forecast starts) it is.
+  final DateTime? overflowAt;
+  final double? leadHours;
+
+  /// The forecast mean and 90th percentile at [overflowAt].
+  final double? mean;
+  final double? p90;
+
+  /// The peak over the horizon: the hour with the highest mean for an
+  /// expected alarm, the highest 90th percentile for a possible one, and
+  /// the forecast there.
+  final DateTime? peakAt;
+  final double? peakMean;
+  final double? peakP90;
+  final int? capacity;
+
+  /// "beds" (a hospital) or "places".
+  final String? unit;
+
+  /// datyx's training run that forecast it.
+  final int? trainingRun;
+
+  /// The simulated time of the check, and the real time it was raised.
+  final SimNow? now;
+  final DateTime? raisedAt;
+
+  /// Where the event sits on `healthhub.alarms`, when the API says.
+  final int? partition;
+  final int? offset;
+
+  /// Whether an active alarm may be out of date: the latest check had no
+  /// forecast of it, or none had one for a while; [now] is when it was
+  /// last read.
+  final bool stale;
+
+  bool get expected => level == AlarmLevel.expected;
+  bool get actual => level == AlarmLevel.actual;
+}
+
+/// The occupancy alarms as `GET /api/events` carries them (`alarms`), as
+/// `GET /api/alarms` has them: the care centers with a level now, most
+/// severe first then soonest over, and the latest events, newest first.
+class OccupancyAlarms {
+  const OccupancyAlarms({
+    this.active = const [],
+    this.recent = const [],
+    this.reported = false,
+    this.enabled = true,
+    this.note,
+    this.status,
+    this.checkedAt,
+    this.stale = false,
+    this.signIn = false,
+    this.threshold,
+  });
+
+  /// `{"enabled", "threshold", "checkedAt", "status", "note", "stale",
+  /// "active", "recent"}`; not [reported] when [json] isn't one.
+  static OccupancyAlarms fromJson(Object? json) {
+    if (json is! Map) return const OccupancyAlarms();
+    List<OccupancyAlarm> all(Object? list) => [
+      for (final alarm in (list is List ? list : const [])) ?OccupancyAlarm.fromJson(alarm),
+    ];
+    return OccupancyAlarms(
+      active: [
+        for (final alarm in all(json['active']))
+          if (alarm.level != null) alarm,
+      ],
+      recent: all(json['recent']),
+      reported: true,
+      enabled: json['enabled'] != false,
+      note: _string(json['note']),
+      status: _int(json['status']),
+      checkedAt: json['checkedAt'] is String ? DateTime.tryParse(json['checkedAt'] as String) : null,
+      stale: json['stale'] == true,
+      signIn: json['signIn'] == true,
+      threshold: _double(json['threshold']),
+    );
+  }
+
+  final List<OccupancyAlarm> active;
+
+  /// The share of the capacity whose reaching is an alarm (0.9); null
+  /// when the API doesn't say.
+  final double? threshold;
+  final List<OccupancyAlarm> recent;
+
+  /// Whether the answer said anything of alarms: an API without them
+  /// doesn't.
+  final bool reported;
+
+  /// Off when the API checks no alarms (`HEALTHHUB_ALARM_EVERY_MS` 0).
+  final bool enabled;
+
+  /// Why the latest check got no forecast from datyx, in its words (no
+  /// model trained yet...); null when it got one.
+  final String? note;
+
+  /// datyx's status at the latest check (502: it didn't answer), and the
+  /// real time of the latest check that got a forecast.
+  final int? status;
+  final DateTime? checkedAt;
+
+  /// Whether the [active] may be out of date: the latest check got no
+  /// forecast, or none got one for a while.
+  final bool stale;
+
+  /// Whether the API keeps the alarms for a signed-in user (sign-in on,
+  /// nobody signed in): [active] and [recent] are then empty.
+  final bool signIn;
+
+  bool get isEmpty => active.isEmpty && recent.isEmpty;
 }
 
 
@@ -1053,6 +1444,7 @@ class CareCenterDetail {
     this.serves = const [],
     this.capacity = 0,
     this.unit = 'places',
+    this.flow,
     this.now = const CareCenterNow(),
     this.admissions = const CareCenterAdmissions(),
   });
@@ -1078,6 +1470,7 @@ class CareCenterDetail {
       serves: [for (final s in json['serves'] as List? ?? const []) if (s is String) s],
       capacity: _int(capacity['places']) ?? 0,
       unit: _string(capacity['unit']) ?? 'places',
+      flow: (json['flow'] as num?)?.toDouble(),
       now: CareCenterNow.fromJson((json['now'] as Map?)?.cast() ?? const {}),
       admissions: CareCenterAdmissions.fromJson((json['admissions'] as Map?)?.cast() ?? const {}),
     );
@@ -1117,9 +1510,34 @@ class CareCenterDetail {
   /// the building.
   final int capacity;
   final String unit;
+
+  /// Its flow factor in the simulation's run, 1/8 to 8, 1 the normal flow:
+  /// the visits headed here come that many times as often. Null in prod,
+  /// or while the simulation doesn't run.
+  final double? flow;
   final CareCenterNow now;
   final CareCenterAdmissions admissions;
 }
+
+/// What a press on the care center view does to its flow: doubles it,
+/// halves it, or sets it back to normal; [apiName] as
+/// `POST /api/care-centers/{id}/flow` takes it.
+enum FlowAction {
+  doubled('double'),
+  halved('halve'),
+  reset('reset');
+
+  const FlowAction(this.apiName);
+
+  final String apiName;
+}
+
+/// The smallest and largest flow factors the API keeps.
+const flowMin = 0.125;
+const flowMax = 8.0;
+
+/// [factor] as the view says it: ×2, ×1, ×1/4.
+String flowLabel(double factor) => factor >= 1 ? '×${factor.round()}' : '×1/${(1 / factor).round()}';
 
 /// Who is at a care center now and who is on the way, in dev mode.
 class CareCenterNow {
@@ -1277,16 +1695,41 @@ class Prediction {
 }
 
 /// One hour of a care center's occupancy: when it starts (simulated time,
-/// day 1 being 2026-01-01) and how many people were in care there at any
-/// minute of it.
+/// day 1 being 2026-01-01), how many people were in care there at any
+/// minute of it, and what datyx had [predicted] of it before (null when
+/// nothing was kept).
 class HourOccupancy {
-  const HourOccupancy({required this.hour, this.occupancy = 0});
+  const HourOccupancy({required this.hour, this.occupancy = 0, this.predicted});
 
-  factory HourOccupancy.fromJson(Map<String, Object?> json) =>
-      HourOccupancy(hour: _hour(json['hour']), occupancy: _int(json['occupancy']) ?? 0);
+  factory HourOccupancy.fromJson(Map<String, Object?> json) => HourOccupancy(
+    hour: _hour(json['hour']),
+    occupancy: _int(json['occupancy']) ?? 0,
+    predicted: PredictedHour.fromJson(json['predicted']),
+  );
 
   final DateTime hour;
   final int occupancy;
+  final PredictedHour? predicted;
+}
+
+/// What datyx's DeepAR predicted of an hour before it was observed: the
+/// forecast made closest to it, its mean, 10th and 90th percentiles, and
+/// how many hours ahead it was made ([leadHours], 1 for the next hour).
+class PredictedHour {
+  const PredictedHour({required this.mean, this.p10, this.p90, this.leadHours});
+
+  /// `{"mean", "p10", "p90", "leadHours"}`; null without a mean.
+  static PredictedHour? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final mean = _double(json['mean']);
+    if (mean == null) return null;
+    return PredictedHour(mean: mean, p10: _double(json['p10']), p90: _double(json['p90']), leadHours: _int(json['leadHours']));
+  }
+
+  final double mean;
+  final double? p10;
+  final double? p90;
+  final int? leadHours;
 }
 
 /// A simulated hour as the API writes it, `YYYY-MM-DDTHH:MM`, read as UTC.
@@ -1296,13 +1739,23 @@ DateTime _hour(Object? value) => DateTime.parse('${value as String}Z');
 /// care at a care center in each hour up to its run's end, oldest first;
 /// no run and no hours when nobody has been admitted there.
 class HourlyOccupancy {
-  const HourlyOccupancy({required this.hospitalId, this.run, this.current = false, this.end, this.hours = const []});
+  const HourlyOccupancy({
+    required this.hospitalId,
+    this.run,
+    this.current = false,
+    this.end,
+    this.hours = const [],
+    this.threshold,
+    this.now,
+  });
 
   factory HourlyOccupancy.fromJson(Map<String, Object?> json) => HourlyOccupancy(
     hospitalId: _int(json['hospitalId']) ?? 0,
     run: _string(json['run']),
     current: json['current'] == true,
     end: json['end'] is String ? _hour(json['end']) : null,
+    threshold: _double(json['threshold']),
+    now: SimNow.fromJson(json['now']),
     hours: [
       for (final hour in (json['hours'] as List? ?? const []))
         HourOccupancy.fromJson((hour as Map).cast()),
@@ -1318,6 +1771,13 @@ class HourlyOccupancy {
   /// The run's latest hour, where its series end.
   final DateTime? end;
   final List<HourOccupancy> hours;
+
+  /// The occupancy alarms' threshold, a share of the capacity (0.9); null
+  /// when the API doesn't say.
+  final double? threshold;
+
+  /// The simulated clock, for the run going on; null otherwise.
+  final SimNow? now;
 }
 
 /// One step of a forecast: the hour, the mean, and the 10th, 50th and
@@ -1431,6 +1891,10 @@ abstract class HealthHubApi {
   /// Sets the people each city of the simulation has, and says how many it
   /// is now: `POST /api/simulation/people`.
   Future<int> setPeoplePerCity(int perCity);
+
+  /// Doubles, halves or resets the flow at care center [id] in the
+  /// simulation, and says its factor now: `POST /api/care-centers/{id}/flow`.
+  Future<double> changeFlow(int id, FlowAction action);
 }
 
 /// Thrown when the API answers an error, with its message.
@@ -1543,6 +2007,14 @@ class HttpHealthHubApi implements HealthHubApi {
   @override
   Future<int> setPeoplePerCity(int perCity) async =>
       _int((await _send('POST', '/api/simulation/people', body: {'perCity': perCity}) as Map?)?['perCity']) ?? perCity;
+
+  @override
+  Future<double> changeFlow(int id, FlowAction action) async {
+    final json = await _send('POST', '/api/care-centers/$id/flow', body: {'action': action.apiName});
+    final factor = json is Map ? json['factor'] : null;
+    if (factor is! num) throw const ApiException(200, 'unexpected answer');
+    return factor.toDouble();
+  }
 
   @override
   Future<CareCenter?> nearestCareCenter({required double lat, required double lon}) async {

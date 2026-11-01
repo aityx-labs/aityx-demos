@@ -619,6 +619,7 @@ void main() {
     test('records go by topic', () {
       final feed = PeopleFeed(throwingKafka, people: ['reus-1']);
       feed
+        ..add({...moveOf('reus-1', 0), 'state': 'at_hospital'})
         ..addRecord(KafkaRecord(topic: movesTopic, key: 'reus-1', value: moveOf('reus-1', 1), partition: 0, offset: 1))
         ..addRecord(
           KafkaRecord(topic: admissionsTopic, key: 'reus-1', value: admissionOf('reus-1', 1), partition: 0, offset: 1),
@@ -630,20 +631,45 @@ void main() {
       expect([for (final e in feed.recent) e['type']], ['admission', 'move']);
     });
 
-    test('moves never push admissions out, and both merge newest first', () {
+    test('moves never push admissions out, and both merge newest first by simulated time', () {
       final feed = PeopleFeed(throwingKafka, people: ['reus-1']);
+      String time(int turn, int minute) => '${(turn % 24).toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
       for (var turn = 0; turn < 300; turn++) {
-        feed.add(moveOf('reus-1', turn), partition: 0, offset: turn);
-        if (turn % 100 == 50) feed.addAdmission(admissionOf('reus-1', turn), partition: 0, offset: turn);
+        // A change every turn: on the way home, home, on the way home...
+        final move = {...moveOf('reus-1', turn), 'state': turn.isEven ? 'to_home' : 'home'};
+        feed.add({...move, 'day': 1 + turn ~/ 24, 'simTime': time(turn, 0)}, partition: 0, offset: turn);
+        if (turn % 100 == 50) {
+          feed.addAdmission(
+            {...admissionOf('reus-1', turn), 'day': 1 + turn ~/ 24, 'simTime': time(turn, 20)},
+            partition: 0,
+            offset: turn,
+          );
+        }
       }
       final recent = feed.recent;
       expect(recent.where((e) => e['type'] == 'move'), hasLength(PeopleFeed.recentLimit));
       expect([for (final e in recent.where((e) => e['type'] == 'admission')) e['turn']], [250, 150, 50]);
       expect(recent.first['turn'], 299);
-      // Newest first by arrival: the admission of turn 250 after the move of 250.
+      // Newest first by simulated time: the admission at 10:20 of turn 250
+      // between the moves of 10:00 and 11:00.
       final at = recent.indexWhere((e) => e['type'] == 'admission');
       expect(recent[at - 1], containsPair('turn', 251));
       expect(recent[at + 1], containsPair('turn', 250));
+    });
+
+    test("an admission carries aityx's triage once it has one", () {
+      final feed = PeopleFeed(throwingKafka, people: ['reus-1']);
+      feed
+        ..addAdmission(admissionOf('reus-1', 3))
+        ..addAdmission(admissionOf('reus-1', 4));
+      expect(feed.recent.map((e) => e['triage']), [null, null]);
+      feed
+        ..triaged('r1-reus-1-d1-t3', 'orange')
+        ..triaged('r-unknown', 'red');
+      expect(feed.recent.map((e) => (e['turn'], e['triage'])), [(4, null), (3, 'orange')]);
+      // A failed triage has no level.
+      feed.triaged('r1-reus-1-d1-t3', null);
+      expect(feed.recent.last['triage'], isNull);
     });
   });
 

@@ -70,9 +70,9 @@ In dev mode (`HEALTHHUB_MODE=dev`, the default) the API runs a
 simulation: `HEALTHHUB_SIM_PEOPLE` people (80) in each city with care
 centers, each with a name typical of the city, an age, an occupation and
 a common medical condition ([specs/conditions.md](specs/conditions.md)).
-A turn is `HEALTHHUB_SIM_TURN_MS` (1 s) of real time and
-`HEALTHHUB_SIM_MINUTES_PER_TURN` (60) of simulated time, so a second is
-an hour. People stay home until their condition calls for a visit, then
+A turn is `HEALTHHUB_SIM_TURN_MS` (2.5 s) of real time and
+`HEALTHHUB_SIM_MINUTES_PER_TURN` (15) of simulated time, so a simulated
+hour takes 10 real seconds. People stay home until their condition calls for a visit, then
 walk, take city transport or drive to the nearest care center the visit
 needs (a health station, urgent care, a mental health or dialysis clinic,
 a general hospital), stay and come back. Every move goes through Kafka, and every arrival is an admission

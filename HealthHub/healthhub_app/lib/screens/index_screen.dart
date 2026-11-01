@@ -3,13 +3,15 @@ import 'package:flutter/material.dart';
 import '../app_version.dart';
 import '../auth/auth_controller.dart';
 import '../auth/sign_in_button.dart';
+import '../events/simulated_clock.dart';
 import '../location/location_controller.dart';
 import '../location/user_location_map.dart';
 import '../theme.dart';
 
 /// The index: the page for someone not signed in. A map filling the
 /// screen with the user's location highlighted, and over it a card that
-/// welcomes them and holds the sign-in. Signing in leads home.
+/// welcomes them and holds the sign-in, and under it, while the map shows
+/// the simulation, its date and time. Signing in leads home.
 class IndexScreen extends StatelessWidget {
   const IndexScreen({
     super.key,
@@ -31,7 +33,9 @@ class IndexScreen extends StatelessWidget {
   final bool showTiles;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => SimClockScope(builder: (context, clock) => _page(context, clock));
+
+  Widget _page(BuildContext context, SimClock clock) => Scaffold(
     body: Stack(
       children: [
         Positioned.fill(
@@ -39,6 +43,7 @@ class IndexScreen extends StatelessWidget {
             location: location,
             careCenters: careCenters,
             people: people,
+            clock: clock,
             showTiles: showTiles,
           ),
         ),
@@ -49,7 +54,27 @@ class IndexScreen extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 440),
-                child: _Welcome(auth: auth, location: location),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _Welcome(auth: auth, location: location),
+                    // The simulation's date and time, while the map shows it.
+                    ListenableBuilder(
+                      listenable: clock,
+                      builder: (context, _) => clock.now == null
+                          ? const SizedBox.shrink()
+                          : Card(
+                              key: const Key('index-clock'),
+                              color: Aityx.bg1.withValues(alpha: 0.92),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                                child: SimClockText(clock.now, paused: clock.paused),
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

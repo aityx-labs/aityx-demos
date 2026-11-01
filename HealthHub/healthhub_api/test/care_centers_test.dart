@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:healthhub_api/auth.dart';
 import 'package:healthhub_api/care_centers.dart';
 import 'package:healthhub_api/care_centers_seed.dart';
 import 'package:healthhub_api/routes.dart';
@@ -205,6 +206,49 @@ void main() {
       expect(serves('health_station', 'CAP')['serves'], ['primary', 'mental_health']);
       expect(serves('clinic', 'CUAP')['serves'], ['urgent_care']);
       expect(serves('clinic', 'CLINICA/CENTRO DE ESPECIALIDADE - CEO-I')['serves'], isEmpty);
+    });
+
+    test('says its flow factor this run while the simulation runs, none in prod', () {
+      Map<String, Object?> body({bool dev = true, double? flow}) => (route('GET', '/api/care-centers/42',
+          dev: dev, people: moves, careCenter: CareCenterLookup(history, currentRun: 'df0837e4', flow: flow)).body as Map).cast();
+      expect(body(flow: 2)['flow'], 2);
+      expect(body(flow: 1)['flow'], 1);
+      expect(body()['flow'], isNull);
+      expect(body(dev: false, flow: 2)['flow'], isNull);
+    });
+
+    test('its flow: doubled, halved or reset by anyone signed in while the simulation runs', () {
+      final asked = <(int, String)>[];
+      double? flow(int id, String action) {
+        asked.add((id, action));
+        return id == 42 ? (action == 'double' ? 2 : action == 'halve' ? 0.5 : 1) : null;
+      }
+
+      const signIn = AuthSettings(issuer: 'https://accounts.google.com', clientId: 'healthhub-client');
+      const someone = Identity(subject: 's', email: 'a@example.com');
+      Answer post(String path, Object? body, {Identity? identity = someone, bool simulation = true, bool dev = true}) =>
+          route('POST', path, auth: signIn, identity: identity, dev: dev, simulation: simulation, flow: flow, body: body);
+      const path = '/api/care-centers/42/flow';
+      expect(post(path, {'action': 'double'}, identity: null).status, 401);
+      expect(post(path, {'action': 'double'}, simulation: false).status, 409);
+      expect(post(path, {'action': 'double'}, dev: false).status, 409);
+      for (final bad in [{'action': 'triple'}, {'action': 2}, {}, null, 'double']) {
+        expect(post(path, bad).status, 400, reason: '$bad');
+      }
+      expect(asked, isEmpty);
+      final doubled = post(path, {'action': 'double'});
+      expect(doubled.status, 200);
+      expect(doubled.body, {'id': 42, 'factor': 2});
+      expect(post(path, {'action': 'halve'}).body, {'id': 42, 'factor': 0.5});
+      expect(post(path, {'action': 'reset'}).body, {'id': 42, 'factor': 1});
+      expect(post('/api/care-centers/9/flow', {'action': 'double'}).status, 404);
+      expect(asked, [(42, 'double'), (42, 'halve'), (42, 'reset'), (9, 'double')]);
+      // Open while sign-in is off; not a path for any other id.
+      expect(route('POST', path, dev: true, simulation: true, flow: flow, body: {'action': 'double'}).status, 200);
+      expect(careCenterFlowIdOf('/api/care-centers/42/flow'), 42);
+      expect(careCenterFlowIdOf('/api/care-centers/0/flow'), isNull);
+      expect(careCenterFlowIdOf('/api/care-centers/x/flow'), isNull);
+      expect(careCenterFlowIdOf('/api/care-centers/42'), isNull);
     });
 
     test('none is a 404, no database a 503', () {

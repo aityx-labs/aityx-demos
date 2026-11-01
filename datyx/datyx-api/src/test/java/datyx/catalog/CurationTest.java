@@ -2,10 +2,18 @@ package datyx.catalog;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,7 +24,8 @@ import org.junit.jupiter.api.Test;
  * Curation without a server: the tags written (another tier replaced,
  * terms added, other tags kept, nothing when they're there), what keeps
  * an entity from its certification, and HealthHub's document: it reads,
- * names terms its glossary has, and checks only what datyx runs.
+ * names terms its glossary has, and checks only what datyx runs; it and
+ * the test fixture have every table and view HealthHub's API makes.
  */
 class CurationTest {
 
@@ -111,5 +120,43 @@ class CurationTest {
         doc.timeSeries().forEach(s -> assertTrue(doc.tables().containsKey(s.roles().table()), s.roles().table()));
         String all = JSON.writeValueAsString(JSON.readTree(getClass().getClassLoader().getResourceAsStream(DevCatalog.DOCUMENT)));
         assertTrue(!all.contains("—"), "no em dashes");
+    }
+
+    /** The relations an SQL text creates, by the names {@code pattern}'s first group catches. */
+    private static Set<String> created(String sql, Pattern pattern) {
+        Set<String> names = new TreeSet<>();
+        Matcher m = pattern.matcher(sql);
+        while (m.find()) {
+            names.add(m.group(1));
+        }
+        return names;
+    }
+
+    /**
+     * The document curates, and the fixture HealthHubChecksTest runs its
+     * checks on has, every table and view HealthHub's API makes
+     * (HealthHub/healthhub_api/lib/db.dart, beside datyx in this
+     * repository; skipped when it isn't there): a table HealthHub adds
+     * would otherwise be synced with its schema's checks only.
+     */
+    @Test
+    void healthHubsDocumentAndFixtureHaveEveryTableHealthHubMakes() throws Exception {
+        Path db = Path.of("../../HealthHub/healthhub_api/lib/db.dart");
+        assumeTrue(Files.isRegularFile(db), "HealthHub isn't beside datyx");
+        Set<String> healthHub = created(Files.readString(db),
+            Pattern.compile("CREATE (?:TABLE IF NOT EXISTS|(?:OR REPLACE )?VIEW) (\\w+)"));
+        assertTrue(healthHub.contains("admissions") && healthHub.contains("occupancy_hourly"), healthHub.toString());
+        String fixture;
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream("catalog/healthhub-fixture.sql")) {
+            fixture = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertEquals(healthHub, created(fixture, Pattern.compile("CREATE (?:TABLE|VIEW) (\\w+)")), "the fixture's");
+        Curation.Doc doc;
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream(DevCatalog.DOCUMENT)) {
+            doc = JSON.readValue(in, Curation.Doc.class);
+        }
+        Set<String> curated = new TreeSet<>();
+        doc.tables().keySet().forEach(t -> curated.add(t.substring(t.indexOf('.') + 1)));
+        assertEquals(healthHub, curated, "the document's");
     }
 }

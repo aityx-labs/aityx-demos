@@ -35,6 +35,7 @@ process-compose through Docker Compose comes from.
     at most. Its Docker health check runs `kafka-topics.sh --create
     --if-not-exists` (with a 64 MB heap of its own) for
     `healthhub.people.moves`, `healthhub.admissions`,
+    `healthhub.alarms` ([Occupancy alarms](occupancy-alarms.md)),
     `healthhub.test`, the API's live test's topic, and
     `healthhub.admissions.hourly`, the Flink job's, compacted
     (`cleanup.policy=compact,delete`): healthy once the broker answers
@@ -42,7 +43,12 @@ process-compose through Docker Compose comes from.
     `healthhub.admissions` was added keeps its old check until it is
     recreated (`docker compose up -d kafka`), and until then the API's
     admissions fail to publish (logged, retried); `kafka-topics.sh
-    --create` in the container makes the topic by hand. The
+    --create` in the container makes the topic by hand. The same goes for
+    `healthhub.alarms`: a container made before it was added keeps
+    retrying the alarm events until it is recreated or the topic made
+    by hand (`docker exec healthhub-kafka-1 /opt/kafka/bin/kafka-topics.sh
+    --bootstrap-server kafka:19092 --create --if-not-exists --topic
+    healthhub.alarms`). The
     check makes the topics because the REST proxy answers 404 to a record
     for a topic that doesn't exist, instead of letting the broker create
     it (the broker's auto-creation, on, serves only Kafka clients).
@@ -134,12 +140,31 @@ process-compose through Docker Compose comes from.
   `HEALTHHUB_KAFKA_REST_URL`
   (http://127.0.0.1:9805), `HEALTHHUB_MODE` (`dev`, which runs the
   people simulation; `prod` doesn't), `HEALTHHUB_SIM_PEOPLE` (40 per
-  city), `HEALTHHUB_SIM_TURN_MS` (1000) and
-  `HEALTHHUB_SIM_MINUTES_PER_TURN` (60, so a real second is a simulated
-  hour), `HEALTHHUB_HISTORY_DAYS` (90, the days of admissions history the
-  API writes at start in dev mode; 0 for none: [The
-  history](admissions-hourly.md#the-history)), every one but the key with a
-  default. `.env` is git-ignored.
+  city), `HEALTHHUB_SIM_TURN_MS` (2500) and
+  `HEALTHHUB_SIM_MINUTES_PER_TURN` (15, so a simulated hour takes 10 real
+  seconds), `HEALTHHUB_HISTORY_DAYS` (90, the days of admissions history
+  the API writes at start in dev mode; 0 for none: [The
+  history](admissions-hourly.md#the-history)), `HEALTHHUB_ALARM_EVERY_MS`
+  (5000, the least real milliseconds between two [occupancy
+  alarm](occupancy-alarms.md) checks; 0 turns them off),
+  `HEALTHHUB_ALARM_THRESHOLD` (0.9, the share of a care center's capacity
+  whose reaching, observed or forecast, is an alarm; `85%` works too,
+  above 0 and at most 2), every one but the key with a default. `.env` is
+  git-ignored; one copied from an older `.env.example` keeps
+  `HEALTHHUB_SIM_TURN_MS=1000` and `HEALTHHUB_SIM_MINUTES_PER_TURN=60`,
+  the old pace, until they are removed.
+- **The pace and datyx** ([The simulation](simulation.md#pace)): a
+  simulated hour every 10 s, so datyx's DeepAR inference (about 7 s a
+  call for 33 care centers) comes within a simulated hour and its 24
+  hours ahead are 4 real minutes of warning. datyx trains
+  `occupancy_hourly` in about 106 s (a fresh datyx queues it after
+  `admissions_hourly`'s two DeepAR groups, so its first model comes some
+  6 minutes after datyx starts) and retrains it every 15 minutes, its
+  development catalogue's `retrain` (`15min`,
+  `datyx-api/src/main/resources/devdata/healthhub-catalog.json`, set as
+  the table's `timeSeriesRetrain` when it has none). The numbers come
+  from datyx's `training_run` table (`started_at`, `finished_at`), read
+  from its database.
 - **aityx's triage** ([Triage at the desk](triage.md)):
   [scripts/model-test.sh](../scripts/model-test.sh) runs the triage
   decision on aityx at each rule and threshold, and

@@ -7,7 +7,8 @@ import 'dart:math';
 import 'auth.dart';
 import 'care_centers.dart' show simulatedCapacity;
 import 'conditions.dart' show CareSetting;
-import 'simulation.dart' show LatLon, Place, admissionsTopic, maxPeoplePerCity, movesTopic;
+import 'occupancy_alarms.dart' show AlarmsSnapshot, simNowOf;
+import 'simulation.dart' show LatLon, Place, admissionsTopic, flowActions, maxPeoplePerCity, movesTopic;
 
 /// An answer: a status, and a JSON body or a redirect.
 class Answer {
@@ -60,10 +61,17 @@ class Forwarded {
 /// to the request's [body] `perCity` and says how many it is now; called
 /// as [control] is, and only for a whole number from 1 to
 /// [maxPeoplePerCity] (else 400).
+/// [flow]: for POST /api/care-centers/{id}/flow, doubles, halves or
+/// resets (the request's [body] `action`, one of lib/simulation.dart's
+/// flowActions) the flow at that care center and says its factor now,
+/// null when the simulation sends nobody there (404); called as [control]
+/// is, and only for one of those actions (else 400).
 /// [peoplePerCity]: the people a city now, reported by GET /api/events.
 /// [people]: the latest move of each simulated person, as read back from
 /// Kafka by the server (lib/simulation.dart's PeopleFeed).
 /// [events]: the latest moves and admissions the feed read, newest first.
+/// [busiest]: the care center with the most people in care now (the
+/// feed's), for GET /api/events.
 /// [eventsTotal], [eventsPerSecond]: every event the feed read, those
 /// [events] leaves out too, and how many a second over the last minute.
 /// [admissions]: what GET /api/admissions answers, the latest admissions
@@ -92,6 +100,9 @@ class Forwarded {
 /// [forecast]: for GET /api/care-centers/{id}/admissions/forecast and
 /// .../occupancy/forecast, datyx's answer to the inference the server
 /// asked for with the user's token (null: datyx didn't answer, 502).
+/// [alarms]: the occupancy alarms (lib/occupancy_alarms.dart), for GET
+/// /api/alarms and GET /api/events, which also say the simulated clock,
+/// the newest of [people].
 Answer route(
   String method,
   String path, {
@@ -103,6 +114,7 @@ Answer route(
   Forwarded? datyx,
   Map<String, String> query = const {},
   List<Map<String, Object?>> events = const [],
+  Map<String, Object?>? busiest,
   int eventsTotal = 0,
   double eventsPerSecond = 0,
   List<Map<String, Object?>>? careCenters,
@@ -113,6 +125,7 @@ Answer route(
   bool paused = false,
   bool Function(bool pause)? control,
   int Function(int perCity)? population,
+  double? Function(int id, String action)? flow,
   Object? body,
   int? peoplePerCity,
   List<Map<String, Object?>> people = const [],
@@ -125,6 +138,7 @@ Answer route(
   CareCenterLookup? careCenter,
   HourlyLookup? hourly,
   Forwarded? forecast,
+  AlarmsSnapshot alarms = AlarmsSnapshot.off,
 }) {
   if (method == 'OPTIONS') return const Answer(204);
   if (method == 'POST') {
@@ -148,6 +162,22 @@ Answer route(
           return const Answer(400, body: {'error': 'perCity is a whole number from 1 to $maxPeoplePerCity'});
         }
         return Answer(200, body: {'perCity': population(perCity)});
+    }
+    // Anyone signed in may change it, as they may pause the simulation.
+    if (careCenterFlowIdOf(path) case final id?) {
+      if (auth.enabled && identity == null) return _signIn;
+      if (!dev || !simulation || flow == null) {
+        return const Answer(409, body: {'error': 'the simulation does not run'});
+      }
+      final action = body is Map ? body['action'] : null;
+      if (action is! String || !flowActions.contains(action)) {
+        return Answer(400, body: {'error': 'action is one of ${flowActions.join(', ')}'});
+      }
+      final factor = flow(id, action);
+      if (factor == null) {
+        return const Answer(404, body: {'error': 'the simulation sends nobody to a care center with that id'});
+      }
+      return Answer(200, body: {'id': id, 'factor': factor});
     }
   }
   if (method == 'GET') {
@@ -185,7 +215,8 @@ Answer route(
         if (hourly == null) {
           return const Answer(503, body: {'error': 'the database is not answering'});
         }
-        return Answer(200, body: hourlyAnswer(id, hourly, series: series, hours: hoursOf(query)!));
+        // What datyx predicted is its forecast: for a signed-in user only, once sign-in is on.
+        return Answer(200, body: hourlyAnswer(id, hourly, series: series, hours: hoursOf(query)!, predictions: !auth.enabled || identity != null));
       case (_, _, true):
         if (auth.enabled && identity == null) return _signIn;
         if (forecast == null) {
@@ -277,7 +308,18 @@ Answer route(
             total: eventsTotal,
             perSecond: eventsPerSecond,
             peoplePerCity: peoplePerCity,
+            busiest: busiest,
+            now: simNowOf(people),
+            // datyx's forecast, as the forecast route: for a signed-in user only.
+            alarms: auth.enabled && identity == null ? AlarmsSnapshot.signIn(alarms) : alarms,
           ));
+      // datyx's forecast of every care center: as the forecast route, for a
+      // signed-in user only once sign-in is on.
+      case '/api/alarms':
+        if (auth.enabled && identity == null) return _signIn;
+        final limit = alarmsLimitOf(query);
+        if (limit == null) return const Answer(400, body: {'error': 'limit is a positive number'});
+        return Answer(200, body: alarmsAnswer(dev, alarms, now: simNowOf(people), paused: paused, limit: limit));
       // Open to everyone, like the events: the people are simulated. Read
       // from the database, so in prod too, whatever an earlier dev run
       // recorded.
@@ -439,13 +481,22 @@ Map<String, Object?>? personAnswer(
 
 /// What the server read of a care center for GET /api/care-centers/{id}:
 /// [history], the database's (Db.careCenterHistory: the center, its
-/// admissions counted and the latest), and [currentRun], the simulation's
-/// run (null when it doesn't run).
+/// admissions counted and the latest), [currentRun], the simulation's
+/// run, and [flow], its flow factor in it (lib/simulation.dart's
+/// Simulation.flowOf); both null when it doesn't run.
 class CareCenterLookup {
-  const CareCenterLookup(this.history, {this.currentRun});
+  const CareCenterLookup(this.history, {this.currentRun, this.flow});
 
   final Map<String, Object?> history;
   final String? currentRun;
+  final double? flow;
+}
+
+/// The id in /api/care-centers/{id}/flow, a positive number; null for any
+/// other path.
+int? careCenterFlowIdOf(String path) {
+  const suffix = '/flow';
+  return path.endsWith(suffix) ? careCenterIdOf(path.substring(0, path.length - suffix.length)) : null;
 }
 
 /// The id in /api/care-centers/{id}, a positive number; null for any other
@@ -464,9 +515,10 @@ int? careCenterIdOf(String path) {
 /// Place.serves), its capacity in the simulation
 /// (lib/care_centers.dart's simulatedCapacity), who is
 /// there now and who is on the way (their latest [moves], in dev mode),
-/// how many have it as their hospital, and its admissions: counted in the
-/// current run and in all, and the latest; null when there is no such
-/// care center (404).
+/// how many have it as their hospital, its flow factor this run (`flow`,
+/// 1 the normal flow; null in prod or while the simulation doesn't run),
+/// and its admissions: counted in the current run and in all, and the
+/// latest; null when there is no such care center (404).
 Map<String, Object?>? careCenterAnswer(bool dev, CareCenterLookup lookup, List<Map<String, Object?>> moves) {
   final center = lookup.history['center'] as Map<String, Object?>?;
   if (center == null) return null;
@@ -499,6 +551,7 @@ Map<String, Object?>? careCenterAnswer(bool dev, CareCenterLookup lookup, List<M
       if (key != 'key') key: value,
     'serves': [for (final setting in CareSetting.values) if (place.serves(setting)) setting.json],
     'capacity': {'places': capacity.places, 'unit': capacity.unit, 'simulated': true},
+    'flow': dev ? lookup.flow : null,
     'now': {
       'enabled': dev,
       'run': dev ? lookup.currentRun : null,
@@ -589,43 +642,74 @@ int? hoursOf(Map<String, String> query) {
 /// center has none), the run's latest hour at any care center ([end],
 /// where its series end, as datyx sees them), whether it is the [current]
 /// run, and the care center's rows up to [end] (`hour` and the series'
-/// fields).
+/// fields). For the occupancy, also what datyx predicted of those hours
+/// before they were observed ([predicted], from occupancy_forecast:
+/// `hour`, `mean`, `p10`, `p90`, `leadHours`), the alarms' [threshold] (a
+/// share of the capacity) and the simulated clock [now] (simNowOf).
 class HourlyLookup {
-  const HourlyLookup({this.run, this.end, this.current = false, this.rows = const []});
+  const HourlyLookup({
+    this.run,
+    this.end,
+    this.current = false,
+    this.rows = const [],
+    this.predicted,
+    this.threshold,
+    this.now,
+  });
 
   final String? run;
   final DateTime? end;
   final bool current;
   final List<Map<String, Object?>> rows;
+  final List<Map<String, Object?>>? predicted;
+  final double? threshold;
+  final Map<String, Object?>? now;
 }
 
 /// What GET /api/care-centers/{id}/admissions (or .../occupancy) answers:
 /// the care center's [series] in each of the [hours] hours up to its run's
 /// end, oldest first, an hour without a row a zero (the table has none for
 /// it), as `{"hour", "admissions", "acute", "chronic"}` (or `{"hour",
-/// "occupancy"}`), the hour as `YYYY-MM-DDTHH:MM`, simulated time.
+/// "occupancy", "predicted"}`), the hour as `YYYY-MM-DDTHH:MM`, simulated
+/// time. The occupancy's `predicted` is what datyx predicted of the hour
+/// before it was observed, `{"mean", "p10", "p90", "leadHours"}`, null
+/// when nothing was or without [predictions] (a caller who must sign in to
+/// see datyx's forecast); with the alarms' `threshold` and the clock `now`.
 Map<String, Object?> hourlyAnswer(
   int id,
   HourlyLookup hourly, {
   CareCenterSeries series = CareCenterSeries.admissions,
   int hours = hourlyHours,
+  bool predictions = true,
 }) {
   final end = hourly.end;
   final byHour = {for (final row in hourly.rows) _hourKey(row['hour'] as DateTime): row};
+  final occupancy = series == CareCenterSeries.occupancy;
+  final predicted = {
+    if (predictions)
+      for (final row in hourly.predicted ?? const <Map<String, Object?>>[]) _hourKey(row['hour'] as DateTime): row,
+  };
   return {
     'hospitalId': id,
     'run': hourly.run,
     'current': hourly.current,
     'end': end == null ? null : _hourKey(end),
+    if (occupancy) 'threshold': hourly.threshold,
+    if (occupancy) 'now': hourly.now,
     'hours': [
       if (end != null)
         for (var i = hours - 1; i >= 0; i--)
           () {
             final hour = _hourKey(end.subtract(Duration(hours: i)));
             final row = byHour[hour];
+            final guess = predicted[hour];
             return {
               'hour': hour,
               for (final field in series.fields) field: row?[field] ?? 0,
+              if (occupancy)
+                'predicted': guess == null
+                    ? null
+                    : {for (final field in const ['mean', 'p10', 'p90', 'leadHours']) field: guess[field]},
             };
           }(),
     ],
@@ -663,9 +747,11 @@ const eventsMax = 100;
 /// What GET /api/events answers: in dev mode, the latest [events] read
 /// from the streams (newest first, only those of [type] when given, at
 /// most [limit], never more than [eventsMax]), each with its type and
-/// where it sits in its topic, whether the simulation is [paused], and its
-/// [peoplePerCity] (null when unknown); in prod, nothing. "topic" is the moves' topic, as before admissions;
-/// "topics" names both.
+/// where it sits in its topic, an admission with aityx's triage level
+/// once it has one, whether the simulation is [paused], its
+/// [peoplePerCity] (null when unknown), and the [busiest] care center now
+/// (null while nobody is in care); in prod, nothing. "topic" is the moves'
+/// topic, as before admissions; "topics" names both.
 Map<String, Object?> eventsAnswer(
   bool dev,
   List<Map<String, Object?>> events, {
@@ -675,11 +761,15 @@ Map<String, Object?> eventsAnswer(
   int total = 0,
   double perSecond = 0,
   int? peoplePerCity,
+  Map<String, Object?>? busiest,
+  Map<String, Object?>? now,
+  AlarmsSnapshot alarms = AlarmsSnapshot.off,
 }) {
   const topics = [movesTopic, admissionsTopic];
   if (!dev) {
-    return const {
+    return {
       'enabled': false, 'paused': false, 'topic': movesTopic, 'topics': topics, 'total': 0, 'perSecond': 0, 'events': [],
+      'now': null, 'busiest': null, 'alarms': _eventsAlarms(false, alarms),
     };
   }
   return {
@@ -690,6 +780,9 @@ Map<String, Object?> eventsAnswer(
     'perSecond': (perSecond * 10).round() / 10,
     'topic': movesTopic,
     'topics': topics,
+    'now': now,
+    'busiest': busiest == null ? null : {for (final field in const ['id', 'name', 'kind', 'inCare']) field: busiest[field]},
+    'alarms': _eventsAlarms(true, alarms),
     'events': [
       for (final event in events.where((e) => type == null || _typeOf(e) == type).take(limit.clamp(1, eventsMax)))
         if (_typeOf(event) == 'admission')
@@ -698,6 +791,62 @@ Map<String, Object?> eventsAnswer(
         else
           {for (final field in _moveEventFields) field: event[field], 'type': 'move'},
     ],
+  };
+}
+
+/// How many alarm events GET /api/events carries.
+const eventsAlarmsRecent = 10;
+
+/// The alarms as GET /api/events carries them: as GET /api/alarms has
+/// them, the [eventsAlarmsRecent] latest events.
+Map<String, Object?> _eventsAlarms(bool dev, AlarmsSnapshot alarms) {
+  final answer = alarmsAnswer(dev, alarms, limit: eventsAlarmsRecent);
+  const fields = ['enabled', 'threshold', 'checkedAt', 'status', 'note', 'stale', 'active', 'recent'];
+  return {
+    for (final field in fields) field: answer[field],
+    if (alarms.signInRequired) 'signIn': true,
+  };
+}
+
+/// How many alarm events GET /api/alarms answers unless asked, and at
+/// most.
+const alarmsLimit = 20;
+const alarmsMax = 100;
+
+/// The number of alarm events [query] asks for, at most [alarmsMax]; null
+/// when its limit isn't a positive number.
+int? alarmsLimitOf(Map<String, String> query) {
+  final limit = query.containsKey('limit') ? int.tryParse(query['limit']!) : alarmsLimit;
+  return limit == null || limit < 1 ? null : min(limit, alarmsMax);
+}
+
+/// What GET /api/alarms answers (specs/occupancy-alarms.md): in dev mode
+/// with the alarms on, the care centers with a level now and the latest
+/// [limit] events, newest first, with when datyx was last asked and what
+/// it said, and whether the active may be out of date (`stale`); the
+/// simulated clock [now] in dev mode; in prod, or with the alarms off,
+/// nothing.
+Map<String, Object?> alarmsAnswer(
+  bool dev,
+  AlarmsSnapshot alarms, {
+  Map<String, Object?>? now,
+  bool paused = false,
+  int limit = alarmsLimit,
+}) {
+  final on = dev && alarms.enabled;
+  return {
+    'enabled': on,
+    'paused': dev && paused,
+    'everyMs': on ? alarms.everyMs : 0,
+    'threshold': alarms.threshold,
+    'now': dev ? now : null,
+    'checkedAt': on ? alarms.checkedAt : null,
+    'status': on ? alarms.status : null,
+    'note': on ? alarms.note : null,
+    'stale': on && alarms.stale,
+    'trainingRun': on ? alarms.trainingRun : null,
+    'active': on ? alarms.active : const [],
+    'recent': on ? alarms.recent.take(limit).toList() : const [],
   };
 }
 
@@ -714,7 +863,7 @@ const _moveEventFields = [
 const _admissionEventFields = [
   'type', 'eventId', 'personId', 'name', 'age', 'sex', 'occupation', 'city', 'conditionCode',
   'conditionName', 'conditionType', 'visit', 'visitNumber', 'complaint', 'hospitalId',
-  'hospitalName', 'careCenterKind', 'simTime', 'day', 'at', 'turn', 'partition', 'offset',
+  'hospitalName', 'careCenterKind', 'simTime', 'day', 'at', 'turn', 'partition', 'offset', 'triage',
 ];
 
 /// How many admissions GET /api/admissions answers unless asked, and at

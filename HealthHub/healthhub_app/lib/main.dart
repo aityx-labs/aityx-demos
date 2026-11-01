@@ -105,6 +105,7 @@ class _HealthHubAppState extends State<HealthHubApp> {
               careCenterOccupancy: _api.careCenterOccupancy,
               occupancyForecast: _api.occupancyForecast,
               simulation: _api.pauseSimulation,
+              population: _api.setPeoplePerCity,
               showTiles: widget.showTiles,
             )
           : IndexScreen(

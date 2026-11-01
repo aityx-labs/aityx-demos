@@ -8,6 +8,7 @@ import '../api/health_hub_api.dart';
 import '../location/user_location_map.dart' show CareCenterLook, CareCenterPin, PersonLook, PersonPin;
 import '../people/person_screen.dart' show AdmissionRow, PersonLink;
 import '../screens/link_text.dart';
+import '../sim_clock.dart';
 import '../theme.dart';
 import 'occupancy_timeline.dart';
 
@@ -166,11 +167,7 @@ class _CareCenterScreenState extends State<CareCenterScreen> {
                         ? 'No care center with the id ${widget.id}.'
                         : 'The care center can\'t be read: ${error is ApiException ? error.message : error}',
                   ))
-          : Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 960),
-                child: ListView(
+          : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
                     _Header(center),
@@ -211,8 +208,6 @@ class _CareCenterScreenState extends State<CareCenterScreen> {
                     _Admissions(center),
                   ],
                 ),
-              ),
-            ),
     );
   }
 }
@@ -378,9 +373,9 @@ class _CenterMap extends StatelessWidget {
               for (final person in coming)
                 Marker(
                   point: LatLng(person.lat, person.lon),
-                  width: 14,
-                  height: 14,
-                  child: PersonPin(person, simTime: center.now.simTime, key: Key('on-the-way-${person.id}')),
+                  width: PersonPin.size,
+                  height: PersonPin.size,
+                  child: PersonPin(person, simTime: simWhen(center.now.day, center.now.simTime), key: Key('on-the-way-${person.id}')),
                 ),
               Marker(
                 point: at,
@@ -548,7 +543,7 @@ class UsageCard extends StatelessWidget {
             ),
             if (now.simTime != null)
               Text(
-                'Simulated time ${now.simTime}${now.day != null ? ', day ${now.day}' : ''}',
+                'Simulated time: ${simWhen(now.day, now.simTime)}',
                 style: muted,
               ),
           ] else

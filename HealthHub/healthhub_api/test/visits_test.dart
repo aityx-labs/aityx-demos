@@ -88,6 +88,12 @@ void main() {
 
   int hourOf(Map<String, Object?> admission) => int.parse((admission['simTime'] as String).substring(0, 2));
 
+  /// Whether [admission] is of a planned visit: one that starts on the
+  /// hour, so someone living [walkMinutes] from the hospital arrives at
+  /// that minute past it.
+  bool onTheHour(Map<String, Object?> admission, int walkMinutes) =>
+      (admission['simTime'] as String).endsWith(':${walkMinutes.toString().padLeft(2, '0')}');
+
   final diabetes = condition('diabetes', 'chronic', count: 3, interval: 30, stay: 3);
   final cold = condition('cold', 'acute');
   final flu = condition('flu', 'acute', count: 2, interval: 3, stay: 4);
@@ -170,8 +176,9 @@ void main() {
         'Repeat 2 Núria Puig Soler',
         'Repeat 3 Núria Puig Soler',
       ], contains(admissions[3].$2['complaint']));
+      // Planned: each on the hour, so they arrive at the minute the walk takes.
       for (final (_, a) in admissions) {
-        expect(hourOf(a), inInclusiveRange(visitFirstHour, visitLastHour));
+        expect(onTheHour(a, walkMinutes), true, reason: '$a');
       }
     });
 
@@ -197,7 +204,7 @@ void main() {
       expect(states.sublist(arrived, arrived + 4), everyElement(PersonState.atHospital));
       expect(states[arrived + 4], PersonState.home);
       expect(p.at, nearHome);
-      expect(simDay(p.nextVisitAt!), 31);
+      expect(simDay(p.nextVisitAt!), (admission['day'] as int) + 30);
     });
 
     test('an acute single visit uses the first templates, and episodes recur', () {
@@ -230,7 +237,8 @@ void main() {
       expect(p.acute, isNull);
       expect(p.nextVisitAt, isNull);
       final onset = p.acuteOnsetAt!;
-      expect(onset, greaterThanOrEqualTo(simMinutes(turn - 1, 60) + minutesPerDay));
+      // On a later day, at a time of day from the profile.
+      expect(simDay(onset), greaterThan(simDay(simMinutes(turn - 1, 60))));
       expect(p.record(turn, 60)['value'], containsPair('conditionName', null));
       while (p.acute == null) {
         advance(p, turn: turn++, minutesPerTurn: 60, random: random, conditions: conditions, run: 'r1');
@@ -364,8 +372,8 @@ void main() {
       expect(admissions.first.$2['simTime'], '03:13');
       expect(admissions.first.$2['day'], 3);
       expect(admissions.first.$2['visit'], 'first');
-      // The follow-up is planned: in the daytime.
-      expect(hourOf(admissions[1].$2), inInclusiveRange(visitFirstHour, visitLastHour));
+      // The follow-up is planned: on the hour.
+      expect(onTheHour(admissions[1].$2, walkMinutes), true);
     });
 
     test('a visit due while the person is out waits until they are home', () {
@@ -376,12 +384,12 @@ void main() {
       p.acute = Course(longStay)..dueAt = dayStart(1) + 8 * 60;
       final admissions = run(p, 24 * 5, const [], seed: 10);
       // The acute visit at 08:13 lasts until 18:13; the chronic one, due at
-      // 10:00, waits for the next daytime slot after they are home.
+      // 10:00, waits for the next visit's slot after they are home.
       expect(admissions[0].$2['conditionCode'], 'long');
       expect(admissions[0].$2['simTime'], '08:13');
       expect(admissions[1].$2['conditionCode'], 'diabetes');
-      expect(admissions[1].$2['day'], 2);
-      expect(hourOf(admissions[1].$2), inInclusiveRange(visitFirstHour, visitLastHour));
+      expect(arrivalOf(admissions[1].$2), greaterThan(dayStart(1) + 18 * 60 + 13));
+      expect(onTheHour(admissions[1].$2, walkMinutes), true);
 
       // An emergency that starts during a visit goes at once when they are
       // back: the chronic visit 10:13 to 13:13, home at 14:00, out at 15:00.
@@ -400,6 +408,7 @@ void main() {
       final byCode = {for (final c in conditionSeed) c.code: c};
       var both = 0;
       var nightUrgent = 0;
+      final byHour = List.filled(24, 0);
       const people = 300;
       for (var n = 0; n < people; n++) {
         final p = person(id: 'reus-$n', who: randomProfile('Reus', random));
@@ -428,12 +437,14 @@ void main() {
           final stay = byCode[previous['conditionCode']]!.stayHoursOf(kind) * 60;
           expect(arrivalOf(admissions[i]), greaterThanOrEqualTo(arrivalOf(previous) + stay));
         }
-        // Planned visits in the daytime; only an emergency's first at night.
+        // Planned visits on the hour; an emergency's first at once, at
+        // night now and then.
         for (final a in admissions) {
+          byHour[hourOf(a)]++;
           final urgentFirst = a['visit'] == 'first' && byCode[a['conditionCode']]!.urgent;
           if (!urgentFirst) {
-            expect(hourOf(a), inInclusiveRange(visitFirstHour, visitLastHour), reason: '$a');
-          } else if (hourOf(a) < visitFirstHour || hourOf(a) > visitLastHour) {
+            expect(onTheHour(a, walkMinutes), true, reason: '$a');
+          } else if (hourOf(a) < 6 || hourOf(a) >= 21) {
             nightUrgent++;
           }
         }
@@ -441,6 +452,13 @@ void main() {
       // About 60% have a chronic condition, and nearly all an episode a year.
       expect(both, greaterThan(people * 0.4));
       expect(nightUrgent, greaterThan(0));
+      // The arrivals follow the daily profile: busiest around midday, few
+      // at night (an emergency leaves at the turn after its onset, an hour
+      // later at most).
+      final busiest = List.generate(24, (h) => h).reduce((a, b) => byHour[a] >= byHour[b] ? a : b);
+      expect(busiest, inInclusiveRange(12, 14), reason: '$byHour');
+      final total = byHour.reduce((a, b) => a + b);
+      expect(byHour.sublist(0, 5).reduce((a, b) => a + b) / total, lessThan(0.03), reason: '$byHour');
     });
   });
 
@@ -468,9 +486,14 @@ void main() {
       'careCenterKind',
       'simTime',
       'day',
+      'at',
       'turn',
     ]);
     expect(admission['type'], 'admission');
+    // Its date and time are its day and minute of arrival.
+    final day = admission['day']! as int;
+    final date = simAt((day - 1) * minutesPerDay).substring(0, 11);
+    expect(admission['at'], '$date${admission['simTime']}');
     // The run id first: the same person, day and turn of another run is
     // another event.
     expect(admission['eventId'], 'r1-reus-1-d1-t$turn');

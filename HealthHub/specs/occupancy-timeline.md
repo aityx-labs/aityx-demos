@@ -41,12 +41,14 @@ view under the map and the capacity, as wide as the view:
   dotted line labelled "8 beds" (none when the view doesn't know it).
 - The axes: whole people on y, from 0 to a whole number above the
   highest hour, 90th percentile or the capacity; on x each simulated
-  midnight as its day ("Day 154"), and noon when there is room. The
+  midnight as its date ("Jun 3"), and noon when there is room. The
   points get smaller when the hours are close together.
-- Hovering an hour, or touching it, shows its numbers: "Day 154, 09:00 ·
+- Hovering an hour, or touching it, shows its numbers: "Jun 3, 2026 09:00 ·
   3 in care of 8 beds", with "forecast 2.4, 1 to 4 (80%)" when it was
   forecast, or for a forecast hour the mean and the 80% range.
-- Above the chart, the run ("run 1349d576, now") and a line: how many
+- Above the chart, where the series end as a simulated date and time,
+  never the run's id ("Now · Jan 19, 2026 12:00", or "Ended …" for a
+  past run), and a line: how many
   are in care at the latest hour and the most in the hours shown, of the
   capacity; then what datyx expects on average over the next 24 and at
   most, and from which training run, or why there is no forecast (datyx's

@@ -525,3 +525,64 @@ The feature files hold the current specification; see the
    on average. The card keeps them while the view is open, from when it
    opens, and starts again for a new run. See [A care center's occupancy
    per hour](occupancy-timeline.md).
+1. **Make sure there is enough data for DeepAR to train: generate
+   enough in the data initialization, harmonic, peaking in the middle
+   of the day, so there's a pattern for DeepAR to pick up.** The
+   simulation's arrivals now follow one daily profile, a single
+   harmonic, an hour's weight 1 + cos(2π (hour − 13) / 24): planned
+   visits start on the hour at an hour drawn once from it (not any hour
+   from 08:00 to 17:00; kept to the next day when it has passed, so
+   same-day visits don't lean late), and acute episodes, so emergencies,
+   start on the hour drawn from it on the day their gap gives, so a
+   run's acute and chronic admissions both peak at 13:00. The people are
+   drawn with a fixed seed, the same at every start (their events are
+   not). And at start, in dev mode, the API writes a generated history
+   to `admissions_hourly`, run `00000000`: `HEALTHHUB_HISTORY_DAYS` days
+   (90; 0 for none) from 2026-01-01, every hour, for exactly the care
+   centers those people use (271 with the defaults), each hour's acute
+   and chronic admissions drawn from Poisson rates of the same profile,
+   one shape for both as in a live run (weekends 0.85), a hospital 3 to
+   8 admissions at its busiest hour, less for health stations and
+   clinics. Seeded by the care center's id, so the same rows every time,
+   and written only when they differ: 359,962 rows, every series 2,160
+   hours, each one's fitted daily harmonic peaking between 12.6 and
+   13.5 h. `dart run
+   bin/history.dart` writes it without the API (`--days`, `--dry-run`).
+   See [Admissions per hour](admissions-hourly.md#the-history),
+   [Simulation](simulation.md#visits), [Database](database.md),
+   [API](api.md) and [Development environment](dev-environment.md).
+1. **Double the people again, and make it configurable at the top of the
+   events panel; drop the filters by condition (and by event type) for
+   now; use real dates, the calendar starting on 2026-01-01, in the data
+   and on screen, instead of day numbers, with the clock sped up as now;
+   and make a person's icon smaller, for the many more people that put
+   the health system under pressure.** Eighty people a city by default
+   (`HEALTHHUB_SIM_PEOPLE`, at most 200): 560 in all. Under the events'
+   header, beside **Pause the simulation**, **80 people a city** is a menu
+   (10 to 200) that anyone signed in uses to change it while the
+   simulation runs (`POST /api/simulation/people`): newcomers join at the
+   turn now, their visits counted from then on; with fewer, each city's
+   last to join leave, off the map at once; numbers are never given twice
+   in a run. `GET /api/events` says `peoplePerCity`. The condition chips
+   are gone. Simulated time is a calendar from 2026-01-01: every move and
+   admission carries `at` (`2026-01-04T09:09`) beside its day and time,
+   the admissions table `admitted_at`, and the app shows every time as a
+   date ("Jan 4, 2026 09:09": the events, the map's legend and pins, the
+   person and care center views, the days of care, the occupancy chart's
+   axis and hover). A person on the map is an 8 px dot in a thin ring,
+   their home an 11 px house. See [Simulation](simulation.md#the-calendar),
+   [Home](home.md), [The map](map.md), [API](api.md) and
+   [Database](database.md).
+
+1. **Make all views full width: narrow views are weird.** The care
+   center view and the person view no longer stop at 960 px: they take
+   the window's full width, less a 16 px margin, as home does. The
+   welcome card on the index and the triage dialog keep their widths.
+   See [The care center view](care-center.md) and
+   [The person view](person.md).
+1. **The occupancy per hour card shows "run …, now": show the simulation's
+   current time instead.** The card's header says where the series end as
+   a simulated date and time, "Now · Jan 19, 2026 12:00" (or "Ended …"
+   for a past run), and no longer the run's id. See
+   [A care center's occupancy per hour](occupancy-timeline.md).
+

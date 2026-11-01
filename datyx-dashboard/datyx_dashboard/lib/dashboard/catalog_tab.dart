@@ -763,6 +763,13 @@ class _TrainedBy extends StatelessWidget {
 /// enables or disables it: a disabled group, muted and showing its
 /// Disabled tag, isn't trained, and can still be edited; enabling it
 /// queues a run for each of its algorithms.
+/// An algorithm as a group's card names it: what it does with the group.
+String algorithmTitle(String algorithm) => switch (algorithm) {
+  'DeepAR' => 'DeepAR Forecasting',
+  'XGBoost' => 'XGBoost Classification',
+  _ => algorithm,
+};
+
 class _SeriesSummary extends StatelessWidget {
   const _SeriesSummary({
     required this.spec,
@@ -811,61 +818,68 @@ class _SeriesSummary extends StatelessWidget {
         children: [
           Row(
             children: [
-              Tooltip(
-                message: 'The ${spec.group} group\'s color, on its tags in the columns above',
-                child: Opacity(
-                  opacity: on ? 1 : 0.5,
-                  child: Container(
-                    key: ValueKey('group-color-${spec.group}'),
-                    width: 10,
-                    height: 10,
-                    margin: const EdgeInsets.only(right: 8),
-                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                  ),
-                ),
-              ),
-              Tooltip(
-                message:
-                    'The ${spec.group} group: one dataset ${spec.algorithms.join(' and ')} '
-                    '${spec.algorithms.length == 1 ? 'trains' : 'train'} on, forecasting '
-                    '${spec.of(TimeSeriesRole.target).isEmpty ? 'no value yet' : spec.of(TimeSeriesRole.target).join(', ')}',
-                child: Text(
-                  '${spec.algorithms.join(' + ')} · ${spec.group}',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: on ? null : Aityx.muted),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Tooltip(
-                message: spec.ready ? 'Ready to train' : 'Not ready to train: the problems below say what to fix',
-                child: Icon(
-                  spec.ready ? Icons.check_circle_outline : Icons.error_outline,
-                  size: 16,
-                  color: spec.ready ? Aityx.green : Aityx.amber,
-                ),
-              ),
-              if (!on) ...[
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Tooltip(
-                    message: 'The table\'s tag in OpenMetadata that disables the group',
-                    child: Container(
-                      key: ValueKey('disabled-chip-${spec.group}'),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Aityx.bg2,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Aityx.border),
-                      ),
-                      child: Text(
-                        tag,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11, color: Aityx.muted, fontFamily: 'monospace'),
+              // The group, its state and its tag on the left; its switch and Edit
+              // always at the top right, however long the left side is.
+              Expanded(
+                child: Row(
+                  children: [
+                  Tooltip(
+                    message: 'The ${spec.group} group\'s color, on its tags in the columns above',
+                    child: Opacity(
+                      opacity: on ? 1 : 0.5,
+                      child: Container(
+                        key: ValueKey('group-color-${spec.group}'),
+                        width: 10,
+                        height: 10,
+                        margin: const EdgeInsets.only(right: 8),
+                        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                       ),
                     ),
                   ),
+                  Tooltip(
+                    message:
+                        'The ${spec.group} group: one dataset ${spec.algorithms.join(' and ')} '
+                        '${spec.algorithms.length == 1 ? 'trains' : 'train'} on, forecasting '
+                        '${spec.of(TimeSeriesRole.target).isEmpty ? 'no value yet' : spec.of(TimeSeriesRole.target).join(', ')}',
+                    child: Text(
+                      '${spec.algorithms.map(algorithmTitle).join(' + ')} · ${spec.group}',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: on ? null : Aityx.muted),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: spec.ready ? 'Ready to train' : 'Not ready to train: the problems below say what to fix',
+                    child: Icon(
+                      spec.ready ? Icons.check_circle_outline : Icons.error_outline,
+                      size: 16,
+                      color: spec.ready ? Aityx.green : Aityx.amber,
+                    ),
+                  ),
+                  if (!on) ...[
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Tooltip(
+                        message: 'The table\'s tag in OpenMetadata that disables the group',
+                        child: Container(
+                          key: ValueKey('disabled-chip-${spec.group}'),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Aityx.bg2,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Aityx.border),
+                          ),
+                          child: Text(
+                            tag,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11, color: Aityx.muted, fontFamily: 'monospace'),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  ],
                 ),
-              ],
-              const Spacer(),
+              ),
               Tooltip(
                 message: on
                     ? 'Enabled: datyx trains this group with ${_its(spec.algorithms)}. '

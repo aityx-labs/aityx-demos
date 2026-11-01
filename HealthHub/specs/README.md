@@ -45,7 +45,8 @@ does in HealthHub is described feature by feature in
 - [Admissions per hour](admissions-hourly.md): an Apache Flink job that
   counts the admissions per run, hospital and simulated hour from the
   stream into the `healthhub.admissions.hourly` topic and the
-  `admissions_hourly` table, a time series per hospital.
+  `admissions_hourly` table, a time series per hospital, beside a
+  generated history of 90 days for a forecast to learn from.
 - [Patient days](patient-days.md): the view `patient_days`, each
   person's visits and hours of hospital care per run and simulated day,
   with their facts, a time series per person.

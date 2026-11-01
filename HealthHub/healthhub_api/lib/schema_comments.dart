@@ -64,7 +64,7 @@ const schemaComments = <String, TableComments>{
       'visit_interval_days': 'The days between the visits of a course, at least 1.',
       'stay_hours': 'The hours a first visit stays, 1 to 72.',
       'female_share': 'The share of its patients who are women, 0 to 1; a person\'s condition is weighed by it.',
-      'urgent': 'Whether the first visit is an emergency, at any hour as soon as the condition starts, rather than at a daytime slot.',
+      'urgent': 'Whether the first visit is an emergency, at any hour as soon as the condition starts, rather than at a planned slot.',
       'follow_up_stay_hours': 'The hours a visit after the first stays, 1 to 72.',
       'course_gap_days': 'Chronic only: the days from the last visit of a course to the first of the next; null is a random 30 to 120, 0 continuous.',
       'setting': 'Where the first visit goes: hospital, primary (a health station), urgent_care, mental_health or dialysis.',
@@ -109,6 +109,7 @@ const schemaComments = <String, TableComments>{
       'hospital_name': 'The hospital\'s name.',
       'sim_day': 'The simulated day of the arrival, from 1 at each start of the API.',
       'sim_time': 'The simulated minute of the arrival, HH:MM.',
+      'admitted_at': 'The admission\'s simulated date and time, from sim_day and sim_time: day 1 is 2026-01-01.',
       'recorded_at': 'When the API recorded the admission, in real time.',
     },
   ),
@@ -142,10 +143,12 @@ const schemaComments = <String, TableComments>{
   'admissions_hourly': (
     table:
         'The admissions per run, hospital and simulated hour, written by the Flink job '
-        '(flink/admissions-hourly.sql) and upserted by the key. Sparse: an hour without admissions '
-        'at a hospital has no row, so a missing row means zero.',
+        '(flink/admissions-hourly.sql) and upserted by the key; run 00000000 is the history the API '
+        'generates at start (lib/history.dart), every hour of 90 days by default. Sparse: an hour '
+        'without admissions at a hospital has no row, so a missing row means zero.',
     columns: {
-      'run_id': 'The run: each start of the API replays the simulated calendar from day 1, and the run tells the repeats apart.',
+      'run_id': 'The run: each start of the API replays the simulated calendar from day 1, and the run tells the repeats apart; '
+          '00000000 is the generated history.',
       'hospital_id': 'The hospital (care_centers.id).',
       'hospital_name': 'The hospital\'s name.',
       'hour_start': 'The simulated hour, without a time zone: day 1 is 2026-01-01.',

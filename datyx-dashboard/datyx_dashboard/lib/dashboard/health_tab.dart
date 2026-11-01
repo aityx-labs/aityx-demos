@@ -10,7 +10,8 @@ import '../theme.dart';
 /// (the API with its profile and mode, PostgreSQL, OpenMetadata), the
 /// sign-in, and this dashboard build itself with its version. The API's
 /// health check, OpenMetadata (at the address the API reports) and the
-/// dashboard are links that open in a new tab.
+/// dashboard are links that open in a new tab; OpenMetadata's card also
+/// links where datyx's tagging is seen there ([openMetadataLinks]).
 class HealthTab extends StatelessWidget {
   const HealthTab({
     super.key,
@@ -63,6 +64,7 @@ class HealthTab extends StatelessWidget {
               ok: s?.openMetadata.ok ?? false,
               lines: _dependency(s?.openMetadata),
               link: s?.openMetadata.url == null ? null : Uri.tryParse(s!.openMetadata.url!),
+              links: s?.openMetadata.url == null ? const [] : openMetadataLinks(s!.openMetadata.url!),
             ),
             ListenableBuilder(
               listenable: auth,
@@ -120,6 +122,21 @@ class HealthTab extends StatelessWidget {
   }
 }
 
+/// Where datyx's tagging is seen in OpenMetadata at [base]: the TimeSeries
+/// classification, every tag (roles, groups, algorithms, Disabled) with
+/// the tables and columns that carry it; and OpenMetadata's alerts, where
+/// datyx-catalog-events tells datyx when a table's tags change (switching
+/// a group on trains it).
+List<(String, Uri)> openMetadataLinks(String base) {
+  final root = Uri.tryParse(base);
+  if (root == null) return const [];
+  Uri at(String path) => root.replace(path: '${root.path.replaceAll(RegExp(r'/+$'), '')}$path');
+  return [
+    ('TimeSeries tags, and the tables that carry them', at('/tags/TimeSeries')),
+    ('Alerts: datyx-catalog-events tells datyx of tag changes', at('/settings/notifications/alerts')),
+  ];
+}
+
 /// The line, in red, that says the API itself didn't answer.
 class ApiDownLine extends StatelessWidget {
   const ApiDownLine(this.error, {super.key});
@@ -144,12 +161,16 @@ class StatusCard extends StatelessWidget {
     required this.ok,
     required this.lines,
     this.link,
+    this.links = const [],
   });
 
   final String title;
   final bool ok;
   final List<String> lines;
   final Uri? link;
+
+  /// More links, each with what it is.
+  final List<(String, Uri)> links;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -183,6 +204,7 @@ class StatusCard extends StatelessWidget {
                 style: const TextStyle(color: Aityx.muted, fontSize: 13),
               ),
             if (link != null) _Link(key: ValueKey('link-$title'), url: link!),
+            for (final (label, url) in links) _Link(key: ValueKey('link-$title-$label'), url: url, label: label),
           ],
         ),
       ),
@@ -193,14 +215,17 @@ class StatusCard extends StatelessWidget {
 /// An address that opens in a new tab: underlined, in the accent, with the
 /// open-in-new icon.
 class _Link extends StatelessWidget {
-  const _Link({super.key, required this.url});
+  const _Link({super.key, required this.url, this.label});
   final Uri url;
+
+  /// What it shows instead of the address, which the tooltip then names.
+  final String? label;
 
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(top: 4),
     child: Tooltip(
-      message: 'Open in a new tab',
+      message: label == null ? 'Open in a new tab' : 'Open $url in a new tab',
       child: InkWell(
         onTap: () => Address.open(url),
         child: Row(
@@ -208,7 +233,7 @@ class _Link extends StatelessWidget {
           children: [
             Flexible(
               child: Text(
-                '$url',
+                label ?? '$url',
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Aityx.orangeLight,

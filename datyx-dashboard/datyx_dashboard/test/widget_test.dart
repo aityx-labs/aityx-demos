@@ -11,6 +11,8 @@ import 'package:datyx_dashboard/main.dart';
 import 'package:datyx_dashboard/persist/address.dart';
 import 'package:datyx_dashboard/persist/address_memory.dart' as address;
 import 'package:datyx_dashboard/persist/session_store.dart';
+import 'package:datyx_dashboard/dashboard/card_title.dart' show spaced;
+import 'package:datyx_dashboard/dashboard/health_tab.dart' show openMetadataLinks;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -338,6 +340,14 @@ class FakeDatyxApi implements DatyxApi {
 Finder tip(String text) => find.byWidgetPredicate((w) => w is Tooltip && (w.message ?? '').contains(text));
 
 void main() {
+  test("the Training and Inference tabs' cards stand 16 px apart, none before the first", () {
+    final cards = spaced([const Text('a'), const Text('b'), const Text('c')]);
+    expect(cards.length, 5);
+    expect(cards.first, isA<Text>());
+    expect(cards.whereType<SizedBox>().map((g) => g.height), [16, 16]);
+    expect(spaced(const []), isEmpty);
+  });
+
   testWidgets('shows the health, with the version', (tester) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
@@ -365,6 +375,19 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('link-API')));
     await tester.tap(find.byKey(const ValueKey('link-Dashboard')));
     expect(address.opened, ['http://localhost:9902', Uri.base.resolve('/api/health').toString(), Address.page.toString()]);
+
+    // OpenMetadata's card also links where datyx's tagging is seen there.
+    address.opened.clear();
+    await tester.tap(find.text('TimeSeries tags, and the tables that carry them'));
+    await tester.tap(find.text('Alerts: datyx-catalog-events tells datyx of tag changes'));
+    expect(address.opened, [
+      'http://localhost:9902/tags/TimeSeries',
+      'http://localhost:9902/settings/notifications/alerts',
+    ]);
+    expect(openMetadataLinks('http://om.example/base/').map((l) => '${l.$2}'), [
+      'http://om.example/base/tags/TimeSeries',
+      'http://om.example/base/settings/notifications/alerts',
+    ]);
   });
 
   testWidgets('audits every call', (tester) async {
@@ -621,7 +644,7 @@ void main() {
     expect(sent['algorithm'], 'DeepAR', reason: 'DeepAR unless XGBoost is picked, said explicitly');
     expect(sent['algorithms'], ['DeepAR']);
     expect(sent['horizon'], isNull);
-    expect(find.text('DeepAR · default'), findsOneWidget);
+    expect(find.text('DeepAR Forecasting · default'), findsOneWidget);
     expect(find.text('default: DeepAR'), findsOneWidget);
     expect(find.text('time series: ready'), findsOneWidget);
     // The roles' tags, the group and its readiness say what they are too.
@@ -683,7 +706,7 @@ void main() {
     // The table says who trains the group, collapsed and open.
     expect(find.text('care: XGBoost, 30D ahead'), findsOneWidget);
     expect(find.text('care: trained by XGBoost'), findsOneWidget);
-    expect(find.text('XGBoost · care'), findsOneWidget);
+    expect(find.text('XGBoost Classification · care'), findsOneWidget);
     expect(find.text('scores admissions summed over the next 30D, per run_id + hospital_id'), findsOneWidget);
     expect(find.text('label: sum over the horizon = admissions'), findsOneWidget);
     expect(find.text('horizon = 30D'), findsOneWidget);
@@ -745,8 +768,8 @@ void main() {
     expect(sent['timestamp'], 'hour_start');
     expect(sent['target'], 'acute_admissions');
     expect(sent['seriesKey'], ['run_id', 'hospital_id']);
-    expect(find.text('DeepAR · default'), findsOneWidget);
-    expect(find.text('DeepAR · acute'), findsOneWidget);
+    expect(find.text('DeepAR Forecasting · default'), findsOneWidget);
+    expect(find.text('DeepAR Forecasting · acute'), findsOneWidget);
     expect(find.text('2 time series: all ready'), findsOneWidget);
     // Each group has a color of its own, on its box and on its tags.
     Color dot(String group) =>
@@ -778,7 +801,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.lastRoles!.group, 'acute');
     expect(api.lastRoles!.columns, isEmpty);
-    expect(find.text('DeepAR · acute'), findsNothing);
+    expect(find.text('DeepAR Forecasting · acute'), findsNothing);
     expect(find.text('time series: ready'), findsOneWidget);
   });
 
@@ -838,6 +861,12 @@ void main() {
     expect(find.text('TimeSeries.chronic.Disabled'), findsOneWidget);
     expect(find.text('chronic: disabled, not trained'), findsOneWidget);
     expect(find.byKey(const ValueKey('disabled-chip-default')), findsNothing);
+    // The switch and Edit sit at the top right of every box, disabled or not:
+    // the tag chip on the left doesn't push them inwards.
+    Rect at(String key) => tester.getRect(find.byKey(ValueKey(key)));
+    expect(at('edit-group-$fqn-chronic').right, at('edit-group-$fqn-default').right);
+    expect(at('enabled-$fqn-chronic').left, at('enabled-$fqn-default').left);
+    expect(at('edit-group-$fqn-chronic').right, closeTo(at('group-box-chronic').right - 10, 1));
     expect(
       find.byTooltip(
         'Disabled: datyx doesn\'t train this group. Enabling removes its TimeSeries.chronic.Disabled tag in '
@@ -1225,7 +1254,7 @@ void main() {
     expect(sent['algorithm'], 'XGBoost');
     // Every algorithm of the group shows: closed, on its box and as its tags.
     expect(find.text('care: XGBoost + DeepAR, 30D ahead'), findsOneWidget);
-    expect(find.text('XGBoost + DeepAR · care'), findsOneWidget);
+    expect(find.text('XGBoost Classification + DeepAR Forecasting · care'), findsOneWidget);
     expect(find.text('care: trained by XGBoost'), findsOneWidget);
     expect(find.text('care: trained by DeepAR'), findsOneWidget);
     expect(find.byKey(const ValueKey('algorithm-tag-care-DeepAR')), findsOneWidget);

@@ -73,8 +73,13 @@ theirs; narrower, each goes under its row.
   second and the latest records of the stream are nearly always all
   moves: asked together, an admission would scroll out before anyone saw
   it. It shows them as one list, newest first by simulated day and time,
-  an admission before the moves of its own hour. The header names the
-  topics, counts what is shown, "3 admissions · 12 moves", and has
+  an admission before the moves of its own hour. Someone at home shows
+  only when monitored, the high-risk (the API leaves the others out;
+  [Simulation](simulation.md#people)). Beside the title, every event the
+  API read, those left out too, and how many a second over the last
+  minute, a moving average: "48,213 events · 70.4/s" (under the title
+  when narrow; nothing from an API that doesn't count). The header names
+  the topics, counts what is shown, "3 admissions · 12 moves", and has
   **Pause the simulation** (`POST /api/simulation/pause`; then **Resume
   the simulation**, `/resume`; [Simulation](simulation.md#pausing)):
   while paused the topics line reads "Paused: nobody moves, the clock
@@ -97,7 +102,9 @@ theirs; narrower, each goes under its row.
     whatever its kind: a bar on its left and a faint tint in its colour,
     a mark, and two lines that never wrap (cut with "…" when they don't
     fit). The first line: the person's name and age (a link to their
-    view, [The person view](person.md); the id on hover), the condition
+    view, [The person view](person.md); the id on hover), a heart
+    monitor (`Icons.monitor_heart_outlined`) when they are monitored (why
+    on hover: "Monitored at home: aged 84"), the condition
     and whether it is acute or chronic, and the simulated time and day.
     The second: what happened and the record's partition and offset.
     - **A move**: the person's state colour (the map's) for the bar and

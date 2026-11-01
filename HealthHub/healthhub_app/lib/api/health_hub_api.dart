@@ -338,6 +338,8 @@ class StreamEvent {
     required this.id,
     required this.state,
     this.type = StreamEventType.move,
+    this.monitored = false,
+    this.monitoredFor,
     this.city,
     this.hospitalName,
     this.simTime,
@@ -367,6 +369,8 @@ class StreamEvent {
       id: (admission ? json['personId'] ?? json['id'] : json['id'] ?? json['personId']) as String,
       type: type,
       state: admission ? PersonState.atHospital : PersonState.named(json['state'] as String?),
+      monitored: json['monitored'] == true,
+      monitoredFor: _string(json['monitoredFor']),
       city: _string(json['city']),
       hospitalName: _string(json['hospitalName']),
       simTime: _string(json['simTime']),
@@ -392,6 +396,12 @@ class StreamEvent {
   final String id;
   final StreamEventType type;
   final PersonState state;
+
+  /// Whether the person is monitored at home, the high-risk only, and why
+  /// ("aged 84", "pregnant", a chronic condition): only their moves at
+  /// home are events (the API leaves everyone else's out); moves carry it.
+  final bool monitored;
+  final String? monitoredFor;
   final String? city;
   final String? hospitalName;
   final String? simTime;
@@ -437,14 +447,23 @@ enum StreamEventType {
   static StreamEventType named(Object? name) => name == 'admission' ? admission : move;
 }
 
-/// The latest records on the stream, newest first, and the topics they
-/// came from; off in prod.
+/// The latest records on the stream, newest first, the topics they came
+/// from, and how many the API read in all and a second; off in prod.
 class StreamEvents {
-  const StreamEvents({required this.enabled, this.paused = false, this.topics = const [], this.events = const []});
+  const StreamEvents({
+    required this.enabled,
+    this.paused = false,
+    this.topics = const [],
+    this.events = const [],
+    this.total,
+    this.perSecond,
+  });
 
   factory StreamEvents.fromJson(Map<String, Object?> json) => StreamEvents(
     enabled: json['enabled'] == true,
     paused: json['paused'] == true,
+    total: _int(json['total']),
+    perSecond: json['perSecond'] is num ? (json['perSecond'] as num).toDouble() : null,
     topics: [
       for (final topic in (json['topics'] as List? ?? [?json['topic']]))
         if (topic is String && topic.isNotEmpty) topic,
@@ -462,6 +481,12 @@ class StreamEvents {
   final bool paused;
   final List<String> topics;
   final List<StreamEvent> events;
+
+  /// Every move and admission the API read since it started, those it
+  /// leaves out of [events] too, and how many a second over the last
+  /// minute, a moving average; null from an API that doesn't count.
+  final int? total;
+  final double? perSecond;
 }
 
 

@@ -18,11 +18,13 @@ typedef SimulationControl = Future<bool> Function(bool pause);
 
 /// The latest events on the Kafka stream, newest first: people's moves and
 /// their admissions at a hospital, each a row of the same shape, an
-/// admission marked in orange with what they said on arrival. Asked every
-/// 5 seconds while shown, like the map's people. Nothing shows until the
-/// API says the simulation runs (dev mode), and nothing in prod. Each row
-/// names its person, a link to their view, and the card invites opening
-/// anyone's. With [simulation], a button at the top pauses the simulation
+/// admission marked in orange with what they said on arrival. Someone at
+/// home is an event only when monitored, the high-risk (the API leaves the
+/// others out); the header counts every event the API read, and how many a
+/// second over the last minute. Asked every 5 seconds while shown, like
+/// the map's people. Nothing shows until the API says the simulation runs
+/// (dev mode), and nothing in prod. Each row names its person, a link to
+/// their view, and the card invites opening anyone's. With [simulation], a button at the top pauses the simulation
 /// and resumes it; under it, a chip per condition keeps only its events.
 ///
 /// Moves and admissions are asked for apart: every person moves every
@@ -126,6 +128,8 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
     final shown = _events.events.where(_shown).toList();
     final admissions = shown.where((event) => event.isAdmission).length;
     final moves = shown.length - admissions;
+    final total = _events.total;
+    final perSecond = _events.perSecond;
     return Card(
       key: const Key('stream-events'),
       child: Padding(
@@ -141,7 +145,27 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Latest events', style: TextStyle(fontWeight: FontWeight.w700)),
+                      // The total beside the title, under it when narrow.
+                      Wrap(
+                        spacing: 10,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          const Text('Latest events', style: TextStyle(fontWeight: FontWeight.w700)),
+                          if (total != null)
+                            Tooltip(
+                              message:
+                                  'Every move and admission the API read since it started, those of people '
+                                  "at home who aren't monitored too, and how many a second over the last "
+                                  'minute, a moving average',
+                              child: Text(
+                                '${_thousands(total)} ${total == 1 ? 'event' : 'events'}'
+                                '${perSecond == null ? '' : ' · ${perSecond.toStringAsFixed(1)}/s'}',
+                                key: const Key('stream-events-total'),
+                                style: const TextStyle(color: Aityx.fg, fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                        ],
+                      ),
                       Text(
                         _paused
                             ? 'Paused: nobody moves, the clock stands'
@@ -278,6 +302,9 @@ class _ConditionFilter extends StatelessWidget {
 
 String _count(int n, String noun) => '$n ${n == 1 ? noun : '${noun}s'}';
 
+/// [n] with its thousands apart: "48,213".
+String _thousands(int n) => n.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+$)'), (_) => ',');
+
 /// The moves and the admissions as one stream, newest first by simulated
 /// time. An admission comes before the moves of its own hour: the person
 /// arrived, then the others moved on. A record without a time sorts last.
@@ -294,10 +321,14 @@ StreamEvents mergeEvents(StreamEvents moves, StreamEvents admissions) {
     // The sort isn't stable: the order each answer gave breaks the ties.
     return byTime != 0 ? byTime : order[a]!.compareTo(order[b]!);
   });
+  // Both answers count the same feed: the later one, with more, holds.
+  final counts = (admissions.total ?? -1) > (moves.total ?? -1) ? admissions : moves;
   return StreamEvents(
     enabled: moves.enabled || admissions.enabled,
     topics: {...moves.topics, ...admissions.topics}.toList(),
     events: events,
+    total: counts.total,
+    perSecond: counts.perSecond,
   );
 }
 
@@ -345,9 +376,10 @@ String _where(StreamEvent event) => event.offset == null ? '' : 'p${event.partit
 /// One event, a move or an admission, always the same shape: a bar and a
 /// faint tint in its colour, a mark (a dot in the person's state colour,
 /// the map's, or the orange hospital of an admission), then two lines,
-/// never more: who (a link to their view) with the condition and the
-/// simulated time; what happened, at which hospital, with the record's
-/// partition and offset. An admission's second line says which visit it
+/// never more: who (a link to their view, with a heart monitor when
+/// monitored, why on hover) with the condition and the simulated time;
+/// what happened, at which hospital, with the record's partition and
+/// offset. An admission's second line says which visit it
 /// is and, in italics, as much of what the person said as fits, all of it
 /// on hover.
 class EventRow extends StatelessWidget {
@@ -417,6 +449,19 @@ class EventRow extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (event.monitored)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 6),
+                          child: Tooltip(
+                            message: 'Monitored at home${event.monitoredFor == null ? '' : ': ${event.monitoredFor}'}',
+                            child: const Icon(
+                              Icons.monitor_heart_outlined,
+                              key: Key('monitored'),
+                              color: Aityx.orangeLight,
+                              size: 14,
+                            ),
+                          ),
+                        ),
                       const SizedBox(width: 8),
                       Expanded(child: Text(condition, style: const TextStyle(fontSize: 13))),
                       const SizedBox(width: 8),

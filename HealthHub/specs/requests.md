@@ -376,3 +376,21 @@ The feature files hold the current specification; see the
    `admissions (hospital_id, id)`. See [The care center
    view](care-center.md), [The map](map.md), [Home](home.md), [The person
    view](person.md), [API](api.md) and [Database](database.md).
+
+1. **Have a new "monitored" property on people: only monitored people
+   show "at home" events, hidden for the others. Keep the total events
+   count on top, and a moving average too. Most patients aren't
+   monitored, only the high-risk: the elderly, pregnant women, some
+   mentally ill; the others' at-home events only count.** People are
+   monitored at home for being 80 or over, pregnant (a new fact of the
+   simulation: 7% of women aged 18 to 44), or having depression,
+   Alzheimer's disease, heart failure or end-stage kidney disease as
+   their chronic condition, about one in ten; every move says whether
+   and why (`monitored`, `monitoredFor`). The API's feed keeps a move at
+   home among the events only for a monitored person (the map still
+   shows everyone), counts every move and admission it reads, hidden
+   ones too, and averages how many a second over the last minute; `GET
+   /api/events` answers them as `total` and `perSecond`. The events card
+   shows them beside its title, "48,213 events · 70.4/s", and a
+   monitored person's rows carry a heart monitor, why on hover. See
+   [Simulation](simulation.md), [API](api.md) and [Home](home.md).

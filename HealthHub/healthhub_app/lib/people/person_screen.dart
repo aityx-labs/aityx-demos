@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../api/health_hub_api.dart';
+import '../care_centers/care_center_screen.dart' show CareCenterLink, CareCenterOpener;
 import '../events/stream_events.dart' show visitOf;
 import '../location/user_location_map.dart' show PersonLook;
 import '../screens/explainers.dart' show Explainer;
+import '../screens/link_text.dart';
 import '../theme.dart';
 import '../triage/triage_card.dart' show levelColor;
 
@@ -22,10 +24,11 @@ class PersonOpener extends InheritedWidget {
 
   static PersonOpener? of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<PersonOpener>();
 
-  /// Opens the view of person [id] of [run] (the current run unless given).
+  /// Opens the view of person [id] of [run] (the current run unless given),
+  /// whose hospitals are links too when [context] has a [CareCenterOpener].
   void open(BuildContext context, String id, {String? run}) => Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => PersonScreen(id: id, run: run, person: person, prediction: prediction),
+      builder: (_) => withOpeners(context, PersonScreen(id: id, run: run, person: person, prediction: prediction)),
     ),
   );
 
@@ -37,7 +40,7 @@ class PersonOpener extends InheritedWidget {
 /// A person's id or name that opens their view, underlined on hover; plain
 /// text where there is no [PersonOpener]. [run] says which run's person
 /// (an admission's own); the current one when null.
-class PersonLink extends StatefulWidget {
+class PersonLink extends StatelessWidget {
   const PersonLink(this.id, this.text, {super.key, this.run, this.style, this.overflow});
 
   final String id;
@@ -47,30 +50,15 @@ class PersonLink extends StatefulWidget {
   final TextOverflow? overflow;
 
   @override
-  State<PersonLink> createState() => _PersonLinkState();
-}
-
-class _PersonLinkState extends State<PersonLink> {
-  bool _hover = false;
-
-  @override
   Widget build(BuildContext context) {
     final opener = PersonOpener.of(context);
-    if (opener == null) return Text(widget.text, style: widget.style, overflow: widget.overflow);
-    final style = (widget.style ?? const TextStyle()).copyWith(
-      decoration: _hover ? TextDecoration.underline : TextDecoration.none,
-      decorationColor: Aityx.orangeLight,
-    );
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        key: Key('person-link-${widget.id}'),
-        behavior: HitTestBehavior.opaque,
-        onTap: () => opener.open(context, widget.id, run: widget.run),
-        child: Text(widget.text, style: style, overflow: widget.overflow),
-      ),
+    if (opener == null) return Text(text, style: style, overflow: overflow);
+    return LinkText(
+      text,
+      key: Key('person-link-$id'),
+      onTap: () => opener.open(context, id, run: run),
+      style: style,
+      overflow: overflow,
     );
   }
 }
@@ -263,6 +251,9 @@ class _Header extends StatelessWidget {
                               ?now.hospitalName,
                           ].join(' · '),
                           now.state.color,
+                          careCenter: now.state == PersonState.toHospital || now.state == PersonState.atHospital
+                              ? now.hospitalId
+                              : null,
                         ),
                         if (now.conditionName != null)
                           _Pill(
@@ -287,21 +278,29 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// A pill of [text] in [color]; with a [careCenter], a tap opens its view.
 class _Pill extends StatelessWidget {
-  const _Pill(this.text, this.color);
+  const _Pill(this.text, this.color, {this.careCenter});
   final String text;
   final Color color;
+  final int? careCenter;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.14),
-      border: Border.all(color: color.withValues(alpha: 0.6)),
-      borderRadius: BorderRadius.circular(999),
-    ),
-    child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
-  );
+  Widget build(BuildContext context) {
+    final style = TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600);
+    final opener = CareCenterOpener.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: careCenter == null || opener == null
+          ? Text(text, style: style)
+          : LinkText(text, key: Key('care-center-link-$careCenter'), onTap: () => opener.open(context, careCenter!), style: style),
+    );
+  }
 }
 
 /// datyx's prediction of the person's hours of care over the next 30 days
@@ -528,13 +527,17 @@ class _Admissions extends StatelessWidget {
     subtitle: 'newest first, with aityx\'s triage at the desk',
     child: admissions.isEmpty
         ? const Text('No admissions in this run yet.', style: TextStyle(color: Aityx.muted))
-        : Column(children: [for (final a in admissions) _AdmissionRow(a)]),
+        : Column(children: [for (final a in admissions) AdmissionRow(a)]),
   );
 }
 
-class _AdmissionRow extends StatelessWidget {
-  const _AdmissionRow(this.a);
+/// One admission: when, which visit of what, what they said, aityx's
+/// triage in its level's colour, and where (a link to the care center); or,
+/// with [showPerson] (in a care center's view), who (a link to them).
+class AdmissionRow extends StatelessWidget {
+  const AdmissionRow(this.a, {super.key, this.showPerson = false});
   final PersonAdmission a;
+  final bool showPerson;
 
   @override
   Widget build(BuildContext context) {
@@ -575,10 +578,21 @@ class _AdmissionRow extends StatelessWidget {
                 ].join(' '),
                 style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
               ),
-              Text(
-                [if (a.visit != null) visitOf(a.visit!, a.visitNumber), ?a.hospitalName].join(' · '),
-                style: const TextStyle(color: Aityx.orangeLight, fontSize: 12),
-              ),
+              if (showPerson && a.personId != null)
+                PersonLink(
+                  a.personId!,
+                  [a.name ?? a.personId!, if (a.age != null) '${a.age}'].join(', '),
+                  run: runOf(a.eventId),
+                  style: const TextStyle(color: Aityx.fg, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              if (a.visit != null)
+                Text(visitOf(a.visit!, a.visitNumber), style: const TextStyle(color: Aityx.orangeLight, fontSize: 12)),
+              if (!showPerson && a.hospitalName != null)
+                CareCenterLink(
+                  a.hospitalId,
+                  a.hospitalName!,
+                  style: const TextStyle(color: Aityx.orangeLight, fontSize: 12),
+                ),
               Text(triage, style: TextStyle(color: a.triaged ? color : Aityx.muted, fontSize: 12)),
               if (a.nurseCheck) const Text('a nurse checks', style: TextStyle(color: Aityx.amber, fontSize: 12)),
             ],

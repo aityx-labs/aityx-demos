@@ -26,6 +26,8 @@ On home only, where `PersonOpener` gives the view's two calls to
 everything under it; the index (nobody signed in) names nobody as a link.
 
 - **Latest events**: a move's person id; an admission's name and age.
+  An admission also shows the prediction's hours, from the same call
+  ([Home](home.md)).
 - **Triage at the desk**: a row's name and age (the rest of the row still
   opens the triage), and the name in the triage's detail.
 - **The map**: a person's dot and a home open the view on a click or a

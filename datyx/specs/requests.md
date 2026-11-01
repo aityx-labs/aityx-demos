@@ -2,6 +2,140 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-01: DeepAR trains its groups, on being switched on or retrained
+
+Asked: as for XGBoost, when a DeepAR group of tags is enabled or
+retrained, train it; then HealthHub can show its admissions per hour
+with DeepAR's forecast of the hours after, in the care center view
+(HealthHub's and the dashboard's changes are theirs).
+
+Changed: the trainer trains DeepAR groups as it trains XGBoost's (never
+trained, switched on, `timeSeriesRetrain`, on request): `DeepArData` lays
+each series out step by step, `DeepArTrainer` trains DJL 0.39's DeepAR on
+its PyTorch engine (libtorch 2.7.1, CPU, bundled by a Maven profile per
+platform), a negative binomial for counts, a Student's t otherwise, the
+last horizon held out for its test (MAE of the median, RMSE, naive and
+mean baselines, the 80% band's coverage), the network's parameters kept
+with the run. DJL can't sample either distribution on PyTorch, so datyx
+draws the paths in Java (`Distributions`). A group without a horizon
+forecasts 24 steps. Inference on a DeepAR model answers each series'
+forecast step by step, the mean and the 10th, 50th and 90th percentiles
+(`DeepArInference`); `GET /api/training` lists DeepAR groups with the
+horizon they forecast, and a manual run of one is accepted. TableReader
+feeds either (`Rows`). The JVM image sets `DJL_CACHE_DIR`. On
+HealthHub's `admissions_hourly` a run takes about 45 s, a third better
+than the naive forecast per hour. Tests; `training.md`, `inference.md`,
+`catalog.md`, `api.md`, README.
+
+Merged with the groups switched on through OpenMetadata (a group with
+several algorithms, one run each): every algorithm of a ready group is
+queued on schedule, a run trains with its own algorithm, `GET
+/api/training` answers one model per group and algorithm, and inference
+answers with XGBoost's model when a group has both, unless the request
+names an `algorithm`.
+## 2026-11-01: HealthHub at top quality in OpenMetadata, described and in context
+
+Asked: check HealthHub's data classification and quality indexing in
+OpenMetadata, add the OpenMetadata calls needed after the data
+initialization, reset what needs it; the console should show everything
+at top quality, described and in context.
+
+Changed: every database sync now profiles each table and runs the
+checks its schema implies (`Quality`: no nulls where `NOT NULL`, no
+duplicate keys), with SQL aggregates, writing the profile and each check
+as a test case with its result; the answer gains `tests`, `failed` and
+`failing`. A sync keeps what a PUT would clear: data products, domains,
+the certification, the database's and schemas' descriptions. New
+`Curation`: a document's owners, domain, data product, glossary, tiers,
+descriptions, checks, TimeSeries roles, pipelines and lineage written to
+OpenMetadata, a data contract per table validated by datyx, and the
+certification each table and topic earns. In development, `DevCatalog`
+waits for HealthHub's data initialization (its tables described, which
+HealthHub's API now does), then syncs and curates HealthHub's sources
+with `devdata/healthhub-catalog.json`, every 10 minutes, and runs Data
+Insights. Reset: HealthHub's services in OpenMetadata, three scratch
+services and a stray Kafka topic were deleted and everything rebuilt by
+datyx. Result: 18 assets 100% described, owned and tiered, 113 tests
+passing, 12 assets Gold, 8 contracts kept. Tests (`QualityTest`,
+`CurationTest`, `CatalogResourceTest`); `catalog.md`, new
+`curation.md`, `data-sources.md`, `api.md`, README.
+
+## 2026-11-01: a PII classification for every column and JSON field, by the GDPR
+
+Asked: make sure the catalogue has a PII classification for every data
+column and JSON property, in OpenMetadata if possible, following the
+GDPR's definitions and standards for data classification.
+
+Changed: every sync (`POST /api/datasources/{id}/catalog`) tags every
+column, and every field of a topic's records (nested ones too), with
+OpenMetadata's own `PII` classification (`None`, `NonSensitive`,
+`Sensitive`), and those holding personal data with its `PersonalData`
+(`Personal`, `SpecialCategory`), from names alone (`Pii`): personal only
+in a record about a person; special category for Art. 9 and Art. 10
+data and the facts of a health care record (Recital 35); direct and
+quasi-identifiers, keys (pseudonymous, Recital 26) and other facts as
+personal. Each tag is `Automated` with its GDPR reason; a person's own
+tags win. Written by a JSON Patch after the PUT (a PUT merges tags, and
+both classifications are mutually exclusive); the sync answers how many
+columns or fields hold `personal` and `special` data. Tests
+(`PiiTest`); `catalog.md`, `api.md`, README.
+## 2026-11-01: switching a group on is an event datyx captures, and it trains all its algorithms
+
+Asked: the trigger for training is enabling the tag group; make sure the
+API captures that event, and train every algorithm associated with the
+group. (The dashboard shows the algorithms and the events, in its
+folder.)
+
+Changed: a group may carry several algorithm tags (`TimeSeries.care.XGBoost`
+and `TimeSeries.care.DeepAR`); specs say `algorithms` (XGBoost first;
+`["DeepAR"]` when none) beside `algorithm`, and `PUT .../timeseries`
+takes `algorithms`. Runs are per algorithm (latest run, one at a time,
+schedule), inference and `GET /api/training` use XGBoost's. OpenMetadata
+tells datyx: at start datyx makes the event subscription
+`datyx-catalog-events` (Notification, tables, `entityUpdated`, a Webhook
+to `POST /api/catalog/openmetadata-events` at
+`datyx.openmetadata.callback-url`, `host.docker.internal` in development),
+authenticated by OpenMetadata's `X-OM-Signature` (HMAC-SHA256 of the raw
+body, base64) with a secret datyx sets (`DATYX_OPENMETADATA_WEBHOOK_SECRET`,
+else a random one per start), checked in constant time; the path is
+outside sign-in, the rest stays secured. Each switch of a group's
+Disabled tag is a `GroupEvent` (`group_event`, V8: on or off, via the
+webhook, datyx's switch or the minute's check, the table's version, who,
+when, the runs it queued); a switch on queues one `ENABLED` run per
+algorithm of the group at once, deduplicated across the three ways (one
+locked decision and a unique index on a group's and algorithm's queued or
+running run). `GET /api/catalog/events` lists them; runs carry `eventId`.
+Manual training takes an `algorithm` (DeepAR refused: no trainer yet).
+Reviewed adversarially (security, triggers, regressions); five findings
+fixed with tests (non-canonical service names, a late switch-off, a
+version OpenMetadata reused, a removed group's Disabled tag read as a
+switch on). Tests (75); `catalog.md`, `training.md`, `api.md`, `auth.md`,
+`dev-environment.md`.
+
+## 2026-11-01: groups switched off by a tag, and switching one on trains it
+
+Asked: on the Catalog's view of a table's tag groups, let a group be
+disabled; HealthHub's chronic admissions group disabled by default; when
+a group is enabled, that event triggers its training, whatever its
+algorithm; the tagging as the trigger, viewable in OpenMetadata. (The
+switch on the Catalog and Training tabs is the dashboard's change.)
+
+Changed: a group is switched off by a tag on its table,
+`TimeSeries.{group}.Disabled` (`TimeSeries.Disabled` for the default
+group), made with the group's roles and algorithms; `Disabled` can't
+name a group. Specs say `enabled`. `PUT /api/datasources/{id}/timeseries/enabled`
+adds or removes the tag. The trainer never trains a group switched off
+(nor on request, a 409), and queues an `ENABLED` run of any group
+switched on: seen off at its last look, or, from OpenMetadata's version
+history of the table (GET /tables/{id}/versions), its tag removed after
+its latest run; the run's `trigger_note` (V7) names the change (table
+version, who, when). A switch on through datyx is checked at once, and a
+switch off is noted at once, as OpenMetadata merges one user's quick
+changes into one version. Runs go to the group's algorithm: XGBoost
+trains, DeepAR fails saying datyx has no DeepAR trainer yet. HealthHub's
+`chronic` group of `admissions_hourly` is switched off in development's
+OpenMetadata. Tests; `catalog.md`, `training.md`.
+
 ## 2026-11-01: inference on the trained models, and its account
 
 Asked: an Inference panel on the dashboard, to account for inference

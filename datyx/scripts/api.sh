@@ -26,6 +26,11 @@ export DATYX_OPENMETADATA_URL="${DATYX_OPENMETADATA_URL:-http://localhost:${DATY
 export DATYX_OPENMETADATA_TOKEN="${DATYX_OPENMETADATA_TOKEN:-}"
 export DATYX_OPENMETADATA_EMAIL="${DATYX_OPENMETADATA_EMAIL:-admin@open-metadata.org}"
 export DATYX_OPENMETADATA_PASSWORD="${DATYX_OPENMETADATA_PASSWORD:-admin}"
+# Where OpenMetadata (in Docker) posts tables' changes back to the API on
+# this host, in every mode; and the secret it signs with (drawn at start
+# when empty).
+export DATYX_OPENMETADATA_CALLBACK_URL="${DATYX_OPENMETADATA_CALLBACK_URL:-http://host.docker.internal:${DATYX_API_PORT}/api/catalog/openmetadata-events}"
+export DATYX_OPENMETADATA_WEBHOOK_SECRET="${DATYX_OPENMETADATA_WEBHOOK_SECRET:-}"
 
 case "$API_MODE" in
   dev)

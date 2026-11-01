@@ -424,11 +424,18 @@ class CatalogColumn {
 /// The group of the TimeSeries roles tagged without one (`TimeSeries.Target`).
 const defaultGroup = 'default';
 
-/// The algorithms that train a group, as the API names them: a group
-/// without an algorithm tag is DeepAR's.
+/// The algorithms that train a group, as the API names them and in its
+/// order (XGBoost first): a group can have several, each a tag on the
+/// table; a group without one is DeepAR's.
 const deepArAlgorithm = 'DeepAR';
 const xgBoostAlgorithm = 'XGBoost';
-const algorithms = [deepArAlgorithm, xgBoostAlgorithm];
+const algorithms = [xgBoostAlgorithm, deepArAlgorithm];
+
+/// [names] in the API's order of [algorithms], once each.
+List<String> inAlgorithmOrder(Iterable<String> names) => [
+  for (final a in algorithms)
+    if (names.contains(a)) a,
+];
 
 /// The roles a column can have in a forecast, as the API names them: the
 /// tags of OpenMetadata's TimeSeries classification, the field each is in
@@ -452,6 +459,9 @@ enum TimeSeriesRole {
 
   /// What the role becomes to [algorithm]: DeepAR's input, or its part in XGBoost's dataset.
   String to(String algorithm) => algorithm == xgBoostAlgorithm ? xgBoost : deepAr;
+
+  /// What the role is to each of a group's [algorithms], once each, `/` between.
+  String toEach(List<String> algorithms) => {for (final a in algorithms) to(a)}.join(' / ');
 
   String get fqn => 'TimeSeries.$tag';
 
@@ -502,15 +512,32 @@ class AlgorithmTag {
   }
 }
 
+/// The table tag that disables a group, so that datyx doesn't train it:
+/// `TimeSeries.Disabled` for the default group, `TimeSeries.chronic.Disabled`
+/// for chronic. Removing it enables the group again.
+String disabledTag(String group) =>
+    group == defaultGroup ? 'TimeSeries.Disabled' : 'TimeSeries.$group.Disabled';
+
+/// The group a table's Disabled tag disables, or null for another tag.
+String? disabledGroup(String fqn) {
+  final parts = fqn.split('.');
+  if (parts.length < 2 || parts.length > 3 || parts.first != 'TimeSeries' || parts.last != 'Disabled') return null;
+  return parts.length == 2 ? defaultGroup : parts[1];
+}
+
 /// One group of a table read as a time series by the API:
-/// `GET .../timeseries`, and the answer of `PUT .../timeseries`. [ready]
-/// when there are no [problems].
+/// `GET .../timeseries`, and the answer of `PUT .../timeseries` and of
+/// `PUT .../timeseries/enabled`. [ready] when there are no [problems];
+/// [enabled] unless the table carries the group's [disabledTag] (an API
+/// that doesn't say: enabled). [algorithms] are all that train it, the
+/// API's `algorithms` (an API that only says `algorithm`: that one).
 class TimeSeriesSpec {
   const TimeSeriesSpec({
     required this.table,
     required this.name,
     this.group = defaultGroup,
-    this.algorithm = deepArAlgorithm,
+    this._algorithm = deepArAlgorithm,
+    this._algorithms,
     this.schema,
     this.columns = const {},
     this.frequency,
@@ -518,6 +545,7 @@ class TimeSeriesSpec {
     this.missing,
     this.ready = false,
     this.problems = const [],
+    this.enabled = true,
   });
 
   factory TimeSeriesSpec.fromJson(Map<String, Object?> json) {
@@ -530,6 +558,7 @@ class TimeSeriesSpec {
       name: json['name'] as String? ?? '',
       group: json['group'] as String? ?? defaultGroup,
       algorithm: json['algorithm'] as String? ?? deepArAlgorithm,
+      algorithms: list(json['algorithms']),
       schema: json['schema'] as String?,
       columns: {
         for (final role in TimeSeriesRole.values) role: list(json[role.field]),
@@ -539,6 +568,7 @@ class TimeSeriesSpec {
       missing: json['missing'] as String?,
       ready: json['ready'] as bool? ?? false,
       problems: list(json['problems']),
+      enabled: json['enabled'] as bool? ?? true,
     );
   }
 
@@ -546,8 +576,19 @@ class TimeSeriesSpec {
   final String name;
   final String group;
 
-  /// What trains the group: [deepArAlgorithm] (no tag, or its own) or [xgBoostAlgorithm].
-  final String algorithm;
+  final String _algorithm;
+  final List<String>? _algorithms;
+
+  /// What trains the group, one model each: [xgBoostAlgorithm],
+  /// [deepArAlgorithm] or both, in the API's order; [deepArAlgorithm]
+  /// when the table has no tag for it.
+  List<String> get algorithms => _algorithms == null || _algorithms.isEmpty ? [_algorithm] : _algorithms;
+
+  /// The first of [algorithms], as the API's `algorithm` says.
+  String get algorithm => algorithms.first;
+
+  /// Whether XGBoost is among its [algorithms], which needs a horizon.
+  bool get xgBoost => algorithms.contains(xgBoostAlgorithm);
   final String? schema;
   final Map<TimeSeriesRole, List<String>> columns;
   final String? frequency;
@@ -558,6 +599,12 @@ class TimeSeriesSpec {
   final bool ready;
   final List<String> problems;
 
+  /// Whether datyx trains the group: false while the table has its [disabledTag].
+  final bool enabled;
+
+  /// The tag in OpenMetadata that disables the group.
+  String get disabledTagFqn => disabledTag(group);
+
   List<String> of(TimeSeriesRole role) => columns[role] ?? const [];
 
   String? get target => of(TimeSeriesRole.target).firstOrNull;
@@ -565,7 +612,7 @@ class TimeSeriesSpec {
 }
 
 /// What `PUT /api/datasources/{id}/timeseries` takes: a group's roles in a
-/// table (no roles: the group is gone) and the algorithm that trains it,
+/// table (no roles: the group is gone) and the algorithms that train it,
 /// and the table's frequency, horizon and what a missing row means, which
 /// its groups share.
 class TimeSeriesRoles {
@@ -573,6 +620,7 @@ class TimeSeriesRoles {
     required this.table,
     this.group = defaultGroup,
     this.algorithm,
+    this.algorithms,
     this.columns = const {},
     this.frequency,
     this.horizon,
@@ -582,8 +630,14 @@ class TimeSeriesRoles {
   final String table;
   final String group;
 
-  /// [deepArAlgorithm] or [xgBoostAlgorithm]; null leaves the group untagged, DeepAR's.
+  /// One algorithm, [deepArAlgorithm] or [xgBoostAlgorithm], for an API
+  /// that only takes one; null leaves the group untagged, DeepAR's.
   final String? algorithm;
+
+  /// Every algorithm that trains the group, its tags exactly: sent as
+  /// `algorithms`, which the API takes over [algorithm]; empty leaves the
+  /// group untagged, DeepAR's.
+  final List<String>? algorithms;
   final Map<TimeSeriesRole, List<String>> columns;
   final String? frequency;
   final String? horizon;
@@ -596,7 +650,8 @@ class TimeSeriesRoles {
       role.field: role.single
           ? (columns[role]?.isNotEmpty ?? false ? columns[role]!.first : null)
           : columns[role] ?? const <String>[],
-    'algorithm': algorithm,
+    'algorithm': algorithms == null ? algorithm : algorithms!.firstOrNull,
+    'algorithms': ?algorithms,
     'frequency': frequency,
     'horizon': horizon,
     'missing': missing,
@@ -643,8 +698,11 @@ class TestMetrics {
 DateTime? _time(Object? value) => value is String ? DateTime.tryParse(value) : null;
 
 /// A training run at a glance: why it ran ([trigger]: initial, schedule,
-/// manual), how it went ([status]: queued, running, succeeded, failed) and,
-/// once it succeeded, its [test] metrics.
+/// manual, or enabled, when the group's Disabled tag was removed in
+/// OpenMetadata, with [triggerNote] saying which version of the table, by
+/// whom and when), how it went ([status]: queued, running, succeeded,
+/// failed) and, once it succeeded, its [test] metrics. A run queued by a
+/// group switched on has its [GroupEvent]'s id, [eventId].
 class TrainingRunInfo {
   const TrainingRunInfo({
     required this.id,
@@ -655,6 +713,8 @@ class TrainingRunInfo {
     this.source = '',
     this.algorithm = xgBoostAlgorithm,
     this.trigger = 'manual',
+    this.triggerNote,
+    this.eventId,
     this.status = 'queued',
     this.queuedAt,
     this.startedAt,
@@ -674,6 +734,8 @@ class TrainingRunInfo {
     group: json['group'] as String? ?? defaultGroup,
     algorithm: json['algorithm'] as String? ?? xgBoostAlgorithm,
     trigger: json['trigger'] as String? ?? '',
+    triggerNote: json['triggerNote'] as String?,
+    eventId: (json['eventId'] as num?)?.toInt(),
     status: json['status'] as String? ?? '',
     queuedAt: _time(json['queuedAt']),
     startedAt: _time(json['startedAt']),
@@ -692,6 +754,12 @@ class TrainingRunInfo {
   final String group;
   final String algorithm;
   final String trigger;
+
+  /// More on why it ran, when the API says: for `enabled`, the tag removed and the table's version.
+  final String? triggerNote;
+
+  /// The [GroupEvent] that queued it, when one did.
+  final int? eventId;
   final String status;
   final DateTime? queuedAt;
   final DateTime? startedAt;
@@ -708,8 +776,9 @@ class TrainingRunInfo {
 /// A group tagged for XGBoost, as `GET /api/training` answers it: what it
 /// scores, how often it is trained again ([retrainEvery], the table's
 /// timeSeriesRetrain or 1D; [retrain] as set, null when not), when next
-/// ([nextAt], null when never or while a run is on), its latest run and its
-/// latest success.
+/// ([nextAt], null when never, while a run is on or while not [enabled]),
+/// its latest run and its latest success. A group not [enabled] has its
+/// Disabled tag in OpenMetadata, and isn't trained.
 class TrainingModel {
   const TrainingModel({
     required this.sourceId,
@@ -728,6 +797,7 @@ class TrainingModel {
     this.retrain,
     this.retrainEvery = '1D',
     this.nextAt,
+    this.enabled = true,
     this.latest,
     this.lastSucceeded,
   });
@@ -749,6 +819,7 @@ class TrainingModel {
     retrain: json['retrain'] as String?,
     retrainEvery: json['retrainEvery'] as String? ?? '1D',
     nextAt: _time(json['nextAt']),
+    enabled: json['enabled'] as bool? ?? true,
     latest: json['latest'] is Map ? TrainingRunInfo.fromJson((json['latest'] as Map).cast()) : null,
     lastSucceeded: json['lastSucceeded'] is Map
         ? TrainingRunInfo.fromJson((json['lastSucceeded'] as Map).cast())
@@ -771,6 +842,7 @@ class TrainingModel {
   final String? retrain;
   final String retrainEvery;
   final DateTime? nextAt;
+  final bool enabled;
   final TrainingRunInfo? latest;
   final TrainingRunInfo? lastSucceeded;
 
@@ -802,6 +874,69 @@ class TrainingOverview {
   bool get busy => runs.any((r) => r.active) || models.any((m) => m.latest?.active ?? false);
 }
 
+/// A group switched on or off, as `GET /api/catalog/events` answers it:
+/// its table's Disabled tag removed ([enabled]) or added, [via] how datyx
+/// heard of it (`openmetadata-webhook`, OpenMetadata telling it;
+/// `datyx-api`, switched through datyx; `poll`, its minute check), the
+/// table's [version] in OpenMetadata, who changed it ([by]) and when
+/// ([at]), when datyx heard ([receivedAt]), and the training runs it
+/// queued ([runIds], one per algorithm of a group switched on).
+class GroupEvent {
+  const GroupEvent({
+    required this.id,
+    required this.group,
+    required this.enabled,
+    this.sourceId = 0,
+    this.source = '',
+    this.table = '',
+    this.name = '',
+    this.via = '',
+    this.version,
+    this.by,
+    this.at,
+    this.receivedAt,
+    this.runIds = const [],
+  });
+
+  factory GroupEvent.fromJson(Map<String, Object?> json) => GroupEvent(
+    id: (json['id'] as num).toInt(),
+    sourceId: (json['sourceId'] as num?)?.toInt() ?? 0,
+    source: json['source'] as String? ?? '',
+    table: json['table'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    group: json['group'] as String? ?? defaultGroup,
+    enabled: json['enabled'] as bool? ?? false,
+    via: json['via'] as String? ?? '',
+    version: json['version'] == null ? null : '${json['version']}',
+    by: json['by'] as String?,
+    at: _time(json['at']),
+    receivedAt: _time(json['receivedAt']),
+    runIds: [for (final r in (json['runIds'] as List?) ?? const []) (r as num).toInt()],
+  );
+
+  final int id;
+  final int sourceId;
+  final String source;
+  final String table;
+  final String name;
+  final String group;
+  final bool enabled;
+  final String via;
+  final String? version;
+  final String? by;
+  final DateTime? at;
+  final DateTime? receivedAt;
+  final List<int> runIds;
+
+  /// How datyx heard of it, in words.
+  String get viaWords => switch (via) {
+    'openmetadata-webhook' => 'OpenMetadata\'s webhook',
+    'datyx-api' => 'the datyx API',
+    'poll' => 'datyx\'s minute check',
+    _ => via,
+  };
+}
+
 /// A feature's weight in a model: its [share] of the mean absolute SHAP contribution.
 class FeatureWeight {
   const FeatureWeight(this.feature, this.share);
@@ -827,6 +962,7 @@ class TrainingRunDetail {
     this.dataset = const {},
     this.params = const {},
     this.bestIteration,
+    this.coverage,
   });
 
   factory TrainingRunDetail.fromJson(Map<String, Object?> json) {
@@ -850,6 +986,7 @@ class TrainingRunDetail {
       dataset: (results['dataset'] as Map?)?.cast<String, Object?>() ?? const {},
       params: (results['params'] as Map?)?.cast<String, Object?>() ?? const {},
       bestIteration: (results['bestIteration'] as num?)?.toInt(),
+      coverage: (results['coverage'] as num?)?.toDouble(),
     );
   }
 
@@ -859,6 +996,9 @@ class TrainingRunDetail {
   final Map<String, Object?> dataset;
   final Map<String, Object?> params;
   final int? bestIteration;
+
+  /// DeepAR's: the share of held-out steps inside the forecast's 10th to 90th percentiles.
+  final double? coverage;
 }
 
 /// Inference calls' account: how many, how many failed, series scored,
@@ -1284,9 +1424,20 @@ abstract class DatyxApi {
   Future<List<CatalogTopic>> topics(int sourceId);
   Future<List<TimeSeriesSpec>> timeSeries(int sourceId);
   Future<TimeSeriesSpec> setTimeSeries(int sourceId, TimeSeriesRoles roles);
+
+  /// Enables or disables a group of [table]: removes or adds its [disabledTag]
+  /// in OpenMetadata. Enabling has datyx queue a training run for each of
+  /// the group's algorithms.
+  Future<TimeSeriesSpec> setGroupEnabled(int sourceId, String table, String group, bool enabled);
   Future<TrainingOverview> training();
   Future<TrainingRunDetail> trainingRun(int id);
-  Future<TrainingRunInfo> trainNow(int sourceId, String table, String group);
+
+  /// Queues a run of a group with one of its algorithms: [algorithm], or
+  /// the API's choice (XGBoost, when the group has it) when null.
+  Future<TrainingRunInfo> trainNow(int sourceId, String table, String group, {String? algorithm});
+
+  /// The latest groups switched on or off, newest first, and the runs each queued.
+  Future<List<GroupEvent>> groupEvents({int limit = 50});
 
   /// Sets how often a table's groups are trained again: a span, `never`, or null for the default (1D).
   Future<void> setRetrain(int sourceId, String table, String? retrain);
@@ -1472,6 +1623,18 @@ class HttpDatyxApi implements DatyxApi {
       );
 
   @override
+  Future<TimeSeriesSpec> setGroupEnabled(int sourceId, String table, String group, bool enabled) async =>
+      TimeSeriesSpec.fromJson(
+        (await _send(
+                  'PUT',
+                  '/api/datasources/$sourceId/timeseries/enabled',
+                  body: {'table': table, 'group': group, 'enabled': enabled},
+                )
+                as Map)
+            .cast(),
+      );
+
+  @override
   Future<TrainingOverview> training() async =>
       TrainingOverview.fromJson((await _send('GET', '/api/training') as Map).cast());
 
@@ -1480,9 +1643,25 @@ class HttpDatyxApi implements DatyxApi {
       TrainingRunDetail.fromJson((await _send('GET', '/api/training/runs/$id') as Map).cast());
 
   @override
-  Future<TrainingRunInfo> trainNow(int sourceId, String table, String group) async => TrainingRunInfo.fromJson(
-    (await _send('POST', '/api/datasources/$sourceId/training', body: {'table': table, 'group': group}) as Map).cast(),
-  );
+  Future<TrainingRunInfo> trainNow(int sourceId, String table, String group, {String? algorithm}) async =>
+      TrainingRunInfo.fromJson(
+        (await _send(
+                  'POST',
+                  '/api/datasources/$sourceId/training',
+                  body: {'table': table, 'group': group, 'algorithm': ?algorithm},
+                )
+                as Map)
+            .cast(),
+      );
+
+  @override
+  Future<List<GroupEvent>> groupEvents({int limit = 50}) async {
+    final json = await _send('GET', '/api/catalog/events', query: {'limit': '$limit'}) as Map;
+    return [
+      for (final e in (json['events'] as List?) ?? const [])
+        GroupEvent.fromJson((e as Map).cast<String, Object?>()),
+    ];
+  }
 
   @override
   Future<void> setRetrain(int sourceId, String table, String? retrain) async {

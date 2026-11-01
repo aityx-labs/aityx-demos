@@ -16,8 +16,9 @@ theirs; narrower, each goes under its row.
   there is one, as wide as the page (less a 16 px margin) and 78% of the
   window's height, between 520 and 1100 px:
   - **Where you are**: the [map](map.md) with the user's position
-    highlighted, the status line saying "The orange dot is you." or why
-    there is no location.
+    highlighted, centred on the care center nearest them once both are
+    known, the status line saying "The orange dot is you." or why there
+    is no location.
 - **The data, and the simulation** (`SimulationExplainer`,
   [explainers.dart](../healthhub_app/lib/screens/explainers.dart)), beside
   the map, briefly: real care centers (7,256, from the official
@@ -74,8 +75,13 @@ theirs; narrower, each goes under its row.
   second and the latest records of the stream are nearly always all
   moves: asked together, an admission would scroll out before anyone saw
   it. It shows them as one list, newest first by simulated day and time,
-  an admission before the moves of its own hour. The header names the
-  topics, counts what is shown, "3 admissions · 12 moves", and has
+  an admission before the moves of its own hour. Someone at home shows
+  only when monitored, the high-risk, and once a day, their check-in (the
+  API leaves the others out; [Simulation](simulation.md#people)). Beside the title, every event the
+  API read, those left out too, and how many a second over the last
+  minute, a moving average: "48,213 events · 70.4/s" (under the title
+  when narrow; nothing from an API that doesn't count). The header names
+  the topics, counts what is shown, "3 admissions · 12 moves", and has
   **Pause the simulation** (`POST /api/simulation/pause`; then **Resume
   the simulation**, `/resume`; [Simulation](simulation.md#pausing)):
   while paused the topics line reads "Paused: nobody moves, the clock
@@ -98,7 +104,9 @@ theirs; narrower, each goes under its row.
     whatever its kind: a bar on its left and a faint tint in its colour,
     a mark, and two lines that never wrap (cut with "…" when they don't
     fit). The first line: the person's name and age (a link to their
-    view, [The person view](person.md); the id on hover), the condition
+    view, [The person view](person.md); the id on hover), a heart
+    monitor (`Icons.monitor_heart_outlined`) when they are monitored (why
+    on hover: "Monitored at home: aged 84"), the condition
     and whether it is acute or chronic, and the simulated time and day.
     The second: what happened and the record's partition and offset.
     - **A move**: the person's state colour (the map's) for the bar and
@@ -110,8 +118,19 @@ theirs; narrower, each goes under its row.
       the 2nd", "Last visit, the 3rd") and the hospital (a link to its
       view), then, in italics
       and quotes, as much of what the person said on arrival as fits
-      ([Conditions](conditions.md)), all of it on hover. The link opens
-      the person of that admission's run.
+      ([Conditions](conditions.md)), all of it on hover, and, before the
+      partition and offset, the hours of hospital care datyx expects of
+      the person over the next 30 days, with a bed icon ("9 h expected
+      in 30 days"; the model and the hours of the last 30 days on hover).
+      The link opens the person of that admission's run.
+
+    The 30-day hours are datyx's XGBoost prediction for the person of
+    the admission's run, the one their view highlights ([The person
+    view](person.md)), asked once per admission read (`GET
+    /api/people/{id}/prediction?run=`) and kept while the admission is
+    among the latest; nothing shows while it loads, nor when datyx can't
+    say (no model trained, no rows, not answering, nobody signed in),
+    nor on the index, which opens no person.
 
   Nothing shows in prod, nor before the API answers. A failed read keeps
   what is shown.

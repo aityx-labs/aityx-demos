@@ -52,6 +52,25 @@ const chronicOnsetDays = 10;
 /// The share of people with no chronic condition.
 const noChronicShare = 0.4;
 
+/// The share of women of [pregnantAges] who are pregnant, for the whole
+/// run, as ages don't advance: about the point prevalence.
+const pregnantShare = 0.07;
+const pregnantAges = (18, 44);
+
+/// Who is monitored at home, the high-risk only, so most people aren't
+/// (Person.monitoredFor): from this age, the pregnant, and those whose
+/// chronic condition is one of [monitoredConditions].
+const monitoredFromAge = 80;
+
+/// The chronic conditions monitored at home: mental illness (depression,
+/// dementia) and the failing heart and kidneys.
+const monitoredConditions = {
+  'major_depressive_disorder',
+  'alzheimer_disease',
+  'heart_failure',
+  'end_stage_kidney_disease',
+};
+
 /// The days between a chronic condition's courses of visits, unless the
 /// condition says otherwise (MedicalCondition.courseGapDays).
 const chronicGapDays = (30, 120);
@@ -434,6 +453,7 @@ class Person {
     required this.profile,
     required this.minutesPerTurn,
     this.careCenters = const {},
+    this.pregnant = false,
   }) : mode = travelMode(distanceMeters(home, hospital.at)),
        at = home {
     step = stepMeters(mode, minutesPerTurn);
@@ -452,6 +472,9 @@ class Person {
   final Map<CareSetting, Place> careCenters;
   final Profile profile;
   final int minutesPerTurn;
+
+  /// Whether she is pregnant, for the whole run ([pregnantShare]).
+  final bool pregnant;
 
   /// How they travel to the care center of the trip under way (of the
   /// hospital, before the first), and how far they get in a turn, in
@@ -503,6 +526,19 @@ class Person {
   /// healthy.
   MedicalCondition? get condition => visiting?.condition ?? acute?.condition ?? chronic?.condition;
 
+  /// Why they are monitored at home, the high-risk only: "aged 84",
+  /// "pregnant", or their chronic condition's name when it is one of
+  /// [monitoredConditions]; null for everyone else, most people. Only a
+  /// monitored person's moves at home are events (PeopleFeed).
+  String? get monitoredFor {
+    if (profile.age >= monitoredFromAge) return 'aged ${profile.age}';
+    if (pregnant) return 'pregnant';
+    final condition = chronic?.condition;
+    return condition != null && monitoredConditions.contains(condition.code) ? condition.name : null;
+  }
+
+  bool get monitored => monitoredFor != null;
+
   /// When the next visit of either kind is due; null when none is.
   int? get nextVisitAt {
     final dues = [?chronic?.dueAt, ?acute?.dueAt];
@@ -552,6 +588,8 @@ class Person {
         'careCenterKind': shownCareCenter.kind,
         'state': state.json,
         'mode': mode.json,
+        'monitored': monitored,
+        'monitoredFor': monitoredFor,
         'conditionName': shown?.name,
         'conditionType': shown?.type,
         'simTime': simTime(minutes),
@@ -814,6 +852,7 @@ List<Person> populate(
       final home = randomPointNear(centers[random.nextInt(centers.length)].at, random);
       final hospital = nearestHospital(home, places);
       if (hospital == null) return const [];
+      final profile = randomProfile(city, random);
       final person = Person(
         id: '${citySlug(city)}-$n',
         city: city,
@@ -822,8 +861,13 @@ List<Person> populate(
         careCenters: {
           for (final setting in CareSetting.values) setting: nearestCareCenter(home, setting, places) ?? hospital,
         },
-        profile: randomProfile(city, random),
+        profile: profile,
         minutesPerTurn: minutesPerTurn,
+        pregnant:
+            profile.sex == 'woman' &&
+            profile.age >= pregnantAges.$1 &&
+            profile.age <= pregnantAges.$2 &&
+            random.nextDouble() < pregnantShare,
       );
       startConditions(person, conditions, random);
       people.add(person);
@@ -1004,6 +1048,55 @@ class Simulation {
 /// record its group has not committed, so none published while the API
 /// was down or restarting is lost. Replayed admissions are harmless: the
 /// database records each event id once.
+/// How many events were read, all of them, and how many a second over
+/// the last [window]: a moving average, from a count per second. Before a
+/// [window] has gone by since the first, over the time since it.
+class EventCounter {
+  EventCounter({this.window = const Duration(minutes: 1), DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
+
+  final Duration window;
+  final DateTime Function() _clock;
+
+  /// Every event counted.
+  int total = 0;
+
+  DateTime? _first;
+
+  /// The counts of the seconds within [window], oldest first: (the second
+  /// since the epoch, how many).
+  final _seconds = ListQueue<(int, int)>();
+
+  void add() {
+    final now = _clock();
+    _first ??= now;
+    total++;
+    final second = now.millisecondsSinceEpoch ~/ 1000;
+    if (_seconds.isNotEmpty && _seconds.last.$1 == second) {
+      final (_, count) = _seconds.removeLast();
+      _seconds.addLast((second, count + 1));
+    } else {
+      _seconds.addLast((second, 1));
+    }
+    _forget(second);
+  }
+
+  /// The events a second over the last [window]; 0 before the first.
+  double get perSecond {
+    final now = _clock();
+    final first = _first;
+    if (first == null) return 0;
+    _forget(now.millisecondsSinceEpoch ~/ 1000);
+    final seconds = (now.difference(first).inMilliseconds / 1000).clamp(1.0, window.inSeconds.toDouble());
+    return _seconds.fold(0, (sum, s) => sum + s.$2) / seconds;
+  }
+
+  void _forget(int second) {
+    while (_seconds.isNotEmpty && _seconds.first.$1 <= second - window.inSeconds) {
+      _seconds.removeFirst();
+    }
+  }
+}
+
 class PeopleFeed {
   /// [people]: the ids of the simulation's people, the only ones kept.
   PeopleFeed(this.kafka, {required Iterable<String> people, this.onAdmission, Random? random})
@@ -1046,6 +1139,20 @@ class PeopleFeed {
 
   /// How many admission event ids the feed remembers to drop duplicates.
   static const seenLimit = 1000;
+
+  /// Every move and admission read, those [recent] leaves out too, and how
+  /// many a second over the last minute.
+  final counter = EventCounter();
+
+  /// The simulated day each monitored person at home last checked in, by
+  /// id: their first move at home of a day from their [checkInHour] on is
+  /// an event, the others only count, so the events aren't all people
+  /// sitting at home (once a day, about two in five of the moves kept).
+  final _checkedIn = <String, int>{};
+
+  /// The hour of the day a monitored person checks in, from their id, so
+  /// the check-ins spread over the day instead of all coming at midnight.
+  static int checkInHour(String id) => id.codeUnits.fold(0, (sum, unit) => sum * 31 + unit) % 24;
 
   /// The latest record of each person, by id.
   List<Map<String, Object?>> get people => List.unmodifiable(_latest.values);
@@ -1096,7 +1203,15 @@ class PeopleFeed {
         turn >= 0 &&
         [value['lat'], value['lon'], value['homeLat'], value['homeLon']].every((v) => v is num);
     if (!valid) return;
+    counter.add();
     _latest[id] = Map<String, Object?>.from(value);
+    // Someone at home shows among the events only when monitored, and
+    // then once a day, from their hour on; the map still has everyone.
+    if (value['state'] == PersonState.home.json) {
+      if (value['monitored'] != true || _checkedIn[id] == day) return;
+      if (int.parse(simTime.substring(0, 2)) < checkInHour(id)) return;
+      _checkedIn[id] = day;
+    }
     _keep(_moves, {...value, 'type': 'move', 'partition': partition, 'offset': offset});
   }
 
@@ -1110,6 +1225,7 @@ class PeopleFeed {
     if (!_seen.add(eventId)) return;
     _seenOrder.addLast(eventId);
     if (_seenOrder.length > seenLimit) _seen.remove(_seenOrder.removeFirst());
+    counter.add();
     final admission = Map<String, Object?>.from(value);
     _keep(_admissions, {...admission, 'partition': partition, 'offset': offset});
     onAdmission?.call(admission);

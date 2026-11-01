@@ -365,6 +365,8 @@ class StreamEvent {
     required this.id,
     required this.state,
     this.type = StreamEventType.move,
+    this.monitored = false,
+    this.monitoredFor,
     this.city,
     this.hospitalName,
     this.careCenterKind,
@@ -395,6 +397,8 @@ class StreamEvent {
       id: (admission ? json['personId'] ?? json['id'] : json['id'] ?? json['personId']) as String,
       type: type,
       state: admission ? PersonState.atHospital : PersonState.named(json['state'] as String?),
+      monitored: json['monitored'] == true,
+      monitoredFor: _string(json['monitoredFor']),
       city: _string(json['city']),
       hospitalName: _string(json['hospitalName']),
       careCenterKind: _kindOf(json['careCenterKind']),
@@ -421,6 +425,12 @@ class StreamEvent {
   final String id;
   final StreamEventType type;
   final PersonState state;
+
+  /// Whether the person is monitored at home, the high-risk only, and why
+  /// ("aged 84", "pregnant", a chronic condition): only their moves at
+  /// home are events (the API leaves everyone else's out); moves carry it.
+  final bool monitored;
+  final String? monitoredFor;
   final String? city;
   final String? hospitalName;
 
@@ -469,14 +479,23 @@ enum StreamEventType {
   static StreamEventType named(Object? name) => name == 'admission' ? admission : move;
 }
 
-/// The latest records on the stream, newest first, and the topics they
-/// came from; off in prod.
+/// The latest records on the stream, newest first, the topics they came
+/// from, and how many the API read in all and a second; off in prod.
 class StreamEvents {
-  const StreamEvents({required this.enabled, this.paused = false, this.topics = const [], this.events = const []});
+  const StreamEvents({
+    required this.enabled,
+    this.paused = false,
+    this.topics = const [],
+    this.events = const [],
+    this.total,
+    this.perSecond,
+  });
 
   factory StreamEvents.fromJson(Map<String, Object?> json) => StreamEvents(
     enabled: json['enabled'] == true,
     paused: json['paused'] == true,
+    total: _int(json['total']),
+    perSecond: json['perSecond'] is num ? (json['perSecond'] as num).toDouble() : null,
     topics: [
       for (final topic in (json['topics'] as List? ?? [?json['topic']]))
         if (topic is String && topic.isNotEmpty) topic,
@@ -494,6 +513,12 @@ class StreamEvents {
   final bool paused;
   final List<String> topics;
   final List<StreamEvent> events;
+
+  /// Every move and admission the API read since it started, those it
+  /// leaves out of [events] too, and how many a second over the last
+  /// minute, a moving average; null from an API that doesn't count.
+  final int? total;
+  final double? perSecond;
 }
 
 
@@ -1239,6 +1264,97 @@ class Prediction {
   final int? millis;
 }
 
+/// One hour of a hospital's admissions: when it starts (simulated time,
+/// day 1 being 2026-01-01) and how many were admitted, acute and chronic.
+class HourCount {
+  const HourCount({required this.hour, this.admissions = 0, this.acute = 0, this.chronic = 0});
+
+  factory HourCount.fromJson(Map<String, Object?> json) => HourCount(
+    hour: _hour(json['hour']),
+    admissions: _int(json['admissions']) ?? 0,
+    acute: _int(json['acute']) ?? 0,
+    chronic: _int(json['chronic']) ?? 0,
+  );
+
+  final DateTime hour;
+  final int admissions;
+  final int acute;
+  final int chronic;
+}
+
+/// A simulated hour as the API writes it, `YYYY-MM-DDTHH:MM`, read as UTC.
+DateTime _hour(Object? value) => DateTime.parse('${value as String}Z');
+
+/// What `GET /api/care-centers/{id}/admissions` answers: a hospital's
+/// admissions in each hour up to its run's end, oldest first; no run and
+/// no hours when nobody has been admitted there.
+class HourlyAdmissions {
+  const HourlyAdmissions({required this.hospitalId, this.run, this.current = false, this.end, this.hours = const []});
+
+  factory HourlyAdmissions.fromJson(Map<String, Object?> json) => HourlyAdmissions(
+    hospitalId: _int(json['hospitalId']) ?? 0,
+    run: _string(json['run']),
+    current: json['current'] == true,
+    end: json['end'] is String ? _hour(json['end']) : null,
+    hours: [
+      for (final hour in (json['hours'] as List? ?? const []))
+        HourCount.fromJson((hour as Map).cast()),
+    ],
+  );
+
+  final int hospitalId;
+  final String? run;
+
+  /// Whether [run] is the simulation's run going on now.
+  final bool current;
+
+  /// The run's latest hour, where its series end.
+  final DateTime? end;
+  final List<HourCount> hours;
+}
+
+/// One step of a forecast: the hour, the mean, and the 10th, 50th and
+/// 90th percentiles of its sample paths.
+class ForecastStep {
+  const ForecastStep({required this.at, required this.mean, required this.p10, required this.p50, required this.p90});
+
+  factory ForecastStep.fromJson(Map<String, Object?> json) => ForecastStep(
+    at: _hour(json['at']),
+    mean: (json['mean'] as num?)?.toDouble() ?? 0,
+    p10: (json['p10'] as num?)?.toDouble() ?? 0,
+    p50: (json['p50'] as num?)?.toDouble() ?? 0,
+    p90: (json['p90'] as num?)?.toDouble() ?? 0,
+  );
+
+  final DateTime at;
+  final double mean;
+  final double p10;
+  final double p50;
+  final double p90;
+}
+
+/// What `GET /api/care-centers/{id}/admissions/forecast` answers: datyx's
+/// DeepAR forecast of a hospital's admissions per hour from its series'
+/// end, step by step ([steps] empty with a [note] when it can't say), and
+/// which model said it.
+class AdmissionsForecast {
+  const AdmissionsForecast({this.steps = const [], this.prediction = const Prediction()});
+
+  factory AdmissionsForecast.fromJson(Map<String, Object?> json) => AdmissionsForecast(
+    steps: [
+      for (final step in (json['forecast'] as List? ?? const []))
+        ForecastStep.fromJson((step as Map).cast()),
+    ],
+    prediction: Prediction.fromJson(json),
+  );
+
+  final List<ForecastStep> steps;
+
+  /// The forecast summed over the horizon (`predicted`), the hours just gone
+  /// (`last`), why there is none (`note`), and the model.
+  final Prediction prediction;
+}
+
 /// The API, as the app sees it.
 abstract class HealthHubApi {
   Future<Health> health();
@@ -1260,6 +1376,10 @@ abstract class HealthHubApi {
     required double east,
     required double north,
   });
+
+  /// The care center nearest the point, or null when none has a location:
+  /// `GET /api/care-centers/nearest?lat=..&lon=..`.
+  Future<CareCenter?> nearestCareCenter({required double lat, required double lon});
 
   /// The simulated people and their homes: `GET /api/people`.
   Future<People> people({
@@ -1288,6 +1408,14 @@ abstract class HealthHubApi {
 
   /// One care center, with who is there now: `GET /api/care-centers/{id}`.
   Future<CareCenterDetail> careCenter(int id);
+
+  /// A hospital's admissions per hour, the [hours] up to its run's end:
+  /// `GET /api/care-centers/{id}/admissions?run=&hours=`.
+  Future<HourlyAdmissions> hospitalAdmissions(int id, {String? run, int? hours});
+
+  /// datyx's forecast of a hospital's admissions per hour:
+  /// `GET /api/care-centers/{id}/admissions/forecast?run=`.
+  Future<AdmissionsForecast> admissionsForecast(int id, {String? run});
 
   /// Pauses the simulation, or resumes it: `POST /api/simulation/pause`
   /// or `/resume`. Whether it is paused now.
@@ -1380,12 +1508,32 @@ class HttpHealthHubApi implements HealthHubApi {
   Future<CareCenterDetail> careCenter(int id) async =>
       CareCenterDetail.fromJson(await _getMap('/api/care-centers/$id'));
 
+  @override
+  Future<HourlyAdmissions> hospitalAdmissions(int id, {String? run, int? hours}) async {
+    final query = [
+      if (run != null) 'run=${Uri.encodeQueryComponent(run)}',
+      if (hours != null) 'hours=$hours',
+    ].join('&');
+    return HourlyAdmissions.fromJson(await _getMap('/api/care-centers/$id/admissions${query.isEmpty ? '' : '?$query'}'));
+  }
+
+  @override
+  Future<AdmissionsForecast> admissionsForecast(int id, {String? run}) async => AdmissionsForecast.fromJson(
+    await _getMap('/api/care-centers/$id/admissions/forecast${run == null ? '' : '?run=${Uri.encodeQueryComponent(run)}'}'),
+  );
+
   static String _personPath(String id, String suffix, String? run) =>
       '/api/people/${Uri.encodeComponent(id)}$suffix${run == null ? '' : '?run=${Uri.encodeQueryComponent(run)}'}';
 
   @override
   Future<bool> pauseSimulation(bool pause) async =>
       (await _send('POST', '/api/simulation/${pause ? 'pause' : 'resume'}') as Map?)?['paused'] == true;
+
+  @override
+  Future<CareCenter?> nearestCareCenter({required double lat, required double lon}) async {
+    final json = await _getMap('/api/care-centers/nearest?lat=${lat.toStringAsFixed(6)}&lon=${lon.toStringAsFixed(6)}');
+    return json['center'] is Map ? CareCenter.fromJson((json['center'] as Map).cast()) : null;
+  }
 
   /// An area as the API's `bbox` takes it: west,south,east,north.
   static String _bbox(double west, double south, double east, double north) =>

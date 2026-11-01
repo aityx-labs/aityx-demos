@@ -294,6 +294,8 @@ void main() {
     };
     feed
       ..add(move('reus-1', 'home', 1, monitored: true))
+      // Still home, in the same check-in slot: it only counts.
+      ..add(move('reus-1', 'home', 2, monitored: true))
       ..add(move('reus-2', 'home', 1, monitored: false))
       // A record from before people were monitored, or not: not monitored.
       ..add(move('reus-2', 'home', 2))
@@ -301,9 +303,25 @@ void main() {
       ..add(move('miami-1', 'home', 3, monitored: true));
     expect([for (final e in feed.recent) (e['id'], e['turn'])], [('reus-2', 3), ('reus-1', 1)]);
     // The map still has everyone, at home or not.
-    expect([for (final p in feed.people) (p['id'], p['turn'])], [('reus-1', 1), ('reus-2', 3)]);
+    expect([for (final p in feed.people) (p['id'], p['turn'])], [('reus-1', 2), ('reus-2', 3)]);
     // Hidden or shown, every move of the feed's people counts; another's doesn't.
-    expect(feed.counter.total, 4);
+    expect(feed.counter.total, 5);
+  });
+
+  test('a monitored person at home checks in once every six simulated hours', () {
+    final feed = PeopleFeed(throwingKafka, people: ['reus-1']);
+    var turn = 0;
+    void at(int day, String time) => feed.add({
+      'id': 'reus-1', 'city': 'Reus', 'lat': 41.1, 'lon': 1.1, 'homeLat': 41.2, 'homeLon': 1.2,
+      'hospitalName': 'H', 'state': 'home', 'monitored': true, 'simTime': time, 'day': day, 'turn': turn++,
+    });
+    for (final time in ['06:00', '07:00', '11:00', '12:00', '17:00', '18:00', '23:00']) {
+      at(1, time);
+    }
+    at(2, '00:00');
+    at(2, '05:00');
+    expect([for (final e in feed.recent) '${e['day']} ${e['simTime']}'], ['2 00:00', '1 18:00', '1 12:00', '1 06:00']);
+    expect(feed.counter.total, 9);
   });
 
   test('the event counter averages the last minute, a second at a time', () {
@@ -334,7 +352,7 @@ void main() {
     for (var turn = 0; turn < PeopleFeed.recentLimit + 5; turn++) {
       feed.add({
         'id': 'reus-1', 'city': 'Reus', 'lat': 41.1, 'lon': 1.1, 'homeLat': 41.2, 'homeLon': 1.2,
-        'hospitalName': 'H', 'state': 'home', 'monitored': true, 'simTime': '06:00', 'day': 1, 'turn': turn,
+        'hospitalName': 'H', 'state': 'to_hospital', 'simTime': '06:00', 'day': 1, 'turn': turn,
       }, partition: 0, offset: turn);
     }
     expect(feed.recent, hasLength(PeopleFeed.recentLimit));

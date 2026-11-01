@@ -1041,6 +1041,16 @@ class PeopleFeed {
   /// many a second over the last minute.
   final counter = EventCounter();
 
+  /// How often a monitored person at home checks in: their first move at
+  /// home in each slot of this many simulated hours of a day (00:00,
+  /// 06:00, 12:00, 18:00) is an event, the others only count, so the
+  /// events aren't all people sitting at home.
+  static const checkInHours = 6;
+
+  /// The slot each monitored person at home last checked in, by id: the
+  /// day and the slot of the day.
+  final _checkedIn = <String, (int, int)>{};
+
   /// The latest record of each person, by id.
   List<Map<String, Object?>> get people => List.unmodifiable(_latest.values);
 
@@ -1092,9 +1102,14 @@ class PeopleFeed {
     if (!valid) return;
     counter.add();
     _latest[id] = Map<String, Object?>.from(value);
-    // Someone at home shows among the events only when monitored; the
-    // map still has everyone.
-    if (value['state'] == PersonState.home.json && value['monitored'] != true) return;
+    // Someone at home shows among the events only when monitored, and
+    // then once a check-in slot; the map still has everyone.
+    if (value['state'] == PersonState.home.json) {
+      if (value['monitored'] != true) return;
+      final slot = (day, int.parse(simTime.substring(0, 2)) ~/ checkInHours);
+      if (_checkedIn[id] == slot) return;
+      _checkedIn[id] = slot;
+    }
     _keep(_moves, {...value, 'type': 'move', 'partition': partition, 'offset': offset});
   }
 

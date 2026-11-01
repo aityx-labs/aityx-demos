@@ -498,9 +498,8 @@ void main() {
       'homeLat': 41.2,
       'homeLon': 1.2,
       'hospitalName': 'H',
-      'state': 'home',
-      // Monitored, so at home they are events too.
-      'monitored': true,
+      // On the way home: every such move is an event.
+      'state': 'to_home',
       'simTime': '06:00',
       'day': 1,
       'turn': turn,

@@ -96,6 +96,23 @@ class AityxAuthTest {
         assertEquals(1, AityxStub.count(aityx));
     }
 
+    /** The status says whether datyx has a key, to the token or a user, and calls and records nothing. */
+    @Test
+    void theStatusWantsTheTokenOrASignIn() throws Exception {
+        given().when().get("/api/aityx/v1/status").then().statusCode(401);
+        given().header("X-Datyx-Service-Token", "wrong").when().get("/api/aityx/v1/status").then().statusCode(401);
+        given().header("X-Datyx-Service-Token", TOKEN).when().get("/api/aityx/v1/status")
+            .then().statusCode(200).body("configured", is(true));
+        given().auth().oauth2(token("alice@example.com")).when().get("/api/aityx/v1/status")
+            .then().statusCode(200).body("configured", is(true));
+        assertEquals(0, AityxStub.count(aityx));
+        try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
+                java.sql.ResultSet r = s.executeQuery("select count(*) from aityx_call")) {
+            r.next();
+            assertEquals(0, r.getInt(1));
+        }
+    }
+
     @Test
     void aUsersCallsAreTheirsAlone() throws Exception {
         String alice = token("alice@example.com");

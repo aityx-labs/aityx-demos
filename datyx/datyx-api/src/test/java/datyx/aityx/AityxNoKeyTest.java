@@ -43,6 +43,7 @@ class AityxNoKeyTest {
             .when().post("/api/aityx/v1/systemone").then().statusCode(503).body("error", is("datyx has no aityx key"));
         given().when().get("/api/aityx").then().statusCode(200).body("configured", is(false))
             .body("sharesServiceCalls", is(false)).body("totals.calls", is(0));
+        given().when().get("/api/aityx/v1/status").then().statusCode(200).body("configured", is(false));
         assertEquals(0, AityxStub.count(aityx));
     }
 

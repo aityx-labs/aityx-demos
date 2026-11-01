@@ -12,6 +12,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -87,8 +88,24 @@ public class AityxResource {
     @ConfigProperty(name = "datyx.oidc.enabled", defaultValue = "false")
     boolean authentication;
 
-    @ConfigProperty(name = "datyx.aityx.share-service-calls", defaultValue = "false")
-    boolean shareServiceCalls;
+    @ConfigProperty(name = "datyx.aityx.share-service-calls")
+    Optional<Boolean> shareServiceCallsSet;
+
+    @ConfigProperty(name = "datyx.aityx.share-service-calls-by-default", defaultValue = "false")
+    boolean shareServiceCallsByDefault;
+
+    boolean shareServiceCalls() {
+        return sharesServiceCalls(shareServiceCallsSet, shareServiceCallsByDefault);
+    }
+
+    /**
+     * Whether every profile sees the services' calls: as set, else the
+     * profile's default (dev mode only). An empty value, as Docker
+     * Compose passes an unset one, counts as unset.
+     */
+    static boolean sharesServiceCalls(Optional<Boolean> set, boolean byDefault) {
+        return set.orElse(byDefault);
+    }
 
     /** Calls' account: how many, failed, input tokens and their cost, latency (mean, median, 95th percentile), the latest. */
     public record Totals(int calls, int failed, long inputTokens, double costUsd, Double avgMillis, Integer p50Millis,
@@ -99,6 +116,25 @@ public class AityxResource {
     }
 
     public record Count(String name, int calls, int failed, long inputTokens) {
+    }
+
+    /**
+     * Whether the gateway can pass calls on (datyx has an aityx key), for
+     * a service by its token or a signed-in user, as the gateway: what a
+     * service without a key of its own (HealthHub) asks before counting
+     * on aityx. Calls nothing, records nothing.
+     */
+    @GET
+    @Path("/v1/status")
+    public Response status(@HeaderParam(ServiceToken.HEADER) String token) {
+        if (token != null) {
+            if (!serviceToken.matches(token)) {
+                return error(Response.Status.UNAUTHORIZED, "the service token isn't datyx's (" + ServiceToken.HEADER + ")");
+            }
+        } else if (authentication && !user.authenticated()) {
+            return error(Response.Status.UNAUTHORIZED, "sign in, or present a service token");
+        }
+        return Response.ok(Map.of("configured", gateway.configured())).build();
     }
 
     @POST
@@ -220,7 +256,7 @@ public class AityxResource {
         long profileId = profiles.current().id;
         Instant now = Instant.now();
         Instant since = now.minus(Duration.ofDays(window));
-        List<AityxCall.Row> calls = QuarkusTransaction.requiringNew().call(() -> AityxCall.since(profileId, shareServiceCalls, since));
+        List<AityxCall.Row> calls = QuarkusTransaction.requiringNew().call(() -> AityxCall.since(profileId, shareServiceCalls(), since));
 
         Instant top = now.truncatedTo(ChronoUnit.HOURS);
         List<Hour> perHour = new ArrayList<>();
@@ -241,7 +277,7 @@ public class AityxResource {
         map.put("since", since);
         map.put("days", window);
         map.put("configured", gateway.configured());
-        map.put("sharesServiceCalls", shareServiceCalls);
+        map.put("sharesServiceCalls", shareServiceCalls());
         map.put("pricePerMillionInputTokens", AityxCall.USD_PER_MILLION_INPUT_TOKENS);
         map.put("personalization", personalization);
         map.put("totals", totals(calls));
@@ -260,7 +296,7 @@ public class AityxResource {
         long profileId = profiles.current().id;
         Map<String, Object> answer = QuarkusTransaction.requiringNew().call(() -> {
             AityxCall call = AityxCall.findById(id);
-            if (call == null || !call.seenBy(profileId, shareServiceCalls)) {
+            if (call == null || !call.seenBy(profileId, shareServiceCalls())) {
                 return null;
             }
             Map<String, Object> map = view(row(call));

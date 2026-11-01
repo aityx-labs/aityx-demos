@@ -291,11 +291,66 @@ class Aityx {
   DateTime? _noted;
   var _unnoted = 0;
 
+  /// Whether datyx has an aityx key, as it last said ([check], or a call
+  /// it passed on or refused), and when; null before it was asked.
+  bool? _datyxHasKey;
+  DateTime? _datyxAsked;
+  Future<bool>? _checking;
+
   /// Whether calls go through datyx's gateway first.
   bool get routesViaDatyx => datyx != null && _serviceToken.isNotEmpty;
 
-  /// Whether a call can reach aityx at all: HealthHub's key, or datyx's.
+  /// Whether a call could reach aityx at all: HealthHub's key, or datyx's
+  /// gateway, which may have no key ([available] says).
   bool get configured => _key.isNotEmpty || routesViaDatyx;
+
+  /// Whether there is a key a call reaches aityx with: HealthHub's, else
+  /// datyx's, as datyx last said ([check]); false before it said, so the
+  /// service token alone never counts as a key.
+  bool get available => _key.isNotEmpty || (routesViaDatyx && _datyxHasKey == true);
+
+  /// datyx's status, `<datyx>/api/aityx/v1/status`; null without
+  /// [datyx].
+  Uri? get status => datyx?.replace(path: '${datyx!.path.replaceAll(RegExp(r'/+$'), '')}/api/aityx/v1/status');
+
+  /// [available], asking datyx's status (with the token; it calls and
+  /// records nothing) when HealthHub has no key of its own and datyx's
+  /// last word is older than a minute. datyx unreachable, refusing the
+  /// token or without the status (a datyx from before it) counts as no
+  /// key. One question at a time.
+  Future<bool> check() async {
+    if (_key.isNotEmpty) return true;
+    if (!routesViaDatyx) return false;
+    final asked = _datyxAsked;
+    if (asked != null && _clock().difference(asked) < const Duration(minutes: 1)) return available;
+    return _checking ??= _ask().whenComplete(() => _checking = null);
+  }
+
+  Future<bool> _ask() async {
+    var hasKey = false;
+    try {
+      final request = await _client.getUrl(status!).timeout(const Duration(seconds: 10));
+      request.followRedirects = false;
+      request.headers
+        ..set(HttpHeaders.acceptHeader, 'application/json')
+        ..set(datyxServiceTokenHeader, _serviceToken);
+      final response = await request.close().timeout(const Duration(seconds: 10));
+      final text = await response.transform(const Utf8Decoder(allowMalformed: true)).join().timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final json = jsonDecode(text);
+        hasKey = json is Map && json['configured'] == true;
+      }
+    } catch (_) {
+      // Unreachable, too slow, or not JSON: no key to count on.
+    }
+    _datyxSaid(hasKey);
+    return available;
+  }
+
+  void _datyxSaid(bool hasKey) {
+    _datyxHasKey = hasKey;
+    _datyxAsked = _clock();
+  }
 
   /// `<base>/v1/systemone`, whether or not [base]'s path ends in a slash.
   Uri get systemone => base.replace(path: '${base.path.replaceAll(RegExp(r'/+$'), '')}/v1/systemone');
@@ -320,11 +375,15 @@ class Aityx {
           datyxTimeout,
         );
         refused = datyxRefusal(answer.status, answer.text);
-        if (refused == null) return _read(answer, watch, 'datyx');
+        if (refused == null) {
+          _datyxSaid(true);
+          return _read(answer, watch, 'datyx');
+        }
       } catch (error) {
         if (!_unreachable(error)) rethrow;
         refused = error is TimeoutException ? 'datyx did not answer in time' : 'datyx unreachable';
       }
+      _datyxSaid(false);
       if (_key.isEmpty) {
         throw TriageFailed("$refused, and HealthHub has no aityx key of its own", via: 'datyx');
       }
@@ -461,9 +520,17 @@ String _clip(String text, int length) => text.length <= length ? text : '${text.
 /// Beyond [limit] waiting, the oldest are dropped, and each drop is
 /// logged: they stay untriaged.
 class Triager {
-  Triager(this._work, {this.concurrency = 4, this.limit = 500});
+  Triager(this._work, {this.concurrency = 4, this.limit = 500, this._ready});
 
   final Future<void> Function(Map<String, Object?> admission) _work;
+
+  /// Whether aityx can be reached with a key now ([Aityx.check]): an
+  /// admission taken while it can't is skipped, untriaged and unrecorded,
+  /// as with the triage off, rather than recorded as a failure.
+  final Future<bool> Function()? _ready;
+
+  /// How many admissions were skipped as [_ready] said no.
+  var skipped = 0;
   final int concurrency;
   final int limit;
   final _queue = ListQueue<Map<String, Object?>>();
@@ -492,7 +559,7 @@ class Triager {
       final admission = _queue.removeFirst();
       _running++;
       unawaited(
-        _work(admission)
+        _run(admission)
             .catchError((Object error) => stderr.writeln('triage: ${admission['eventId']}: $error'))
             .whenComplete(() {
               _running--;
@@ -504,6 +571,15 @@ class Triager {
             }),
       );
     }
+  }
+
+  Future<void> _run(Map<String, Object?> admission) async {
+    final ready = _ready;
+    if (ready != null && !await ready()) {
+      skipped++;
+      return;
+    }
+    await _work(admission);
   }
 
   /// Stops triaging; logs the admissions still waiting, which stay

@@ -22,11 +22,14 @@ time) instead, through a security policy of its own for
 (`X-Datyx-Purpose`), model, decision, questions, status, mode, latency,
 input tokens and their cost ($0.042 per million), the request and the
 answer (64 KB each), the latest 2,000 per profile; a service's calls
-are the services' bucket, every profile's to see in dev mode
-(`DATYX_AITYX_SHARE_SERVICE_CALLS`). `GET /api/aityx` answers the account
+are the services' bucket, every profile's to see in dev mode only
+(`DATYX_AITYX_SHARE_SERVICE_CALLS`; empty, the profile decides, so
+Docker Compose's prod image shares nothing; `AityxShareConfigTest`). `GET /api/aityx` answers the account
 (totals, the last 24 hours, by purpose, model and decision, the latest
 50 calls, whether personalization is active), `GET /api/aityx/calls/{id}`
-one call with its request and answer. Settings in `scripts/env.sh`
+one call with its request and answer, `GET /api/aityx/v1/status` whether
+datyx has a key (for HealthHub, which counts on aityx only when one of
+them has). Settings in `scripts/env.sh`
 (also from the root `.env`), `scripts/api.sh`, `compose.yaml` and
 `.env.example`. Tests (`AityxGatewayTest`, `AityxAuthTest`,
 `AityxNoKeyTest`, aityx a local stub); new `aityx.md`, `api.md`,

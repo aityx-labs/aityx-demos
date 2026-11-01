@@ -5,8 +5,10 @@
 ///                       opens the app (the web server proxies the root
 ///                       here)
 ///   GET  /api/health    {"ok": true, "db": true when the database
-///                       answers, "aityx": true when the key is set
-///                       or calls go through datyx,
+///                       answers, "aityx": true when HealthHub has
+///                       the key, or calls go through datyx and datyx
+///                       last said it has one (GET /api/aityx/v1/status,
+///                       asked at most once a minute, in the background),
 ///                       "auth": true when authentication is on, "kafka":
 ///                       true when Kafka's REST proxy answers,
 ///                       "simulation": true when the simulation runs,
@@ -200,6 +202,13 @@ Future<void> main(List<String> args) async {
         : env['HEALTHHUB_KAFKA_REST_URL']!,
   ));
   final live = _Live(dev: mode == 'dev', kafka: kafka, aityx: aityx, triage: triageSetting == 'on' && aityx.configured);
+  // Without a key of HealthHub's, whether datyx has one: until it says
+  // so, aityx isn't reported and no admission is triaged.
+  if (key.isEmpty && aityx.routesViaDatyx) {
+    unawaited(aityx.check().then((available) {
+      if (!available) stderr.writeln('note: datyx has no aityx key (or no answer) and HealthHub none, so triage waits for one');
+    }));
+  }
   final server = await HttpServer.bind(host, port);
   stdout.writeln(
     'healthhub_api on http://$host:$port (mode: $mode; '
@@ -220,7 +229,7 @@ Future<void> main(List<String> args) async {
   }
 
   await for (final request in server) {
-    unawaited(_handle(request, origins, db, verifier, datyx, live, aityx: aityx.configured));
+    unawaited(_handle(request, origins, db, verifier, datyx, live));
   }
 }
 
@@ -235,6 +244,17 @@ class _Live {
   /// aityx, which triages each admission recorded when [triage] is on.
   final Aityx aityx;
   final bool triage;
+
+  /// Whether there is a key to reach aityx with ([Aityx.available]), as
+  /// last known: a stale answer from datyx is asked again in the
+  /// background, so the health check never waits on datyx.
+  bool get aityxAvailable {
+    unawaited(aityx.check());
+    return aityx.available;
+  }
+
+  /// Whether admissions are triaged now: [triage] on, with a key.
+  bool get triaging => triage && aityxAvailable;
   Simulation? simulation;
   PeopleFeed? feed;
   AdmissionRecorder? recorder;
@@ -338,7 +358,10 @@ Future<void> _simulate(Db db, _Live live) async {
   // Each admission recorded the first time is triaged with aityx, in the
   // background; a triage the database can't record is logged and lost.
   final triager = live.triage
-      ? live.triager = Triager((admission) async => db.recordTriage(await triageAdmission(live.aityx, admission)))
+      ? live.triager = Triager(
+          (admission) async => db.recordTriage(await triageAdmission(live.aityx, admission)),
+          ready: live.aityx.check,
+        )
       : null;
   // Bad data the database refuses is dropped, not retried forever.
   final recorder = live.recorder = AdmissionRecorder(
@@ -386,9 +409,8 @@ Future<void> _handle(
   Db db,
   TokenVerifier verifier,
   Uri datyx,
-  _Live live, {
-  required bool aityx,
-}) async {
+  _Live live,
+) async {
   final response = request.response;
   final origin = request.headers.value('origin');
   if (origin != null && origins.contains(origin)) {
@@ -414,19 +436,19 @@ Future<void> _handle(
         method,
         path,
         db: await db.ping(),
-        aityx: aityx,
+        aityx: live.aityxAvailable,
         auth: auth,
         kafka: live.kafkaUp,
         simulation: live.simulation?.running ?? false,
         paused: live.simulation?.paused ?? false,
-        triageEnabled: live.triage,
+        triageEnabled: live.triaging,
       ),
       ('GET', '/api/triage') => route(
         method,
         path,
         query: request.uri.queryParameters,
         auth: auth,
-        triageEnabled: live.triage,
+        triageEnabled: live.triaging,
         triage: await _triage(db, request.uri.queryParameters),
       ),
       ('GET', _) when triageEventId(path) != null => route(
@@ -564,7 +586,7 @@ Future<void> _handle(
             ? null
             : await _forward(datyx, datyxPath(path)!, token),
       ),
-      _ => route(method, path, aityx: aityx, auth: auth, identity: identity),
+      _ => route(method, path, auth: auth, identity: identity),
     };
     response.statusCode = answer.status;
     if (answer.location case final location?) {

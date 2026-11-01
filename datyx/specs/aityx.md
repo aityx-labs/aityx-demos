@@ -36,6 +36,12 @@ within 60 s"}`. datyx's key is never logged, stored, answered or put in
 an error (it is also blanked out of any body or error recorded, should
 one ever carry it).
 
+`GET /api/aityx/v1/status` answers `{"configured": <whether datyx has an
+aityx key>}`, to the same callers as the gateway (the service token, or
+a signed-in user), calling and recording nothing: what a service without
+a key of its own (HealthHub) asks before counting on aityx, so the
+service token alone never passes for a key.
+
 Optional headers of the call:
 
 - `X-Datyx-Purpose`: why the call is made (`triage`), at most 64
@@ -60,8 +66,12 @@ bucket** (`profile_id` null), shown to every profile when
 `datyx.aityx.share-service-calls` (`DATYX_AITYX_SHARE_SERVICE_CALLS`) is
 true: the default in dev mode, where the datyx group's HealthHub is
 every profile's; false otherwise, where they are kept and shown to no
-profile (set it to true for a single-tenant deployment). A profile never
-sees another profile's calls.
+profile (set it to true for a single-tenant deployment). Empty counts as
+unset, so the profile decides (`datyx.aityx.share-service-calls-by-default`,
+true only in `%dev`): `compose.yaml` passes it through empty, so a
+Compose image built with the prod profile shares nothing, the requests
+holding health data (HealthHub's complaints). A profile never sees
+another profile's calls.
 
 `AityxGatewayPolicy` (an `HttpSecurityPolicy` named `aityx-gateway`,
 for `/api/aityx/v1/*`) lets a call with the right service token through
@@ -168,7 +178,8 @@ aityx unreachable).
   (`datyx.service-token`); unset, service calls are refused. Make one
   with `openssl rand -hex 32`; HealthHub reads the same one.
 - `DATYX_AITYX_SHARE_SERVICE_CALLS`: whether every profile sees the
-  services' calls (true in dev mode, false otherwise).
+  services' calls (empty or unset: true in dev mode, false otherwise,
+  also in Docker Compose with the prod profile).
 
 In development `scripts/env.sh` reads `AITYX_API_KEY`, `AITYX_URL` and
 `DATYX_SERVICE_TOKEN` from datyx's `.env`, else from the repository
@@ -200,7 +211,12 @@ a signed-in user's call goes with datyx's key, not their token, and is
 recorded under their email; another profile sees neither it in the
 account nor its detail (404), and both see the services' calls.
 `AityxNoKeyTest`: without a key a 503, nothing called and the account
-says so; without a service token configured, every token refused.
+says so, as does the status; without a service token configured, every
+token refused. `AityxAuthTest` also: the status wants the token or a
+sign-in and calls and records nothing.
+`AityxShareConfigTest`: the services' calls shared in dev mode only,
+also when the setting comes empty (as `compose.yaml` passes it), an
+explicit value winning.
 
 ## Known limitations
 

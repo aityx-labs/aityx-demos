@@ -61,6 +61,18 @@ token refused, as by a datyx started without it). A note in the log
 says so once a minute at most, with how many calls since the last,
 never the token or the key. Without a key of HealthHub's, such a triage
 fails ("datyx unreachable, and HealthHub has no aityx key of its own").
+
+The service token alone isn't a key. Without a key of its own, HealthHub
+counts on aityx only once datyx says it has one: `GET
+<DATYX_API_URL>/api/aityx/v1/status` with the token answers
+`{"configured"}` and calls nothing. It asks at start, then at most once a
+minute when the triage or `/api/health` wants to know (`/api/health` in
+the background, never waiting on datyx); a call datyx passes on says yes,
+one it can't pass on no, at once. datyx unreachable, refusing the token
+or without the status (older) is no. Until it says yes, `/api/health`
+says `"aityx": false` and `"triage": false`, and the admissions recorded
+meanwhile are skipped, untriaged and unrecorded, as with the triage off,
+rather than each recorded as a failure.
 Any other answer through datyx is the triage's: aityx's error passed
 back (`aityx answered 401: invalid_key`) or datyx's failing to reach it
 (`datyx answered 502: ...`) fails it, without a second call. Neither
@@ -80,9 +92,10 @@ answer other than 200, by its error code (never the key).
 ## When it runs
 
 `HEALTHHUB_TRIAGE` (`on`, the default, or `off`; anything else stops the
-server) and a way to aityx, an `AITYX_API_KEY` or datyx's gateway (the
-service token, above): without both, nothing is triaged and
-`/api/health` says `"triage": false`. In dev mode, the admission recorder
+server) and a key to reach aityx with, HealthHub's `AITYX_API_KEY` or
+datyx's (through its gateway with the service token, once datyx says it
+has one, above): without both, nothing is triaged and `/api/health`
+says `"triage": false`. In dev mode, the admission recorder
 hands each admission it inserts, the first time only (not a replay), to
 the `Triager`, which triages four at a time in the background so the feed
 never waits on aityx; beyond 500 waiting, the oldest are dropped, each

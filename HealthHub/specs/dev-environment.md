@@ -110,7 +110,7 @@ process-compose through Docker Compose comes from.
     and waits 5 s (`HEALTH_CHECK_DELAY`). Then every 15 s
     (`HEALTH_CHECK_INTERVAL`) one line with the time, 🌐 Web, 🔌 API
     (`/api/health`), 🐘 Postgres (the API's `"db"`), 🤖 aityx (✅ the
-    API reaches aityx, with its key or through datyx, ⚪ it doesn't), 📨 Kafka (the REST proxy's
+    API has a key to reach aityx with, its own or datyx's through datyx, ⚪ it doesn't), 📨 Kafka (the REST proxy's
     `GET /topics` on `HEALTHHUB_KAFKA_REST_PORT` answers 200) and 🌊
     Flink (the JobManager on `HEALTHHUB_FLINK_PORT` lists
     `healthhub-admissions-hourly` as `RUNNING`).

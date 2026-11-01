@@ -530,7 +530,11 @@ The feature files hold the current specification; see the
    the triage keeps working. Each triage records which way it went
    (`admission_triage.via`, `datyx` or `aityx`), and its detail says
    "via datyx" or "straight to aityx". `/api/health`'s `"aityx"` is true
-   with either way. See [Triage at the
+   with a key either way: the service token alone isn't one, so without
+   a key of its own HealthHub asks datyx whether it has one (`GET
+   /api/aityx/v1/status`, at most once a minute) and, until it says yes,
+   reports aityx and the triage off and skips the admissions rather than
+   recording a failure for each. See [Triage at the
    desk](triage.md#which-way-through-datyx-or-directly), [API](api.md),
    [Database](database.md), [Home](home.md) and [Development
    environment](dev-environment.md).

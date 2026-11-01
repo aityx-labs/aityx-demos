@@ -219,6 +219,83 @@ void main() {
     expect(aityxStub.calls, hasLength(4));
   });
 
+  test("the service token alone isn't a key: aityx is available once datyx says it has one", () async {
+    var now = DateTime.utc(2026, 11, 1, 12);
+    final datyx = await _Stub.start((status: 200, body: '{"configured": false}', mode: null));
+    addTearDown(datyx.close);
+    final aityx = route(datyx.url, withKey: '', log: [], clock: () => now);
+    expect(aityx.configured, true);
+    expect(aityx.available, false, reason: 'not before datyx says');
+    expect(aityx.status.toString(), '${datyx.url}/api/aityx/v1/status');
+
+    expect(await aityx.check(), false);
+    expect(aityx.available, false);
+    final asked = datyx.calls.single;
+    expect(asked.path, '/api/aityx/v1/status');
+    expect(asked.headers.value('x-datyx-service-token'), token);
+    expect(asked.headers.value('authorization'), isNull);
+
+    // Asked again only after a minute.
+    datyx.answer = (status: 200, body: '{"configured": true}', mode: null);
+    now = now.add(const Duration(seconds: 30));
+    expect(await aityx.check(), false);
+    expect(datyx.calls, hasLength(1));
+    now = now.add(const Duration(seconds: 31));
+    expect(await aityx.check(), true);
+    expect(aityx.available, true);
+    expect(datyx.calls, hasLength(2));
+
+    // A call datyx refuses for want of a key says so at once.
+    datyx.answer = (status: 503, body: '{"error": "datyx has no aityx key"}', mode: null);
+    final record = await triageAdmission(aityx, admission);
+    expect(record['error'], 'datyx has no aityx key, and HealthHub has no aityx key of its own');
+    expect(aityx.available, false);
+    expect(aityxStub.calls, isEmpty);
+  });
+
+  test("datyx unreachable, refusing the token or without the status is no key; HealthHub's own key always is", () async {
+    expect(await route(await closedPort(), withKey: '', log: []).check(), false);
+    for (final (status, body) in [(401, '{"error": "no"}'), (404, ''), (200, 'not json')]) {
+      final datyx = await _Stub.start((status: status, body: body, mode: null));
+      addTearDown(datyx.close);
+      expect(await route(datyx.url, withKey: '', log: []).check(), false, reason: '$status $body');
+    }
+    final unasked = await _Stub.start((status: 200, body: '{"configured": false}', mode: null));
+    addTearDown(unasked.close);
+    final own = route(unasked.url, log: []);
+    expect(own.available, true);
+    expect(await own.check(), true);
+    expect(unasked.calls, isEmpty);
+    // Neither datyx nor a key: nothing to ask.
+    expect(await Aityx(aityxStub.url, '').check(), false);
+  });
+
+  test('a call datyx passes on says it has a key', () async {
+    final datyx = await _Stub.start((status: 200, body: answer, mode: 'jev_aityx'));
+    addTearDown(datyx.close);
+    final aityx = route(datyx.url, withKey: '', log: []);
+    expect(aityx.available, false);
+    final record = await triageAdmission(aityx, admission);
+    expect(record['via'], 'datyx');
+    expect(aityx.available, true);
+  });
+
+  test('admissions are skipped, not recorded as failures, while aityx has no key', () async {
+    var ready = false;
+    final worked = <Object?>[];
+    final triager = Triager((admission) async => worked.add(admission['eventId']), ready: () async => ready);
+    triager.triage({'eventId': 'e1'});
+    triager.triage({'eventId': 'e2'});
+    await triager.idle;
+    expect(worked, isEmpty);
+    expect(triager.skipped, 2);
+    ready = true;
+    triager.triage({'eventId': 'e3'});
+    await triager.idle;
+    expect(worked, ['e3']);
+    expect(triager.skipped, 2);
+  });
+
   test("datyx's refusals are its own errors, not aityx's passed back", () {
     expect(datyxRefusal(503, '{"error": "datyx has no aityx key"}'), 'datyx has no aityx key');
     expect(datyxRefusal(503, '{"error": "busy"}'), isNull);

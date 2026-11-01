@@ -90,7 +90,8 @@ a folder of its own) only calls it.
 - `/api/inference` and `/api/datasources/{id}/inference`: see
   [inference.md](inference.md).
 - `/api/aityx/v1/systemone` (the gateway to aityx, for signed-in users
-  and for services with the service token), `/api/aityx` and
+  and for services with the service token), `/api/aityx/v1/status`
+  (whether datyx has an aityx key, for the same callers), `/api/aityx` and
   `/api/aityx/calls/{id}`: see [aityx.md](aityx.md).
 - `/api/auth/config` and `/api/me`: see [auth.md](auth.md).
 - `/api/profile`: see [profiles.md](profiles.md).
@@ -125,7 +126,7 @@ signing secret; drawn at start when unset; tests use a fixed one) and
 ([catalog.md](catalog.md)), `DATYX_TRAINING_ENABLED` (true; tests false,
 [training.md](training.md)), `AITYX_API_KEY`, `DATYX_AITYX_URL`
 (`https://api.aityx.ai`), `DATYX_SERVICE_TOKEN` and
-`DATYX_AITYX_SHARE_SERVICE_CALLS` (true in dev mode)
+`DATYX_AITYX_SHARE_SERVICE_CALLS` (empty: true in dev mode only)
 ([aityx.md](aityx.md); tests have no key, no token and aityx on a
 closed port, unless a test profile sets them). Tests set no database URL
 and get a Postgres test container from Dev Services, and point the

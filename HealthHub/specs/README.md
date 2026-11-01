@@ -49,17 +49,21 @@ does in HealthHub is described feature by feature in
 - [Patient days](patient-days.md): the view `patient_days`, each
   person's visits and hours of hospital care per run and simulated day,
   with their facts, a time series per person.
+- [Occupancy per hour](occupancy-hourly.md): the view `occupancy_hourly`,
+  the people in care at each care center per run and simulated hour, a
+  time series per care center that datyx forecasts with DeepAR.
 - [The person view](person.md): every person named on home opens their
   view: who they are, what they do now, datyx's XGBoost prediction of
   their hours of care over the next 30 days (highlighted), their
   admissions with aityx's triage and their days of care.
 - [The care center view](care-center.md): every care center named on
   home, of any kind, opens its view: where it is on a map, its capacity
-  in the simulation and how much is in use now, its admissions per hour
+  in the simulation and how much is in use now, its occupancy per hour
   with datyx's forecast, who is there and on the way, its admissions.
-- [A care center's admissions per hour](admissions-timeline.md): the
-  care center view's time series, the hours up to now as a solid line
-  and datyx's DeepAR forecast of the next 24 dashed, in its band.
+- [A care center's occupancy per hour](occupancy-timeline.md): the
+  care center view's time series, the people in care up to now as a
+  solid line with its points and datyx's DeepAR forecast of the next 24
+  dashed and lighter, in its band, under the capacity.
 - [Triage at the desk](triage.md): each admission triaged by aityx from
   what the patient said and their age (Jev reads the danger signs, a
   decision gives the level, the wait, the area and a nurse's check, with
@@ -70,7 +74,8 @@ does in HealthHub is described feature by feature in
   what a patient says on arrival.
 - [Database](database.md): PostgreSQL as a container, the `healthhub`
   database and user, the tables the API makes, among them the conditions,
-  the admissions and the admissions per hour, and the patient days view.
+  the admissions and the admissions per hour, and the patient days and
+  occupancy views.
 - [Care centers](care-centers.md): the hospitals, clinics and health
   stations of seven cities, from official registries, seeded at start.
 

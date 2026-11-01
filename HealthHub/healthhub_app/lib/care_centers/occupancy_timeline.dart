@@ -16,38 +16,46 @@ String simHour(DateTime hour) {
   return 'Day $day, ${hour.hour.toString().padLeft(2, '0')}:00';
 }
 
-/// An expected number of admissions: one decimal, two below one.
+/// An expected number of people: one decimal, two below one.
 String expectedText(double v) => v < 1 ? v.toStringAsFixed(2) : v.toStringAsFixed(1);
 
-/// How the timeline asks the API for a care center's admissions per hour:
-/// `GET /api/care-centers/{id}/admissions`.
-typedef HourlyAdmissionsLoader = Future<HourlyAdmissions> Function(int id, {String? run, int? hours});
+/// How the timeline asks the API for a care center's people in care per
+/// hour: `GET /api/care-centers/{id}/occupancy`.
+typedef HourlyOccupancyLoader = Future<HourlyOccupancy> Function(int id, {String? run, int? hours});
 
 /// How the timeline asks for datyx's forecast of them:
-/// `GET /api/care-centers/{id}/admissions/forecast`.
-typedef AdmissionsForecastLoader = Future<AdmissionsForecast> Function(int id, {String? run});
+/// `GET /api/care-centers/{id}/occupancy/forecast`.
+typedef OccupancyForecastLoader = Future<HourlyForecast> Function(int id, {String? run});
 
-/// A hospital's admissions per hour, as a card: the hours up to its run's
-/// end as a solid line, and datyx's DeepAR forecast of the hours after as
-/// a dashed, lighter line in its band of the 10th to 90th percentiles.
+/// A care center's occupancy per hour, as a card: how many people were in
+/// care there in each hour up to its run's end, a solid line with a solid
+/// point per hour, and datyx's DeepAR forecast of the hours after, a
+/// dashed, lighter line with hollow, translucent points in its band of the
+/// 10th to 90th percentiles; its [capacity], when known, a faint line.
 /// Both are asked for together, now and every [refresh], so the forecast
 /// starts where the line ends; a failed read keeps what is shown. The
 /// history is anyone's; the forecast, datyx's, needs a signed-in user and
 /// a trained model, and without them the card says why.
-class AdmissionsTimelineCard extends StatefulWidget {
-  const AdmissionsTimelineCard({
+class OccupancyTimelineCard extends StatefulWidget {
+  const OccupancyTimelineCard({
     super.key,
-    required this.admissions,
+    required this.occupancy,
     required this.forecast,
     required this.hospitalId,
+    this.capacity = 0,
+    this.unit = 'places',
     this.run,
     this.hours = 72,
     this.refresh = const Duration(seconds: 10),
   });
 
-  final HourlyAdmissionsLoader admissions;
-  final AdmissionsForecastLoader forecast;
+  final HourlyOccupancyLoader occupancy;
+  final OccupancyForecastLoader forecast;
   final int hospitalId;
+
+  /// Its places in the simulation ("8 beds"); 0 when unknown, and not drawn.
+  final int capacity;
+  final String unit;
 
   /// The run to show; the current one (else the newest with admissions there) when null.
   final String? run;
@@ -55,12 +63,12 @@ class AdmissionsTimelineCard extends StatefulWidget {
   final Duration refresh;
 
   @override
-  State<AdmissionsTimelineCard> createState() => _AdmissionsTimelineCardState();
+  State<OccupancyTimelineCard> createState() => _OccupancyTimelineCardState();
 }
 
-class _AdmissionsTimelineCardState extends State<AdmissionsTimelineCard> {
-  HourlyAdmissions? _history;
-  AdmissionsForecast? _forecast;
+class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
+  HourlyOccupancy? _history;
+  HourlyForecast? _forecast;
   String? _historyError;
   String? _forecastError;
   Timer? _timer;
@@ -74,7 +82,7 @@ class _AdmissionsTimelineCardState extends State<AdmissionsTimelineCard> {
   }
 
   @override
-  void didUpdateWidget(AdmissionsTimelineCard old) {
+  void didUpdateWidget(OccupancyTimelineCard old) {
     super.didUpdateWidget(old);
     if (old.hospitalId != widget.hospitalId || old.run != widget.run || old.hours != widget.hours) {
       _history = null;
@@ -95,20 +103,20 @@ class _AdmissionsTimelineCardState extends State<AdmissionsTimelineCard> {
     final id = widget.hospitalId;
     try {
       final results = await Future.wait([
-        widget.admissions(id, run: widget.run, hours: widget.hours).then<Object>((h) => h, onError: (Object e) => e),
+        widget.occupancy(id, run: widget.run, hours: widget.hours).then<Object>((h) => h, onError: (Object e) => e),
         widget.forecast(id, run: widget.run).then<Object>((f) => f, onError: (Object e) => e),
       ]);
       if (!mounted || id != widget.hospitalId) return;
       setState(() {
         switch (results[0]) {
-          case final HourlyAdmissions history:
+          case final HourlyOccupancy history:
             _history = history;
             _historyError = null;
           case final error:
             _historyError = _reason(error);
         }
         switch (results[1]) {
-          case final AdmissionsForecast forecast:
+          case final HourlyForecast forecast:
             _forecast = forecast;
             _forecastError = null;
           case final error:
@@ -139,7 +147,7 @@ class _AdmissionsTimelineCardState extends State<AdmissionsTimelineCard> {
               children: [
                 const Icon(Icons.timeline, color: Aityx.orange, size: 20),
                 const SizedBox(width: 8),
-                Text('Admissions per hour', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                Text('Occupancy per hour', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                 const Spacer(),
                 if (history?.run != null)
                   Text(
@@ -166,9 +174,9 @@ class _AdmissionsTimelineCardState extends State<AdmissionsTimelineCard> {
                 child: Center(child: Text('Nobody has been admitted here yet.', style: TextStyle(color: Aityx.muted))),
               )
             else ...[
-              AdmissionsTimelineChart(hours: history.hours, forecast: steps),
+              OccupancyTimelineChart(hours: history.hours, forecast: steps, capacity: widget.capacity, unit: widget.unit),
               const SizedBox(height: 8),
-              _Key(forecast: steps.isNotEmpty),
+              _Key(forecast: steps.isNotEmpty, capacity: widget.capacity, unit: widget.unit),
             ],
           ],
         ),
@@ -176,26 +184,34 @@ class _AdmissionsTimelineCardState extends State<AdmissionsTimelineCard> {
     );
   }
 
-  /// What the forecast is, or why there is none.
-  String _status(HourlyAdmissions? history, AdmissionsForecast? forecast) {
+  /// The hours shown, and what the forecast is, or why there is none.
+  String _status(HourlyOccupancy? history, HourlyForecast? forecast) {
     if (history == null || history.hours.isEmpty) return 'The hours of the simulation, from HealthHub\'s admissions.';
-    final last = history.hours.fold<int>(0, (sum, h) => sum + h.admissions);
-    final past = '$last admitted in the last ${history.hours.length} hours, to ${simHour(history.hours.last.hour)}.';
+    final last = history.hours.last;
+    final peak = history.hours.map((h) => h.occupancy).reduce(math.max);
+    final of = widget.capacity > 0 ? ' of ${widget.capacity} ${widget.unit}' : '';
+    final past = '${last.occupancy} in care at ${simHour(last.hour)}; at most $peak$of in the last '
+        '${history.hours.length} hours.';
     if (_forecastError != null && (forecast == null || forecast.steps.isEmpty)) return '$past No forecast: $_forecastError';
     if (forecast == null) return '$past Asking datyx for its forecast…';
     if (forecast.steps.isEmpty) return '$past No forecast: ${forecast.prediction.note ?? 'datyx has none'}.';
     final p = forecast.prediction;
-    final expected = forecast.steps.fold<double>(0, (sum, s) => sum + s.mean);
-    return '$past datyx\'s DeepAR expects ${expectedText(expected)} in the next ${forecast.steps.length} hours'
+    final mean = forecast.steps.fold<double>(0, (sum, s) => sum + s.mean) / forecast.steps.length;
+    final high = forecast.steps.map((s) => s.mean).reduce(math.max);
+    return '$past datyx\'s DeepAR expects ${expectedText(mean)} on average over the next ${forecast.steps.length} '
+        'hours, ${expectedText(high)} at most'
         '${p.trainingRunId == null ? '' : ' (model of training run ${p.trainingRunId})'}.';
   }
 }
 
-/// The key under the chart: what the solid and the dashed lines are.
+/// The key under the chart: what the solid and the dashed lines are, and
+/// the capacity's.
 class _Key extends StatelessWidget {
-  const _Key({required this.forecast});
+  const _Key({required this.forecast, required this.capacity, required this.unit});
 
   final bool forecast;
+  final int capacity;
+  final String unit;
 
   @override
   Widget build(BuildContext context) {
@@ -207,18 +223,27 @@ class _Key extends StatelessWidget {
         const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(width: 24, height: 10, child: CustomPaint(painter: _KeyLine(dashed: false))),
+            SizedBox(width: 24, height: 10, child: CustomPaint(painter: _KeyLine(_KeyKind.history))),
             SizedBox(width: 6),
-            Text('Admitted', style: style),
+            Text('In care', style: style),
           ],
         ),
         if (forecast)
           const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(width: 24, height: 10, child: CustomPaint(painter: _KeyLine(dashed: true))),
+              SizedBox(width: 24, height: 10, child: CustomPaint(painter: _KeyLine(_KeyKind.forecast))),
               SizedBox(width: 6),
               Flexible(child: Text('DeepAR forecast (mean; the band, 10th to 90th percentile)', style: style)),
+            ],
+          ),
+        if (capacity > 0)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(width: 24, height: 10, child: CustomPaint(painter: _KeyLine(_KeyKind.capacity))),
+              const SizedBox(width: 6),
+              Text('Capacity, $capacity $unit', style: style),
             ],
           ),
       ],
@@ -226,10 +251,12 @@ class _Key extends StatelessWidget {
   }
 }
 
-class _KeyLine extends CustomPainter {
-  const _KeyLine({required this.dashed});
+enum _KeyKind { history, forecast, capacity }
 
-  final bool dashed;
+class _KeyLine extends CustomPainter {
+  const _KeyLine(this.kind);
+
+  final _KeyKind kind;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -237,14 +264,22 @@ class _KeyLine extends CustomPainter {
     final path = Path()
       ..moveTo(0, y)
       ..lineTo(size.width, y);
-    if (dashed) {
-      canvas.drawRect(Rect.fromLTRB(0, y - 4, size.width, y + 4), Paint()..color = _bandColor);
+    final mid = Offset(size.width / 2, y);
+    switch (kind) {
+      case _KeyKind.history:
+        canvas.drawPath(path, _historyPaint);
+        _historyPoint(canvas, mid, _pointRadius);
+      case _KeyKind.forecast:
+        canvas.drawRect(Rect.fromLTRB(0, y - 4, size.width, y + 4), Paint()..color = _bandColor);
+        canvas.drawPath(_dash(path), _forecastPaint);
+        _forecastPoint(canvas, mid, _pointRadius);
+      case _KeyKind.capacity:
+        canvas.drawPath(_dash(path, on: 3, off: 3), _capacityPaint);
     }
-    canvas.drawPath(dashed ? _dash(path) : path, dashed ? _forecastPaint : _historyPaint);
   }
 
   @override
-  bool shouldRepaint(_KeyLine old) => old.dashed != dashed;
+  bool shouldRepaint(_KeyLine old) => old.kind != kind;
 }
 
 final _historyPaint = Paint()
@@ -255,46 +290,80 @@ final _historyPaint = Paint()
   ..strokeCap = StrokeCap.round;
 
 final _forecastPaint = Paint()
-  ..color = Aityx.orange.withValues(alpha: 0.6)
+  ..color = Aityx.orange.withValues(alpha: 0.55)
   ..strokeWidth = 2
   ..style = PaintingStyle.stroke
   ..strokeJoin = StrokeJoin.round
   ..strokeCap = StrokeCap.round;
 
+final _capacityPaint = Paint()
+  ..color = Aityx.muted
+  ..strokeWidth = 1
+  ..style = PaintingStyle.stroke;
+
 final _bandColor = Aityx.orange.withValues(alpha: 0.12);
 
-/// [path] as dashes of 6 px with gaps of 4.
-Path _dash(Path path) {
+const _pointRadius = 2.5;
+
+/// An hour gone: a solid point.
+void _historyPoint(Canvas canvas, Offset at, double r) => canvas.drawCircle(at, r, Paint()..color = Aityx.orange);
+
+/// A forecast hour: a hollow, translucent point.
+void _forecastPoint(Canvas canvas, Offset at, double r) {
+  canvas.drawCircle(at, r, Paint()..color = Aityx.bg1);
+  canvas.drawCircle(
+    at,
+    r,
+    Paint()
+      ..color = Aityx.orange.withValues(alpha: 0.55)
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke,
+  );
+}
+
+/// [path] as dashes of [on] px with gaps of [off].
+Path _dash(Path path, {double on = 6, double off = 4}) {
   final dashed = Path();
   for (final ui.PathMetric metric in path.computeMetrics()) {
-    for (var d = 0.0; d < metric.length; d += 10) {
-      dashed.addPath(metric.extractPath(d, math.min(d + 6, metric.length)), Offset.zero);
+    for (var d = 0.0; d < metric.length; d += on + off) {
+      dashed.addPath(metric.extractPath(d, math.min(d + on, metric.length)), Offset.zero);
     }
   }
   return dashed;
 }
 
-/// The timeline itself: [hours] as a solid line, the [forecast] after them
-/// dashed and lighter from the last hour, in its band; a faint line where
-/// the hours end ("now"). Hovering, or touching, shows the hour's numbers.
-class AdmissionsTimelineChart extends StatefulWidget {
-  const AdmissionsTimelineChart({super.key, required this.hours, this.forecast = const [], this.height = 200});
+/// The timeline itself: [hours] as a solid line with a point per hour, the
+/// [forecast] after them dashed and lighter from the last hour, with
+/// hollow points, in its band; a faint line where the hours end ("now"),
+/// and one at the [capacity] when known. Hovering, or touching, shows the
+/// hour's numbers.
+class OccupancyTimelineChart extends StatefulWidget {
+  const OccupancyTimelineChart({
+    super.key,
+    required this.hours,
+    this.forecast = const [],
+    this.capacity = 0,
+    this.unit = 'places',
+    this.height = 200,
+  });
 
-  final List<HourCount> hours;
+  final List<HourOccupancy> hours;
   final List<ForecastStep> forecast;
+  final int capacity;
+  final String unit;
   final double height;
 
   @override
-  State<AdmissionsTimelineChart> createState() => _AdmissionsTimelineChartState();
+  State<OccupancyTimelineChart> createState() => _OccupancyTimelineChartState();
 }
 
-class _AdmissionsTimelineChartState extends State<AdmissionsTimelineChart> {
+class _OccupancyTimelineChartState extends State<OccupancyTimelineChart> {
   /// The hour under the pointer, as hours from the first.
   int? _hover;
 
   @override
   Widget build(BuildContext context) {
-    final geometry = _Geometry(widget.hours, _ahead(widget.hours, widget.forecast));
+    final geometry = _Geometry(widget.hours, _ahead(widget.hours, widget.forecast), widget.capacity);
     return Semantics(
       container: true,
       label: geometry.summary,
@@ -314,7 +383,7 @@ class _AdmissionsTimelineChartState extends State<AdmissionsTimelineChart> {
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    CustomPaint(size: size, painter: _TimelinePainter(geometry, hover)),
+                    CustomPaint(size: size, painter: _TimelinePainter(geometry, hover, widget.unit)),
                     if (hover != null) _tooltip(geometry, hover, size),
                   ],
                 ),
@@ -328,18 +397,18 @@ class _AdmissionsTimelineChartState extends State<AdmissionsTimelineChart> {
 
   /// The forecast's steps after the last hour (a forecast asked a moment
   /// before may start inside the hours shown).
-  static List<ForecastStep> _ahead(List<HourCount> hours, List<ForecastStep> forecast) =>
+  static List<ForecastStep> _ahead(List<HourOccupancy> hours, List<ForecastStep> forecast) =>
       hours.isEmpty ? forecast : forecast.where((s) => s.at.isAfter(hours.last.hour)).toList();
 
   Widget _tooltip(_Geometry g, int index, Size size) {
+    final of = widget.capacity > 0 ? ' of ${widget.capacity} ${widget.unit}' : '';
     final String text;
     if (index < g.hours.length) {
       final h = g.hours[index];
-      text = '${simHour(h.hour)}\n${h.admissions} admitted'
-          '${h.admissions == 0 ? '' : ' (${h.acute} acute, ${h.chronic} chronic)'}';
+      text = '${simHour(h.hour)}\n${h.occupancy} in care$of';
     } else {
       final s = g.forecast[index - g.hours.length];
-      text = '${simHour(s.at)}, forecast\n${s.mean.toStringAsFixed(2)} expected'
+      text = '${simHour(s.at)}, forecast\n${expectedText(s.mean)} expected$of'
           '\n${_n(s.p10)} to ${_n(s.p90)} (80%)';
     }
     final x = g.x(index, size);
@@ -367,17 +436,20 @@ class _AdmissionsTimelineChartState extends State<AdmissionsTimelineChart> {
 }
 
 /// Where everything goes: hours from the first on x (the forecast's after
-/// the hours), admissions on y from 0 to a whole number above the most.
+/// the hours), people on y from 0 to a whole number above the most, or
+/// the capacity.
 class _Geometry {
-  _Geometry(this.hours, this.forecast)
+  _Geometry(this.hours, this.forecast, this.capacity)
     : top = [
         1.0,
-        for (final h in hours) h.admissions.toDouble(),
+        capacity.toDouble(),
+        for (final h in hours) h.occupancy.toDouble(),
         for (final s in forecast) ...[s.mean, s.p90],
       ].reduce(math.max).ceilToDouble();
 
-  final List<HourCount> hours;
+  final List<HourOccupancy> hours;
   final List<ForecastStep> forecast;
+  final int capacity;
 
   /// The top of the y axis.
   final double top;
@@ -394,6 +466,10 @@ class _Geometry {
 
   double y(double value, Size size) => size.height - bottom - value / top * (size.height - bottom - topPad);
 
+  /// The points' radius: smaller when the hours are close together.
+  double radius(Size size) =>
+      (count <= 1 ? _pointRadius : (size.width - left - rightPad) / (count - 1) * 0.35).clamp(1.2, _pointRadius);
+
   /// The hour nearest x, or null outside the plot.
   int? hourAt(double dx, Size size) {
     if (count == 0 || dx < left - 4 || dx > size.width) return null;
@@ -405,18 +481,21 @@ class _Geometry {
       index < hours.length ? hours[index].hour : forecast[index - hours.length].at;
 
   String get summary {
-    final admitted = hours.fold<int>(0, (sum, h) => sum + h.admissions);
-    final expected = forecast.fold<double>(0, (sum, s) => sum + s.mean);
-    return 'Admissions per hour: $admitted in the last ${hours.length} hours'
-        '${forecast.isEmpty ? '' : '; ${expectedText(expected)} forecast over the next ${forecast.length}'}';
+    final now = hours.isEmpty ? 0 : hours.last.occupancy;
+    final peak = hours.isEmpty ? 0 : hours.map((h) => h.occupancy).reduce(math.max);
+    final mean = forecast.isEmpty ? 0.0 : forecast.fold<double>(0, (sum, s) => sum + s.mean) / forecast.length;
+    return 'Occupancy per hour: $now in care now, at most $peak in the last ${hours.length} hours'
+        '${capacity > 0 ? ', of a capacity of $capacity' : ''}'
+        '${forecast.isEmpty ? '' : '; ${expectedText(mean)} on average forecast over the next ${forecast.length}'}';
   }
 }
 
 class _TimelinePainter extends CustomPainter {
-  _TimelinePainter(this.g, this.hover);
+  _TimelinePainter(this.g, this.hover, this.unit);
 
   final _Geometry g;
   final int? hover;
+  final String unit;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -426,8 +505,9 @@ class _TimelinePainter extends CustomPainter {
       ..strokeWidth = 1;
     const label = TextStyle(color: Aityx.muted, fontSize: 11);
     final plotRight = size.width - _Geometry.rightPad;
+    final r = g.radius(size);
 
-    // Whole admissions on y, at most five lines.
+    // Whole people on y, at most five lines.
     final every = math.max(1, (g.top / 4).ceil());
     for (var v = 0; v <= g.top; v += every) {
       final y = g.y(v.toDouble(), size);
@@ -447,6 +527,20 @@ class _TimelinePainter extends CustomPainter {
           Offset(x, size.height - _Geometry.bottom + 6), label, center: true);
     }
 
+    // The capacity, a faint dotted line labelled at its right end.
+    if (g.capacity > 0) {
+      final y = g.y(g.capacity.toDouble(), size);
+      canvas.drawPath(
+        _dash(Path()
+          ..moveTo(_Geometry.left, y)
+          ..lineTo(plotRight, y), on: 3, off: 3),
+        _capacityPaint,
+      );
+      final painter = TextPainter(text: TextSpan(text: '${g.capacity} $unit', style: label), textDirection: TextDirection.ltr)
+        ..layout();
+      painter.paint(canvas, Offset(plotRight - painter.width, y - painter.height - 1));
+    }
+
     // Where the hours end and the forecast begins.
     final now = g.x(g.hours.length - 1, size);
     if (g.forecast.isNotEmpty) {
@@ -461,9 +555,9 @@ class _TimelinePainter extends CustomPainter {
       );
     }
 
-    // The forecast: its band, then its mean, dashed, from the last hour.
+    // The forecast: its band, then its mean, dashed, from the last hour, a hollow point per hour.
     if (g.forecast.isNotEmpty) {
-      final last = Offset(now, g.y(g.hours.last.admissions.toDouble(), size));
+      final last = Offset(now, g.y(g.hours.last.occupancy.toDouble(), size));
       final band = Path()..moveTo(last.dx, last.dy);
       for (var k = 0; k < g.forecast.length; k++) {
         band.lineTo(g.x(g.hours.length + k, size), g.y(g.forecast[k].p90, size));
@@ -478,15 +572,23 @@ class _TimelinePainter extends CustomPainter {
         mean.lineTo(g.x(g.hours.length + k, size), g.y(g.forecast[k].mean, size));
       }
       canvas.drawPath(_dash(mean), _forecastPaint);
+      for (var k = 0; k < g.forecast.length; k++) {
+        _forecastPoint(canvas, Offset(g.x(g.hours.length + k, size), g.y(g.forecast[k].mean, size)), r);
+      }
     }
 
-    // The hours, solid.
+    // The hours, solid, a point per hour.
     final line = Path();
+    final points = <Offset>[];
     for (var i = 0; i < g.hours.length; i++) {
-      final p = Offset(g.x(i, size), g.y(g.hours[i].admissions.toDouble(), size));
+      final p = Offset(g.x(i, size), g.y(g.hours[i].occupancy.toDouble(), size));
+      points.add(p);
       i == 0 ? line.moveTo(p.dx, p.dy) : line.lineTo(p.dx, p.dy);
     }
     canvas.drawPath(line, _historyPaint);
+    for (final p in points) {
+      _historyPoint(canvas, p, r);
+    }
 
     // The hour under the pointer: a crosshair and its point, ringed with the card's colour.
     final h = hover;
@@ -496,7 +598,7 @@ class _TimelinePainter extends CustomPainter {
           Paint()
             ..color = Aityx.muted
             ..strokeWidth = 1);
-      final value = h < g.hours.length ? g.hours[h].admissions.toDouble() : g.forecast[h - g.hours.length].mean;
+      final value = h < g.hours.length ? g.hours[h].occupancy.toDouble() : g.forecast[h - g.hours.length].mean;
       final at = Offset(x, g.y(value, size));
       canvas.drawCircle(at, 6, Paint()..color = Aityx.bg1);
       canvas.drawCircle(at, 4, Paint()..color = h < g.hours.length ? Aityx.orange : Aityx.orangeLight);
@@ -511,5 +613,6 @@ class _TimelinePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_TimelinePainter old) => old.g.hours != g.hours || old.g.forecast != g.forecast || old.hover != hover;
+  bool shouldRepaint(_TimelinePainter old) =>
+      old.g.hours != g.hours || old.g.forecast != g.forecast || old.g.capacity != g.capacity || old.hover != hover;
 }

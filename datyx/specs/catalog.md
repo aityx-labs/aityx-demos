@@ -522,6 +522,13 @@ and chronic condition and their visits and hours before the cutoff. A
 patient is the run and the person (`run_id`, `person_id`); a day without
 a visit is zero (`timeSeriesMissing` `zero`), at a frequency of `1D`.
 
+HealthHub's view `occupancy_hourly` (in its folder) is a series per care
+center: a row per run, care center and simulated hour with someone in
+care, how many. Its `default` group is DeepAR's, tagged as
+`admissions_hourly`'s is: Target `occupancy`, a series per `run_id` and
+`hospital_id` (the care center a category), hourly, missing hours zero,
+no horizon (24 hours). HealthHub's care center view plots its forecast.
+
 ## Signing in to OpenMetadata
 
 `OpenMetadataSession`: a bot's token when `DATYX_OPENMETADATA_TOKEN` is

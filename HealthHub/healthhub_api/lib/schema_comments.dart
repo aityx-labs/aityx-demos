@@ -174,10 +174,24 @@ const schemaComments = <String, TableComments>{
       'stay_hours': 'The hours of care the day\'s visits take: a first visit\'s stay_hours, a later one\'s follow_up_stay_hours.',
     },
   ),
+  'occupancy_hourly': (
+    table:
+        'How many people each care center has in care in each simulated hour of a run: each admission\'s '
+        'stay, from its arrival, for its condition\'s hours. A view of admissions and medical_conditions, '
+        'so always up to date, up to the run\'s latest arrival. Sparse: an hour nobody is in care has no '
+        'row, so a missing hour is zero people.',
+    columns: {
+      'run_id': 'The run, the event id\'s first part: each start of the API is a new run from day 1.',
+      'hospital_id': 'The care center (care_centers.id): a hospital, a health station or a clinic.',
+      'hospital_name': 'The care center\'s name.',
+      'hour_start': 'The simulated hour: day 1 is 2026-01-01, a timestamp without a time zone.',
+      'occupancy': 'The people in care at the care center at any minute of the hour, at least 1.',
+    },
+  ),
 };
 
 /// The relations of [schemaComments] that are views, commented as such.
-const schemaViews = {'patient_days'};
+const schemaViews = {'patient_days', 'occupancy_hourly'};
 
 /// [text] as an SQL string literal. COMMENT ON takes no parameters, so
 /// its text goes in the statement; every text here is the API's own.

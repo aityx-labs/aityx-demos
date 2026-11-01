@@ -494,3 +494,22 @@ The feature files hold the current specification; see the
    time leaves, so every row's time ends at its right edge, over the
    record's partition and offset, in figures of one width. See
    [Home](home.md).
+1. **The care center view should have a time series: at first, the most
+   important metric, the occupancy, and its forecast by DeepAR, the past
+   solid and the future dashed and transparent, with points.** The care
+   center view's chart now plots the people in care at the care center
+   in each of the last 72 simulated hours, a solid line with a solid
+   point per hour, and datyx's DeepAR forecast of the next 24, a dashed,
+   lighter line with hollow, translucent points in its 80% band, under a
+   faint dotted line at its capacity ("8 beds"); hovering an hour says
+   how many were in care of the capacity. The series is a new view,
+   `occupancy_hourly`: each admission's stay, from its arrival for its
+   condition's hours, counted in every hour it covers, up to the run's
+   latest arrival, so nothing ahead of now is known. The API gains
+   `GET /api/care-centers/{id}/occupancy` and `.../occupancy/forecast`
+   (datyx's inference of `occupancy_hourly`'s `default` group), beside
+   the admissions' (kept, no longer shown). datyx's development catalogue
+   tags the view for DeepAR and describes it. See [Occupancy per
+   hour](occupancy-hourly.md), [A care center's occupancy per
+   hour](occupancy-timeline.md), [The care center view](care-center.md),
+   [API](api.md) and [Database](database.md).

@@ -114,8 +114,9 @@ assets of 8); 8 tables and 4 topics certified Gold; 8 contracts
 approved and passing; the Flink job and HealthHub's API pipelines
 (simulation, admissions feed, triage) with the lineage from the care
 centers and conditions through the topics to the tables and the
-`patient_days` view; and the TimeSeries roles of `admissions_hourly`
-(`default`, `acute`, `chronic`) and `patient_days` (`care`, XGBoost).
+`patient_days` and `occupancy_hourly` views; and the TimeSeries roles of
+`admissions_hourly` (`default`, `acute`, `chronic`), `occupancy_hourly`
+(`default`) and `patient_days` (`care`, XGBoost).
 
 ## Tests
 

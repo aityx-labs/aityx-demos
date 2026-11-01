@@ -356,6 +356,41 @@ class Db {
       WHERE a.event_id ~ '^[0-9a-f]{8}-'
       GROUP BY split_part(a.event_id, '-', 1), a.person_id, a.sim_day
     ''');
+    // How many people each care center has in care in each simulated hour
+    // of a run: each admission's stay (its condition's hours, by the
+    // visit's kind, as the simulation keeps people) from its arrival, an
+    // hour counting everyone in care at any minute of it. Up to the run's
+    // latest arrival, its "now", so a stay under way adds no hours ahead.
+    // A view of the admissions, always up to date; an hour nobody is in
+    // care has no row.
+    await c.execute('DROP VIEW IF EXISTS occupancy_hourly');
+    await c.execute('''
+      CREATE VIEW occupancy_hourly AS
+      WITH stays AS (
+        SELECT split_part(a.event_id, '-', 1) AS run_id,
+               a.hospital_id,
+               a.hospital_name,
+               a.person_id,
+               TIMESTAMP '2026-01-01' + (a.sim_day - 1) * INTERVAL '1 day' + a.sim_time::time AS arrived,
+               CASE WHEN a.visit = 'first' THEN m.stay_hours
+                    ELSE coalesce(m.follow_up_stay_hours, m.stay_hours) END AS stay_hours
+        FROM admissions a
+        JOIN medical_conditions m ON m.code = a.condition_code
+        WHERE a.event_id ~ '^[0-9a-f]{8}-'
+      ), bounded AS (
+        SELECT *, date_trunc('hour', max(arrived) OVER (PARTITION BY run_id)) AS run_hour FROM stays
+      )
+      SELECT run_id,
+             hospital_id,
+             max(hospital_name) AS hospital_name,
+             hour_start,
+             count(DISTINCT person_id)::int AS occupancy
+      FROM bounded,
+           generate_series(date_trunc('hour', arrived),
+                           least(arrived + make_interval(hours => stay_hours) - INTERVAL '1 second', run_hour),
+                           INTERVAL '1 hour') AS hour_start
+      GROUP BY run_id, hospital_id, hour_start
+    ''');
     // What each table and column is, for a catalogue reading the schema.
     await commentSchema(c);
   }
@@ -645,6 +680,55 @@ class Db {
       end: end,
       rows: [
         for (final row in rows) {'hour': row[0], 'admissions': row[1], 'acute': row[2], 'chronic': row[3]},
+      ],
+    );
+  });
+
+  /// One care center's people in care per hour in one run, from
+  /// occupancy_hourly: the run (the newest run with an admission there
+  /// when [run] is null; none: no rows, run null), the run's latest hour
+  /// (its latest arrival anywhere, where its series end), and the care
+  /// center's rows of the [hours] hours up to it.
+  Future<({String? run, DateTime? end, List<Map<String, Object?>> rows})> hospitalOccupancy(
+    int hospitalId, {
+    String? run,
+    required int hours,
+  }) => _run((c) async {
+    var chosen = run;
+    if (chosen == null) {
+      final newest = await c.execute(
+        Sql.named(
+          "SELECT split_part(event_id, '-', 1) FROM admissions WHERE hospital_id = @id ORDER BY id DESC LIMIT 1",
+        ),
+        parameters: {'id': hospitalId},
+      );
+      if (newest.isEmpty) return (run: null, end: null, rows: const <Map<String, Object?>>[]);
+      chosen = newest.first[0] as String;
+    }
+    final ends = await c.execute(
+      Sql.named('SELECT max(hour_start) FROM occupancy_hourly WHERE run_id = @run'),
+      parameters: {'run': chosen},
+    );
+    final end = ends.first[0] as DateTime?;
+    if (end == null) return (run: chosen, end: null, rows: const <Map<String, Object?>>[]);
+    final rows = await c.execute(
+      Sql.named('''
+        SELECT hour_start, occupancy FROM occupancy_hourly
+        WHERE run_id = @run AND hospital_id = @id AND hour_start > @from AND hour_start <= @end
+        ORDER BY hour_start
+      '''),
+      parameters: {
+        'run': chosen,
+        'id': hospitalId,
+        'from': TypedValue(Type.timestampWithoutTimezone, end.subtract(Duration(hours: hours))),
+        'end': TypedValue(Type.timestampWithoutTimezone, end),
+      },
+    );
+    return (
+      run: chosen,
+      end: end,
+      rows: [
+        for (final row in rows) {'hour': row[0], 'occupancy': row[1]},
       ],
     );
   });

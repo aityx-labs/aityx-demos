@@ -323,6 +323,11 @@ sees one every few days), so the forecasts are a few hundredths an hour,
 higher in the day's planned hours, 8:00 to 17:00. HealthHub asks for a
 hospital's on its own ([inference.md](inference.md)).
 
+Its `occupancy_hourly` (a view: the people in care per run, care center
+and simulated hour) is one DeepAR group, `default` (`occupancy`), shaped
+like `admissions_hourly`'s; HealthHub's care center view asks for a care
+center's forecast of it.
+
 ## Tests
 
 `XgbTrainerTest`, no server: a dataset from a tagged group (the

@@ -962,6 +962,7 @@ class TrainingRunDetail {
     this.dataset = const {},
     this.params = const {},
     this.bestIteration,
+    this.coverage,
   });
 
   factory TrainingRunDetail.fromJson(Map<String, Object?> json) {
@@ -985,6 +986,7 @@ class TrainingRunDetail {
       dataset: (results['dataset'] as Map?)?.cast<String, Object?>() ?? const {},
       params: (results['params'] as Map?)?.cast<String, Object?>() ?? const {},
       bestIteration: (results['bestIteration'] as num?)?.toInt(),
+      coverage: (results['coverage'] as num?)?.toDouble(),
     );
   }
 
@@ -994,6 +996,9 @@ class TrainingRunDetail {
   final Map<String, Object?> dataset;
   final Map<String, Object?> params;
   final int? bestIteration;
+
+  /// DeepAR's: the share of held-out steps inside the forecast's 10th to 90th percentiles.
+  final double? coverage;
 }
 
 /// Inference calls' account: how many, how many failed, series scored,

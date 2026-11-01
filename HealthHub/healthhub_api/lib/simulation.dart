@@ -1042,10 +1042,14 @@ class PeopleFeed {
   final counter = EventCounter();
 
   /// The simulated day each monitored person at home last checked in, by
-  /// id: their first move at home of a day is an event, the others only
-  /// count, so the events aren't all people sitting at home (at once a
-  /// day, about two in five of the moves shown).
+  /// id: their first move at home of a day from their [checkInHour] on is
+  /// an event, the others only count, so the events aren't all people
+  /// sitting at home (once a day, about two in five of the moves kept).
   final _checkedIn = <String, int>{};
+
+  /// The hour of the day a monitored person checks in, from their id, so
+  /// the check-ins spread over the day instead of all coming at midnight.
+  static int checkInHour(String id) => id.codeUnits.fold(0, (sum, unit) => sum * 31 + unit) % 24;
 
   /// The latest record of each person, by id.
   List<Map<String, Object?>> get people => List.unmodifiable(_latest.values);
@@ -1099,9 +1103,10 @@ class PeopleFeed {
     counter.add();
     _latest[id] = Map<String, Object?>.from(value);
     // Someone at home shows among the events only when monitored, and
-    // then once a day; the map still has everyone.
+    // then once a day, from their hour on; the map still has everyone.
     if (value['state'] == PersonState.home.json) {
       if (value['monitored'] != true || _checkedIn[id] == day) return;
+      if (int.parse(simTime.substring(0, 2)) < checkInHour(id)) return;
       _checkedIn[id] = day;
     }
     _keep(_moves, {...value, 'type': 'move', 'partition': partition, 'offset': offset});

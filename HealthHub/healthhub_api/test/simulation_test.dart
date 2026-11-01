@@ -290,7 +290,8 @@ void main() {
     final feed = PeopleFeed(throwingKafka, people: ['reus-1', 'reus-2']);
     Map<String, Object?> move(String id, String state, int turn, {bool? monitored}) => {
       'id': id, 'city': 'Reus', 'lat': 41.1, 'lon': 1.1, 'homeLat': 41.2, 'homeLon': 1.2,
-      'hospitalName': 'H', 'state': state, 'monitored': ?monitored, 'simTime': '06:00', 'day': 1, 'turn': turn,
+      // Late in the day: past anyone's check-in hour.
+      'hospitalName': 'H', 'state': state, 'monitored': ?monitored, 'simTime': '23:00', 'day': 1, 'turn': turn,
     };
     feed
       ..add(move('reus-1', 'home', 1, monitored: true))
@@ -308,20 +309,27 @@ void main() {
     expect(feed.counter.total, 5);
   });
 
-  test('a monitored person at home checks in once a simulated day', () {
+  test('a monitored person at home checks in once a simulated day, from their hour', () {
+    // Each person's hour, from their id: spread over the day.
+    final hours = {for (var n = 1; n <= 20; n++) PeopleFeed.checkInHour('reus-$n')};
+    expect(hours.length, greaterThan(10));
+    expect(hours.every((h) => h >= 0 && h < 24), isTrue);
+    final hour = PeopleFeed.checkInHour('reus-1');
+    String two(int n) => n.toString().padLeft(2, '0');
     final feed = PeopleFeed(throwingKafka, people: ['reus-1']);
     var turn = 0;
     void at(int day, String time) => feed.add({
       'id': 'reus-1', 'city': 'Reus', 'lat': 41.1, 'lon': 1.1, 'homeLat': 41.2, 'homeLon': 1.2,
       'hospitalName': 'H', 'state': 'home', 'monitored': true, 'simTime': time, 'day': day, 'turn': turn++,
     });
-    for (final time in ['06:00', '07:00', '11:00', '12:00', '17:00', '18:00', '23:00']) {
-      at(1, time);
+    for (var h = 0; h < 24; h++) {
+      at(1, '${two(h)}:00');
     }
-    at(2, '00:00');
-    at(2, '05:00');
-    expect([for (final e in feed.recent) '${e['day']} ${e['simTime']}'], ['2 00:00', '1 06:00']);
-    expect(feed.counter.total, 9);
+    at(2, '${two(hour)}:30');
+    at(2, '23:00');
+    // The first move at home from their hour on, once a day; every one counts.
+    expect([for (final e in feed.recent) '${e['day']} ${e['simTime']}'], ['2 ${two(hour)}:30', '1 ${two(hour)}:00']);
+    expect(feed.counter.total, 26);
   });
 
   test('the event counter averages the last minute, a second at a time', () {

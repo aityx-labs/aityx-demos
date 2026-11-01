@@ -86,6 +86,31 @@ void main() {
     expect(route('GET', '/api/care-centers', query: {'bbox': '0,0,1,1'}).status, 503);
   });
 
+  test('a nearest point is lat and lon in degrees', () {
+    expect(nearestPoint({'lat': '41.15', 'lon': ' 1.1 '}), (lat: 41.15, lon: 1.1));
+    for (final bad in [
+      <String, String>{},
+      {'lat': '41'},
+      {'lat': 'x', 'lon': '1'},
+      {'lat': '91', 'lon': '0'},
+      {'lat': '0', 'lon': '-181'},
+    ]) {
+      expect(nearestPoint(bad), isNull, reason: '$bad');
+    }
+  });
+
+  test('nearest answers the care center, or none, and says why it can\'t', () {
+    const point = {'lat': '41.15', 'lon': '1.1'};
+    final center = {'id': 7, 'name': 'Hospital', 'distance': 420};
+    final answer = route('GET', '/api/care-centers/nearest', query: point, nearest: NearestCenter(center));
+    expect(answer.status, 200);
+    expect(answer.body, {'center': center});
+    expect(route('GET', '/api/care-centers/nearest', query: point, nearest: const NearestCenter(null)).body,
+        {'center': null});
+    expect(route('GET', '/api/care-centers/nearest', query: {'lat': '95', 'lon': '0'}).status, 400);
+    expect(route('GET', '/api/care-centers/nearest', query: point).status, 503);
+  });
+
   test('a care center path names its id, a positive number', () {
     expect(careCenterIdOf('/api/care-centers/42'), 42);
     expect(careCenterIdOf('/api/care-centers/0'), isNull);

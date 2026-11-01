@@ -16,8 +16,9 @@ theirs; narrower, each goes under its row.
   there is one, as wide as the page (less a 16 px margin) and 78% of the
   window's height, between 520 and 1100 px:
   - **Where you are**: the [map](map.md) with the user's position
-    highlighted, the status line saying "The orange dot is you." or why
-    there is no location.
+    highlighted, centred on the care center nearest them once both are
+    known, the status line saying "The orange dot is you." or why there
+    is no location.
 - **The data, and the simulation** (`SimulationExplainer`,
   [explainers.dart](../healthhub_app/lib/screens/explainers.dart)), beside
   the map, briefly: real care centers (7,256, from the official

@@ -2,6 +2,37 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-01: DeepAR trains its groups, on being switched on or retrained
+
+Asked: as for XGBoost, when a DeepAR group of tags is enabled or
+retrained, train it; then HealthHub can show its admissions per hour
+with DeepAR's forecast of the hours after, in the care center view
+(HealthHub's and the dashboard's changes are theirs).
+
+Changed: the trainer trains DeepAR groups as it trains XGBoost's (never
+trained, switched on, `timeSeriesRetrain`, on request): `DeepArData` lays
+each series out step by step, `DeepArTrainer` trains DJL 0.39's DeepAR on
+its PyTorch engine (libtorch 2.7.1, CPU, bundled by a Maven profile per
+platform), a negative binomial for counts, a Student's t otherwise, the
+last horizon held out for its test (MAE of the median, RMSE, naive and
+mean baselines, the 80% band's coverage), the network's parameters kept
+with the run. DJL can't sample either distribution on PyTorch, so datyx
+draws the paths in Java (`Distributions`). A group without a horizon
+forecasts 24 steps. Inference on a DeepAR model answers each series'
+forecast step by step, the mean and the 10th, 50th and 90th percentiles
+(`DeepArInference`); `GET /api/training` lists DeepAR groups with the
+horizon they forecast, and a manual run of one is accepted. TableReader
+feeds either (`Rows`). The JVM image sets `DJL_CACHE_DIR`. On
+HealthHub's `admissions_hourly` a run takes about 45 s, a third better
+than the naive forecast per hour. Tests; `training.md`, `inference.md`,
+`catalog.md`, `api.md`, README.
+
+Merged with the groups switched on through OpenMetadata (a group with
+several algorithms, one run each): every algorithm of a ready group is
+queued on schedule, a run trains with its own algorithm, `GET
+/api/training` answers one model per group and algorithm, and inference
+answers with XGBoost's model when a group has both, unless the request
+names an `algorithm`.
 ## 2026-11-01: HealthHub at top quality in OpenMetadata, described and in context
 
 Asked: check HealthHub's data classification and quality indexing in

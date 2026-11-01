@@ -10,7 +10,7 @@ import 'health_tab.dart' show ApiDownLine;
 /// The retraining intervals offered; any other span can be typed.
 const retrainChoices = ['1h', '6h', '1D', '1W', 'never'];
 
-/// The Training tab: each group tagged for XGBoost (`GET /api/training`),
+/// The Training tab: each group tagged as a time series, XGBoost's or DeepAR's (`GET /api/training`),
 /// how often it is trained again (its table's timeSeriesRetrain, set here
 /// or in OpenMetadata), when next (a disabled group: never, until it is
 /// enabled on the Catalog tab), **Train now**, and what its latest
@@ -144,15 +144,16 @@ class _TrainingTabState extends State<TrainingTab> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'datyx trains each group tagged for XGBoost on the Catalog tab: '
+                  'datyx trains each group tagged on the Catalog tab, with its algorithm: '
                   'when the API starts, if it never was, then again as often as '
                   'its table says (timeSeriesRetrain in OpenMetadata, 1D when '
                   'not set), when asked, and when the group is enabled: its '
                   'Disabled tag removed, on the Catalog tab or in OpenMetadata, '
                   'which tells datyx at once. Enabling queues a run for each of '
-                  'the group\'s algorithms. A disabled group isn\'t trained. Each '
-                  'model scores its series: the Target summed over the horizon '
-                  'ahead.',
+                  'the group\'s algorithms. A disabled group isn\'t trained. An '
+                  'XGBoost model scores its series: the Target summed over the '
+                  'horizon ahead; a DeepAR model forecasts each step of it, with '
+                  'its percentiles.',
                   style: TextStyle(color: Aityx.muted),
                 ),
                 if (widget.locked) ...[
@@ -167,8 +168,8 @@ class _TrainingTabState extends State<TrainingTab> {
                 ] else if (overview.models.isEmpty) ...[
                   const SizedBox(height: 12),
                   const Text(
-                    'No group is tagged for XGBoost yet: on the Catalog tab, tag a '
-                    'table\'s group and pick XGBoost, with a horizon.',
+                    'No group is tagged yet: on the Catalog tab, tag a table\'s group '
+                    'for DeepAR, or XGBoost with a horizon.',
                     style: TextStyle(color: Aityx.amber),
                   ),
                 ],
@@ -203,7 +204,7 @@ class _TrainingTabState extends State<TrainingTab> {
   }
 }
 
-/// One group tagged for XGBoost: its schedule, Train now, and its latest success.
+/// One group tagged as a time series: its schedule, Train now, and its latest success.
 class ModelCard extends StatefulWidget {
   const ModelCard({super.key, required this.api, required this.model, required this.onChanged});
 
@@ -319,7 +320,8 @@ class _ModelCardState extends State<ModelCard> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Scores ${m.target ?? '?'} summed over the next ${m.horizon ?? '?'}, per '
+              '${m.algorithm == deepArAlgorithm ? 'Forecasts ${m.target ?? '?'} step by step over' : 'Scores ${m.target ?? '?'} summed over'}'
+              ' the next ${m.horizon ?? '?'}, per '
               '${m.seriesKey.isEmpty ? 'table' : m.seriesKey.join(' + ')}, from steps of ${m.frequency ?? '?'}.',
               style: const TextStyle(color: Aityx.fg),
             ),
@@ -436,8 +438,12 @@ class _Results extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final test = run.test ?? const TestMetrics();
-    final unit = model.target ?? '';
+    final deepAr = model.algorithm == deepArAlgorithm;
+    // XGBoost's errors are of the Target over the horizon; DeepAR's, of each step of it (its median's).
+    final unit = deepAr ? '${model.target ?? ''} a step' : model.target ?? '';
+    final over = deepAr ? 'the forecast\'s median' : '$unit over ${model.horizon ?? '?'}';
     final better = test.improvement;
+    final coverage = detail?.coverage;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -455,13 +461,13 @@ class _Results extends StatelessWidget {
             StatTile(
               key: const ValueKey('tile-mae'),
               label: 'mean error (MAE)',
-              value: test.mae.toStringAsFixed(2),
-              note: '$unit over ${model.horizon ?? '?'}',
+              value: test.mae.toStringAsFixed(deepAr ? 3 : 2),
+              note: deepAr ? '$unit, $over' : over,
             ),
             StatTile(
               key: const ValueKey('tile-naive'),
               label: 'naive forecast\'s error',
-              value: test.naiveMae.toStringAsFixed(2),
+              value: test.naiveMae.toStringAsFixed(deepAr ? 3 : 2),
               note: 'the next ${model.horizon ?? '?'} like the last',
             ),
             StatTile(
@@ -475,9 +481,16 @@ class _Results extends StatelessWidget {
             StatTile(
               key: const ValueKey('tile-mean'),
               label: 'actual, on average',
-              value: test.meanLabel.toStringAsFixed(2),
-              note: '$unit over ${model.horizon ?? '?'}',
+              value: test.meanLabel.toStringAsFixed(deepAr ? 3 : 2),
+              note: deepAr ? unit : '$unit over ${model.horizon ?? '?'}',
             ),
+            if (deepAr && coverage != null)
+              StatTile(
+                key: const ValueKey('tile-coverage'),
+                label: 'inside its 80% band',
+                value: '${(coverage * 100).toStringAsFixed(0)}%',
+                note: 'of the steps it never saw',
+              ),
           ],
         ),
         const SizedBox(height: 16),
@@ -488,7 +501,8 @@ class _Results extends StatelessWidget {
             spacing: 32,
             runSpacing: 16,
             children: [
-              SizedBox(width: 460, child: FeatureWeights(weights: detail!.importance)),
+              // DeepAR's network has no weights per feature to show.
+              if (!deepAr) SizedBox(width: 460, child: FeatureWeights(weights: detail!.importance)),
               SizedBox(
                 width: 460,
                 child: TopScores(scores: detail!.scores, model: model),

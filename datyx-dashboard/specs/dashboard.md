@@ -154,12 +154,14 @@ reload).
 
 - **Training** (`TrainingTab`, `?tab=training`): the models datyx
   trains, from `GET /api/training`. A card says what datyx does (each
-  group tagged for XGBoost trained at the API's start if it never was,
+  group tagged on the Catalog tab trained with its algorithm, XGBoost or
+  DeepAR, at the API's start if it never was,
   then as often as its table's `timeSeriesRetrain` says, 1D when not
   set, when asked, and when the group is enabled, its Disabled tag
   removed on the Catalog tab or in OpenMetadata, which tells datyx at
   once, a run for each of its algorithms; a disabled group isn't
-  trained), with a reload button; the sources whose
+  trained; XGBoost scores the Target summed over the horizon, DeepAR
+  forecasts each step of it), with a reload button; the sources whose
   catalogue couldn't be read in amber; none tagged yet, where to tag one.
   A card per model, one per group and algorithm datyx trains
   (`ModelCard`): `XGBoost · care`, its table and
@@ -167,7 +169,9 @@ reload).
   succeeded green, queued and running amber, failed red; *not ready*
   amber, with the API's problems), and what it scores (*Scores
   stay_hours summed over the next 30D, per run_id + person_id, from
-  steps of 1D.*); a group the API says isn't `enabled` gets a gray
+  steps of 1D.*) or, for DeepAR, forecasts (*Forecasts admissions step
+  by step over the next 1D, per run_id + hospital_id, from steps of
+  1h.*, the horizon the API says it forecasts); a group the API says isn't `enabled` gets a gray
   *disabled* chip, its tooltip naming its `TimeSeries.<group>.Disabled`
   tag. **Retrain every**: the table's setting, typed or
   picked (1h, 6h, 1D, 1W, never; empty for the default) and **Save**d
@@ -185,7 +189,10 @@ reload).
   when, why and how long, and how many test examples; four stat tiles
   (`StatTile`: a large value, its label above and a note below): the
   mean error, the naive forecast's, *better than naive* as a percentage
-  (with an arrow icon, green when better), and the actual average; the
+  (with an arrow icon, green when better), and the actual average (for
+  DeepAR, per step, to three decimals, the error the forecast median's,
+  and a fifth tile, *inside its 80% band*, the share of held-out steps
+  between its 10th and 90th percentiles); for XGBoost the
   features that weighed most (`FeatureWeights`): a bar per feature, its
   share of the mean |SHAP| in the brand orange (one series, no legend;
   checked against the card's surface with the dataviz skill's
@@ -201,8 +208,7 @@ reload).
   in orange), how long, its test MAE against the naive one and its
   examples, the API's `triggerNote` when it gives one (which tag, the
   table's version in OpenMetadata, by whom and when, how datyx heard),
-  and a failure's error (a DeepAR run's: datyx has no DeepAR trainer
-  yet). Then **Group switches** (`GET /api/catalog/events`, the latest
+  and a failure's error. Then **Group switches** (`GET /api/catalog/events`, the latest
   50): each time a group was switched on or off, newest first, with
   when (the change's time, else when datyx heard), *switched on* (green)
   or *switched off* (gray), the table and group, how datyx heard (*via
@@ -425,7 +431,9 @@ saving *never* call the API. Runs show their algorithm and link to the
 group switch that queued them, which is outlined when followed; the
 group switches show on and off, how datyx heard, by whom, the version
 and the runs queued, newest first; when they can't be read, their card
-says so and the training still shows.
+says so and the training still shows. A DeepAR model says it forecasts
+step by step over its horizon, shows its error per step (0.005, the
+median's) and its band's tile (99%), no feature weights, and its scores.
 A run triggered by enabling a group shows *enabled* and its note, in the
 activity and under its model; a disabled group says so, is never next
 and can't be trained now.

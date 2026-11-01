@@ -55,7 +55,7 @@ final class TableReader {
     }
 
     /** Adds every row of the group's table to {@code builder}; an IllegalArgumentException when there are too many. */
-    static void read(DatabaseAccess access, TimeSeries.Spec spec, Dataset.Builder builder) throws SQLException {
+    static void read(DatabaseAccess access, TimeSeries.Spec spec, Rows builder) throws SQLException {
         try (Connection c = connect(access)) {
             read(c, spec, builder);
         }
@@ -66,14 +66,14 @@ final class TableReader {
      * values, in order) to {@code builder}, and tells it how far each one's
      * cohort is observed: what inference needs, without the whole table.
      */
-    static void read(DatabaseAccess access, TimeSeries.Spec spec, Dataset.Builder builder, List<List<String>> keys)
+    static void read(DatabaseAccess access, TimeSeries.Spec spec, Rows builder, List<List<String>> keys)
             throws SQLException {
         try (Connection c = connect(access)) {
             read(c, spec, builder, keys);
         }
     }
 
-    static void read(Connection c, TimeSeries.Spec spec, Dataset.Builder builder, List<List<String>> keys)
+    static void read(Connection c, TimeSeries.Spec spec, Rows builder, List<List<String>> keys)
             throws SQLException {
         if (keys.isEmpty()) {
             return;
@@ -141,7 +141,7 @@ final class TableReader {
     }
 
     /** Reads the group's table on an open connection, streamed in a transaction it rolls back. */
-    static void read(Connection c, TimeSeries.Spec spec, Dataset.Builder builder) throws SQLException {
+    static void read(Connection c, TimeSeries.Spec spec, Rows builder) throws SQLException {
         boolean autoCommit = c.getAutoCommit();
         c.setAutoCommit(false);
         try (Statement s = c.createStatement()) {
@@ -156,7 +156,7 @@ final class TableReader {
         }
     }
 
-    static void read(ResultSet rs, TimeSeries.Spec spec, Dataset.Builder builder) throws SQLException {
+    static void read(ResultSet rs, TimeSeries.Spec spec, Rows builder) throws SQLException {
         int timeType = rs.getMetaData().getColumnType(1);
         int keys = spec.seriesKey().size();
         int cats = spec.staticCategorical().size();

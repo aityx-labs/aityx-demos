@@ -5,6 +5,7 @@ import 'package:datyx_dashboard/auth/auth_controller.dart';
 import 'package:datyx_dashboard/dashboard/catalog_tab.dart' show groupColors, groupPalette, otherGroupColor;
 import 'package:datyx_dashboard/dashboard/dashboard_screen.dart';
 import 'package:datyx_dashboard/dashboard/inference_tab.dart' show ms;
+import 'package:datyx_dashboard/dashboard/training_tab.dart' show FeatureWeights;
 import 'package:datyx_dashboard/main.dart';
 import 'package:datyx_dashboard/persist/address.dart';
 import 'package:datyx_dashboard/persist/address_memory.dart' as address;
@@ -950,6 +951,73 @@ void main() {
     expect(find.text('Saved in OpenMetadata: retrain never.'), findsOneWidget);
   });
 
+  testWidgets('shows a DeepAR group: forecasts step by step, its errors a step, its band, no weights', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    const fqn = 'datyx-ds-1.healthhub.public.admissions_hourly';
+    final now = DateTime.now();
+    final done = TrainingRunInfo(
+      id: 11,
+      sourceId: 1,
+      table: fqn,
+      name: 'admissions_hourly',
+      group: 'default',
+      algorithm: deepArAlgorithm,
+      trigger: 'initial',
+      status: 'succeeded',
+      queuedAt: now.subtract(const Duration(minutes: 10)),
+      finishedAt: now.subtract(const Duration(minutes: 9)),
+      seconds: 47.2,
+      examples: 48000,
+      test: const TestMetrics(examples: 6648, mae: 0.005, naiveMae: 0.008, meanMae: 0.009, improvement: 0.375, meanLabel: 0.006),
+    );
+    final api = FakeDatyxApi()
+      ..trainingOverview = TrainingOverview(
+        models: [
+          TrainingModel(
+            sourceId: 1,
+            source: 'HealthHub',
+            table: fqn,
+            schema: 'public',
+            name: 'admissions_hourly',
+            group: 'default',
+            algorithm: deepArAlgorithm,
+            target: 'admissions',
+            seriesKey: const ['run_id', 'hospital_id'],
+            ready: true,
+            frequency: '1h',
+            horizon: '1D',
+            retrainEvery: '1D',
+            nextAt: now.add(const Duration(hours: 23)),
+            latest: done,
+            lastSucceeded: done,
+          ),
+        ],
+        runs: [done],
+      );
+    api.runDetails[11] = TrainingRunDetail(
+      run: done,
+      coverage: 0.994,
+      scores: const [
+        SeriesScore({'run_id': 'adf5309c', 'hospital_id': '376'}, 0.17, 0),
+      ],
+    );
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tab-training')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('DeepAR · default'), findsOneWidget);
+    expect(find.text('Forecasts admissions step by step over the next 1D, per run_id + hospital_id, from steps of 1h.'),
+        findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('tile-mae')), matching: find.text('0.005')), findsOneWidget);
+    expect(find.text("admissions a step, the forecast's median"), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('tile-coverage')), matching: find.text('99%')), findsOneWidget);
+    expect(find.byType(FeatureWeights), findsNothing);
+    expect(find.text('376'), findsOneWidget);
+  });
+
   testWidgets('shows a run triggered by enabling a group, with its note, and a disabled group', (tester) async {
     tester.view.physicalSize = const Size(1600, 2400);
     tester.view.devicePixelRatio = 1;
@@ -966,7 +1034,7 @@ void main() {
       'trigger': 'enabled',
       'triggerNote': note,
       'status': 'failed',
-      'error': 'datyx has no DeepAR trainer yet: only XGBoost groups train',
+      'error': 'the data source can\'t be read: connection refused',
     });
     expect(run.triggerNote, note);
     final api = FakeDatyxApi()
@@ -1188,7 +1256,7 @@ void main() {
       'triggerNote': note,
       'eventId': 5,
       'status': status,
-      if (algorithm == 'DeepAR') 'error': 'datyx has no DeepAR trainer yet: only XGBoost groups train',
+      if (algorithm == 'DeepAR') 'error': 'the data source can\'t be read: connection refused',
     });
     final xgb = run(12, 'XGBoost', 'queued');
     final deepAr = run(13, 'DeepAR', 'failed');
@@ -1248,7 +1316,7 @@ void main() {
     // Each run says its algorithm, and links to the switch that queued it.
     expect(find.descendant(of: find.byKey(const ValueKey('run-12')), matching: find.text('XGBoost')), findsOneWidget);
     expect(find.descendant(of: find.byKey(const ValueKey('run-13')), matching: find.text('DeepAR')), findsOneWidget);
-    expect(find.textContaining('no DeepAR trainer yet'), findsOneWidget);
+    expect(find.textContaining('the data source can\'t be read'), findsOneWidget);
     expect(find.descendant(of: find.byKey(const ValueKey('run-event-12')), matching: find.text('switch #5')), findsOneWidget);
 
     // The switches, newest first: on and off, how datyx heard, by whom, the version and the runs.
@@ -1287,7 +1355,7 @@ void main() {
     await tester.tap(find.byKey(const Key('tab-training')));
     await tester.pumpAndSettle();
     expect(find.text('GET /api/catalog/events answered 404'), findsOneWidget);
-    expect(find.textContaining('No group is tagged for XGBoost yet'), findsOneWidget);
+    expect(find.textContaining('No group is tagged yet'), findsOneWidget);
 
     api
       ..eventsError = null

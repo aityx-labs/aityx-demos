@@ -4,6 +4,19 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: DeepAR groups on the Training tab
+
+Asked: as for XGBoost, train a DeepAR group of tags when it is enabled or
+retrained (datyx's change: the API now trains DeepAR, and lists its
+groups on `GET /api/training`).
+
+Changed: the Training tab says datyx trains each tagged group with its
+algorithm; a DeepAR model's card says it forecasts the Target step by
+step over its horizon, its tiles are per step (three decimals, the
+error the median's) with a fifth, *inside its 80% band* (`coverage`,
+read by `TrainingRunDetail`), and it has no feature weights. With none
+tagged, the tab says to tag one for DeepAR, or XGBoost with a horizon.
+Tests.
 ## 2026-11-01: a group's algorithms, all trained on enabling, and the switches as events
 
 Asked: the trigger for training is enabling the tag group, captured by

@@ -28,10 +28,10 @@ import jakarta.ws.rs.core.Response;
 
 /**
  * Training, within the caller's profile like the data sources:
- * GET /api/training answers each group of the caller's sources tagged for
- * XGBoost (among its algorithms), with how often it is trained, its latest
- * XGBoost run and latest success, and when it is next due, and the latest
- * runs of them all, whatever their algorithm;
+ * GET /api/training answers each algorithm of each group of the caller's
+ * sources tagged as a time series, XGBoost's or DeepAR's, with how often
+ * it is trained, its latest run and latest success, and when it is next
+ * due, and the latest runs of them all;
  * GET /api/training/runs/{id} answers a run with all it found. A
  * source's own training calls are SourceTrainingResource's.
  */
@@ -59,7 +59,7 @@ public class TrainingResource {
             Double seconds, String error, Integer examples, XgbTrainer.Metrics test) {
     }
 
-    /** A group tagged for XGBoost, as GET /api/training answers it: switched on or off, and when it is next trained (none when off). */
+    /** A group tagged as a time series (XGBoost's or DeepAR's), as GET /api/training answers it: switched on or off, and when it is next trained (none when off). */
     public record ModelView(long sourceId, String source, String table, String schema, String name, String group,
             String algorithm, boolean enabled, String target, List<String> seriesKey, boolean ready, List<String> problems, String frequency,
             String horizon, String retrain,
@@ -82,9 +82,7 @@ public class TrainingResource {
             try {
                 for (JsonNode table : catalog.tables(source.id())) {
                     for (TimeSeries.Spec spec : TimeSeries.specs(table)) {
-                        if (spec.has(TimeSeries.Algorithm.XGBOOST)) {
-                            groups.add(Map.entry(source, spec));
-                        }
+                        groups.add(Map.entry(source, spec));
                     }
                 }
             } catch (WebApplicationException | ProcessingException | IllegalStateException e) {
@@ -97,14 +95,16 @@ public class TrainingResource {
             for (Map.Entry<SourceRef, TimeSeries.Spec> g : groups) {
                 DataSource source = DataSource.findById(g.getKey().id());
                 TimeSeries.Spec spec = g.getValue();
-                String algorithm = TimeSeries.Algorithm.XGBOOST.tag;
-                TrainingRun latest = TrainingRun.latest(source, spec.table(), spec.group(), algorithm).orElse(null);
-                TrainingRun succeeded = TrainingRun.latestSucceeded(source, spec.table(), spec.group(), algorithm).orElse(null);
-                Instant next = spec.ready() && spec.enabled() ? Training.nextAt(latest, spec.retrain()).orElse(null) : null;
-                models.add(new ModelView(source.id, source.name, spec.table(), spec.schema(), spec.name(), spec.group(),
-                    algorithm, spec.enabled(), spec.target(), spec.seriesKey(), spec.ready(), spec.problems(), spec.frequency(), spec.horizon(), spec.retrain(),
-                    spec.retrain() == null ? TimeSeries.DEFAULT_RETRAIN : spec.retrain(),
-                    Instant.EPOCH.equals(next) ? Instant.now() : next, view(latest), view(succeeded)));
+                for (String algorithm : Training.algorithms(spec)) {
+                    TrainingRun latest = TrainingRun.latest(source, spec.table(), spec.group(), algorithm).orElse(null);
+                    TrainingRun succeeded = TrainingRun.latestSucceeded(source, spec.table(), spec.group(), algorithm).orElse(null);
+                    Instant next = spec.ready() && spec.enabled() ? Training.nextAt(latest, spec.retrain()).orElse(null) : null;
+                    models.add(new ModelView(source.id, source.name, spec.table(), spec.schema(), spec.name(), spec.group(),
+                        algorithm, spec.enabled(), spec.target(), spec.seriesKey(), spec.ready(), spec.problems(), spec.frequency(),
+                        TimeSeries.Algorithm.XGBOOST.tag.equals(algorithm) ? spec.horizon() : DeepArData.horizonOf(spec), spec.retrain(),
+                        spec.retrain() == null ? TimeSeries.DEFAULT_RETRAIN : spec.retrain(),
+                        Instant.EPOCH.equals(next) ? Instant.now() : next, view(latest), view(succeeded)));
+                }
             }
             List<RunView> runs = TrainingRun.newest(profile, RUNS).stream().map(this::view).toList();
             Map<String, Object> map = new LinkedHashMap<>();

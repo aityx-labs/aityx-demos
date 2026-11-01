@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,8 +73,10 @@ public class InferenceResource {
             List<InferenceCall> calls = InferenceCall.since(profile, now.minus(WINDOW), MAX_CALLS);
 
             Map<Key, ModelStats> models = new LinkedHashMap<>();
-            for (TrainingRun run : TrainingRun.<TrainingRun>find("dataSource.profile = ?1 and status = ?2 and algorithm = ?3",
-                    Sort.descending("queuedAt", "id"), profile, TrainingRun.Status.SUCCEEDED, TimeSeries.Algorithm.XGBOOST.tag).list()) {
+            for (TrainingRun run : TrainingRun.<TrainingRun>find("dataSource.profile = ?1 and status = ?2",
+                    Sort.descending("queuedAt", "id"), profile, TrainingRun.Status.SUCCEEDED).stream()
+                    // XGBoost's first, as POST .../inference prefers it: the model a group's calls get.
+                    .sorted(Comparator.comparing(r -> !TimeSeries.Algorithm.XGBOOST.tag.equals(r.algorithm))).toList()) {
                 Key key = new Key(run.dataSource.id, run.tableFqn, run.groupName);
                 if (!models.containsKey(key)) {
                     models.put(key, model(run, calls.stream().filter(c -> key.equals(key(c))).toList()));
@@ -113,9 +116,11 @@ public class InferenceResource {
         String horizon = null;
         List<String> seriesKey = List.of();
         try {
-            JsonNode spec = json.readTree(run.results).path("spec");
+            JsonNode results = json.readTree(run.results);
+            JsonNode spec = results.path("spec");
             target = spec.path("target").asText(null);
-            horizon = spec.path("horizon").asText(null);
+            // A DeepAR model's horizon is its own, the table's or the default's steps.
+            horizon = results.path("dataset").path("horizon").asText(spec.path("horizon").asText(null));
             List<String> keys = new ArrayList<>();
             spec.path("seriesKey").forEach(k -> keys.add(k.asText()));
             seriesKey = keys;

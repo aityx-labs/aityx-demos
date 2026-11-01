@@ -4,8 +4,8 @@ datyx learns a customer's data without the customer changing anything
 for it: it reads what a database says about itself into OpenMetadata,
 the catalogue, and people (later, a tool that suggests) say there what
 the columns are to a forecast, with tags. datyx reads the tags back to
-know which tables are time series, and how to train on them (DeepAR
-first). Code in `datyx-api/src/main/java/datyx/catalog/`, the
+know which tables are time series, which algorithm trains on each
+(DeepAR or XGBoost) and how. Code in `datyx-api/src/main/java/datyx/catalog/`, the
 OpenMetadata client in `datyx/openmetadata/`.
 
 ```
@@ -66,19 +66,19 @@ while datyx talks to either.
 datyx keeps in OpenMetadata, and makes on the first sync or tagging when
 missing (`ensureVocabulary`), a classification, `TimeSeries`, whose tags
 are the roles a column can have in a forecast. They name the model's
-inputs in general terms; each tag's description says the DeepAR field
-it becomes. A column can have more than one (a key that is also a
-static category).
+inputs in general terms; each tag's description says what it becomes
+to DeepAR and to XGBoost. A column can have more than one (a key that
+is also a static category).
 
-| Tag | What the column is | DeepAR (GluonTS) |
-|---|---|---|
-| `TimeSeries.Timestamp` | The time index; one per table, a date or timestamp | `start` and the position of each value |
-| `TimeSeries.Target` | The value to forecast; one per table, a number | `target` |
-| `TimeSeries.SeriesKey` | Which series a row belongs to; the key columns together name one series; none: one series | `item_id` |
-| `TimeSeries.StaticCategorical` | A category that holds for a whole series (a hospital, a region) | `feat_static_cat` |
-| `TimeSeries.StaticReal` | A number that holds for a whole series (a capacity) | `feat_static_real` |
-| `TimeSeries.KnownCovariate` | A number over time known ahead, for the hours to forecast too (a schedule, a holiday) | `feat_dynamic_real` |
-| `TimeSeries.PastCovariate` | A number over time known only once observed (a related count) | `past_feat_dynamic_real`, where supported |
+| Tag | What the column is | DeepAR (GluonTS) | XGBoost |
+|---|---|---|---|
+| `TimeSeries.Timestamp` | The time index; one per table, a date or timestamp | `start` and the position of each value | the cutoffs, and the windows before and after them |
+| `TimeSeries.Target` | The value to forecast; one per table, a number | `target` | the label, its sum over the horizon after a cutoff; its sums before are features |
+| `TimeSeries.SeriesKey` | Which series a row belongs to; the key columns together name one series; none: one series | `item_id` | whom a score is for: a row per series and cutoff |
+| `TimeSeries.StaticCategorical` | A category that holds for a whole series (a hospital, a region) | `feat_static_cat` | a categorical feature |
+| `TimeSeries.StaticReal` | A number that holds for a whole series (a capacity) | `feat_static_real` | a numeric feature |
+| `TimeSeries.KnownCovariate` | A number over time known ahead, for the hours to forecast too (a schedule, a holiday) | `feat_dynamic_real` | features of the horizon ahead |
+| `TimeSeries.PastCovariate` | A number over time known only once observed (a related count) | `past_feat_dynamic_real`, where supported | its sums over windows before the cutoff |
 
 ### Groups: more than one series in a table
 
@@ -92,34 +92,61 @@ columns, frequency and missing rows, and each is read and checked as a
 series of its own, so one column can be every group's Timestamp, a
 Target in one group and a PastCovariate in another. A group's name is
 letters, digits, `_` and `-`, up to 64; `default` names the group of the
-tags without one, and a role's name (in any case) can't be a group's.
-A tag under a group that isn't a role, or the group's tag itself on a
-column, isn't read.
+tags without one, and a role's or an algorithm's name (in any case)
+can't be a group's. A tag under a group that isn't a role or an
+algorithm, or the group's tag itself on a column, isn't read.
 
-And two custom properties of the table entity, strings:
+### Algorithms: what trains a group
+
+Each group says which algorithm trains on it with a tag **on the
+table**, not on a column: `TimeSeries.XGBoost` for the `default`
+group, `TimeSeries.care.XGBoost` for the `care` group (a child tag of
+`TimeSeries.care`, made with the group's roles). A group without one is
+DeepAR's, as every group was before there was a choice; `TimeSeries.DeepAR`
+says it explicitly. One algorithm a group: to train another on the same
+columns, tag them in another group. What trains a group (a component
+still to come) finds its work by its algorithm's tag, through
+`GET .../timeseries?algorithm=XGBoost` or OpenMetadata's search.
+
+| Tag | What trains the group |
+|---|---|
+| `TimeSeries.DeepAR`, `TimeSeries.{group}.DeepAR`, or none | DeepAR (GluonTS): a probabilistic forecast of each series, step by step over the horizon (its `prediction_length`) |
+| `TimeSeries.XGBoost`, `TimeSeries.{group}.XGBoost` | XGBoost: a score per series and cutoff, the Target summed over the horizon that follows, predicted from the series' static features, the Target and PastCovariates summed over windows before the cutoff, and the KnownCovariates ahead. The horizon is required |
+
+And three custom properties of the table entity, strings:
 
 - `timeSeriesFrequency`: how often rows come, as a pandas offset
   (`15min`, `1h`, `1D`, `1W`, `1MS`...). Required.
 - `timeSeriesMissing`: what a missing row means: `zero` (nothing
   happened: counts, where a quiet hour has no row) or `unknown` (not
   observed; DeepAR takes it as a gap). `unknown` when not set.
+- `timeSeriesHorizon`: how far ahead to predict, as a pandas offset
+  (`24h`, `30D`, `4W`). DeepAR forecasts each step of it, and does
+  without (its trainer picks); XGBoost scores the Target summed over it,
+  and needs it.
 
 People set them in OpenMetadata's UI (a column's tags, the table's
 Custom Properties tab), or through datyx:
 
 `PUT /api/datasources/{id}/timeseries` with a table (its name,
-`schema.table`, or its FQN), a group (`default` when left out) and its
-roles:
-`{"table":"public.admissions_hourly","group":"acute","timestamp":"hour_start",
-"target":"acute_admissions","seriesKey":["run_id","hospital_id"],
-"staticCategorical":["hospital_id"],"staticReal":[],"knownCovariates":[],
-"pastCovariates":[],"frequency":"1h","missing":"zero"}`. It replaces the
+`schema.table`, or its FQN), a group (`default` when left out), its
+algorithm (`DeepAR` or `XGBoost`, in any case; none when left out) and
+its roles:
+`{"table":"public.patient_days","group":"care","algorithm":"XGBoost",
+"timestamp":"day","target":"stay_hours","seriesKey":["run_id","person_id"],
+"staticCategorical":["sex","city","hospital_id","chronic_condition"],
+"staticReal":["age"],"knownCovariates":[],
+"pastCovariates":["visits","acute_visits","chronic_visits"],
+"frequency":"1D","missing":"zero","horizon":"30D"}`. It replaces the
 group's tags on the table's columns with these (other tags, other
-groups' too, stay) and sets the table's two properties, removing one
-left out: they are every group's. A group with no roles left is gone
-from the table (its tags stay in the classification). A column the
-table doesn't have, or a name that can't be a group's, is a 400, a table
-the catalogue doesn't have a 404. Nothing is patched when nothing
+groups' too, stay), the group's algorithm tag on the table with the one
+named (none when none is: DeepAR; the table's other tags stay), and
+sets the table's three properties, removing one left out: they are
+every group's. A group with no roles left is gone from the table, its
+algorithm tag too (its tags stay in the classification). A column the
+table doesn't have, an algorithm other than DeepAR or XGBoost, or a name
+that can't be a group's, is a 400, a table the catalogue doesn't have a
+404. Nothing is patched when nothing
 changes. It answers the group read as a time series (below). This is
 the call a tool that suggests the roles will make.
 
@@ -127,17 +154,23 @@ the call a tool that suggests the roles will make.
 
 `GET /api/datasources/{id}/timeseries` answers every group of every
 table of the source, read as a time series (`TimeSeries.Spec`): a group
-is there when a column is tagged with one of its roles, a table's
-`default` group first, then the others as its columns name them:
+is there when a column is tagged with one of its roles, or the table
+with its algorithm, a table's `default` group first, then the others as
+its tags name them. `?algorithm=XGBoost` (or `DeepAR`, in any case)
+answers only the groups that algorithm trains, what a trainer asks; an
+algorithm there isn't is a 400.
 
 ```json
 {"service":"datyx-ds-1","series":[{
   "table":"datyx-ds-1.healthhub.public.admissions_hourly","schema":"public","name":"admissions_hourly",
-  "group":"default","timestamp":"hour_start","target":"admissions","seriesKey":["run_id","hospital_id"],
+  "group":"default","algorithm":"DeepAR","timestamp":"hour_start","target":"admissions","seriesKey":["run_id","hospital_id"],
   "staticCategorical":["hospital_id"],"staticReal":[],"knownCovariates":[],"pastCovariates":[],
-  "frequency":"1h","missing":"zero","ready":true,"problems":[]},
- {"table":"datyx-ds-1.healthhub.public.admissions_hourly","schema":"public","name":"admissions_hourly",
-  "group":"acute","timestamp":"hour_start","target":"acute_admissions",...}]}
+  "frequency":"1h","horizon":null,"missing":"zero","ready":true,"problems":[]},
+ {"table":"datyx-ds-1.healthhub.public.patient_days","schema":"public","name":"patient_days",
+  "group":"care","algorithm":"XGBoost","timestamp":"day","target":"stay_hours","seriesKey":["run_id","person_id"],
+  "staticCategorical":["sex","city","hospital_id","chronic_condition"],"staticReal":["age"],"knownCovariates":[],
+  "pastCovariates":["visits","acute_visits","chronic_visits"],"frequency":"1D","horizon":"30D","missing":"zero",
+  "ready":true,"problems":[]}]}
 ```
 
 A series is the table and the group together. `ready` when there are
@@ -147,7 +180,9 @@ no Timestamp or Target, or more than one; a Timestamp that isn't a date
 or timestamp; a Target, StaticReal or covariate that isn't a number; a
 Timestamp or Target that also has another role; a column both
 KnownCovariate and PastCovariate; no frequency, or one that isn't a
-pandas offset; a `timeSeriesMissing` other than `zero` or `unknown`.
+pandas offset; a `timeSeriesMissing` other than `zero` or `unknown`;
+the group tagged with two algorithms; for XGBoost, no horizon; a
+horizon that isn't a pandas offset.
 
 ## HealthHub, as a customer
 
@@ -160,7 +195,18 @@ The run is part of the series key because each HealthHub start replays
 the simulated calendar from day 1. Three groups can train on it:
 `default` forecasting `admissions`, `acute` forecasting
 `acute_admissions` and `chronic` forecasting `chronic_admissions`, each
-with the same `hour_start`, series key and static category.
+with the same `hour_start`, series key and static category, all three
+DeepAR's.
+
+HealthHub's view `patient_days` (in its folder) is a series per patient:
+a row per run, person and simulated day with a visit, the day's visits
+and hours of hospital care, and the person's facts. Its `care` group
+scores each patient's care to come with XGBoost: the hours of care
+(`stay_hours`) summed over the next 30 days (`timeSeriesHorizon` `30D`,
+a parameter of the table), from the patient's age, sex, city, hospital
+and chronic condition and their visits and hours before the cutoff. A
+patient is the run and the person (`run_id`, `person_id`); a day without
+a visit is zero (`timeSeriesMissing` `zero`), at a frequency of `1D`.
 
 ## Signing in to OpenMetadata
 
@@ -178,23 +224,35 @@ string with raw line breaks.
 `TimeSeriesTest`, no server: a tagged table read as a ready series, the
 problems of a badly tagged one, the frequency required and missing rows
 unknown by default, a table's groups read as series of their own (with
-their own problems), groups' names and tags, the roles' patch (the
-group's tags replaced, other tags and other groups' kept, unchanged
-columns left alone whatever the order of their tags, the properties set
-and removed) and a column the table lacks refused, the type mapping,
+their own problems), groups' names and tags, a group's algorithm and
+the horizon read from the table (DeepAR without a tag, XGBoost wanting
+a horizon, two algorithms a problem, a group with only its algorithm
+listed), algorithms' names, the roles' patch (the group's tags
+replaced, other tags and other groups' kept, unchanged columns left
+alone whatever the order of their tags, the group's algorithm tag set,
+replaced and removed beside the table's other tags, the properties set
+and removed, nothing patched when nothing changes) and a column the
+table lacks or an algorithm there isn't refused, the type mapping,
 quoted FQNs.
 `CatalogResourceTest`, against the Dev Services Postgres standing in for
 a source: `SchemaReader` reads a schema's table, view, column order,
 types, comments and composite key, and no system schema; an S3 source is
-a 400; a wrong password and an unreachable OpenMetadata are 502s; an
+a 400; a wrong password and an unreachable OpenMetadata are 502s, an
+algorithm there isn't a 400; an
 unknown source is a 404; deleting a source doesn't wait on the catalogue.
 OpenMetadata itself isn't started for the tests.
 
 ## Known limitations
 
 - PostgreSQL sources only; another engine needs its JDBC driver.
-- Nothing reads rows yet: training on a series (DeepAR on GraalPy) is
-  the next step, and will fill the missing hours by `timeSeriesMissing`.
+- Nothing reads rows yet: training (DeepAR on GraalPy, XGBoost) is the
+  next step, a component that finds its groups by their algorithm's
+  tag and fills the missing rows by `timeSeriesMissing`.
+- The horizon is the table's, shared by its groups like the frequency:
+  groups of one table that need different horizons are two tables (or
+  views).
+- XGBoost's dataset (the cutoffs, the windows before them, the sum over
+  the horizon) is described here, not built yet.
 - One Target per group; a table with two values to forecast is two
   groups.
 - A group can't be renamed: set its roles under the new name, then

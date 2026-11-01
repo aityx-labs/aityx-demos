@@ -30,8 +30,9 @@ HealthHub passes on unchanged.
   what is secured, and HealthHub's tokens accepted too.
 - [Catalogue and time series](catalog.md): a database source read into
   OpenMetadata without the source changing, the TimeSeries tags and
-  table properties that say what its columns are to a forecast (DeepAR
-  first), and the time series datyx finds in them.
+  table properties that say what its columns are to a forecast, the
+  algorithm that trains each group (DeepAR, XGBoost) and how far ahead,
+  and the time series datyx finds in them.
 - [Profiles](profiles.md): the person behind a sign-in, made on the first
   call, with identities and an encryption key of its own that protects
   the profile's data source access details at rest.

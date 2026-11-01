@@ -249,12 +249,13 @@ public class Catalog {
 
     /**
      * What PUT /api/datasources/{id}/timeseries asks: a group's roles (the
-     * default group when none), each role's columns, and the table's
-     * frequency and missing rows, which its groups share.
+     * default group when none), each role's columns, the algorithm that
+     * trains on the group (none: DeepAR), and the table's frequency,
+     * missing rows and horizon, which its groups share.
      */
     public record Roles(String table, String group, String timestamp, String target, List<String> seriesKey,
             List<String> staticCategorical, List<String> staticReal, List<String> knownCovariates,
-            List<String> pastCovariates, String frequency, String missing) {
+            List<String> pastCovariates, String frequency, String missing, String algorithm, String horizon) {
 
         Map<TimeSeries.Role, List<String>> columns() {
             Map<TimeSeries.Role, List<String>> map = new LinkedHashMap<>();
@@ -272,13 +273,16 @@ public class Catalog {
     /**
      * The JSON Patch that makes a table's TimeSeries tags of the group and
      * custom properties what {@code roles} says: every column's tags of the
-     * group replaced, its other tags (other groups' too) kept; the frequency
-     * and missing set when given and removed when not. An
-     * IllegalArgumentException names columns the table doesn't have, or why
-     * the group's name can't be one.
+     * group replaced, its other tags (other groups' too) kept; the group's
+     * algorithm tag on the table replaced, none when no algorithm is named
+     * or the group has no roles left; the frequency, missing and horizon set
+     * when given and removed when not. An IllegalArgumentException names
+     * columns the table doesn't have, an algorithm there isn't, or why the
+     * group's name can't be one.
      */
     ArrayNode rolesPatch(JsonNode table, Roles roles) {
         String group = TimeSeries.group(roles.group());
+        TimeSeries.Algorithm algorithm = TimeSeries.Algorithm.named(roles.algorithm());
         Map<String, List<TimeSeries.Role>> wanted = new LinkedHashMap<>();
         roles.columns().forEach((role, names) -> names.forEach(
             name -> wanted.computeIfAbsent(name, n -> new ArrayList<>()).add(role)));
@@ -311,10 +315,28 @@ public class Catalog {
         if (!unknown.isEmpty()) {
             throw new IllegalArgumentException(table.path("name").asText() + " has no column " + String.join(", ", unknown));
         }
+        ArrayNode tableTags = json.createArrayNode();
+        for (JsonNode tag : table.path("tags")) {
+            TimeSeries.Trained trained = TimeSeries.algorithmOf(tag.path("tagFQN").asText());
+            if (trained == null || !trained.group().equals(group)) {
+                tableTags.add(tag);
+            }
+        }
+        if (algorithm != null && !wanted.isEmpty()) {
+            tableTags.addObject()
+                .put("tagFQN", algorithm.fqn(group))
+                .put("source", "Classification")
+                .put("labelType", "Manual")
+                .put("state", "Confirmed");
+        }
+        if (!tagNames(tableTags).equals(tagNames(table.path("tags")))) {
+            patch.addObject().put("op", "add").put("path", "/tags").set("value", tableTags);
+        }
         ObjectNode extension = table.path("extension").isObject()
             ? ((ObjectNode) table.path("extension")).deepCopy() : json.createObjectNode();
         setOrRemove(extension, TimeSeries.FREQUENCY, roles.frequency());
         setOrRemove(extension, TimeSeries.MISSING, roles.missing());
+        setOrRemove(extension, TimeSeries.HORIZON, roles.horizon());
         JsonNode before = table.path("extension").isObject() ? table.path("extension") : json.createObjectNode();
         if (!extension.equals(before)) {
             patch.addObject().put("op", "add").put("path", "/extension").set("value", extension);
@@ -361,7 +383,11 @@ public class Catalog {
         }
     }
 
-    /** A group's tag, TimeSeries.{group}, and a child tag of it per role; nothing for the default group, whose roles are the classification's own. */
+    /**
+     * A group's tag, TimeSeries.{group}, and a child tag of it per role and
+     * per algorithm; nothing for the default group, whose roles and
+     * algorithms are the classification's own.
+     */
     void ensureGroup(String group) {
         if (TimeSeries.DEFAULT_GROUP.equals(group)) {
             return;
@@ -378,9 +404,16 @@ public class Catalog {
                 .put("parent", TimeSeries.CLASSIFICATION + "." + group)
                 .put("description", role.description)));
         }
+        for (TimeSeries.Algorithm algorithm : TimeSeries.Algorithm.values()) {
+            session.call(auth -> client.putTag(auth, json.createObjectNode()
+                .put("name", algorithm.tag)
+                .put("classification", TimeSeries.CLASSIFICATION)
+                .put("parent", TimeSeries.CLASSIFICATION + "." + group)
+                .put("description", algorithm.description)));
+        }
     }
 
-    /** The TimeSeries classification, its tags and the table's two custom properties, made when missing. */
+    /** The TimeSeries classification, its role and algorithm tags and the table's three custom properties, made when missing. */
     void ensureVocabulary() {
         session.call(auth -> client.putClassification(auth, json.createObjectNode()
             .put("name", TimeSeries.CLASSIFICATION)
@@ -392,12 +425,20 @@ public class Catalog {
                 .put("classification", TimeSeries.CLASSIFICATION)
                 .put("description", role.description)));
         }
+        for (TimeSeries.Algorithm algorithm : TimeSeries.Algorithm.values()) {
+            session.call(auth -> client.putTag(auth, json.createObjectNode()
+                .put("name", algorithm.tag)
+                .put("classification", TimeSeries.CLASSIFICATION)
+                .put("description", algorithm.description)));
+        }
         JsonNode tableType = session.call(auth -> client.type(auth, "table", "customProperties"));
         Set<String> existing = new HashSet<>();
         tableType.path("customProperties").forEach(p -> existing.add(p.path("name").asText()));
         Map<String, String> wanted = new LinkedHashMap<>();
         wanted.put(TimeSeries.FREQUENCY, "How often a time series table's rows come, as a pandas offset: 15min, 1h, 1D, 1W, 1MS.");
         wanted.put(TimeSeries.MISSING, "What a missing row of a time series table means: zero (nothing happened, as with counts) or unknown (not observed).");
+        wanted.put(TimeSeries.HORIZON, "How far ahead a time series table's groups predict, as a pandas offset: 24h, 30D, 4W. "
+            + "DeepAR forecasts each step of it; XGBoost scores the Target summed over it, and needs it.");
         String stringType = null;
         for (Map.Entry<String, String> property : wanted.entrySet()) {
             if (existing.contains(property.getKey())) {

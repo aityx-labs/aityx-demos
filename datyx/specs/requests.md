@@ -2,6 +2,30 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-01: XGBoost groups, scoring each patient's care in the next 30 days
+
+Asked: score each patient's hospital care in the next 30 days with
+XGBoost, the horizon a parameter; nothing hard-coded: tag a group with
+the XGBoost algorithm in the tag schema, explicitly for now, so a
+component to come finds the groups tagged XGBoost and trains them; for
+now, the tagging right in OpenMetadata and clear in the catalogue.
+
+Changed: a group's algorithm is a tag on the table, `TimeSeries.XGBoost`
+(default group) or `TimeSeries.{group}.XGBoost`, `TimeSeries.DeepAR`
+likewise, none being DeepAR as before; made with the vocabulary and with
+each group. The table property `timeSeriesHorizon` (a pandas offset,
+shared by the groups), required for XGBoost. The spec answers the
+group's `algorithm` and `horizon`, with two algorithms or XGBoost
+without a horizon as problems; groups come from the table's algorithm
+tags too; an algorithm's name can't be a group's. `PUT .../timeseries`
+takes `algorithm` and `horizon`, replacing only the group's algorithm
+tag; `GET .../timeseries?algorithm=XGBoost` answers that algorithm's
+groups; `GET .../catalog` answers a table's own tags. The role
+descriptions say what each becomes to XGBoost. In development,
+HealthHub's new `patient_days` view (its own change) is tagged as the
+`care` group: XGBoost, the hours of care over 30 days per run and
+person. Tests; `catalog.md`, README.
+
 ## 2026-11-01: groups of time series tags in one table
 
 Asked: tag separate groups in the same table, to train on it more than

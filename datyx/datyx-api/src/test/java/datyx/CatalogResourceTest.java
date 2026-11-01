@@ -95,6 +95,10 @@ class CatalogResourceTest {
             .then().statusCode(502).body("error", startsWith("OpenMetadata "));
         given().when().get("/api/datasources/" + right + "/timeseries")
             .then().statusCode(502).body("error", startsWith("OpenMetadata "));
+        given().when().get("/api/datasources/" + right + "/timeseries?algorithm=XGBoost")
+            .then().statusCode(502).body("error", startsWith("OpenMetadata "));
+        given().when().get("/api/datasources/" + right + "/timeseries?algorithm=Prophet")
+            .then().statusCode(400).body("error", is("the algorithm is DeepAR or XGBoost, not 'Prophet'"));
         // Removing a source doesn't wait on the catalogue.
         given().when().delete("/api/datasources/" + right).then().statusCode(204);
         given().when().delete("/api/datasources/" + wrong).then().statusCode(204);

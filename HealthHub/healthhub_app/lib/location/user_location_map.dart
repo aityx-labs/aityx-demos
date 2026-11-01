@@ -8,6 +8,7 @@ import 'package:latlong2/latlong.dart';
 import '../api/health_hub_api.dart';
 import '../care_centers/care_center_screen.dart' show CareCenterOpener;
 import '../people/person_screen.dart';
+import '../sim_clock.dart';
 import '../theme.dart';
 import 'location_controller.dart';
 
@@ -320,8 +321,8 @@ class _UserLocationMapState extends State<UserLocationMap> {
                   for (final person in _people.people)
                     Marker(
                       point: LatLng(person.homeLat, person.homeLon),
-                      width: 16,
-                      height: 16,
+                      width: HomePin.size,
+                      height: HomePin.size,
                       child: HomePin(person, key: Key('home-${person.id}')),
                     ),
                 ],
@@ -331,9 +332,9 @@ class _UserLocationMapState extends State<UserLocationMap> {
                   for (final person in _people.people)
                     Marker(
                       point: LatLng(person.lat, person.lon),
-                      width: 14,
-                      height: 14,
-                      child: PersonPin(person, simTime: _people.simTime, key: Key('person-${person.id}')),
+                      width: PersonPin.size,
+                      height: PersonPin.size,
+                      child: PersonPin(person, simTime: simWhen(_people.day, _people.simTime), key: Key('person-${person.id}')),
                     ),
                 ],
               ),
@@ -519,13 +520,16 @@ extension PersonLook on PersonState {
 class HomePin extends StatelessWidget {
   const HomePin(this.person, {super.key});
 
+  /// Its marker's side, in pixels: small, as every person has one.
+  static const size = 11.0;
+
   final Person person;
 
   @override
   Widget build(BuildContext context) => _OpensPerson(
     person.id,
     message: 'Home of ${person.id}',
-    child: Icon(Icons.home, size: 14, color: Aityx.muted.withValues(alpha: 0.85), semanticLabel: 'Home'),
+    child: Icon(Icons.home, size: size, color: Aityx.muted.withValues(alpha: 0.85), semanticLabel: 'Home'),
   );
 }
 
@@ -558,12 +562,16 @@ class _OpensPerson extends StatelessWidget {
   }
 }
 
-/// A simulated person: a small dot in their state's colour, in a dark ring
-/// (the care centers' rings are white). Tapping or hovering shows who they
+/// A simulated person: a small dot in their state's colour, in a thin dark
+/// ring (the care centers' rings are white), small enough for hundreds of
+/// people a city to show where care is under pressure. Tapping or hovering shows who they
 /// are (with their name and age when the record carries them), their
 /// condition, what they are doing, their hospital and the simulated time.
 class PersonPin extends StatelessWidget {
   const PersonPin(this.person, {super.key, this.simTime});
+
+  /// Its marker's side, in pixels.
+  static const size = 8.0;
 
   final Person person;
   final String? simTime;
@@ -590,8 +598,8 @@ class PersonPin extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: person.state.color,
-            border: Border.all(color: Aityx.bg0, width: 2),
-            boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 3)],
+            border: Border.all(color: Aityx.bg0, width: 1),
+            boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 2)],
           ),
         ),
       ),
@@ -636,8 +644,8 @@ class CareCenterLegend extends StatelessWidget {
           for (final state in PersonState.values)
             _entry(
               Container(
-                width: 10,
-                height: 10,
+                width: PersonPin.size,
+                height: PersonPin.size,
                 margin: const EdgeInsets.all(2),
                 decoration: BoxDecoration(shape: BoxShape.circle, color: state.color),
               ),
@@ -647,7 +655,7 @@ class CareCenterLegend extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                'Simulated time ${people.simTime}${people.day != null ? ', day ${people.day}' : ''}',
+                'Simulated time: ${simWhen(people.day, people.simTime)}',
                 key: const Key('sim-time'),
                 style: const TextStyle(fontSize: 11, color: Aityx.muted),
               ),

@@ -37,7 +37,7 @@ void main() {
   Map<String, Object?> moveOf(String id, int turn, String time) => {
     'id': id, 'city': 'Reus', 'lat': 41.15, 'lon': 1.1, 'homeLat': 41.16, 'homeLon': 1.11,
     'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan', 'careCenterKind': 'hospital', 'state': 'to_hospital',
-    'simTime': time, 'day': 1, 'turn': turn, 'name': 'Núria Puig Soler', 'age': 54,
+    'simTime': time, 'day': 1, 'at': '2026-01-01T$time', 'turn': turn, 'name': 'Núria Puig Soler', 'age': 54,
     'mode': 'transit', 'monitored': false, 'monitoredFor': null, 'conditionName': 'Influenza', 'conditionType': 'acute',
   };
 
@@ -89,13 +89,37 @@ void main() {
       'type': 'move', 'id': 'reus-1', 'name': 'Núria Puig Soler', 'age': 54, 'city': 'Reus',
       'state': 'to_hospital', 'mode': 'transit', 'monitored': false, 'monitoredFor': null, 'conditionName': 'Influenza',
       'conditionType': 'acute', 'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan', 'careCenterKind': 'hospital',
-      'simTime': '09:00', 'day': 1, 'turn': 30, 'lat': 41.15,
+      'simTime': '09:00', 'day': 1, 'at': '2026-01-01T09:00', 'turn': 30, 'lat': 41.15,
       'lon': 1.1, 'partition': 0, 'offset': 130,
     });
     expect(body['topics'], ['healthhub.people.moves', 'healthhub.admissions']);
     expect((route('GET', '/api/events', dev: true, events: events, query: {'limit': '5'}).body as Map)['events'], hasLength(5));
     expect(route('GET', '/api/events', dev: true, query: {'limit': 'x'}).status, 400);
     expect((route('GET', '/api/events', events: events).body as Map)['events'], isEmpty);
+  });
+
+  test('the people a city: set by anyone signed in while it runs, a whole number from 1 to 200', () {
+    final asked = <int>[];
+    int population(int perCity) {
+      asked.add(perCity);
+      return perCity;
+    }
+
+    const signIn = AuthSettings(issuer: 'https://accounts.google.com', clientId: 'healthhub-client');
+    Answer post(Object? body, {Identity? identity, bool simulation = true}) => route('POST', simulationPeoplePath,
+        auth: signIn, identity: identity, dev: true, simulation: simulation, population: population, body: body);
+    const someone = Identity(subject: 's', email: 'a@example.com');
+    expect(post({'perCity': 160}).status, 401);
+    expect(post({'perCity': 160}, identity: someone, simulation: false).status, 409);
+    for (final bad in [{'perCity': 0}, {'perCity': 201}, {'perCity': '80'}, {'perCity': 1.5}, {}, null, 'x']) {
+      expect(post(bad, identity: someone).status, 400, reason: '$bad');
+    }
+    final answer = post({'perCity': 160}, identity: someone);
+    expect(answer.status, 200);
+    expect(answer.body, {'perCity': 160});
+    expect(asked, [160]);
+    // GET /api/events says how many it is now.
+    expect((route('GET', '/api/events', dev: true, peoplePerCity: 160).body as Map)['peoplePerCity'], 160);
   });
 
   test('events say how many the feed read, and how many a second', () {
@@ -112,7 +136,7 @@ void main() {
     'conditionName': 'Influenza', 'conditionType': 'acute', 'visit': 'first', 'visitNumber': 1,
     'complaint': 'I have had a fever since yesterday.', 'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan',
     'careCenterKind': 'hospital',
-    'simTime': '09:00', 'day': 1, 'turn': turn, 'partition': 0, 'offset': 5,
+    'simTime': '09:00', 'day': 1, 'at': '2026-01-01T09:00', 'turn': turn, 'partition': 0, 'offset': 5,
   };
 
   test('events hold admissions with all their fields, and filter by type', () {

@@ -42,6 +42,11 @@
 ///                       freezes or resumes the simulation, the same one
 ///                       everyone watches (idempotent); 401 without a user
 ///                       once authentication is on, 409 when it doesn't run
+///   POST /api/simulation/people {"perCity": n}
+///                       {"perCity": n}, the people a city after the call
+///                       (1 to 200): people join at the turn now or the
+///                       last to join leave; signed in and running as for
+///                       pause, 400 for any other number
 ///   GET  /api/admissions?limit=20
 ///                       {"admissions": [...]}: the latest admissions
 ///                       recorded in the database, newest first (at most
@@ -344,7 +349,22 @@ Future<void> _simulate(Db db, _Live live, int historyDays) async {
     onAdmission: recorder.record,
   );
   unawaited(feed.run());
-  live.simulation = Simulation(people, settings, live.kafka, conditions: conditionSeed, random: random)..start();
+  live.simulation = Simulation(people, settings, live.kafka, conditions: conditionSeed, places: places, random: random)
+    ..start();
+}
+
+/// The JSON body of [request], at most 4 KB; null when it isn't JSON.
+Future<Object?> _jsonBody(HttpRequest request) async {
+  final bytes = <int>[];
+  await for (final chunk in request) {
+    bytes.addAll(chunk);
+    if (bytes.length > 4096) return null;
+  }
+  try {
+    return jsonDecode(utf8.decode(bytes));
+  } on FormatException {
+    return null;
+  }
 }
 
 /// Writes [days] days of admissions history (lib/history.dart) for
@@ -450,6 +470,7 @@ Future<void> _handle(
         auth: auth,
         dev: live.dev,
         paused: live.simulation?.paused ?? false,
+        peoplePerCity: live.simulation?.peoplePerCity,
         events: live.feed?.recent ?? const [],
         eventsTotal: live.feed?.counter.total ?? 0,
         eventsPerSecond: live.feed?.counter.perSecond ?? 0,
@@ -470,6 +491,22 @@ Future<void> _handle(
             simulation.resume();
           }
           return simulation.paused;
+        },
+      ),
+      ('POST', simulationPeoplePath) => route(
+        method,
+        path,
+        auth: auth,
+        identity: identity,
+        dev: live.dev,
+        simulation: live.simulation?.running ?? false,
+        body: await _jsonBody(request),
+        population: (perCity) {
+          final simulation = live.simulation!;
+          final changed = simulation.setPeoplePerCity(perCity);
+          live.feed?.join(changed.joined);
+          live.feed?.leave(changed.left);
+          return simulation.peoplePerCity;
         },
       ),
       ('GET', '/api/admissions') => route(

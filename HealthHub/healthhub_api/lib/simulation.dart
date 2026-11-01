@@ -341,6 +341,14 @@ String simTime(int minutes) {
   return '${two(ofDay ~/ 60)}:${two(ofDay % 60)}';
 }
 
+/// The simulated calendar's first moment: day 1 is 2026-01-01.
+final simEpoch = DateTime.utc(2026, 1, 1);
+
+/// The simulated moment [minutes] is, a date and time as ISO 8601 without
+/// a zone, "2026-01-19T09:40": what the records carry as `at`, beside
+/// their day and time.
+String simAt(int minutes) => simEpoch.add(Duration(minutes: minutes)).toIso8601String().substring(0, 16);
+
 /// The weight of [hour] (0 to 23) in the daily profile of arrivals:
 /// 1 + [arrivalAmplitude] × cos(2π (hour − [arrivalPeakHour]) / 24). The
 /// 24 weights add up to 24.
@@ -411,12 +419,14 @@ String citySlug(String city) {
 
 /// How the simulation runs, from the environment (scripts/env.sh and
 /// compose.yaml set these):
-///   HEALTHHUB_SIM_PEOPLE            people per city (default 40)
+///   HEALTHHUB_SIM_PEOPLE            people per city at start (default
+///                                   80; the events can change it, up to
+///                                   [maxPeoplePerCity])
 ///   HEALTHHUB_SIM_TURN_MS           real milliseconds per turn (default 1000)
 ///   HEALTHHUB_SIM_MINUTES_PER_TURN  simulated minutes per turn (default
 ///                                   60: a real second is a simulated hour)
 class SimulationSettings {
-  const SimulationSettings({this.peoplePerCity = 40, this.turn = const Duration(seconds: 1), this.minutesPerTurn = 60});
+  const SimulationSettings({this.peoplePerCity = 80, this.turn = const Duration(seconds: 1), this.minutesPerTurn = 60});
 
   factory SimulationSettings.fromEnvironment([Map<String, String>? env]) {
     env ??= Platform.environment;
@@ -426,7 +436,7 @@ class SimulationSettings {
     }
 
     return SimulationSettings(
-      peoplePerCity: setting('HEALTHHUB_SIM_PEOPLE', 40),
+      peoplePerCity: min(setting('HEALTHHUB_SIM_PEOPLE', 80), maxPeoplePerCity),
       turn: Duration(milliseconds: setting('HEALTHHUB_SIM_TURN_MS', 1000)),
       minutesPerTurn: setting('HEALTHHUB_SIM_MINUTES_PER_TURN', 60),
     );
@@ -440,6 +450,10 @@ class SimulationSettings {
   String toString() => '$peoplePerCity people per city, a turn every ${turn.inMilliseconds} ms, '
       '$minutesPerTurn simulated minutes each';
 }
+
+/// The most people a city the simulation takes: each moves and publishes
+/// every turn, through Kafka's REST proxy.
+const maxPeoplePerCity = 200;
 
 /// One of a person's conditions and where its visits stand: a chronic
 /// condition, kept for life and visited in courses, or an acute episode,
@@ -534,6 +548,10 @@ class Person {
   LatLon at;
   PersonState state = PersonState.home;
 
+  /// Whether they left the simulation (fewer people a city): their loop
+  /// ends at its next turn.
+  bool gone = false;
+
   /// Their chronic condition, for life; null for those without one.
   Course? chronic;
 
@@ -586,12 +604,13 @@ class Person {
 
   /// Gives them [condition] as their chronic condition, its first visit on
   /// [day]: at a visit's slot ([nextVisitStart]), or, when it is urgent, on
-  /// the hour of that day drawn from the daily profile ([arrivalHour]).
-  void giveChronic(MedicalCondition condition, int day, Random random) {
+  /// the hour of that day drawn from the daily profile ([arrivalHour]);
+  /// never before [after] (the run's start, or when they joined it).
+  void giveChronic(MedicalCondition condition, int day, Random random, {int after = simStartMinutes}) {
     final course = chronic = Course(condition);
     course.dueAt = condition.urgent
-        ? max(simStartMinutes, dayStart(day) + arrivalHour(random) * 60)
-        : nextVisitStart(day, simStartMinutes, random);
+        ? max(after, dayStart(day) + arrivalHour(random) * 60)
+        : nextVisitStart(day, after, random);
   }
 
   /// Starts an acute episode of [condition] at [onset]: its first visit
@@ -633,6 +652,7 @@ class Person {
         'conditionType': shown?.type,
         'simTime': simTime(minutes),
         'day': simDay(minutes),
+        'at': simAt(minutes),
         'turn': turn,
       },
     };
@@ -849,6 +869,7 @@ Map<String, Object?> admissionEvent(
     'careCenterKind': person.shownCareCenter.kind,
     'simTime': simTime(minutes),
     'day': day,
+    'at': simAt(minutes),
     'turn': turn,
   };
 }
@@ -856,16 +877,23 @@ Map<String, Object?> admissionEvent(
 /// Starts [person]'s conditions: no chronic one for [noChronicShare] of
 /// people, else one of the chronic [conditions] for their age and sex,
 /// its first visit within the first [chronicOnsetDays] days; and the first
-/// acute episode's onset ([acuteOnsetAfter] the start).
-void startConditions(Person person, List<MedicalCondition> conditions, Random random) {
+/// acute episode's onset ([acuteOnsetAfter] [from]).
+void startConditions(
+  Person person,
+  List<MedicalCondition> conditions,
+  Random random, {
+  int from = simStartMinutes,
+}) {
   final chronic = [for (final c in conditions) if (c.isChronic) c];
   final acute = conditions.length > chronic.length;
   final none = random.nextDouble() < noChronicShare;
   final condition = none
       ? null
       : pickCondition(chronic, person.profile.age, random, sex: person.profile.sex);
-  if (condition != null) person.giveChronic(condition, 1 + random.nextInt(chronicOnsetDays), random);
-  person.acuteOnsetAt = acute ? acuteOnsetAfter(simStartMinutes, random) : null;
+  if (condition != null) {
+    person.giveChronic(condition, simDay(from) + random.nextInt(chronicOnsetDays), random, after: from);
+  }
+  person.acuteOnsetAt = acute ? acuteOnsetAfter(from, random) : null;
 }
 
 /// The seed the API draws its people with ([populate]): the same people,
@@ -887,48 +915,144 @@ List<Person> populate(
   Random random, {
   List<MedicalCondition> conditions = const [],
 }) {
-  final byCity = <String, List<Place>>{};
-  for (final place in places) {
-    byCity.putIfAbsent(place.city, () => []).add(place);
-  }
   final people = <Person>[];
-  for (final MapEntry(key: city, value: centers) in byCity.entries) {
+  for (final MapEntry(key: city, value: centers) in placesByCity(places).entries) {
     for (var n = 1; n <= perCity; n++) {
-      final home = randomPointNear(centers[random.nextInt(centers.length)].at, random);
-      final hospital = nearestHospital(home, places);
-      if (hospital == null) return const [];
-      final profile = randomProfile(city, random);
-      final person = Person(
-        id: '${citySlug(city)}-$n',
-        city: city,
-        home: home,
-        hospital: hospital,
-        careCenters: {
-          for (final setting in CareSetting.values) setting: nearestCareCenter(home, setting, places) ?? hospital,
-        },
-        profile: profile,
-        minutesPerTurn: minutesPerTurn,
-        pregnant:
-            profile.sex == 'woman' &&
-            profile.age >= pregnantAges.$1 &&
-            profile.age <= pregnantAges.$2 &&
-            random.nextDouble() < pregnantShare,
-      );
-      startConditions(person, conditions, random);
+      final person = newPerson(city, n, centers, places, minutesPerTurn, random, conditions: conditions);
+      if (person == null) return [];
       people.add(person);
     }
   }
   return people;
 }
 
+/// [places] by their city.
+Map<String, List<Place>> placesByCity(List<Place> places) {
+  final byCity = <String, List<Place>>{};
+  for (final place in places) {
+    byCity.putIfAbsent(place.city, () => []).add(place);
+  }
+  return byCity;
+}
+
+/// The [n]th person of [city] (id `<city>-<n>`), living within
+/// [homeRadiusMeters] of a random one of its [centers] and going to the
+/// care centers of [places] nearest home, with a profile of their city and
+/// their conditions from [conditions], their visits from [from] on (the
+/// run's start, or when they join it); null when no hospital has a place.
+Person? newPerson(
+  String city,
+  int n,
+  List<Place> centers,
+  List<Place> places,
+  int minutesPerTurn,
+  Random random, {
+  List<MedicalCondition> conditions = const [],
+  int from = simStartMinutes,
+}) {
+  final home = randomPointNear(centers[random.nextInt(centers.length)].at, random);
+  final hospital = nearestHospital(home, places);
+  if (hospital == null) return null;
+  final profile = randomProfile(city, random);
+  final person = Person(
+    id: '${citySlug(city)}-$n',
+    city: city,
+    home: home,
+    hospital: hospital,
+    careCenters: {
+      for (final setting in CareSetting.values) setting: nearestCareCenter(home, setting, places) ?? hospital,
+    },
+    profile: profile,
+    minutesPerTurn: minutesPerTurn,
+    pregnant:
+        profile.sex == 'woman' &&
+        profile.age >= pregnantAges.$1 &&
+        profile.age <= pregnantAges.$2 &&
+        random.nextDouble() < pregnantShare,
+  );
+  startConditions(person, conditions, random, from: from);
+  return person;
+}
+
 /// The running simulation: one loop per person, publishing every turn.
+/// With the [places] it was populated from, the people a city can change
+/// while it runs ([setPeoplePerCity]).
 class Simulation {
-  Simulation(this.people, this.settings, this.kafka, {this.conditions = const [], Random? random})
-    : _random = random ?? Random();
+  Simulation(
+    List<Person> people,
+    this.settings,
+    this.kafka, {
+    this.conditions = const [],
+    this.places = const [],
+    Random? random,
+  }) : people = List.of(people),
+       _random = random ?? Random() {
+    for (final person in this.people) {
+      final city = person.city;
+      _count[city] = (_count[city] ?? 0) + 1;
+      _next[city] = max(_next[city] ?? 1, _numberOf(person.id) + 1);
+    }
+    _perCity = _count.isEmpty ? settings.peoplePerCity : _count.values.reduce(max);
+  }
 
   final List<Person> people;
   final SimulationSettings settings;
   final KafkaRest kafka;
+
+  /// The care centers the people were made from, and new ones are.
+  final List<Place> places;
+
+  /// How many people each city has now, and the number the next one
+  /// joining it takes: numbers are never given twice in a run, so a
+  /// person's history is never another's.
+  final _count = <String, int>{};
+  final _next = <String, int>{};
+  int _perCity = 0;
+
+  /// The people a city now.
+  int get peoplePerCity => _perCity;
+
+  static int _numberOf(String id) => int.tryParse(id.substring(id.lastIndexOf('-') + 1)) ?? 0;
+
+  /// Makes every city have [perCity] people (1 to [maxPeoplePerCity]):
+  /// new people join at the turn now, their conditions starting from it,
+  /// and their loops start when it runs; the last to join leave first,
+  /// their loops ending at their next turn. Says who joined and who left,
+  /// by id, for the feed.
+  ({List<String> joined, List<String> left}) setPeoplePerCity(int perCity) {
+    perCity = perCity.clamp(1, maxPeoplePerCity);
+    final joined = <String>[];
+    final left = <String>[];
+    final turn = _turnNow();
+    final from = simMinutes(turn, settings.minutesPerTurn);
+    for (final MapEntry(key: city, value: centers) in placesByCity(places).entries) {
+      while ((_count[city] ?? 0) < perCity) {
+        final n = _next[city] ?? 1;
+        final person = newPerson(city, n, centers, places, settings.minutesPerTurn, _random,
+            conditions: conditions, from: from);
+        if (person == null) break;
+        _next[city] = n + 1;
+        _count[city] = (_count[city] ?? 0) + 1;
+        people.add(person);
+        joined.add(person.id);
+        if (_running) unawaited(_live(person, _generation, from: turn));
+      }
+    }
+    for (final city in _count.keys) {
+      final ofCity = [for (final p in people) if (p.city == city) p];
+      for (final person in ofCity.reversed.take(max(0, ofCity.length - perCity))) {
+        person.gone = true;
+        people.remove(person);
+        left.add(person.id);
+      }
+      _count[city] = min(_count[city]!, perCity);
+    }
+    _perCity = perCity;
+    if (joined.isNotEmpty || left.isNotEmpty) {
+      stdout.writeln('simulation: $perCity people per city now, ${joined.length} joined, ${left.length} left');
+    }
+    return (joined: joined, left: left);
+  }
 
   /// What a person's next condition is drawn from.
   final List<MedicalCondition> conditions;
@@ -1016,14 +1140,16 @@ class Simulation {
 
   int _turnNow() => _stopwatch.elapsedMilliseconds ~/ settings.turn.inMilliseconds;
 
-  /// A person's loop: wait for the next turn, move, publish the move and
-  /// any admission. Turn n starts n turns after the simulation did, on
-  /// its clock, which stands still while paused, so every loop agrees on
-  /// the clock however long its own publishing took.
-  Future<void> _live(Person person, int generation) async {
+  /// A person's loop, from turn [from] (0, or the turn they joined at):
+  /// wait for the next turn, move, publish the move and any admission.
+  /// Turn n starts n turns after the simulation did, on its clock, which
+  /// stands still while paused, so every loop agrees on the clock however
+  /// long its own publishing took. It ends when the simulation stops or
+  /// the person leaves it.
+  Future<void> _live(Person person, int generation, {int from = 0}) async {
     final turnMs = settings.turn.inMilliseconds;
     final run = _run;
-    var turn = 0;
+    var turn = from;
     while (true) {
       // Wait for the turn's start, and for a resume while paused: a pause
       // during the wait stops the clock, so the rest is waited after.
@@ -1036,7 +1162,7 @@ class Simulation {
         if (wait <= 0) break;
         await Future<void>.delayed(Duration(milliseconds: wait));
       }
-      if (generation != _generation) return;
+      if (generation != _generation || person.gone) return;
       final admission = advance(
         person,
         turn: turn,
@@ -1203,6 +1329,18 @@ class PeopleFeed {
 
   /// The latest record of each person, by id.
   List<Map<String, Object?>> get people => List.unmodifiable(_latest.values);
+
+  /// People who joined the simulation: their moves are kept from now on.
+  void join(Iterable<String> ids) => _people.addAll(ids);
+
+  /// People who left it: off the map at once, and a move of theirs still
+  /// on its way is skipped.
+  void leave(Iterable<String> ids) {
+    for (final id in ids) {
+      _people.remove(id);
+      _latest.remove(id);
+    }
+  }
 
   /// The latest moves and admissions read from the streams, merged newest
   /// first by arrival, each with its "type" (move or admission), partition

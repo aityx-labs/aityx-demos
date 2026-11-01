@@ -6,6 +6,7 @@ import '../api/health_hub_api.dart';
 import '../care_centers/care_center_screen.dart' show CareCenterLink;
 import '../location/user_location_map.dart' show PersonLook;
 import '../people/person_screen.dart';
+import '../sim_clock.dart';
 import '../theme.dart';
 
 /// Gives the latest records on the stream: the API's `GET /api/events`,
@@ -15,6 +16,13 @@ typedef EventsLoader = Future<StreamEvents> Function({int limit, StreamEventType
 /// Pauses the simulation (true) or resumes it, and says whether it is
 /// paused now: the API's `POST /api/simulation/pause` and `/resume`.
 typedef SimulationControl = Future<bool> Function(bool pause);
+
+/// Sets the people a city, and says how many it is now: the API's
+/// `POST /api/simulation/people`.
+typedef PopulationControl = Future<int> Function(int perCity);
+
+/// The people a city the events offer: the simulation takes up to 200.
+const peopleChoices = [10, 20, 40, 80, 120, 160, 200];
 
 /// The latest events on the Kafka stream, newest first: people's moves and
 /// their admissions at a hospital, each a row of the same shape, an
@@ -28,7 +36,9 @@ typedef SimulationControl = Future<bool> Function(bool pause);
 /// shows datyx's prediction of the person's hours of care over the next 30
 /// days, asked once per admission through [PersonOpener]. With
 /// [simulation], a button at the top pauses the simulation and resumes it;
-/// under it, a chip per condition keeps only its events.
+/// with [population], beside it, how many people each city has, which
+/// anyone signed in can change. Each record says when it happened as a
+/// date on the simulation's calendar.
 ///
 /// Moves and admissions are asked for apart: every person moves every
 /// second, so the latest [limit] records of the stream are nearly always
@@ -38,12 +48,14 @@ class StreamEventsCard extends StatefulWidget {
     super.key,
     required this.events,
     this.simulation,
+    this.population,
     this.limit = 12,
     this.admissionsLimit = 8,
   });
 
   final EventsLoader events;
   final SimulationControl? simulation;
+  final PopulationControl? population;
 
   /// How many moves and how many admissions are shown at most.
   final int limit;
@@ -65,9 +77,12 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
 
   bool get _paused => _pausedNow ?? _events.paused;
 
-  /// The conditions whose events are shown; all of them when empty. Kept
-  /// across reads, even while a condition has no event to show.
-  final Set<String> _conditions = {};
+  /// While the people a city are being changed, and what the API said:
+  /// shown until the next events say it too.
+  bool _populating = false;
+  int? _perCityNow;
+
+  int? get _perCity => _perCityNow ?? _events.peoplePerCity;
 
   /// datyx's prediction for each admission shown, by event id, asked
   /// once; null when datyx can't say.
@@ -82,8 +97,6 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
       run: runOf(eventId),
     ).then<Prediction?>((p) => p, onError: (Object _) => null);
   }
-
-  bool _shown(StreamEvent event) => _conditions.isEmpty || _conditions.contains(event.conditionName);
 
   Future<void> _switch() async {
     final control = widget.simulation;
@@ -101,6 +114,24 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _switching = false);
+    }
+  }
+
+  Future<void> _populate(int perCity) async {
+    final control = widget.population;
+    if (control == null || _populating || perCity == _perCity) return;
+    setState(() => _populating = true);
+    try {
+      final now = await control(perCity);
+      if (mounted) setState(() => _perCityNow = now);
+    } catch (error) {
+      if (!mounted) return;
+      final message = error is ApiException && error.status == 401
+          ? 'Sign in to change the people of the simulation.'
+          : 'The people can\'t be changed: ${error is ApiException ? error.message : error}';
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      if (mounted) setState(() => _populating = false);
     }
   }
 
@@ -132,6 +163,7 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
           final read = {for (final event in _events.events) ?event.eventId};
           _predictions.removeWhere((eventId, _) => !read.contains(eventId));
           if (_pausedNow == _events.paused) _pausedNow = null;
+          if (_perCityNow == _events.peoplePerCity) _perCityNow = null;
         });
       }
     } catch (_) {
@@ -144,7 +176,7 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
   @override
   Widget build(BuildContext context) {
     if (!_events.enabled) return const SizedBox.shrink();
-    final shown = _events.events.where(_shown).toList();
+    final shown = _events.events;
     final admissions = shown.where((event) => event.isAdmission).length;
     final moves = shown.length - admissions;
     final total = _events.total;
@@ -164,7 +196,7 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // The total beside the title, under it when narrow.
+                      // The total and what is shown beside the title, under it when narrow.
                       Wrap(
                         spacing: 10,
                         crossAxisAlignment: WrapCrossAlignment.center,
@@ -183,6 +215,11 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
                                 style: const TextStyle(color: Aityx.fg, fontSize: 12, fontWeight: FontWeight.w600),
                               ),
                             ),
+                          Text(
+                            '${_count(admissions, 'admission')} · ${_count(moves, 'move')}',
+                            key: const Key('stream-events-counts'),
+                            style: const TextStyle(color: Aityx.muted, fontSize: 12),
+                          ),
                         ],
                       ),
                       Text(
@@ -194,36 +231,28 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
                     ],
                   ),
                 ),
-                if (widget.simulation != null) ...[
-                  OutlinedButton.icon(
-                    key: const Key('simulation-pause'),
-                    onPressed: _switching ? null : _switch,
-                    icon: Icon(_paused ? Icons.play_arrow : Icons.pause, size: 18),
-                    label: Text(_paused ? 'Resume the simulation' : 'Pause the simulation'),
-                  ),
-                  const SizedBox(width: 12),
-                ],
-                Text(
-                  '${_count(admissions, 'admission')} · ${_count(moves, 'move')}',
-                  key: const Key('stream-events-counts'),
-                  style: const TextStyle(color: Aityx.muted, fontSize: 12),
-                ),
               ],
             ),
-            const SizedBox(height: 8),
-            _ConditionFilter(
-              events: _events.events,
-              selected: _conditions,
-              onChanged: (condition, on) => setState(() {
-                if (condition == null) {
-                  _conditions.clear();
-                } else if (on) {
-                  _conditions.add(condition);
-                } else {
-                  _conditions.remove(condition);
-                }
-              }),
-            ),
+            // The simulation's controls, at the top, wrapping when narrow.
+            if (widget.simulation != null || (widget.population != null && _perCity != null)) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (widget.population != null && _perCity != null)
+                    _PeoplePicker(perCity: _perCity!, busy: _populating, onChanged: _populate),
+                  if (widget.simulation != null)
+                    OutlinedButton.icon(
+                      key: const Key('simulation-pause'),
+                      onPressed: _switching ? null : _switch,
+                      icon: Icon(_paused ? Icons.play_arrow : Icons.pause, size: 18),
+                      label: Text(_paused ? 'Resume the simulation' : 'Pause the simulation'),
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: 8),
             const Row(
               children: [
@@ -240,14 +269,8 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
               ],
             ),
             const SizedBox(height: 8),
-            if (_events.events.isEmpty)
+            if (shown.isEmpty)
               const Text('Waiting for the first event…', style: TextStyle(color: Aityx.muted))
-            else if (shown.isEmpty)
-              const Text(
-                'No event of these conditions among the latest.',
-                key: Key('stream-events-none'),
-                style: TextStyle(color: Aityx.muted),
-              )
             else
               for (final event in shown) EventRow(event, prediction: _predictionOf(event)),
           ],
@@ -257,64 +280,47 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
   }
 }
 
-/// The filter under the pause: **All**, then a chip per condition of the
-/// [events], by name, with how many of them it has; a condition [selected]
-/// stays, with 0, until it is unselected. Events without a condition (a
-/// healthy person's moves) show only under All.
-class _ConditionFilter extends StatelessWidget {
-  const _ConditionFilter({required this.events, required this.selected, required this.onChanged});
+/// How many people each city has, and a menu of [peopleChoices] to change
+/// it; off while a change is under way.
+class _PeoplePicker extends StatelessWidget {
+  const _PeoplePicker({required this.perCity, required this.busy, required this.onChanged});
 
-  final List<StreamEvent> events;
-  final Set<String> selected;
-
-  /// A condition chip turned [on] or off; a null condition is All.
-  final void Function(String? condition, bool on) onChanged;
+  final int perCity;
+  final bool busy;
+  final ValueChanged<int> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final counts = <String, int>{for (final condition in selected) condition: 0};
-    for (final event in events) {
-      final condition = event.conditionName;
-      if (condition != null) counts[condition] = (counts[condition] ?? 0) + 1;
-    }
-    final conditions = counts.keys.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-    FilterChip chip(Key key, String label, bool on, ValueChanged<bool> onSelected) => FilterChip(
-      key: key,
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      selected: on,
-      onSelected: onSelected,
-      showCheckmark: false,
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      selectedColor: Aityx.orange.withValues(alpha: 0.25),
-      side: BorderSide(color: on ? Aityx.orange : Aityx.border),
-    );
-    return Row(
-      key: const Key('condition-filter'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 6),
-          child: Icon(Icons.filter_list, color: Aityx.muted, size: 18),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Wrap(
-            spacing: 6,
-            runSpacing: 6,
+    final choices = {...peopleChoices, perCity}.toList()..sort();
+    return Tooltip(
+      message: 'How many simulated people live in each city; more people put more pressure on the care '
+          'centers. New people join now; fewer, and the last to join leave.',
+      child: PopupMenuButton<int>(
+        key: const Key('simulation-people'),
+        enabled: !busy,
+        initialValue: perCity,
+        onSelected: onChanged,
+        itemBuilder: (_) => [
+          for (final n in choices)
+            PopupMenuItem(value: n, key: Key('simulation-people-$n'), child: Text('$n people a city')),
+        ],
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Aityx.border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              chip(const Key('condition-filter-all'), 'All conditions', selected.isEmpty, (_) => onChanged(null, false)),
-              for (final condition in conditions)
-                chip(
-                  Key('condition-filter-$condition'),
-                  '$condition ${counts[condition]}',
-                  selected.contains(condition),
-                  (on) => onChanged(condition, on),
-                ),
+              const Icon(Icons.groups_outlined, size: 18, color: Aityx.muted),
+              const SizedBox(width: 6),
+              Text('$perCity people a city', style: const TextStyle(fontSize: 13)),
+              const Icon(Icons.arrow_drop_down, size: 18, color: Aityx.muted),
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -348,6 +354,7 @@ StreamEvents mergeEvents(StreamEvents moves, StreamEvents admissions) {
     events: events,
     total: counts.total,
     perSecond: counts.perSecond,
+    peoplePerCity: counts.peoplePerCity ?? moves.peoplePerCity ?? admissions.peoplePerCity,
   );
 }
 
@@ -360,8 +367,8 @@ int _minutes(StreamEvent event) {
   return event.day! * 24 * 60 + hours * 60 + minutes;
 }
 
-/// When a record happened, "09:40, day 2".
-String _when(StreamEvent event) => [?event.simTime, if (event.day != null) 'day ${event.day}'].join(', ');
+/// When a record happened, "Jan 2, 2026 09:40".
+String _when(StreamEvent event) => simWhen(event.day, event.simTime);
 
 /// What happened, and the hospital it happened at or is headed to, a link
 /// to its view, on one line: "Going to the hospital · Hospital del Mar".

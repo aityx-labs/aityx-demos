@@ -16,7 +16,7 @@ in prod mode none of it runs.
 
 At start, once the database migration succeeded, the API reads every care
 center with a location ([Care centers](care-centers.md)) and makes
-`HEALTHHUB_SIM_PEOPLE` people (10) for each city that has one: Cornudella
+`HEALTHHUB_SIM_PEOPLE` people (20) for each city that has one: Cornudella
 de Montsant, Reus, Barcelona, Miami, Fort Lauderdale, Rio de Janeiro and
 São Paulo. A person's id is the city as a slug and a number from 1
 (`sao-paulo-3`, `cornudella-de-montsant-1`).

@@ -127,7 +127,7 @@ the proxy.
 - Only the two datyx paths are forwarded; a general proxy isn't wanted.
 - One connection, no pool: enough for the hello world.
 - Every person publishes its own record each turn, one HTTP call each
-  (70 a second with the defaults, and one more for each admission), over
+  (140 a second with the defaults, and one more for each admission), over
   the client's pooled connections: fine for a demo, not a way to load
   Kafka.
 - The consumer instances are left on the proxy when the API is killed

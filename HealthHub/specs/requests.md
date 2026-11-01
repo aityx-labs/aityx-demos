@@ -336,6 +336,14 @@ The feature files hold the current specification; see the
    `GET /api/events` say `"paused"`; the API logs each pause and resume.
    See [Simulation](simulation.md#pausing), [API](api.md) and
    [Home](home.md).
+
+1. **Add more people to the simulation: double it.** The default of
+   `HEALTHHUB_SIM_PEOPLE` is now 20 a city, not 10: 140 people across the
+   seven cities, each publishing a move a turn, and about twice the
+   admissions (and so twice the aityx triage calls). The explainer beside
+   the map says twenty per city. See [Simulation](simulation.md),
+   [Home](home.md), [API](api.md), [Database](database.md) and
+   [Development environment](dev-environment.md).
 1. **In the events view, make the event cards look the same always,
    with filterable conditions on top, in a new row below the pause
    control.** Moves and admissions are now rows of one shape and

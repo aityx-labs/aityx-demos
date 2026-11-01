@@ -397,3 +397,10 @@ The feature files hold the current specification; see the
    [Simulation](simulation.md#people), [The map](map.md), [The care
    center view](care-center.md), [API](api.md), [Database](database.md)
    and [Admissions per hour](admissions-hourly.md).
+1. **Make the cards' attributes align in the events view.** The time of
+   each row drifted with the length of its person's name: the name and
+   the condition each had half the row's spare width up front, and what
+   a short name left over went after the time. Now they share what the
+   time leaves, so every row's time ends at its right edge, over the
+   record's partition and offset, in figures of one width. See
+   [Home](home.md).

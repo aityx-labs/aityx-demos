@@ -405,22 +405,35 @@ class EventRow extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Flexible(
-                        child: Tooltip(
-                          message: event.id,
-                          // An admission's person is of its own run; a move's, of the run going on.
-                          child: PersonLink(
-                            event.id,
-                            who,
-                            run: admission ? runOf(event.eventId) : null,
-                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                          ),
+                      // Who and the condition share what the time leaves, so
+                      // the time ends at the row's right edge, over the offset,
+                      // however long the name.
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Tooltip(
+                                message: event.id,
+                                // An admission's person is of its own run; a move's, of the run going on.
+                                child: PersonLink(
+                                  event.id,
+                                  who,
+                                  run: admission ? runOf(event.eventId) : null,
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(child: Text(condition, style: const TextStyle(fontSize: 13))),
+                          ],
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Expanded(child: Text(condition, style: const TextStyle(fontSize: 13))),
-                      const SizedBox(width: 8),
-                      Text(_when(event), style: muted),
+                      Text(
+                        _when(event),
+                        key: const Key('event-when'),
+                        style: muted.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 2),
@@ -442,7 +455,7 @@ class EventRow extends StatelessWidget {
                       ] else
                         Expanded(child: _What(what, event.hospitalId, hospital, admission: admission)),
                       const SizedBox(width: 8),
-                      Text(_where(event), style: muted.copyWith(fontFamily: 'monospace')),
+                      Text(_where(event), key: const Key('event-where'), style: muted.copyWith(fontFamily: 'monospace')),
                     ],
                   ),
                 ],

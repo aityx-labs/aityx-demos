@@ -336,4 +336,15 @@ The feature files hold the current specification; see the
    `GET /api/events` say `"paused"`; the API logs each pause and resume.
    See [Simulation](simulation.md#pausing), [API](api.md) and
    [Home](home.md).
-
+1. **In the events view, make the event cards look the same always,
+   with filterable conditions on top, in a new row below the pause
+   control.** Moves and admissions are now rows of one shape and
+   height: a bar and tint in the event's colour (the state's for a move,
+   orange for an admission), a mark, and two lines that never wrap: who,
+   the condition and the time; what happened, the hospital and where the
+   record sits. An admission's complaint is cut to what fits, in full on
+   hover, instead of wrapped below. Under the header with the pause, a
+   row of chips, **All conditions** and one per condition of the events
+   with its count, filters the events in the app, several at once, kept
+   through the 5-second reads; the header counts what is shown. See
+   [Home](home.md).

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:healthhub_app/api/health_hub_api.dart';
 import 'package:healthhub_app/auth/auth_controller.dart';
+import 'package:healthhub_app/events/stream_events.dart';
 import 'package:healthhub_app/location/location_controller.dart';
 import 'package:healthhub_app/main.dart';
 import 'package:healthhub_app/people/person_screen.dart';
@@ -172,7 +173,18 @@ class FakeApi implements HealthHubApi {
         offset: 9,
         eventId: 'a1b2c3d4-lisboa-3-d2-t32',
       ),
-      const StreamEvent(id: 'lisboa-1', name: 'Rui Matos', state: PersonState.toHospital, hospitalName: 'Hospital de Santa Maria', simTime: '09:40', day: 2, partition: 0, offset: 42),
+      const StreamEvent(
+        id: 'lisboa-1',
+        name: 'Rui Matos',
+        state: PersonState.toHospital,
+        conditionName: 'COPD',
+        conditionType: ConditionType.chronic,
+        hospitalName: 'Hospital de Santa Maria',
+        simTime: '09:40',
+        day: 2,
+        partition: 0,
+        offset: 42,
+      ),
       const StreamEvent(id: 'lisboa-2', name: 'Ana Sousa', state: PersonState.home, simTime: '09:40', day: 2, partition: 0, offset: 41),
     ];
     return StreamEvents(
@@ -598,7 +610,7 @@ void main() {
     expect(find.descendant(of: button, matching: find.text('Pause the simulation')), findsOneWidget);
   });
 
-  testWidgets('an admission stands out in the events, with the complaint in full', (tester) async {
+  testWidgets('an admission is marked in the events, with what was said on one line', (tester) async {
     tester.view.physicalSize = const Size(1200, 2600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -625,16 +637,90 @@ void main() {
     final complaint = tester.widget<Text>(inRow(find.textContaining('back for my sugar check')));
     expect(complaint.data, "“Hi, I'm Inês Carvalho, 67, back for my sugar check. The new tablets upset my stomach a little.”");
     expect(complaint.style?.fontStyle, FontStyle.italic);
-    expect(complaint.overflow, isNull); // wrapped, never cut
+    // One line, cut short when it doesn't fit, all of it on hover.
+    expect(inRow(find.byTooltip(
+      "Hi, I'm Inês Carvalho, 67, back for my sugar check. The new tablets upset my stomach a little.",
+    )), findsOneWidget);
 
-    // The admission's orange bar sets it apart from the moves.
+    // The admission's orange bar marks it; a move's bar is its state's colour.
     final box = tester.widget<Container>(row).decoration! as BoxDecoration;
     expect((box.border! as Border).left.color, const Color(0xFFE36742));
+    // Every row is the same shape: as tall as a move's.
+    final move = find.byKey(const Key('move-lisboa-1-42'));
+    expect(tester.getSize(row).height, tester.getSize(move).height);
+    expect(tester.getSize(row).height, tester.getSize(find.byKey(const Key('move-lisboa-2-41'))).height);
     // It sorts by simulated time: 08:00 is older than the moves at 09:40.
     expect(
       tester.getTopLeft(row).dy,
       greaterThan(tester.getTopLeft(find.descendant(of: find.byKey(const Key('stream-events')), matching: find.text('Rui Matos'))).dy),
     );
+  });
+
+  testWidgets('the conditions under the pause keep only their events, through the reads', (tester) async {
+    tester.view.physicalSize = const Size(1400, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(app(api: FakeApi(auth: false, simulation: true)));
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(const Key('stream-events'));
+    final filter = find.byKey(const Key('condition-filter'));
+    // A row of its own, under the pause, above the events.
+    expect(tester.getTopLeft(filter).dy, greaterThan(tester.getBottomLeft(find.byKey(const Key('simulation-pause'))).dy));
+    expect(tester.getTopLeft(filter).dy, lessThan(tester.getTopLeft(find.byKey(const Key('move-lisboa-1-42'))).dy));
+    // All, then the conditions of the events by name, with how many each.
+    final chips = tester.widgetList<FilterChip>(find.descendant(of: filter, matching: find.byType(FilterChip))).toList();
+    expect(chips.map((chip) => (chip.label as Text).data), ['All conditions', 'COPD 1', 'Type 2 diabetes 1']);
+    expect(chips.first.selected, isTrue);
+
+    await tester.tap(find.byKey(const Key('condition-filter-Type 2 diabetes')));
+    await tester.pump();
+    expect(find.byKey(const Key('admission-a1b2c3d4-lisboa-3-d2-t32')), findsOneWidget);
+    expect(find.descendant(of: card, matching: find.text('Rui Matos')), findsNothing);
+    expect(find.descendant(of: card, matching: find.text('Ana Sousa')), findsNothing); // no condition
+    expect(find.text('1 admission · 0 moves'), findsOneWidget);
+    expect(tester.widget<FilterChip>(find.byKey(const Key('condition-filter-all'))).selected, isFalse);
+
+    // Several at once; the choice outlives the next read.
+    await tester.tap(find.byKey(const Key('condition-filter-COPD')));
+    await tester.pump(const Duration(seconds: 6));
+    expect(find.text('1 admission · 1 move'), findsOneWidget);
+    expect(find.descendant(of: card, matching: find.text('Rui Matos')), findsOneWidget);
+
+    // All shows everything again.
+    await tester.tap(find.byKey(const Key('condition-filter-all')));
+    await tester.pump();
+    expect(find.text('1 admission · 2 moves'), findsOneWidget);
+  });
+
+  testWidgets('a chosen condition without events stays, to be unchosen', (tester) async {
+    var reads = 0;
+    final events = [
+      const StreamEvent(id: 'reus-1', name: 'Jordi Puig', state: PersonState.home, conditionName: 'Influenza', simTime: '09:00', day: 1, offset: 1),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: StreamEventsCard(
+              events: ({int limit = 20, StreamEventType? type}) async {
+                reads++;
+                return StreamEvents(enabled: true, events: reads <= 2 && type == StreamEventType.move ? events : const []);
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('condition-filter-Influenza')));
+    await tester.pump(const Duration(seconds: 6));
+    // Gone from the events, kept as a chosen chip with none.
+    expect(find.text('Influenza 0'), findsOneWidget);
+    expect(find.byKey(const Key('stream-events-none')), findsNothing); // nothing at all: waiting
+    await tester.tap(find.byKey(const Key('condition-filter-Influenza')));
+    await tester.pump();
+    expect(find.byKey(const Key('condition-filter-Influenza')), findsNothing);
   });
 
   testWidgets("a person's id opens their view, datyx's 30-day prediction highlighted", (tester) async {

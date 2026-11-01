@@ -7,7 +7,7 @@ import 'dart:math';
 import 'auth.dart';
 import 'care_centers.dart' show simulatedCapacity;
 import 'conditions.dart' show CareSetting;
-import 'simulation.dart' show LatLon, Place, admissionsTopic, movesTopic;
+import 'simulation.dart' show LatLon, Place, admissionsTopic, maxPeoplePerCity, movesTopic;
 
 /// An answer: a status, and a JSON body or a redirect.
 class Answer {
@@ -56,6 +56,11 @@ class Forwarded {
 /// or resumes (false) the simulation and says whether it is paused now;
 /// called only for a signed-in user (once authentication is on) and while
 /// the simulation runs in dev mode (else 401, 409).
+/// [population]: for POST /api/simulation/people, sets the people a city
+/// to the request's [body] `perCity` and says how many it is now; called
+/// as [control] is, and only for a whole number from 1 to
+/// [maxPeoplePerCity] (else 400).
+/// [peoplePerCity]: the people a city now, reported by GET /api/events.
 /// [people]: the latest move of each simulated person, as read back from
 /// Kafka by the server (lib/simulation.dart's PeopleFeed).
 /// [events]: the latest moves and admissions the feed read, newest first.
@@ -107,6 +112,9 @@ Answer route(
   bool simulation = false,
   bool paused = false,
   bool Function(bool pause)? control,
+  int Function(int perCity)? population,
+  Object? body,
+  int? peoplePerCity,
   List<Map<String, Object?>> people = const [],
   List<Map<String, Object?>>? admissions,
   bool triageEnabled = false,
@@ -129,6 +137,17 @@ Answer route(
           return const Answer(409, body: {'error': 'the simulation does not run'});
         }
         return Answer(200, body: {'paused': control(path == simulationPausePath)});
+      // Anyone signed in may change it, as they may pause it.
+      case simulationPeoplePath:
+        if (auth.enabled && identity == null) return _signIn;
+        if (!dev || !simulation || population == null) {
+          return const Answer(409, body: {'error': 'the simulation does not run'});
+        }
+        final perCity = body is Map ? body['perCity'] : null;
+        if (perCity is! int || perCity < 1 || perCity > maxPeoplePerCity) {
+          return const Answer(400, body: {'error': 'perCity is a whole number from 1 to $maxPeoplePerCity'});
+        }
+        return Answer(200, body: {'perCity': population(perCity)});
     }
   }
   if (method == 'GET') {
@@ -257,6 +276,7 @@ Answer route(
             paused: paused,
             total: eventsTotal,
             perSecond: eventsPerSecond,
+            peoplePerCity: peoplePerCity,
           ));
       // Open to everyone, like the events: the people are simulated. Read
       // from the database, so in prod too, whatever an earlier dev run
@@ -633,6 +653,9 @@ Answer forecastAnswer(Forwarded forecast) {
 const simulationPausePath = '/api/simulation/pause';
 const simulationResumePath = '/api/simulation/resume';
 
+/// The path that sets the people a city (POST `{"perCity": n}`).
+const simulationPeoplePath = '/api/simulation/people';
+
 /// How many events GET /api/events answers unless asked, and at most.
 const eventsLimit = 20;
 const eventsMax = 100;
@@ -640,8 +663,8 @@ const eventsMax = 100;
 /// What GET /api/events answers: in dev mode, the latest [events] read
 /// from the streams (newest first, only those of [type] when given, at
 /// most [limit], never more than [eventsMax]), each with its type and
-/// where it sits in its topic, and whether the simulation is [paused]; in
-/// prod, nothing. "topic" is the moves' topic, as before admissions;
+/// where it sits in its topic, whether the simulation is [paused], and its
+/// [peoplePerCity] (null when unknown); in prod, nothing. "topic" is the moves' topic, as before admissions;
 /// "topics" names both.
 Map<String, Object?> eventsAnswer(
   bool dev,
@@ -651,6 +674,7 @@ Map<String, Object?> eventsAnswer(
   bool paused = false,
   int total = 0,
   double perSecond = 0,
+  int? peoplePerCity,
 }) {
   const topics = [movesTopic, admissionsTopic];
   if (!dev) {
@@ -661,6 +685,7 @@ Map<String, Object?> eventsAnswer(
   return {
     'enabled': true,
     'paused': paused,
+    'peoplePerCity': peoplePerCity,
     'total': total,
     'perSecond': (perSecond * 10).round() / 10,
     'topic': movesTopic,
@@ -683,13 +708,13 @@ String _typeOf(Map<String, Object?> event) => event['type'] == 'admission' ? 'ad
 
 const _moveEventFields = [
   'type', 'id', 'name', 'age', 'city', 'state', 'mode', 'monitored', 'monitoredFor', 'conditionName', 'conditionType',
-  'hospitalId', 'hospitalName', 'careCenterKind', 'simTime', 'day', 'turn', 'lat', 'lon', 'partition', 'offset',
+  'hospitalId', 'hospitalName', 'careCenterKind', 'simTime', 'day', 'at', 'turn', 'lat', 'lon', 'partition', 'offset',
 ];
 
 const _admissionEventFields = [
   'type', 'eventId', 'personId', 'name', 'age', 'sex', 'occupation', 'city', 'conditionCode',
   'conditionName', 'conditionType', 'visit', 'visitNumber', 'complaint', 'hospitalId',
-  'hospitalName', 'careCenterKind', 'simTime', 'day', 'turn', 'partition', 'offset',
+  'hospitalName', 'careCenterKind', 'simTime', 'day', 'at', 'turn', 'partition', 'offset',
 ];
 
 /// How many admissions GET /api/admissions answers unless asked, and at

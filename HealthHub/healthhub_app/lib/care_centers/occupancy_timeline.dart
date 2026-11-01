@@ -5,16 +5,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../api/health_hub_api.dart';
+import '../sim_clock.dart';
 import '../theme.dart';
-
-/// Simulated time has days, not dates: day 1 is 2026-01-01.
-final _day1 = DateTime.utc(2026, 1, 1);
-
-/// "Day 19, 17:00": a simulated hour as the rest of the app names it.
-String simHour(DateTime hour) {
-  final day = hour.difference(_day1).inDays + 1;
-  return 'Day $day, ${hour.hour.toString().padLeft(2, '0')}:00';
-}
 
 /// An expected number of people: one decimal, two below one.
 String expectedText(double v) => v < 1 ? v.toStringAsFixed(2) : v.toStringAsFixed(1);
@@ -190,7 +182,7 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
     final last = history.hours.last;
     final peak = history.hours.map((h) => h.occupancy).reduce(math.max);
     final of = widget.capacity > 0 ? ' of ${widget.capacity} ${widget.unit}' : '';
-    final past = '${last.occupancy} in care at ${simHour(last.hour)}; at most $peak$of in the last '
+    final past = '${last.occupancy} in care at ${simDateTime(last.hour)}; at most $peak$of in the last '
         '${history.hours.length} hours.';
     if (_forecastError != null && (forecast == null || forecast.steps.isEmpty)) return '$past No forecast: $_forecastError';
     if (forecast == null) return '$past Asking datyx for its forecast…';
@@ -405,10 +397,10 @@ class _OccupancyTimelineChartState extends State<OccupancyTimelineChart> {
     final String text;
     if (index < g.hours.length) {
       final h = g.hours[index];
-      text = '${simHour(h.hour)}\n${h.occupancy} in care$of';
+      text = '${simDateTime(h.hour)}\n${h.occupancy} in care$of';
     } else {
       final s = g.forecast[index - g.hours.length];
-      text = '${simHour(s.at)}, forecast\n${expectedText(s.mean)} expected$of'
+      text = '${simDateTime(s.at)}, forecast\n${expectedText(s.mean)} expected$of'
           '\n${_n(s.p10)} to ${_n(s.p90)} (80%)';
     }
     final x = g.x(index, size);
@@ -523,7 +515,7 @@ class _TimelinePainter extends CustomPainter {
       if (!midnight && !(t.hour == 12 && perHour * 12 > 44)) continue;
       final x = g.x(i, size);
       canvas.drawLine(Offset(x, size.height - _Geometry.bottom), Offset(x, size.height - _Geometry.bottom + 4), grid);
-      _text(canvas, midnight ? 'Day ${t.difference(_day1).inDays + 1}' : '12:00',
+      _text(canvas, midnight ? simDayLabel(t) : '12:00',
           Offset(x, size.height - _Geometry.bottom + 6), label, center: true);
     }
 

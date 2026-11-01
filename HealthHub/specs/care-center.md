@@ -56,7 +56,7 @@ order:
      (places for a clinic or a health station), a bar and the share in
      use, green, amber from 60%, red from 90% ("over capacity" past
      100%); how many are on the way and, for a hospital, how many people
-     have it as their hospital; the simulated time; and that the capacity
+     have it as their hospital; the simulated time, as a date; and that the capacity
      is the simulation's. In prod, that nobody is there.
 3. **Occupancy per hour**: the people in care at the care center in each
    of the last 72 simulated hours up to now, a solid line with a point

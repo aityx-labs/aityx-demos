@@ -513,3 +513,26 @@ The feature files hold the current specification; see the
    hour](occupancy-hourly.md), [A care center's occupancy per
    hour](occupancy-timeline.md), [The care center view](care-center.md),
    [API](api.md) and [Database](database.md).
+1. **Double the people again, and make it configurable at the top of the
+   events panel; drop the filters by condition (and by event type) for
+   now; use real dates, the calendar starting on 2026-01-01, in the data
+   and on screen, instead of day numbers, with the clock sped up as now;
+   and make a person's icon smaller, for the many more people that put
+   the health system under pressure.** Eighty people a city by default
+   (`HEALTHHUB_SIM_PEOPLE`, at most 200): 560 in all. Under the events'
+   header, beside **Pause the simulation**, **80 people a city** is a menu
+   (10 to 200) that anyone signed in uses to change it while the
+   simulation runs (`POST /api/simulation/people`): newcomers join at the
+   turn now, their visits counted from then on; with fewer, each city's
+   last to join leave, off the map at once; numbers are never given twice
+   in a run. `GET /api/events` says `peoplePerCity`. The condition chips
+   are gone. Simulated time is a calendar from 2026-01-01: every move and
+   admission carries `at` (`2026-01-04T09:09`) beside its day and time,
+   the admissions table `admitted_at`, and the app shows every time as a
+   date ("Jan 4, 2026 09:09": the events, the map's legend and pins, the
+   person and care center views, the days of care, the occupancy chart's
+   axis and hover). A person on the map is an 8 px dot in a thin ring,
+   their home an 11 px house. See [Simulation](simulation.md#the-calendar),
+   [Home](home.md), [The map](map.md), [API](api.md) and
+   [Database](database.md).
+

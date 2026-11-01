@@ -6,6 +6,7 @@ import '../events/stream_events.dart' show visitOf;
 import '../location/user_location_map.dart' show PersonLook;
 import '../screens/explainers.dart' show Explainer;
 import '../screens/link_text.dart';
+import '../sim_clock.dart';
 import '../theme.dart';
 import '../triage/triage_card.dart' show levelColor;
 
@@ -262,7 +263,7 @@ class _Header extends StatelessWidget {
                           ),
                         if (now.simTime != null)
                           Text(
-                            [now.simTime!, if (now.day != null) 'day ${now.day}'].join(', '),
+                            simWhen(now.day, now.simTime),
                             style: muted.copyWith(fontSize: 12),
                           ),
                       ],
@@ -569,7 +570,7 @@ class AdmissionRow extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
-                [?a.simTime, if (a.day != null) 'day ${a.day}'].join(', '),
+                simWhen(a.day, a.simTime),
                 style: muted,
               ),
               Text(
@@ -637,7 +638,7 @@ class _Days extends StatelessWidget {
               children: [
                 const TableRow(
                   children: [
-                    Text('Day', style: head),
+                    Text('Date', style: head),
                     Text('Visits', style: head),
                     Text('Acute · chronic', style: head),
                     Text('Hours of care', style: head),
@@ -648,7 +649,10 @@ class _Days extends StatelessWidget {
                     children: [
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
-                        child: Text(d.day, style: cell.copyWith(fontFamily: 'monospace')),
+                        child: Text(
+                          simDateOf(d.day),
+                          style: cell,
+                        ),
                       ),
                       Padding(padding: const EdgeInsets.only(top: 4), child: Text('${d.visits}', style: cell)),
                       Padding(

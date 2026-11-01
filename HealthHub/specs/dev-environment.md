@@ -239,7 +239,7 @@ process-compose through Docker Compose comes from.
   devbox services have run end to end (PostgreSQL, the API and the app,
   with `/api/hello` answering from the database).
 - `kafka` and `kafka-rest` have run from process-compose (both ready,
-  the health monitor's 📨 Kafka ✅, the API in dev mode moving 280 people
+  the health monitor's 📨 Kafka ✅, the API in dev mode moving 560 people
   through the topic and `/api/people` reading them back) and with `docker
   compose up kafka kafka-rest`; the whole Compose stack hasn't run with
   them. The host listener (9804) has only been checked to accept

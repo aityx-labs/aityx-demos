@@ -18,10 +18,22 @@ in prod mode none of it runs.
 
 At start, once the database migration succeeded, the API reads every care
 center with a location ([Care centers](care-centers.md)) and makes
-`HEALTHHUB_SIM_PEOPLE` people (40) for each city that has one: Cornudella
-de Montsant, Reus, Barcelona, Miami, Fort Lauderdale, Rio de Janeiro and
-São Paulo. A person's id is the city as a slug and a number from 1
-(`sao-paulo-3`, `cornudella-de-montsant-1`).
+`HEALTHHUB_SIM_PEOPLE` people (80, at most 200) for each city that has
+one: Cornudella de Montsant, Reus, Barcelona, Miami, Fort Lauderdale, Rio
+de Janeiro and São Paulo. A person's id is the city as a slug and a
+number from 1 (`sao-paulo-3`, `cornudella-de-montsant-1`).
+
+The people a city can change while the simulation runs
+(`POST /api/simulation/people`, `{"perCity": n}`, 1 to 200, for anyone
+signed in, from home's events; [Home](home.md)). More: each city's
+newcomers join at the turn now, made as at the start (a home, a profile,
+their conditions), their chronic condition's first visit and their first
+acute episode counted from that moment, so nobody arrives with visits
+overdue. Fewer: each city's last to join leave, their loop ending at its
+next turn, off the map at once. A number is never given twice in a run,
+so a newcomer is never someone who left (`reus-81` after `reus-80`
+left, not `reus-80` again). The change lasts until the API restarts,
+which starts again from `HEALTHHUB_SIM_PEOPLE`.
 
 - **Home**: a random point within 1.5 km of a random care center of the
   city, uniform over the disc, so homes fall in the city and, since care
@@ -137,6 +149,19 @@ everyone. The loops agree on the clock because each derives its turn from
 the time since the simulation started; a loop that overran a turn (a slow
 publish) skips to the current one instead of falling behind.
 
+## The calendar
+
+Simulated time is a calendar that starts on 2026-01-01 at 00:00 (day 1)
+and runs from there, a simulated hour every real second with the
+defaults: a run's day 4 at 09:09 is 2026-01-04 09:09, its day 554
+2027-07-08. Every record carries its `day` and `simTime` and the same
+moment as `at`, ISO 8601 without a zone (`simAt`); the admissions table
+keeps it as `admitted_at` ([Database](database.md)), and the series
+(`admissions_hourly`, `patient_days`, `occupancy_hourly`) are dated on
+it. The app shows every simulated time as a date, "Jan 4, 2026 09:09",
+never as a day number. Each run starts the calendar again from
+2026-01-01.
+
 ## Pausing
 
 `POST /api/simulation/pause` freezes the simulation and `POST
@@ -211,11 +236,12 @@ keyed by the person's id:
  "conditionType": "acute", "visit": "first", "visitNumber": 1,
  "complaint": "Hi, I'm Núria Puig Soler, 54...", "template": 0,
  "hospitalId": 13, "hospitalName": "CAP Llibertat", "careCenterKind": "health_station",
- "simTime": "09:09", "day": 4, "turn": 75}
+ "simTime": "09:09", "day": 4, "at": "2026-01-04T09:09", "turn": 75}
 ```
 
 `simTime` is the minute of arrival: Núria left home at 09:00, the start
-of turn 75, and walked 750 m in 9 minutes. `eventId` is the run's id
+of turn 75, and walked 750 m in 9 minutes. `at` is the same moment as a
+date and time on the simulation's calendar ([The calendar](#the-calendar)). `eventId` is the run's id
 (random hex, new at every start of the simulation), the person's id, the
 day and the turn: the people's ids and the turns repeat from run to run,
 and the run id keeps every event id unique. An admission that fails to
@@ -233,7 +259,7 @@ keyed by the person's id, valued:
  "lat": 41.1554, "lon": 1.1076, "homeLat": 41.1621, "homeLon": 1.1081,
  "hospitalId": 13, "hospitalName": "CAP Llibertat", "careCenterKind": "health_station",
  "state": "at_hospital", "mode": "walk", "monitored": false, "monitoredFor": null, "conditionName": "Influenza",
- "conditionType": "acute", "simTime": "09:00", "day": 4, "turn": 75}
+ "conditionType": "acute", "simTime": "09:00", "day": 4, "at": "2026-01-04T09:00", "turn": 75}
 ```
 
 The move of the turn of the admission above: `simTime` is the turn's,

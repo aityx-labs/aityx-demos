@@ -25,9 +25,8 @@ its own access details (decrypted in the API, [data-sources.md](data-sources.md)
 and reads, through JDBC's `DatabaseMetaData` and nothing specific to the
 source, every table, view, materialized view and partitioned table
 outside the system schemas: columns in order with their type,
-nullability and comment, and the primary key (`SchemaReader`). No rows
-are read. It then writes them to OpenMetadata, one create-or-update PUT
-each:
+nullability and comment, and the primary key (`SchemaReader`). It then
+writes them to OpenMetadata, one create-or-update PUT each:
 
 - a database service named `datyx-ds-{id}` (unique across profiles;
   its display name is the source's name, its description the source's),
@@ -39,16 +38,24 @@ each:
   or the database's type name where that says more: `text`,
   `timestamptz`, `jsonb`, `uuid`...), its type name as shown, a
   `PRIMARY_KEY` or `NOT_NULL` constraint, a composite primary key as a
-  table constraint, and the comments as descriptions.
+  table constraint, and the comments as descriptions;
+- each table's quality ([Quality](#quality)): its profile, and the
+  checks its schema implies as test cases with their results.
 
 It answers `{"service":"datyx-ds-1","database":"datyx-ds-1.healthhub",
 "schemas":["public"],"tables":8,"columns":101,"personal":50,"special":32,
-"removed":[]}`: `personal` counts the columns holding personal data,
-`special` those of a special category ([Personal data](#personal-data-gdpr)). Running it
-again updates the same entities: what people added in OpenMetadata
-(tags, descriptions where the source has no comment, owners) stays, and
-a table the source no longer has is soft-deleted (`removed`), and comes
-back if it does again. Deleting the data source removes its service and
+"tests":67,"failed":0,"failing":[],"removed":[]}`: `personal` counts the
+columns holding personal data, `special` those of a special category
+([Personal data](#personal-data-gdpr)), `tests` the checks run and
+`failed` those that failed, `failing` the tables with a failed check.
+Running it again updates the same entities: what people added in
+OpenMetadata (tags, descriptions where the source has no comment,
+owners, domains) stays, and so do the data products and the
+certification, which a PUT would clear: read before it, they go back in
+it or in a patch after it. A table the source no longer has is
+soft-deleted (`removed`), and comes back if it does again. The database
+and its schemas keep their descriptions and data products the same way.
+Deleting the data source removes its service and
 everything under it from OpenMetadata, best effort: a catalogue that
 can't be reached is logged and the source is deleted anyway.
 
@@ -89,8 +96,9 @@ It answers `{"service":"datyx-ds-2","topics":5,"fields":46,"sampled":4,
 top-level fields, `sampled` the topics with a record, `personal` and
 `special` the top-level fields holding personal data and special
 category data. Running it again keeps what people added (the
-topic's description, a field's description and tags, sent back with
-the PUT); a topic with no record keeps the schema OpenMetadata has; a
+topic's description, a field's description and tags, its data products
+and domains, sent back with the PUT; its certification, patched back);
+a topic with no record keeps the schema OpenMetadata has; a
 topic the cluster no longer has is soft-deleted (`removed`). Deleting
 the source removes its messaging service and topics.
 
@@ -156,6 +164,36 @@ In HealthHub's catalogue: `admissions`, `admission_triage`,
 and the encounters' facts special category data; `care_centers`,
 `medical_conditions`, `complaint_templates`, `greetings` and the hourly
 counts none.
+
+## Quality
+
+`Quality`: how good a table's data is, in OpenMetadata's own terms, read
+by datyx with SQL aggregates (counts, bounds, lengths: never a row's
+values) on a read-only connection, 60 s a query, and written to
+OpenMetadata, which has no connection to run them itself:
+
+- the table's **profile** (`PUT /api/v1/tables/{id}/tableProfile`), one
+  query a table: its rows and columns, and per column its values, nulls
+  and their share, distinct values (not for `json`, `bytea`, `xml`,
+  arrays), a number's min, max, mean, sum and standard deviation, and a
+  text's shortest and longest length;
+- **checks**, each one of OpenMetadata's test definitions, as a test
+  case of the table or column (by name, `{column}_{test}`, with a
+  description in words; `PUT /api/v1/dataQuality/testCases`, which puts
+  it in the table's own test suite) and its result at every sync
+  (`Success` or `Failed`, in words, the values found and the rows passed
+  and failed). The schema gives each table `columnValuesToBeNotNull` for
+  every `NOT NULL` or key column, and `columnValuesToBeUnique` for a
+  one-column primary key, or a `tableCustomSQLQuery` counting duplicates
+  of a composite one. Others come from people, through a curation
+  ([curation.md](curation.md)): `columnValuesToBeBetween` (`minValue`,
+  `maxValue`, either), `columnValuesToBeInSet` (`allowedValues`, compared
+  as text), `columnValuesToMatchRegex` (`regex`, PostgreSQL's) and
+  `tableRowCountToBeBetween`. Another test definition is refused; a
+  custom SQL check is datyx's own only.
+
+OpenMetadata then shows each table's Data Quality (its tests passing),
+its profile in Data Observability, and the tests' history.
 
 ## Which sources, and errors
 
@@ -303,7 +341,9 @@ In development the HealthHub data source (seeded, [data-sources.md](data-sources
 is the example. HealthHub aggregates its admissions per hospital and
 simulated hour into `admissions_hourly` (HealthHub's own Flink job, in
 its folder), and datyx knows nothing of it beyond the catalogue: one
-sync, then the roles above, by datyx's PUT or by hand in OpenMetadata.
+sync, then the roles above, by datyx's PUT or by hand in OpenMetadata;
+in development, datyx's curation of HealthHub gives a table without
+them the roles below on its first pass ([curation.md](curation.md)).
 The run is part of the series key because each HealthHub start replays
 the simulated calendar from day 1. Three groups can train on it:
 `default` forecasting `admissions`, `acute` forecasting
@@ -367,6 +407,12 @@ counts holding none, a column that names a person making its record
 personal, nested fields and the record holding them, a person's tags
 kept and datyx's replaced (other classifications' kept), and the patch
 `Catalog.classify` sends, with nested paths, empty once written.
+`QualityTest`, no server: the checks a schema implies (a composite key
+by SQL), the profile's query by type, quoting, test cases, results and
+profiles as OpenMetadata takes them, checks read from JSON and an
+unknown test refused. `CatalogResourceTest` also profiles a table on the
+Dev Services Postgres and runs each kind of check on it, passing and
+failing.
 
 ## Known limitations
 
@@ -395,8 +441,14 @@ kept and datyx's replaced (other classifications' kept), and the patch
   client is taken for a person's). People correct a column in
   OpenMetadata, and their tag stays. No value is sampled to check, as
   OpenMetadata's own auto-classification would.
-- The properties inside a `json` or `jsonb` column aren't read (no rows
-  are): the column is classified as a whole.
+- The properties inside a `json` or `jsonb` column aren't read (no
+  values are): the column is classified as a whole.
+- A check's results are only as fresh as the latest sync: datyx runs no
+  schedule of its own outside development ([curation.md](curation.md)).
+  A test case of a column the source no longer has stays in
+  OpenMetadata with its last result.
+- The profile has no histograms, quartiles or medians, and a date's
+  range isn't profiled.
 - Criminal data (Art. 10) is tagged `PersonalData.SpecialCategory`,
   OpenMetadata having no tag of its own for it; the reason says Art. 10.
 - Tables and topics themselves get no PII tag, only their columns and

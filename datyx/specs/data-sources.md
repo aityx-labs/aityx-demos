@@ -75,7 +75,9 @@ In dev mode the Flyway location `db/devdata` ([api.md](api.md)) seeds
 HealthHub's PostgreSQL as a data source named HealthHub, and its Kafka
 (`localhost:9804`, plain text) as one named HealthHub Kafka, in every
 profile, so the dashboard has them to show and the catalogue something
-to read; prod and tests get none.
+to read; prod and tests get none. Once HealthHub's data initialization
+is done, datyx catalogues and curates them by itself
+([curation.md](curation.md)).
 
 ## Migration
 

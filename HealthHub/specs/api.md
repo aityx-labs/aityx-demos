@@ -13,7 +13,7 @@ simulation for whether it runs or is paused, and to pause and resume it:
 | Request | Answer |
 |---|---|
 | `GET /` | 302 to `/app/`, so a forwarded port's bare URL opens the app |
-| `GET /api/health` | `{"ok": true, "db": <whether the database answers SELECT 1>, "aityx": <whether the API has its key>, "auth": <whether authentication is on>, "kafka": <whether Kafka's REST proxy answers GET /topics with 200>, "simulation": <whether the people simulation runs>, "paused": <whether it is paused>, "triage": <whether admissions are triaged with aityx>}`; `ok` is true whether or not the database or Kafka answer |
+| `GET /api/health` | `{"ok": true, "db": <whether the database answers SELECT 1>, "aityx": <whether the API can reach aityx: its key, or datyx's gateway with the service token>, "auth": <whether authentication is on>, "kafka": <whether Kafka's REST proxy answers GET /topics with 200>, "simulation": <whether the people simulation runs>, "paused": <whether it is paused>, "triage": <whether admissions are triaged with aityx>}`; `ok` is true whether or not the database or Kafka answer |
 | `GET /api/hello` | `{"message": "Hello, world", "since": <when the row was written, ISO 8601 UTC>, "postgres": <the server's version()>, "user": <the signed-in user's subject, email, name and picture, or null>}`, the first row of `greetings`; with a signed-in user the message is `Hello, <name>`; 503 `{"error": "the database is not answering"}` when it can't be read |
 | `GET /api/care-centers/nearest?lat=..&lon=..` | `{"center": {...the care center's fields..., "distance": <metres>}}`, the care center of any kind nearest the point by great-circle distance, `"center": null` when none has a location ([The map](map.md)); open to everyone; the point is used for the query only, never logged or kept; 400 for a point that isn't one, 503 when the database doesn't answer |
 | `GET /api/care-centers?bbox=west,south,east,north` | `{"centers": [...], "truncated": <whether there were more>}`, the care centers with a location in the area, hospitals first, at most 500 ([Care centers](care-centers.md)); open to everyone; 400 for a bbox that isn't one, 503 when the database doesn't answer |
@@ -40,6 +40,9 @@ The API reads from its environment `AITYX_API_KEY` and `AITYX_URL`
 (default `https://api.aityx.ai`, which must be https), with which it
 triages each admission unless `HEALTHHUB_TRIAGE` is `off` (`on` by
 default; anything else stops the server; [Triage at the desk](triage.md)),
+`HEALTHHUB_AITYX_VIA_DATYX` and `DATYX_SERVICE_TOKEN`, with which the
+triage's calls go through datyx's aityx gateway ([Triage at the
+desk](triage.md#which-way-through-datyx-or-directly)),
 `API_PORT` (9802), `HEALTHHUB_BIND_HOST` (127.0.0.1),
 `ALLOWED_ORIGINS` and the database settings `HEALTHHUB_DB_HOST`
 (127.0.0.1), `HEALTHHUB_DB_PORT` (9803), `HEALTHHUB_DB_NAME`,

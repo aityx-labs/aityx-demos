@@ -97,7 +97,8 @@ process-compose through Docker Compose comes from.
     healthy, with a readiness probe on `/api/health`. The script loads
     the settings through [scripts/env.sh](../scripts/env.sh) (the
     environment, else `.env`, else defaults) and exports `AITYX_API_KEY`,
-    `AITYX_URL` and the database's host, port, name, user and password
+    `AITYX_URL`, `DATYX_SERVICE_TOKEN`, `HEALTHHUB_AITYX_VIA_DATYX` and
+    the database's host, port, name, user and password
     to the server only, with `HEALTHHUB_MODE`, `HEALTHHUB_KAFKA_REST_URL`
     and the simulation's settings. It doesn't wait for Kafka: in dev mode
     it retries the REST proxy until it answers. CORS allows the web app's
@@ -109,7 +110,7 @@ process-compose through Docker Compose comes from.
     and waits 5 s (`HEALTH_CHECK_DELAY`). Then every 15 s
     (`HEALTH_CHECK_INTERVAL`) one line with the time, 🌐 Web, 🔌 API
     (`/api/health`), 🐘 Postgres (the API's `"db"`), 🤖 aityx (✅ the
-    API has its key, ⚪ it doesn't), 📨 Kafka (the REST proxy's
+    API reaches aityx, with its key or through datyx, ⚪ it doesn't), 📨 Kafka (the REST proxy's
     `GET /topics` on `HEALTHHUB_KAFKA_REST_PORT` answers 200) and 🌊
     Flink (the JobManager on `HEALTHHUB_FLINK_PORT` lists
     `healthhub-admissions-hourly` as `RUNNING`).
@@ -121,6 +122,10 @@ process-compose through Docker Compose comes from.
 - **Settings** ([.env.example](../.env.example), read by
   [scripts/env.sh](../scripts/env.sh)): `AITYX_API_KEY`, `AITYX_URL`,
   `HEALTHHUB_TRIAGE` (`on`, or `off` for no triage),
+  `HEALTHHUB_AITYX_VIA_DATYX` (`on` in dev mode, `off` in prod) and
+  `DATYX_SERVICE_TOKEN` (a secret, datyx's too: the triage's calls go
+  through datyx's aityx gateway; [Triage at the
+  desk](triage.md#which-way-through-datyx-or-directly)),
   `OIDC_CLIENT_ID`, `OIDC_ISSUER`, `DATYX_API_URL` ([API](api.md)),
   `HEALTHHUB_BIND_HOST`, `FLUTTER_WEB_PORT`, `API_PORT`,
   `HEALTHHUB_DB_PORT`, `HEALTHHUB_DB_ADMIN_PASSWORD`,

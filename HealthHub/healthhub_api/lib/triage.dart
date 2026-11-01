@@ -8,6 +8,11 @@
 /// tool/generate_triage.dart) turns them into the level, the longest
 /// wait, the area of the hospital, and whether a nurse confirms it, with
 /// the rule behind each. The answer's receipt is kept with it.
+///
+/// The call goes through datyx's aityx gateway when HealthHub has datyx's
+/// service token ([Aityx.routesViaDatyx]): datyx adds its own key and
+/// records the call in its aityx account. When datyx can't pass it on,
+/// HealthHub calls aityx directly with its own key.
 library;
 
 import 'dart:async';
@@ -51,9 +56,12 @@ Map<String, Object?> triageRequest({required String complaint, required int age,
 
 /// aityx's answer held no triage.
 class TriageFailed implements Exception {
-  TriageFailed(this.message);
+  TriageFailed(this.message, {this.via});
 
   final String message;
+
+  /// Which way the call went ([AityxAnswer.via]) when it got that far.
+  final String? via;
 
   @override
   String toString() => message;
@@ -205,55 +213,186 @@ String? referenceLevel(List<MedicalCondition> conditions, Object? conditionCode,
 }
 
 /// aityx's answer to one call: its status, its body, the shape that ran
-/// (X-aityx-Mode: defined, jev or jev_aityx) and how long it took.
+/// (X-aityx-Mode: defined, jev or jev_aityx), how long it took and which
+/// way it went ([via]).
 class AityxAnswer {
-  const AityxAnswer(this.status, this.body, {this.mode, required this.millis});
+  const AityxAnswer(this.status, this.body, {this.mode, required this.millis, this.via = 'aityx'});
 
   final int status;
   final Map<String, Object?> body;
   final String? mode;
   final int millis;
+
+  /// `datyx` when datyx's gateway passed the call on, `aityx` when
+  /// HealthHub called aityx itself.
+  final String via;
+}
+
+/// The header that carries datyx's service token.
+const datyxServiceTokenHeader = 'X-Datyx-Service-Token';
+
+/// Why datyx's answer ([status], [text]) is its own refusal to pass the
+/// call on, rather than aityx's answer passed back; null when it is
+/// aityx's. datyx's own errors are `{"error": "<text>"}`, aityx's
+/// `{"error": {"code": ...}}`, which datyx answers as they came. A
+/// refusal: no aityx key (503), no gateway (404: a datyx from before it),
+/// or the service token refused (401, 403: a datyx started without it).
+String? datyxRefusal(int status, String text) {
+  if (status != 401 && status != 403 && status != 404 && status != 503) return null;
+  Object? error;
+  try {
+    final json = jsonDecode(text);
+    if (json is Map) error = json['error'];
+  } on FormatException {
+    // Not JSON: not aityx's answer.
+  }
+  if (error is Map) return null;
+  return switch (status) {
+    503 => error == 'datyx has no aityx key' ? 'datyx has no aityx key' : null,
+    404 => 'datyx has no aityx gateway',
+    _ => 'datyx refused the service token ($status)',
+  };
 }
 
 /// aityx's /v1/systemone at [base], called with [_key], which is never
-/// logged nor put in an error.
+/// logged nor put in an error. With [datyx] and a [serviceToken], the
+/// call goes through datyx's gateway instead (`<datyx>/api/aityx/v1/systemone`,
+/// with the token and no key: datyx adds its own and records the call),
+/// and to aityx directly only when datyx can't be reached or refuses to
+/// pass it on ([datyxRefusal]), noted in [log] once a minute at most.
 class Aityx {
-  Aityx(this.base, this._key, {this.timeout = const Duration(seconds: 60)});
+  Aityx(
+    this.base,
+    this._key, {
+    this.datyx,
+    this._serviceToken = '',
+    this.timeout = const Duration(seconds: 60),
+    Duration? datyxTimeout,
+    void Function(String)? log,
+    DateTime Function()? clock,
+  }) : datyxTimeout = datyxTimeout ?? timeout + const Duration(seconds: 10),
+       _log = log ?? stderr.writeln,
+       _clock = clock ?? DateTime.now;
 
   final Uri base;
   final String _key;
-  final Duration timeout;
-  final _client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
 
-  bool get configured => _key.isNotEmpty;
+  /// datyx's API, when calls go through its gateway.
+  final Uri? datyx;
+  final String _serviceToken;
+  final Duration timeout;
+
+  /// How long datyx gets: 10 s more than [timeout] unless given, so its
+  /// own 504, when aityx doesn't answer it in time, arrives first.
+  final Duration datyxTimeout;
+  final void Function(String) _log;
+  final DateTime Function() _clock;
+  final _client = HttpClient()..connectionTimeout = const Duration(seconds: 10);
+  DateTime? _noted;
+  var _unnoted = 0;
+
+  /// Whether calls go through datyx's gateway first.
+  bool get routesViaDatyx => datyx != null && _serviceToken.isNotEmpty;
+
+  /// Whether a call can reach aityx at all: HealthHub's key, or datyx's.
+  bool get configured => _key.isNotEmpty || routesViaDatyx;
 
   /// `<base>/v1/systemone`, whether or not [base]'s path ends in a slash.
   Uri get systemone => base.replace(path: '${base.path.replaceAll(RegExp(r'/+$'), '')}/v1/systemone');
 
-  /// Posts [body]; throws when no answer comes within [timeout] or the
+  /// datyx's gateway, `<datyx>/api/aityx/v1/systemone`; null without
+  /// [datyx].
+  Uri? get gateway => datyx?.replace(path: '${datyx!.path.replaceAll(RegExp(r'/+$'), '')}/api/aityx/v1/systemone');
+
+  /// Posts [body], through datyx when [routesViaDatyx]; throws when no
+  /// answer comes within [timeout] ([datyxTimeout] from datyx) or the
   /// answer isn't a JSON object.
   Future<AityxAnswer> call(Map<String, Object?> body) async {
+    final bytes = utf8.encode(jsonEncode(body));
+    if (routesViaDatyx) {
+      final watch = Stopwatch()..start();
+      String? refused;
+      try {
+        final answer = await _post(
+          gateway!,
+          {datyxServiceTokenHeader: _serviceToken, 'X-Datyx-Caller': 'HealthHub', 'X-Datyx-Purpose': 'triage'},
+          bytes,
+          datyxTimeout,
+        );
+        refused = datyxRefusal(answer.status, answer.text);
+        if (refused == null) return _read(answer, watch, 'datyx');
+      } catch (error) {
+        if (!_unreachable(error)) rethrow;
+        refused = error is TimeoutException ? 'datyx did not answer in time' : 'datyx unreachable';
+      }
+      if (_key.isEmpty) {
+        throw TriageFailed("$refused, and HealthHub has no aityx key of its own", via: 'datyx');
+      }
+      _note(refused);
+    }
     final watch = Stopwatch()..start();
-    final request = await _client.postUrl(systemone).timeout(timeout);
+    try {
+      final answer = await _post(systemone, {HttpHeaders.authorizationHeader: 'Bearer $_key'}, bytes, timeout);
+      return _read(answer, watch, 'aityx');
+    } catch (error) {
+      if (!_unreachable(error)) rethrow;
+      throw TriageFailed('$error', via: 'aityx');
+    }
+  }
+
+  static bool _unreachable(Object error) =>
+      error is SocketException || error is HttpException || error is TimeoutException || error is TlsException;
+
+  /// Notes a call that went to aityx directly as datyx didn't pass it on:
+  /// at most once a minute, with how many since the last note.
+  void _note(String reason) {
+    _unnoted++;
+    final now = _clock();
+    final last = _noted;
+    if (last != null && now.difference(last) < const Duration(minutes: 1)) return;
+    _log(
+      'triage: calling aityx directly, as $reason'
+      '${_unnoted > 1 ? ' ($_unnoted calls since the last note)' : ''}',
+    );
+    _noted = now;
+    _unnoted = 0;
+  }
+
+  /// Posts [bytes] to [uri] with [headers]; redirects aren't followed, so
+  /// neither the key nor the token goes anywhere else.
+  Future<({int status, String text, String? mode})> _post(
+    Uri uri,
+    Map<String, String> headers,
+    List<int> bytes,
+    Duration timeout,
+  ) async {
+    final request = await _client.postUrl(uri).timeout(timeout);
+    request.followRedirects = false;
     request.headers
       ..contentType = ContentType.json
-      ..set(HttpHeaders.acceptHeader, 'application/json')
-      ..set(HttpHeaders.authorizationHeader, 'Bearer $_key');
-    request.add(utf8.encode(jsonEncode(body)));
+      ..set(HttpHeaders.acceptHeader, 'application/json');
+    headers.forEach(request.headers.set);
+    request.add(bytes);
     final response = await request.close().timeout(timeout);
-    final text = await response.transform(utf8.decoder).join().timeout(timeout);
+    final text = await response.transform(const Utf8Decoder(allowMalformed: true)).join().timeout(timeout);
+    return (status: response.statusCode, text: text, mode: response.headers.value('x-aityx-mode'));
+  }
+
+  AityxAnswer _read(({int status, String text, String? mode}) answer, Stopwatch watch, String via) {
+    final who = via == 'datyx' ? 'datyx' : 'aityx';
     final Object? json;
     try {
-      json = jsonDecode(text);
+      json = jsonDecode(answer.text);
     } on FormatException {
-      throw TriageFailed('aityx answered ${response.statusCode} without JSON');
+      throw TriageFailed('$who answered ${answer.status} without JSON', via: via);
     }
-    if (json is! Map) throw TriageFailed('aityx answered ${response.statusCode} without a JSON object');
+    if (json is! Map) throw TriageFailed('$who answered ${answer.status} without a JSON object', via: via);
     return AityxAnswer(
-      response.statusCode,
+      answer.status,
       json.cast<String, Object?>(),
-      mode: response.headers.value('x-aityx-mode'),
+      mode: answer.mode,
       millis: watch.elapsedMilliseconds,
+      via: via,
     );
   }
 
@@ -266,12 +405,18 @@ Future<Map<String, Object?>> triageAdmission(Aityx aityx, Map<String, Object?> a
   final sent = triageRequest(complaint: admission['complaint'] as String, age: admission['age'] as int);
   final reference = referenceLevel(conditionSeed, admission['conditionCode'], admission['visit'], admission['template']);
   final watch = Stopwatch()..start();
+  String? via;
   try {
     final answer = await aityx.call(sent);
+    via = answer.via;
     if (answer.status != 200) {
       final error = answer.body['error'];
+      // datyx's own errors (a 502 or 504 reaching aityx, a 413) are text,
+      // aityx's an object with a code.
+      final datyx = answer.via == 'datyx' && error is String;
       throw TriageFailed(
-        'aityx answered ${answer.status}${error is Map ? ': ${error['code'] ?? error['message'] ?? ''}' : ''}',
+        '${datyx ? 'datyx' : 'aityx'} answered ${answer.status}'
+        '${error is Map ? ': ${error['code'] ?? error['message'] ?? ''}' : datyx ? ': ${_clip(error, 200)}' : ''}',
       );
     }
     final result = toTriage(sent, answer.body);
@@ -293,6 +438,7 @@ Future<Map<String, Object?>> triageAdmission(Aityx aityx, Map<String, Object?> a
       'inputTokens': result.inputTokens,
       'millis': answer.millis,
       'mode': answer.mode,
+      'via': answer.via,
     };
   } catch (error) {
     final message = error is TriageFailed || error is TimeoutException || error is SocketException
@@ -303,9 +449,12 @@ Future<Map<String, Object?>> triageAdmission(Aityx aityx, Map<String, Object?> a
       'reference': reference,
       'error': message,
       'millis': watch.elapsedMilliseconds,
+      'via': error is TriageFailed ? error.via ?? via : via,
     };
   }
 }
+
+String _clip(String text, int length) => text.length <= length ? text : '${text.substring(0, length)}…';
 
 /// Triages the admissions it is given in the background, a few at a time,
 /// so the feed never waits on aityx: [work] triages one and records it.

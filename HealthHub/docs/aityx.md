@@ -313,7 +313,10 @@ fired, the nurse's check, the reference, and the receipt. `GET
 - Home's **Triage at the desk** card lists the latest triages under the
   map, with the summary above them ([home.md](../specs/home.md)).
 - On with an aityx key unless `HEALTHHUB_TRIAGE=off`; the key stays in
-  the API.
+  the API. In development the calls go through datyx's aityx gateway,
+  with datyx's key, so its dashboard's aityx tab accounts for them, and
+  to aityx directly when datyx can't pass them on
+  ([triage.md](../specs/triage.md#which-way-through-datyx-or-directly)).
 
 ### Cost and speed
 

@@ -67,6 +67,8 @@ const schemaComments = <String, TableComments>{
       'urgent': 'Whether the first visit is an emergency, at any hour as soon as the condition starts, rather than at a daytime slot.',
       'follow_up_stay_hours': 'The hours a visit after the first stays, 1 to 72.',
       'course_gap_days': 'Chronic only: the days from the last visit of a course to the first of the next; null is a random 30 to 120, 0 continuous.',
+      'setting': 'Where the first visit goes: hospital, primary (a health station), urgent_care, mental_health or dialysis.',
+      'follow_up_setting': 'Where the visits after the first go, one of the same; the setting when the seed names none.',
     },
   ),
   'complaint_templates': (

@@ -718,6 +718,13 @@ void main() {
     expect(inRow(find.byKey(const Key('care-center-link-1'))), findsOneWidget);
     expect(inRow(find.text('08:00, day 2')), findsOneWidget);
     expect(inRow(find.text('p0 · #9')), findsOneWidget);
+    // datyx's 30-day prediction for her, asked once for the admission's run.
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
+    expect(
+      tester.widget<Text>(inRow(find.byKey(const Key('admission-care-a1b2c3d4-lisboa-3-d2-t32')))).data,
+      '9.0 h expected in 30 days',
+    );
+    expect(inRow(find.byIcon(Icons.bed_outlined)), findsOneWidget);
     final complaint = tester.widget<Text>(inRow(find.textContaining('back for my sugar check')));
     expect(complaint.data, "“Hi, I'm Inês Carvalho, 67, back for my sugar check. The new tablets upset my stomach a little.”");
     expect(complaint.style?.fontStyle, FontStyle.italic);
@@ -738,6 +745,24 @@ void main() {
       tester.getTopLeft(row).dy,
       greaterThan(tester.getTopLeft(find.descendant(of: find.byKey(const Key('stream-events')), matching: find.text('Rui Matos'))).dy),
     );
+  });
+
+  testWidgets('without a model, an admission shows no 30-day hours', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeApi(auth: false, simulation: true)..model = false;
+    await tester.pumpWidget(app(api: api));
+    await tester.pumpAndSettle();
+
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
+    expect(find.byKey(const Key('admission-a1b2c3d4-lisboa-3-d2-t32')), findsOneWidget);
+    expect(find.byKey(const Key('admission-care-a1b2c3d4-lisboa-3-d2-t32')), findsNothing);
+    expect(find.byIcon(Icons.bed_outlined), findsNothing);
+    // Asked once, however many times the events are read again.
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pumpAndSettle();
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
   });
 
   testWidgets('the conditions under the pause keep only their events, through the reads', (tester) async {
@@ -822,7 +847,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(PersonScreen), findsOneWidget);
     expect(api.personAsked, [('lisboa-1', null)]);
-    expect(api.predictionAsked, [('lisboa-1', null)]);
+    // After the events card's own, for its admission.
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4'), ('lisboa-1', null)]);
     expect(find.text('Inês Carvalho'), findsNWidgets(2)); // the title and the header
     expect(find.text('67 · woman · retired teacher · Lisboa'), findsOneWidget);
     expect(find.text('At the hospital · Hospital de Santa Maria'), findsOneWidget);
@@ -876,10 +902,12 @@ void main() {
     await tester.pumpWidget(app(api: api));
     await tester.pumpAndSettle();
 
+    // The events card asked once for the admission's 30 days.
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
     await tester.tap(find.byKey(const Key('person-link-lisboa-3')));
     await tester.pumpAndSettle();
     expect(api.personAsked, [('lisboa-3', 'a1b2c3d4')]);
-    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4')]);
+    expect(api.predictionAsked, [('lisboa-3', 'a1b2c3d4'), ('lisboa-3', 'a1b2c3d4')]);
     expect(find.text('lisboa-3 · run a1b2c3d4 · a past run'), findsOneWidget);
   });
 

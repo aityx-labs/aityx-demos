@@ -22,8 +22,11 @@ typedef SimulationControl = Future<bool> Function(bool pause);
 /// 5 seconds while shown, like the map's people. Nothing shows until the
 /// API says the simulation runs (dev mode), and nothing in prod. Each row
 /// names its person, a link to their view, and the card invites opening
-/// anyone's. With [simulation], a button at the top pauses the simulation
-/// and resumes it; under it, a chip per condition keeps only its events.
+/// anyone's; an admission also shows datyx's prediction of the person's
+/// hours of care over the next 30 days, asked once per admission through
+/// [PersonOpener]. With [simulation], a button at the top pauses the
+/// simulation and resumes it; under it, a chip per condition keeps only
+/// its events.
 ///
 /// Moves and admissions are asked for apart: every person moves every
 /// second, so the latest [limit] records of the stream are nearly always
@@ -63,6 +66,20 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
   /// The conditions whose events are shown; all of them when empty. Kept
   /// across reads, even while a condition has no event to show.
   final Set<String> _conditions = {};
+
+  /// datyx's prediction for each admission shown, by event id, asked
+  /// once; null when datyx can't say.
+  final _predictions = <String, Future<Prediction?>>{};
+
+  Future<Prediction?>? _predictionOf(StreamEvent event) {
+    final eventId = event.eventId;
+    final predict = PersonOpener.of(context)?.prediction;
+    if (!event.isAdmission || eventId == null || predict == null) return null;
+    return _predictions[eventId] ??= predict(
+      event.id,
+      run: runOf(eventId),
+    ).then<Prediction?>((p) => p, onError: (Object _) => null);
+  }
 
   bool _shown(StreamEvent event) => _conditions.isEmpty || _conditions.contains(event.conditionName);
 
@@ -110,6 +127,8 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
       if (mounted) {
         setState(() {
           _events = mergeEvents(answers[0], answers[1]);
+          final read = {for (final event in _events.events) ?event.eventId};
+          _predictions.removeWhere((eventId, _) => !read.contains(eventId));
           if (_pausedNow == _events.paused) _pausedNow = null;
         });
       }
@@ -206,7 +225,7 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
                 style: TextStyle(color: Aityx.muted),
               )
             else
-              for (final event in shown) EventRow(event),
+              for (final event in shown) EventRow(event, prediction: _predictionOf(event)),
           ],
         ),
       ),
@@ -348,12 +367,14 @@ String _where(StreamEvent event) => event.offset == null ? '' : 'p${event.partit
 /// never more: who (a link to their view) with the condition and the
 /// simulated time; what happened, at which hospital, with the record's
 /// partition and offset. An admission's second line says which visit it
-/// is and, in italics, as much of what the person said as fits, all of it
-/// on hover.
+/// is, in italics as much of what the person said as fits (all of it on
+/// hover), and the hours of care datyx expects of them over the next 30
+/// days ([prediction]).
 class EventRow extends StatelessWidget {
-  const EventRow(this.event, {super.key});
+  const EventRow(this.event, {super.key, this.prediction});
 
   final StreamEvent event;
+  final Future<Prediction?>? prediction;
 
   @override
   Widget build(BuildContext context) {
@@ -441,6 +462,7 @@ class EventRow extends StatelessWidget {
                         ),
                       ] else
                         Expanded(child: _What(what, event.hospitalId, hospital, admission: admission)),
+                      if (prediction != null) _ExpectedCare(prediction!, eventId: event.eventId ?? event.id),
                       const SizedBox(width: 8),
                       Text(_where(event), style: muted.copyWith(fontFamily: 'monospace')),
                     ],
@@ -453,6 +475,52 @@ class EventRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The hours of hospital care datyx expects of an admission's person over
+/// the next 30 days, with a bed: "9 h expected in 30 days", the model on
+/// hover. Nothing while it loads, nor when datyx can't say (no model, no
+/// rows, not answering): the person's view says why.
+class _ExpectedCare extends StatelessWidget {
+  const _ExpectedCare(this.prediction, {required this.eventId});
+
+  final Future<Prediction?> prediction;
+  final String eventId;
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Prediction?>(
+    future: prediction,
+    builder: (context, snapshot) {
+      final p = snapshot.data;
+      final predicted = p?.predicted;
+      if (p == null || predicted == null) return const SizedBox.shrink();
+      final model = [
+        if (p.last != null) '${hoursOf(p.last!)} in the last 30 days',
+        if (p.group != null) 'group ${p.group}',
+        if (p.trainingRunId != null) 'training run ${p.trainingRunId}',
+      ].join(' · ');
+      return Padding(
+        padding: const EdgeInsets.only(left: 8),
+        child: Tooltip(
+          message:
+              "datyx's XGBoost prediction of the hours of hospital care over the next 30 days"
+              '${model.isEmpty ? '' : '\n$model'}',
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.bed_outlined, color: Aityx.orange, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                '${hoursOf(predicted)} expected in 30 days',
+                key: Key('admission-care-$eventId'),
+                style: const TextStyle(color: Aityx.fg, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 /// Which visit of the course an admission is: "First visit", "Return

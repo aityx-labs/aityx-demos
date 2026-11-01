@@ -376,3 +376,12 @@ The feature files hold the current specification; see the
    `admissions (hospital_id, id)`. See [The care center
    view](care-center.md), [The map](map.md), [Home](home.md), [The person
    view](person.md), [API](api.md) and [Database](database.md).
+
+1. **In the events where a person reaches a hospital, show their
+   expected 30-day bed usage on the event line.** Each admission in the
+   latest events shows datyx's XGBoost prediction of the person's hours
+   of hospital care over the next 30 days, the person view's, with a bed
+   icon ("9 h expected in 30 days"; the model and the last 30 days on
+   hover). The card asks for it once per admission, for the person of
+   the admission's run, and shows nothing when datyx can't say. See
+   [Home](home.md) and [The person view](person.md).

@@ -109,8 +109,19 @@ theirs; narrower, each goes under its row.
       the 2nd", "Last visit, the 3rd") and the hospital (a link to its
       view), then, in italics
       and quotes, as much of what the person said on arrival as fits
-      ([Conditions](conditions.md)), all of it on hover. The link opens
-      the person of that admission's run.
+      ([Conditions](conditions.md)), all of it on hover, and, before the
+      partition and offset, the hours of hospital care datyx expects of
+      the person over the next 30 days, with a bed icon ("9 h expected
+      in 30 days"; the model and the hours of the last 30 days on hover).
+      The link opens the person of that admission's run.
+
+    The 30-day hours are datyx's XGBoost prediction for the person of
+    the admission's run, the one their view highlights ([The person
+    view](person.md)), asked once per admission read (`GET
+    /api/people/{id}/prediction?run=`) and kept while the admission is
+    among the latest; nothing shows while it loads, nor when datyx can't
+    say (no model trained, no rows, not answering, nobody signed in),
+    nor on the index, which opens no person.
 
   Nothing shows in prod, nor before the API answers. A failed read keeps
   what is shown.

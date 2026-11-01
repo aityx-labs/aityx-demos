@@ -33,7 +33,8 @@ Each rule sets three, the table's outputs:
 
 - `steer`: `to_channel` (toward the middle of the corridor of water it can
   follow ahead, leaning toward where the river bends), `to_fuel` (toward
-  the nearest depot ahead, else as `to_channel`), `dodge` (away from the
+  the nearest depot ahead, as far as the water the plane can fly straight
+  up to it allows, so never into a bank; else as `to_channel`), `dodge` (away from the
   threat, toward the side with room, else as `to_channel`), `left`,
   `right`, `straight`. The game works out the direction every frame from
   the latest decision.
@@ -48,8 +49,8 @@ adds).
 
 | Strategy | What it does |
 |---|---|
-| **Careful** (pilot 1 at the start) | Slow and steady: turns early for land, dodges and shoots threats, refuels below 45, shoots bridges and enemies ahead |
-| **Daredevil** (pilot 2 at the start) | Full throttle: turns at 50 rows from land, swerves fast, refuels only below 25, shoots fuel depots for points |
+| **Careful** (pilot 1 at the start) | Slow and steady: turns early for land, dodges and shoots threats, refuels slowly below 45 and tops up at any depot ahead below 95, shoots bridges and enemies ahead |
+| **Daredevil** (pilot 2 at the start) | Full throttle: turns at 50 rows from land, swerves fast, refuels only below 25, swings over to any depot off to the side and shoots fuel depots for points |
 | **Sharpshooter** | Fires whenever the missile is ready, but spares the depots |
 | **Rookie** | One rule: straight ahead, firing. A start for writing your own |
 

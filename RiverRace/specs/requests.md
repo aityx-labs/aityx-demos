@@ -148,3 +148,20 @@ The feature files hold the current specification; see the
     dev key aityx refuses reads `aityx answered HTTP n`; neither names
     `.env` or the environment any more. The index page's key section does
     the same.
+
+## 2026-11-01
+
+19. **In the default rules, make the planes move a little more,
+    especially the Daredevil.** Both mostly flew up the middle of the
+    channel. Careful now tops up at any depot ahead below 95 fuel, at
+    normal speed (its slow refuel below 45 stays first), and Daredevil
+    swings over to any depot off to the side, at full throttle and
+    firing, then shoots it for 80 points. For that, `to_fuel` now steers
+    toward the depot only as far as the water the plane can fly straight
+    up to it allows: it used to head straight for it, into a bank or an
+    island on the way. In simulated races (16 rivers, decisions 6 to 40
+    frames apart), Daredevil moves about twice as much sideways and scores
+    more, Careful about half as much again, neither losing more planes
+    (see [Strategies](strategies.md#the-strategies-to-pick)). Rules that
+    steer `left` or `right` near a bank were tried and dropped: with
+    aityx's latency they flew the planes into it.

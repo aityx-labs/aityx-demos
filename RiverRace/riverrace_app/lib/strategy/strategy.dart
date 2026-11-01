@@ -190,6 +190,11 @@ Strategy careful() => Strategy('Careful', [
     why: 'Low on fuel: fly slowly over the depot to fill up.',
   ),
   Rule(
+    when: {'fuel': '< 95', 'fuel_side': 'left, right, ahead'},
+    steer: 'to_fuel',
+    why: 'Not quite full: top up at the depot on the way.',
+  ),
+  Rule(
     when: {'bridge_ahead': 'true'},
     fire: true,
     why: 'A bridge ahead: shoot it down to pass.',
@@ -200,7 +205,7 @@ Strategy careful() => Strategy('Careful', [
     why: 'An enemy in the line of fire: shoot it.',
   ),
   Rule(why: 'Nothing in the way: fly up the middle of the channel.'),
-], about: 'Slow and steady: dodges, refuels early, shoots what is ahead.');
+], about: 'Slow and steady: dodges, tops up often, shoots what is ahead.');
 
 Strategy daredevil() => Strategy('Daredevil', [
   Rule(
@@ -221,6 +226,13 @@ Strategy daredevil() => Strategy('Daredevil', [
     why: 'Running on fumes: grab the fuel.',
   ),
   Rule(
+    when: {'fuel_side': 'left, right'},
+    steer: 'to_fuel',
+    throttle: 'fast',
+    fire: true,
+    why: 'A fuel depot off to the side: swing over and line it up.',
+  ),
+  Rule(
     when: {'fuel_ahead': 'true'},
     throttle: 'fast',
     fire: true,
@@ -239,7 +251,7 @@ Strategy daredevil() => Strategy('Daredevil', [
     why: '500 points: shoot the bridge.',
   ),
   Rule(throttle: 'fast', why: 'Full throttle up the river.'),
-], about: 'Full throttle: shoots everything, fuel too, refuels late.');
+], about: 'Full throttle: shoots everything, chases depots, refuels late.');
 
 Strategy sharpshooter() => Strategy('Sharpshooter', [
   Rule(

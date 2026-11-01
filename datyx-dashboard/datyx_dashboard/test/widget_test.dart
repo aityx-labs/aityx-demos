@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:datyx_dashboard/api/datyx_api.dart';
 import 'package:datyx_dashboard/auth/auth_controller.dart';
+import 'package:datyx_dashboard/dashboard/aityx_tab.dart' show AityxTab, compact, latency, thousands, usd;
 import 'package:datyx_dashboard/dashboard/catalog_tab.dart'
     show cleanupHelp, groupColors, groupPalette, otherGroupColor, tableKind, tagHelp;
 import 'package:datyx_dashboard/dashboard/dashboard_screen.dart';
@@ -13,6 +14,8 @@ import 'package:datyx_dashboard/persist/address_memory.dart' as address;
 import 'package:datyx_dashboard/persist/session_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 /// An API that answers from memory, and logs its calls as the real one does.
 class FakeDatyxApi implements DatyxApi {
@@ -153,6 +156,24 @@ class FakeDatyxApi implements DatyxApi {
       ],
     );
   }
+
+  /// The calls routed to aityx, as the API answers them, the windows
+  /// asked for, and each call's detail by id; [aityxError] fails the account.
+  AityxAccount aityxAccount = const AityxAccount();
+  final List<int> aityxDays = [];
+  final Map<int, AityxCallDetail> aityxDetails = {};
+  ApiException? aityxError;
+
+  @override
+  Future<AityxAccount> aityx({int days = 7}) async {
+    aityxDays.add(days);
+    if (aityxError != null) throw aityxError!;
+    return aityxAccount;
+  }
+
+  @override
+  Future<AityxCallDetail> aityxCall(int id) async =>
+      aityxDetails[id] ?? (throw ApiException('GET /api/aityx/calls/$id answered 404: no aityx call $id', status: 404));
 
   static const hourly = CatalogTable(
     fqn: 'datyx-ds-1.healthhub.public.admissions_hourly',
@@ -467,6 +488,7 @@ void main() {
       'Catalog',
       'Training',
       'Inference',
+      'aityx',
       'Audit',
       'Health',
       'Profile',
@@ -1478,6 +1500,324 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.scoreCalls.last, isNull, reason: 'none named: all still observed');
     expect(find.text('reus-4'), findsOneWidget);
+  });
+
+  testWidgets('accounts for the calls routed to aityx, and opens one\'s request and answer', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final now = DateTime.now().toUtc();
+    final top = DateTime.utc(now.year, now.month, now.day, now.hour);
+    final api = FakeDatyxApi()
+      ..aityxAccount = AityxAccount(
+        days: 7,
+        configured: true,
+        sharesServiceCalls: true,
+        pricePerMillionInputTokens: 0.042,
+        personalization: const AityxPersonalization(note: 'Coming: per-profile Jev models.'),
+        totals: AityxStats(
+          calls: 12,
+          failed: 1,
+          inputTokens: 48210,
+          costUsd: 0.00202482,
+          avgMillis: 2310.5,
+          p50Millis: 2100,
+          p95Millis: 4800,
+          lastCalledAt: now.subtract(const Duration(minutes: 3)),
+        ),
+        lastHour: 3,
+        perHour: [
+          for (var h = 23; h >= 0; h--)
+            AityxHour(
+              top.subtract(Duration(hours: h)),
+              calls: h == 0 ? 3 : (h == 2 ? 6 : 0),
+              failed: h == 2 ? 2 : 0,
+              inputTokens: h == 0 ? 12051 : (h == 2 ? 24102 : 0),
+              p50Millis: h == 0 || h == 2 ? 2100 : null,
+            ),
+        ],
+        byPurpose: const [AityxCount('triage', calls: 11, failed: 1, inputTokens: 44190), AityxCount(null, calls: 1, inputTokens: 4020)],
+        byModel: const [AityxCount('jev-latest', calls: 12, failed: 1, inputTokens: 48210)],
+        byDecision: const [AityxCount('HealthHub · Triage at the desk', calls: 12, failed: 1, inputTokens: 48210)],
+        calls: [
+          AityxCallInfo(
+            id: 51,
+            at: now,
+            caller: 'HealthHub',
+            service: true,
+            purpose: 'triage',
+            model: 'jev-latest',
+            decision: 'HealthHub · Triage at the desk',
+            questions: 12,
+            millis: 2100,
+            status: 200,
+            mode: 'live',
+            inputTokens: 4017,
+            costUsd: 0.000168714,
+          ),
+          AityxCallInfo(
+            id: 50,
+            at: now,
+            caller: 'ana@example.com',
+            model: 'jev-latest',
+            decision: 'HealthHub · Triage at the desk',
+            millis: 60001,
+            status: 504,
+            error: 'aityx didn\'t answer within 60 s',
+          ),
+        ],
+      )
+      ..aityxDetails[51] = AityxCallDetail.fromJson({
+        'id': 51,
+        'status': 200,
+        'request': {
+          'model': 'jev-latest',
+          'state': {'complaint': 'chest pain', 'age': 54},
+        },
+        'requestTruncated': false,
+        'response': '{"answers":{"urgency":"hi',
+        'responseTruncated': true,
+      });
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+    expect(api.aityxDays, isEmpty, reason: 'asked when the tab is opened');
+    await tester.tap(find.byKey(const Key('tab-aityx')));
+    await tester.pumpAndSettle();
+    expect(api.aityxDays, [7]);
+
+    Finder tile(String key, String text) => find.descendant(of: find.byKey(ValueKey(key)), matching: find.text(text));
+    expect(tile('aityx-calls', '12'), findsOneWidget);
+    expect(tile('aityx-calls', 'in 7 days, 3 in the last hour'), findsOneWidget);
+    expect(tile('aityx-failed', '1'), findsOneWidget);
+    expect(tile('aityx-tokens', '48.2K'), findsOneWidget);
+    expect(tile('aityx-tokens', '48,210 in 7 days'), findsOneWidget);
+    expect(tile('aityx-cost', '\$0.00202'), findsOneWidget);
+    expect(tile('aityx-cost', '\$0.042 per M input tokens'), findsOneWidget);
+    expect(tile('aityx-p50', '2.1 s'), findsOneWidget);
+    expect(tile('aityx-p95', '4.8 s'), findsOneWidget);
+    expect(tile('aityx-last', '3 min ago'), findsOneWidget);
+    expect(find.byKey(const ValueKey('aityx-no-key')), findsNothing);
+    expect(find.textContaining('Services\' calls, HealthHub\'s, are shown to every profile'), findsOneWidget);
+
+    // The calls per hour: answered and failed stacked, scaled to the tallest.
+    expect(find.text('the tallest hour is 6 calls'), findsOneWidget);
+    expect(find.text('the tallest hour is 24.1K input tokens'), findsOneWidget);
+    double height(String key) => tester.getSize(find.byKey(ValueKey(key))).height;
+    String at(int hoursAgo) => top.subtract(Duration(hours: hoursAgo)).toIso8601String();
+    expect(height('aityx-hour-${at(2)}'), 90);
+    expect(height('aityx-hour-${at(0)}'), 45, reason: 'half the tallest');
+    expect(height('aityx-hour-${at(1)}'), 0);
+    expect(height('aityx-hour-${at(2)}-0') + height('aityx-hour-${at(2)}-1') + 2, 90, reason: 'two segments, a 2 px gap');
+    expect(height('aityx-hour-${at(2)}-0'), closeTo(2 * height('aityx-hour-${at(2)}-1'), 0.01), reason: '4 answered, 2 failed');
+    expect(find.byKey(ValueKey('aityx-hour-${at(0)}-1')), findsNothing, reason: 'no failure that hour');
+    expect(height('aityx-tokens-${at(0)}'), 45);
+    expect(tester.getSize(find.byKey(ValueKey('aityx-hour-${at(2)}'))).width, lessThanOrEqualTo(24));
+    expect(tip('6 calls, 2 failed, median 2.1 s'), findsOneWidget);
+    expect(tip('12,051 input tokens in 3 calls'), findsOneWidget);
+    expect(find.text('answered (2xx)'), findsOneWidget);
+
+    // The breakdowns, the most called first, a call without a purpose as none.
+    expect(find.descendant(of: find.byKey(const ValueKey('aityx-by-purpose')), matching: find.text('triage')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('aityx-by-purpose')), matching: find.text('none')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('aityx-by-purpose')), matching: find.text('11 · 1 failed')), findsOneWidget);
+    expect(tip('triage: 11 calls, 1 failed, 44,190 input tokens'), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('aityx-by-model')), matching: find.text('jev-latest')), findsOneWidget);
+
+    // The calls: a service's and a user's, the failure's error under it.
+    final call51 = find.byKey(const ValueKey('aityx-call-51'));
+    expect(find.descendant(of: call51, matching: find.text('HealthHub')), findsOneWidget);
+    expect(find.descendant(of: call51, matching: find.text('triage')), findsOneWidget);
+    expect(find.descendant(of: call51, matching: find.text('jev-latest · HealthHub · Triage at the desk')), findsOneWidget);
+    expect(find.descendant(of: call51, matching: find.text('4,017')), findsOneWidget);
+    expect(find.descendant(of: call51, matching: find.text('200')), findsOneWidget);
+    final call50 = find.byKey(const ValueKey('aityx-call-50'));
+    expect(find.descendant(of: call50, matching: find.text('504')), findsOneWidget);
+    expect(find.descendant(of: call50, matching: find.text('60.0 s')), findsOneWidget);
+    expect(find.descendant(of: call50, matching: find.text('aityx didn\'t answer within 60 s')), findsOneWidget);
+
+    // Personalization: coming, not active.
+    expect(find.text('coming: not active'), findsOneWidget);
+    expect(find.textContaining('Per-profile models'), findsOneWidget);
+
+    // A row opens the call: its request as JSON, its answer as the text kept.
+    await tester.tap(call51);
+    await tester.pumpAndSettle();
+    expect(find.text('aityx call 51 · HealthHub · Triage at the desk'), findsOneWidget);
+    expect(find.textContaining('"complaint": "chest pain"'), findsOneWidget);
+    expect(find.text('truncated at 64 KB: shown as text'), findsOneWidget);
+    expect(find.text('{"answers":{"urgency":"hi'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('aityx-call-close')));
+    await tester.pumpAndSettle();
+    expect(find.text('aityx call 51 · HealthHub · Triage at the desk'), findsNothing);
+
+    // One the API won't show says its words.
+    await tester.tap(call50);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('no aityx call 50'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('aityx-call-close')));
+    await tester.pumpAndSettle();
+
+    // Another window asks again.
+    await tester.tap(find.byKey(const ValueKey('aityx-days-30')));
+    await tester.pumpAndSettle();
+    expect(api.aityxDays, [7, 30]);
+  });
+
+  testWidgets('says when no call was routed to aityx, datyx has no key, or the API failed', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeDatyxApi()..aityxAccount = const AityxAccount(configured: false);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: AityxTab(api: api, locked: false, statusError: null))));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('aityx-no-key')), findsOneWidget);
+    expect(find.byKey(const ValueKey('aityx-no-calls')), findsOneWidget);
+    expect(find.text('none in the last 24 hours'), findsNWidgets(2));
+    expect(find.text('none yet'), findsWidgets);
+    expect(find.descendant(of: find.byKey(const ValueKey('aityx-last')), matching: find.text('never')), findsOneWidget);
+    expect(find.textContaining('Only your own calls'), findsOneWidget);
+
+    api.aityxError = const ApiException('GET /api/aityx answered 500: boom', status: 500);
+    await tester.tap(find.byKey(const ValueKey('aityx-reload')));
+    await tester.pumpAndSettle();
+    expect(find.text('GET /api/aityx answered 500: boom'), findsOneWidget);
+    expect(find.byKey(const ValueKey('aityx-calls')), findsNothing);
+    expect(find.byKey(const ValueKey('aityx-personalization')), findsOneWidget);
+  });
+
+  testWidgets('fits the aityx tab on a phone', (tester) async {
+    tester.view.physicalSize = const Size(400, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final now = DateTime.now().toUtc();
+    final top = DateTime.utc(now.year, now.month, now.day, now.hour);
+    final api = FakeDatyxApi()
+      ..aityxAccount = AityxAccount(
+        totals: AityxStats(calls: 2, failed: 1, inputTokens: 1234567, costUsd: 0.0518, p50Millis: 769, lastCalledAt: now),
+        perHour: [for (var h = 23; h >= 0; h--) AityxHour(top.subtract(Duration(hours: h)), calls: h % 3, failed: h == 3 ? 1 : 0, inputTokens: 4000 * (h % 3))],
+        byDecision: const [AityxCount('HealthHub · Triage at the desk, with a much longer name than fits', calls: 2, failed: 1)],
+        calls: [AityxCallInfo(id: 1, at: now, caller: 'someone.with.a.long.address@example.com', status: 502, error: 'aityx can\'t be reached')],
+      );
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: AityxTab(api: api, locked: false, statusError: null))));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull, reason: 'nothing overflows');
+    expect(find.byKey(const ValueKey('aityx-days-30')), findsOneWidget);
+    expect(find.byKey(const ValueKey('aityx-call-1')), findsOneWidget);
+  });
+
+  testWidgets('asks nothing of aityx\'s account while signed out', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeDatyxApi();
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: AityxTab(api: api, locked: true, statusError: null))));
+    await tester.pumpAndSettle();
+    expect(find.text('Sign in to see the calls routed to aityx.'), findsOneWidget);
+    expect(api.aityxDays, isEmpty);
+    expect(find.text('coming: not active'), findsOneWidget);
+
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: AityxTab(api: api, locked: false, statusError: null))));
+    await tester.pumpAndSettle();
+    expect(api.aityxDays, [7], reason: 'asked once signed in');
+  });
+
+  test('reads aityx\'s account and a call as the API answers them', () async {
+    final asked = <String>[];
+    final client = MockClient((request) async {
+      asked.add(request.url.toString());
+      if (request.url.path == '/api/aityx') {
+        return http.Response(
+          jsonEncode({
+            'since': '2026-10-25T10:12:00Z',
+            'days': 7,
+            'configured': true,
+            'sharesServiceCalls': true,
+            'pricePerMillionInputTokens': 0.042,
+            'personalization': {'active': false, 'name': 'none', 'note': 'Coming.'},
+            'totals': {
+              'calls': 12, 'failed': 1, 'inputTokens': 48210, 'costUsd': 0.00202482,
+              'avgMillis': 2310.5, 'p50Millis': 2100, 'p95Millis': 4800, 'lastCalledAt': '2026-11-01T10:11:58.120Z',
+            },
+            'lastHour': 3,
+            'perHour': [
+              {'hour': '2026-10-31T11:00:00Z', 'calls': 0, 'failed': 0, 'inputTokens': 0, 'p50Millis': null},
+              {'hour': '2026-11-01T10:00:00Z', 'calls': 3, 'failed': 0, 'inputTokens': 12051, 'p50Millis': 2100},
+            ],
+            'byPurpose': [
+              {'name': 'triage', 'calls': 11, 'failed': 1, 'inputTokens': 44190},
+              {'name': null, 'calls': 1, 'failed': 0, 'inputTokens': 4020},
+            ],
+            'byModel': [{'name': 'jev-latest', 'calls': 12, 'failed': 1, 'inputTokens': 48210}],
+            'byDecision': [],
+            'calls': [
+              {
+                'id': 51, 'at': '2026-11-01T10:11:58.120Z', 'caller': 'HealthHub', 'service': true, 'purpose': 'triage',
+                'model': 'jev-latest', 'decision': 'HealthHub · Triage at the desk', 'questions': 12, 'millis': 2100,
+                'status': 200, 'mode': 'live', 'inputTokens': 4017, 'costUsd': 0.000168714, 'error': null, 'personalized': false,
+              },
+              {'id': 50, 'status': 502, 'inputTokens': null, 'costUsd': null, 'error': 'aityx can\'t be reached'},
+            ],
+          }),
+          200,
+        );
+      }
+      if (request.url.path == '/api/aityx/calls/51') {
+        return http.Response(
+          jsonEncode({'id': 51, 'status': 200, 'request': {'model': 'jev-latest'}, 'requestTruncated': false, 'response': null, 'responseTruncated': false}),
+          200,
+        );
+      }
+      return http.Response('{"error":"no aityx call 9"}', 404);
+    });
+    final api = HttpDatyxApi(baseUrl: 'http://datyx', client: client);
+
+    final a = await api.aityx(days: 7);
+    expect(asked.last, 'http://datyx/api/aityx?days=7');
+    expect(a.configured, isTrue);
+    expect(a.sharesServiceCalls, isTrue);
+    expect(a.pricePerMillionInputTokens, 0.042);
+    expect(a.personalization.active, isFalse);
+    expect(a.personalization.note, 'Coming.');
+    expect(a.totals.inputTokens, 48210);
+    expect(a.totals.costUsd, closeTo(0.00202482, 1e-12));
+    expect(a.totals.p95Millis, 4800);
+    expect(a.totals.lastCalledAt, DateTime.utc(2026, 11, 1, 10, 11, 58, 120));
+    expect(a.lastHour, 3);
+    expect(a.perHour.map((h) => h.calls), [0, 3]);
+    expect(a.perHour.first.p50Millis, isNull);
+    expect(a.perHour.last.inputTokens, 12051);
+    expect(a.byPurpose.map((c) => c.name), ['triage', null]);
+    expect(a.byModel.single.failed, 1);
+    expect(a.byDecision, isEmpty);
+    expect(a.calls.first.service, isTrue);
+    expect(a.calls.first.decision, 'HealthHub · Triage at the desk');
+    expect(a.calls.first.failed, isFalse);
+    expect(a.calls.last.failed, isTrue);
+    expect(a.calls.last.inputTokens, isNull);
+
+    final d = await api.aityxCall(51);
+    expect(asked.last, 'http://datyx/api/aityx/calls/51');
+    expect(d.call.id, 51);
+    expect(d.request, {'model': 'jev-latest'});
+    expect(d.response, isNull);
+    await expectLater(api.aityxCall(9), throwsA(isA<ApiException>().having((e) => e.message, 'message', contains('no aityx call 9'))));
+  });
+
+  test('says counts, tokens, dollars and latency briefly', () {
+    expect(thousands(48210), '48,210');
+    expect(thousands(999), '999');
+    expect(thousands(1234567), '1,234,567');
+    expect(compact(950), '950');
+    expect(compact(48210), '48.2K');
+    expect(compact(12000), '12K');
+    expect(compact(1250000), '1.3M');
+    expect(usd(0), '\$0');
+    expect(usd(0.000175), '\$0.000175');
+    expect(usd(0.0123456), '\$0.0123');
+    expect(usd(1.254), '\$1.25');
+    expect(latency(769), '769 ms');
+    expect(latency(2100), '2.1 s');
+    expect(latency(null), '–');
   });
 
   test('says milliseconds without a decimal when they are whole', () {

@@ -543,7 +543,14 @@ class StatTile extends StatelessWidget {
         Row(
           children: [
             if (icon != null) ...[Icon(icon, size: 20, color: status), const SizedBox(width: 6)],
-            Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Aityx.fg0)),
+            // A long value (a cost, a time) is scaled down to fit the tile.
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Aityx.fg0)),
+              ),
+            ),
           ],
         ),
         Text(note, style: const TextStyle(color: Aityx.muted, fontSize: 11)),

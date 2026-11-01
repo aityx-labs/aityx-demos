@@ -513,6 +513,32 @@ The feature files hold the current specification; see the
    hour](occupancy-hourly.md), [A care center's occupancy per
    hour](occupancy-timeline.md), [The care center view](care-center.md),
    [API](api.md) and [Database](database.md).
+1. **Make sure there is enough data for DeepAR to train: generate
+   enough in the data initialization, harmonic, peaking in the middle
+   of the day, so there's a pattern for DeepAR to pick up.** The
+   simulation's arrivals now follow one daily profile, a single
+   harmonic, an hour's weight 1 + cos(2π (hour − 13) / 24): planned
+   visits start on the hour at an hour drawn once from it (not any hour
+   from 08:00 to 17:00; kept to the next day when it has passed, so
+   same-day visits don't lean late), and acute episodes, so emergencies,
+   start on the hour drawn from it on the day their gap gives, so a
+   run's acute and chronic admissions both peak at 13:00. The people are
+   drawn with a fixed seed, the same at every start (their events are
+   not). And at start, in dev mode, the API writes a generated history
+   to `admissions_hourly`, run `00000000`: `HEALTHHUB_HISTORY_DAYS` days
+   (90; 0 for none) from 2026-01-01, every hour, for exactly the care
+   centers those people use (271 with the defaults), each hour's acute
+   and chronic admissions drawn from Poisson rates of the same profile,
+   one shape for both as in a live run (weekends 0.85), a hospital 3 to
+   8 admissions at its busiest hour, less for health stations and
+   clinics. Seeded by the care center's id, so the same rows every time,
+   and written only when they differ: 359,962 rows, every series 2,160
+   hours, each one's fitted daily harmonic peaking between 12.6 and
+   13.5 h. `dart run
+   bin/history.dart` writes it without the API (`--days`, `--dry-run`).
+   See [Admissions per hour](admissions-hourly.md#the-history),
+   [Simulation](simulation.md#visits), [Database](database.md),
+   [API](api.md) and [Development environment](dev-environment.md).
 1. **Double the people again, and make it configurable at the top of the
    events panel; drop the filters by condition (and by event type) for
    now; use real dates, the calendar starting on 2026-01-01, in the data

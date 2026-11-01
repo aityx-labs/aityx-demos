@@ -77,7 +77,11 @@ walk, take city transport or drive to the nearest care center the visit
 needs (a health station, urgent care, a mental health or dialysis clinic,
 a general hospital), stay and come back. Every move goes through Kafka, and every arrival is an admission
 with what the person says at the desk, which the API records in the
-database and home highlights among the latest events.
+database and home highlights among the latest events. Arrivals peak
+around 13:00, a daily harmonic. At start the API also writes
+`HEALTHHUB_HISTORY_DAYS` (90) days of generated admissions per hour, the
+history run `00000000` of `admissions_hourly`, for datyx's forecasts to
+train on ([specs/admissions-hourly.md](specs/admissions-hourly.md#the-history)).
 `HEALTHHUB_MODE=prod` turns it off.
 
 The ports are 9801 to 9806, so HealthHub runs alongside Mortgage Hub

@@ -54,7 +54,10 @@ what works on Linux), `HEALTHHUB_MODE` (`dev`, the default, or `prod`;
 anything else stops the server), `HEALTHHUB_KAFKA_REST_URL` (default
 `http://127.0.0.1:9805`; Compose sets `http://kafka-rest:8082`) and the
 simulation's `HEALTHHUB_SIM_PEOPLE`, `HEALTHHUB_SIM_TURN_MS` and
-`HEALTHHUB_SIM_MINUTES_PER_TURN`; `scripts/api.sh` falls back to `.env`
+`HEALTHHUB_SIM_MINUTES_PER_TURN`, and `HEALTHHUB_HISTORY_DAYS` (90; 0
+for none; anything but a whole number up to 730 stops the server), the
+days of admissions history it writes at start in dev mode ([The
+history](admissions-hourly.md#the-history)); `scripts/api.sh` falls back to `.env`
 for the key, the database's port and password and these, and Compose
 sets the host to the `postgres` service.
 

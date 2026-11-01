@@ -8,7 +8,10 @@ topic and a database table: a time series per hospital, the kind of
 table a forecast is trained on (what datyx will read, as it would a
 customer's). The job is
 [flink/admissions-hourly.sql](../flink/admissions-hourly.sql); the
-services that run it are in [compose.yaml](../compose.yaml).
+services that run it are in [compose.yaml](../compose.yaml). Beside the
+live runs the job counts, the table holds a generated **history**, run
+`00000000`, which the API writes ([The history](#the-history)), so a
+forecast has long, full series to learn from.
 
 ## What it counts
 
@@ -43,7 +46,8 @@ key ever saw two).
   key. The API makes it at start; the job upserts into it (`INSERT ... ON
   CONFLICT`), flushing every second or 500 rows, as user `healthhub`.
   Sparse: an hour with no admission at a hospital has no row, so a
-  missing hour is a zero.
+  missing hour is a zero. The history run's rows are the API's, not the
+  job's.
 - **The topic** `healthhub.admissions.hourly`: each key's latest count,
   the key as JSON (`{"run_id":"adf5309c","hospital_id":2,"hour_start":"2034-11-08T16:00:00"}`)
   and the row as JSON, the same snake_case columns, timestamps in
@@ -105,6 +109,82 @@ The JobManager's web UI is on http://localhost:9806
 (`HEALTHHUB_FLINK_PORT`), always bound to 127.0.0.1: it has no
 authentication and runs any job it is sent.
 
+## The history
+
+A live run is a poor training set: its few people (40 a city) leave
+most hours of most care centers empty, and it starts again at day 1
+whenever the API restarts. So the table also holds the **history run**,
+`00000000` (`historyRun` in `lib/simulation.dart`, which a simulation's
+random run id never takes): the admissions per hour of every care
+center the simulation's people use, generated from rates rather than
+simulated ([lib/history.dart](../healthhub_api/lib/history.dart)).
+
+- **Who writes it**: the API, at start in dev mode, once the database
+  is migrated and the care centers read, in the background beside the
+  simulation; and `dart run bin/history.dart` in `healthhub_api/`, the
+  same against any database `HEALTHHUB_DB_*` names (it migrates it
+  first, as the API does), with `--days N` and `--dry-run` (writes
+  nothing, prints the care centers, rows and admissions, and the mean
+  admissions per care center by hour of day). The Flink job never
+  writes it: no event has run `00000000`.
+- **How long**: `HEALTHHUB_HISTORY_DAYS` days (90 by default, 2,160
+  hours; 0 writes none; a whole number up to 730, two years, anything
+  else stops the API), from day 1 of the simulated calendar, 2026-01-01 00:00, a
+  Thursday, as the live runs' `hour_start`.
+- **Which care centers**: those the simulation's people use, each one's
+  hospital and the care center of every setting the conditions' visits
+  go to. The API draws its people with a fixed seed (`populationSeed`,
+  [Simulation](simulation.md#people)), so they are the same at every
+  start, and the history covers exactly the care centers a live run
+  admits people to; `bin/history.dart` draws the same people
+  (`HEALTHHUB_SIM_PEOPLE` a city), so the same care centers. With the
+  defaults, 271 (87 hospitals, 118 health
+  stations, 66 clinics). `hospital_name` is the care center's
+  name in `care_centers`.
+- **The counts**: each hour's acute and chronic admissions are drawn
+  from Poisson distributions whose means are, for a care center of
+  level `peak` (its mean admissions in a weekday's busiest hour) and
+  acute share `s`, at hour `h` of the day:
+
+  ```
+  profile(h) = (1 + cos(2π (h − 13) / 24)) / 2        1 at 13:00, 0 at 01:00
+  weekly     = 1 on weekdays, 0.85 on Saturdays and Sundays
+  acute(h)   = peak × s × profile(h) × weekly
+  chronic(h) = peak × (1 − s) × profile(h) × weekly
+  ```
+
+  The profile is the simulation's daily profile of arrivals over its
+  peak ([Simulation](simulation.md#visits)), the shape a live run's
+  acute and chronic admissions both follow: one shape for both groups,
+  a single harmonic, so the history and the live runs teach a forecast
+  the same daily pattern. At 13:00 on a weekday the two add up to
+  `peak`; the hours around 01:00 are mostly empty, as a live run's. A care
+  center's level is drawn within its kind's range: a hospital 3 to 8,
+  60% acute; a health station 1.5 to 4, 35% acute; a clinic 1 to 3, half
+  acute. `admissions` is the sum; an hour with none has no row, as the
+  job's.
+- **Deterministic**: a care center's random numbers are seeded by its id
+  (`historySeed + id`), so it always gets the same rows, and a longer
+  history starts with the same days.
+- **Idempotent**: one query reads each care center's rows of the run
+  (their count, admissions, acute admissions, last hour and name); a
+  care center whose rows match what it should have is left alone, any
+  other's are deleted and inserted again in a transaction of its own (one
+  `INSERT ... SELECT FROM unnest(...)`, the values as parameters, `ON
+  CONFLICT DO NOTHING`); the rows of care centers no longer covered are
+  deleted. A restart costs that one query; a change of the days or the
+  care centers rewrites what changed. With the defaults, the first
+  writing takes well under a minute and 359,962 rows.
+
+With the defaults, every series spans 2,160 hours (752 to 1,701 of them
+with a row); the mean admissions per care center rise from none at
+01:00 to 3.37 at 13:00, symmetric about it; the first harmonic fitted
+to each series (y ≈ a + b cos(2πh/24) + c sin(2πh/24), the hours
+without a row as zeros) peaks between 12.6 and 13.5 h (13.0 on
+average) with an amplitude of 0.92 to 1.05 times its mean, its acute
+and chronic parts alike; and a weekend day has 0.85 of a weekday's
+admissions.
+
 ## Known limitations
 
 - The hours are the simulation's, from an arbitrary 2026-01-01; with
@@ -113,6 +193,14 @@ authentication and runs any job it is sent.
 - A run's series stop when the API restarts; the next run is new series
   from day 1, not a continuation.
 - Hours with no admission have no row: a reader fills them with zeros.
+- The history is drawn, not simulated: its levels are well above a live
+  run's (a few admissions a care center at the busiest hour, against a
+  few a day), and its weekends are quieter while a live run's are not. A
+  forecast learns the daily shape from it, not a live run's level.
+- Its care centers follow the people: a change of `HEALTHHUB_SIM_PEOPLE`,
+  of the care centers or of the conditions changes them, and the next
+  start deletes the history of those no longer used and writes that of
+  the new ones.
 - No state survives a restart of the cluster: the resubmitted job
   recounts what the topic still holds. A key at the edge of the topic's
   retention, partly expired, is rewritten with the part left, a lower

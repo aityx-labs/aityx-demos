@@ -66,16 +66,20 @@ void main() {
     expect(stepMeters(TravelMode.walk, 10), closeTo(833.3, 0.1));
   });
 
-  test('a visit starts on the hour in the daytime, never in the past', () {
+  test('a visit starts on the hour, never in the past', () {
     final random = Random(9);
-    for (var i = 0; i < 200; i++) {
+    final hours = <int>{};
+    for (var i = 0; i < 500; i++) {
       final start = nextVisitStart(3, dayStart(3) + 12 * 60, random);
       final ofDay = start % minutesPerDay;
       expect(ofDay % 60, 0);
-      expect(ofDay ~/ 60, inInclusiveRange(visitFirstHour, visitLastHour));
+      hours.add(ofDay ~/ 60);
       expect(start, greaterThan(dayStart(3) + 12 * 60));
       expect(simDay(start), inInclusiveRange(3, 4));
     }
+    // From the daily profile: never at 01:00, its trough.
+    expect(hours, isNot(contains(1)));
+    expect(hours, contains(13));
   });
 
   test('the nearest hospital is searched among all of them', () {
@@ -269,7 +273,7 @@ void main() {
         expect(simDay(chronic.dueAt!), inInclusiveRange(1, chronicOnsetDays));
       }
       expect(person.acute, isNull);
-      expect(person.acuteOnsetAt, greaterThanOrEqualTo(simStartMinutes + minutesPerDay));
+      expect(person.acuteOnsetAt, greaterThanOrEqualTo(dayStart(2)));
     }
     final cornudella = people.firstWhere((p) => p.city == 'Cornudella de Montsant');
     expect(cornudella.hospital.city, 'Reus');

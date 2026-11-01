@@ -72,8 +72,9 @@ a folder of its own) only calls it.
 - SmallRye OpenAPI: `/q/openapi`, and Swagger UI at `/q/swagger-ui` in dev.
 - Quarkus OIDC: bearer tokens verified against the issuer, see
   [auth.md](auth.md).
-- Quarkus Scheduler: the trainer's check every minute, and XGBoost4J
-  (XGBoost through JNI), see [training.md](training.md).
+- Quarkus Scheduler: the trainer's check every minute, XGBoost4J
+  (XGBoost through JNI) and DJL's DeepAR on its PyTorch engine (libtorch
+  through JNI), see [training.md](training.md).
 
 ## Endpoints
 

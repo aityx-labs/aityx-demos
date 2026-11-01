@@ -510,9 +510,7 @@ with the same `hour_start`, series key and static category, all three
 DeepAR's. `chronic` is switched off by default
 (`TimeSeries.chronic.Disabled` on the table, set through datyx's switch
 in development's OpenMetadata): switching it on queues its run, which
-fails until datyx has a DeepAR trainer (or chronic is tagged
-`TimeSeries.chronic.XGBoost` too, with a horizon, which trains it with
-XGBoost beside it).
+trains it with DeepAR ([training.md](training.md)).
 
 HealthHub's view `patient_days` (in its folder) is a series per patient:
 a row per run, person and simulated day with a visit, the day's visits
@@ -601,8 +599,9 @@ failing.
   number's type is what the sampled values fit (`INT` until one doesn't).
 - Kafka over SSL trusts the JVM's certificate authorities only: no
   truststore or client certificate of the source's own yet.
-- Only XGBoost groups are trained ([training.md](training.md)); DeepAR
-  (on GraalPy) is still to come.
+- DeepAR trains on the Target, the series and its StaticCategoricals
+  ([training.md](training.md)); its covariates and StaticReals are tagged
+  but not used yet.
 - The webhook's subscription posts every update of every table, and
   datyx reads each for its tags: OpenMetadata 2.0.7 offers no filter by
   field for tables. Several API instances against one OpenMetadata each

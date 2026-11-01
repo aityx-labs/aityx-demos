@@ -164,6 +164,9 @@ class TrainingTest {
 
         boolean chronicOff = true;
 
+        /** acute switched off too: for the tests of chronic's switches, so acute's initial DeepAR run stays out of them. */
+        boolean acuteOff;
+
         String chronicTags = "";
 
         String horizon;
@@ -186,6 +189,9 @@ class TrainingTest {
                 List<String> tags = new java.util.ArrayList<>();
                 if (chronicOff) {
                     tags.add("{\"tagFQN\":\"TimeSeries.chronic.Disabled\"}");
+                }
+                if (acuteOff) {
+                    tags.add("{\"tagFQN\":\"TimeSeries.acute.Disabled\"}");
                 }
                 if (!chronicTags.isEmpty()) {
                     tags.add(chronicTags);
@@ -285,17 +291,24 @@ class TrainingTest {
         int id = source("switched clinic");
         catalog.sourceId = id;
         try {
-            // Off: not trained, though never trained; acute is DeepAR's, so nothing schedules it either.
+            // Chronic is off: not trained, though never trained. Acute, DeepAR's and on, is: its initial run, which
+            // fails here, where the source is nowhere.
             training.checkSource(id);
-            assertTrue(runsOf(id).isEmpty());
+            List<TrainingRun> runs = runsOf(id);
+            assertEquals(1, runs.size());
+            assertEquals("acute", runs.get(0).groupName);
+            assertEquals(TrainingRun.Trigger.INITIAL, runs.get(0).trigger);
+            TrainingRun acute = waitDone(runs.get(0).id);
+            assertEquals(TrainingRun.Status.FAILED, acute.status);
+            assertTrue(acute.error.startsWith("the data source can't be read"), acute.error);
 
             // Switched on (its Disabled tag removed) in OpenMetadata, no webhook told: one run, ENABLED, whatever the algorithm.
             catalog.chronicOff = false;
             catalog.updatedAt = Instant.now();
             training.checkSource(id);
-            List<TrainingRun> runs = runsOf(id);
-            assertEquals(1, runs.size());
-            TrainingRun run = runs.get(0);
+            runs = runsOf(id);
+            assertEquals(2, runs.size());
+            TrainingRun run = runs.get(1);
             assertEquals(TrainingRun.Trigger.ENABLED, run.trigger);
             assertEquals("chronic", run.groupName);
             assertEquals("DeepAR", run.algorithm);
@@ -308,24 +321,25 @@ class TrainingTest {
             assertEquals(events.get(0).id, run.eventId);
             TrainingRun done = waitDone(run.id);
             assertEquals(TrainingRun.Status.FAILED, done.status);
-            assertTrue(done.error.startsWith("datyx has no DeepAR trainer yet: only XGBoost groups train"), done.error);
+            assertTrue(done.error.startsWith("the data source can't be read"), "DeepAR trains, but not here: " + done.error);
 
-            // Once: the next look trains it no more, nor keeps a switch.
+            // Once: the next look trains it no more, nor keeps a switch (and acute, failed, tries again in an hour).
             training.checkSource(id);
-            assertEquals(1, runsOf(id).size());
+            assertEquals(2, runsOf(id).size());
             assertEquals(1, eventsOf(id).size());
 
-            // OpenMetadata's history says acute was switched on (in its UI, while datyx wasn't looking).
-            catalog.acuteEnabled = new Catalog.Change("0.8", "julio", Instant.parse("2026-11-01T11:00:00Z"));
+            // OpenMetadata's history says acute was switched on after its run (in its UI, while datyx wasn't looking).
+            Instant later = acute.queuedAt.plusSeconds(1);
+            catalog.acuteEnabled = new Catalog.Change("0.10", "julio", later);
             training.checkSource(id);
             runs = runsOf(id);
-            assertEquals(2, runs.size());
-            assertEquals("acute", runs.get(1).groupName);
-            assertEquals("TimeSeries.acute.Disabled removed in OpenMetadata (table version 0.8, by julio, 2026-11-01 11:00 UTC)",
-                runs.get(1).triggerNote);
-            waitDone(runs.get(1).id);
-            given().when().get("/api/training/runs/" + runs.get(1).id).then().statusCode(200)
-                .body("run.trigger", is("enabled")).body("run.triggerNote", is(runs.get(1).triggerNote));
+            assertEquals(3, runs.size());
+            assertEquals("acute", runs.get(2).groupName);
+            assertTrue(runs.get(2).triggerNote.startsWith(
+                "TimeSeries.acute.Disabled removed in OpenMetadata (table version 0.10, by julio, "), runs.get(2).triggerNote);
+            waitDone(runs.get(2).id);
+            given().when().get("/api/training/runs/" + runs.get(2).id).then().statusCode(200)
+                .body("run.trigger", is("enabled")).body("run.triggerNote", is(runs.get(2).triggerNote));
         } finally {
             given().when().delete("/api/datasources/" + id).then().statusCode(204);
         }
@@ -394,13 +408,14 @@ class TrainingTest {
     @Test
     void aSwitchOnQueuesEveryAlgorithmOnceWhoeverTellsFirst() throws Exception {
         FakeCatalog catalog = new FakeCatalog();
+        catalog.acuteOff = true;
         catalog.chronicTags = "{\"tagFQN\":\"TimeSeries.chronic.DeepAR\"},{\"tagFQN\":\"TimeSeries.chronic.XGBoost\"}";
         QuarkusMock.installMockForType(catalog, Catalog.class);
         int id = source("algorithms clinic");
         catalog.sourceId = id;
         try {
             training.checkSource(id);
-            assertTrue(runsOf(id).isEmpty(), "off: nothing; chronic's XGBoost isn't ready (no horizon), acute is DeepAR's");
+            assertTrue(runsOf(id).isEmpty(), "off: nothing; chronic's XGBoost isn't ready (no horizon), acute is off here");
 
             // datyx's switch: the switch kept, one run per algorithm queued at once.
             given().contentType(ContentType.JSON).body("{\"table\":\"public.admissions_hourly\",\"group\":\"chronic\",\"enabled\":true}")
@@ -428,8 +443,7 @@ class TrainingTest {
             TrainingRun xgb = waitDone(runs.get(0).id);
             TrainingRun deepAr = waitDone(runs.get(1).id);
             assertTrue(xgb.error.startsWith("the group isn't ready: the table has no timeSeriesHorizon"), xgb.error);
-            assertEquals("datyx has no DeepAR trainer yet: only XGBoost groups train (this group's XGBoost run trains it with XGBoost)",
-                deepAr.error);
+            assertTrue(deepAr.error.startsWith("the group isn't ready: the table has no timeSeriesHorizon"), deepAr.error);
             training.checkSource(id);
             post(on, CatalogEvents.sign(SECRET, on.getBytes(StandardCharsets.UTF_8))).statusCode(200).body("recorded", hasSize(0));
             assertEquals(2, runsOf(id).size(), "their failing doesn't queue them again");
@@ -469,12 +483,13 @@ class TrainingTest {
             given().when().get("/api/training/runs/" + runs.get(3).id).then().statusCode(200)
                 .body("run.eventId", is(eventsOf(id).get(2).id.intValue())).body("run.algorithm", is("DeepAR"));
 
-            // Asked for by hand: an algorithm of the group's, XGBoost; DeepAR has no trainer; off isn't trained.
+            // Asked for by hand: an algorithm of the group's, once the group is ready (DeepAR's too); off isn't trained.
             given().contentType(ContentType.JSON).body("{\"table\":\"public.admissions_hourly\",\"group\":\"chronic\",\"algorithm\":\"DeepAR\"}")
                 .when().post("/api/datasources/" + id + "/training").then().statusCode(409)
-                .body("error", is("the group chronic of admissions_hourly can't be trained with DeepAR: datyx has no DeepAR trainer yet, only XGBoost's"));
+                .body("error", startsWith("the group chronic of admissions_hourly can't be trained: the table has no timeSeriesHorizon"));
             given().contentType(ContentType.JSON).body("{\"table\":\"public.admissions_hourly\",\"group\":\"chronic\",\"algorithm\":\"Prophet\"}")
                 .when().post("/api/datasources/" + id + "/training").then().statusCode(400);
+            catalog.acuteOff = false; // on, so its algorithms answer (no check looks again)
             given().contentType(ContentType.JSON).body("{\"table\":\"public.admissions_hourly\",\"group\":\"acute\",\"algorithm\":\"XGBoost\"}")
                 .when().post("/api/datasources/" + id + "/training").then().statusCode(409)
                 .body("error", startsWith("the group acute of admissions_hourly can't be trained with XGBoost: it isn't tagged for it"));
@@ -514,6 +529,7 @@ class TrainingTest {
     @Test
     void aSwitchOffToldLateDoesntQueueTheSwitchOnAfterItAgain() throws Exception {
         FakeCatalog catalog = new FakeCatalog();
+        catalog.acuteOff = true;
         catalog.chronicTags = "{\"tagFQN\":\"TimeSeries.chronic.DeepAR\"},{\"tagFQN\":\"TimeSeries.chronic.XGBoost\"}";
         QuarkusMock.installMockForType(catalog, Catalog.class);
         int id = source("late clinic");
@@ -558,6 +574,7 @@ class TrainingTest {
     @Test
     void theCheckSeesASwitchOnAgainAtAVersionOpenMetadataGaveBefore() throws Exception {
         FakeCatalog catalog = new FakeCatalog();
+        catalog.acuteOff = true;
         QuarkusMock.installMockForType(catalog, Catalog.class);
         int id = source("merged clinic");
         catalog.sourceId = id;
@@ -595,6 +612,7 @@ class TrainingTest {
     @Test
     void removingASwitchedOffGroupSwitchesNothingOn() throws Exception {
         FakeCatalog catalog = new FakeCatalog();
+        catalog.acuteOff = true;
         QuarkusMock.installMockForType(catalog, Catalog.class);
         int id = source("removed clinic");
         catalog.sourceId = id;

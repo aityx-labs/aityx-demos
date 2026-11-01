@@ -42,12 +42,13 @@ HealthHub passes on unchanged.
   certifications earned, written to OpenMetadata from a document; in
   development, HealthHub's, as soon as its data initialization is done.
 - [Training](training.md): the trainer started with the API, which
-  trains the groups tagged for XGBoost when they never were and again as
-  often as their table says, queues a run of every algorithm of a group
-  switched on, and keeps each run, its test metrics, the features that
-  weighed most and the highest scores.
+  trains each algorithm of a group, XGBoost or DeepAR (DJL on PyTorch),
+  when it never was, when the group is switched on and again as often as
+  its table says, and keeps each run, its test metrics, the features that
+  weighed most (XGBoost's) and the highest scores.
 - [Inference](inference.md): the trained models scoring series on
-  demand, as their training did, and the account of every call: who,
+  demand, as their training did (a DeepAR model's forecast step by step,
+  with its percentiles), and the account of every call: who,
   which model, how many series, how long, failures, per hour.
 - [Profiles](profiles.md): the person behind a sign-in, made on the first
   call, with identities and an encryption key of its own that protects

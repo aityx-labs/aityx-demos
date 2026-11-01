@@ -38,32 +38,33 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 /**
- * The trainer, started with the API: it finds the groups tagged for
- * XGBoost in each database source's catalogue (OpenMetadata) and trains
+ * The trainer, started with the API: it finds the groups tagged as time
+ * series in each database source's catalogue (OpenMetadata) and trains
  * them, one at a time on a thread of its own, keeping each run
  * (TrainingRun), one per group and algorithm. Every minute
  * ({@code datyx.training.check-every}), the first time a few seconds after
- * start, a ready group's XGBoost is queued when it has never been trained,
- * or when its table's timeSeriesRetrain (1D when not set) has passed since
- * its latest XGBoost run; after a failure, an hour at most. never trains a
- * group once. A run reads the group's table from the source, builds
- * XGBoost's dataset (Dataset) and trains (XgbTrainer); what it can't do
- * (the catalogue or the source unreachable, a group no longer ready, too
- * little data, XGBoost's native library missing) fails the run with the
- * reason. Runs a stopped API left queued or running are failed at start.
- * Off with {@code datyx.training.enabled=false} (tests).
+ * start, each algorithm of a ready group is queued when it has never been
+ * trained, or when its table's timeSeriesRetrain (1D when not set) has
+ * passed since its latest run of that algorithm; after a failure, an hour
+ * at most. never trains a group once. A run reads the group's table from
+ * the source and trains it with the run's algorithm: XGBoost (Dataset,
+ * XgbTrainer) or DeepAR (DeepArData, DeepArTrainer); what it can't do (the
+ * catalogue or the source unreachable, a group no longer ready or no
+ * longer tagged for the algorithm, too little data, a native library
+ * missing) fails the run with the reason. Runs a stopped API left queued
+ * or running are failed at start. Off with
+ * {@code datyx.training.enabled=false} (tests).
  *
  * A group switched off (TimeSeries.Disabled, TimeSeries.acute.Disabled on
  * its table) isn't trained. Switching it on is the trigger: one ENABLED
- * run per algorithm of the group, whatever datyx can train, each noting
- * the change ({@link #switched}). datyx learns of it from OpenMetadata's
- * webhook (datyx.catalog.CatalogEvents), from its own switch
+ * run per algorithm of the group, each noting the change
+ * ({@link #switched}). datyx learns of it from OpenMetadata's webhook
+ * (datyx.catalog.CatalogEvents), from its own switch
  * (PUT .../timeseries/enabled), or, as a safety net, at its minute's
  * check: when the Disabled tag is gone and the trainer saw it at its last
  * look, or OpenMetadata's history of the table shows it removed after the
  * group's latest run. Each switch is kept (GroupEvent), and one switch on
- * queues its runs once, whichever path learns of it first. A DeepAR run
- * fails: datyx has no DeepAR trainer yet.
+ * queues its runs once, whichever path learns of it first.
  */
 @ApplicationScoped
 public class Training {
@@ -145,9 +146,9 @@ public class Training {
         return Optional.of(latest.queuedAt.plus(interval));
     }
 
-    /** Whether a group can be trained by schedule or on request: switched on, tagged for XGBoost among its algorithms, and ready. */
+    /** Whether a group can be trained, by schedule or on request: switched on, and ready (for each of its algorithms). */
     static boolean trainable(TimeSeries.Spec spec) {
-        return spec.enabled() && spec.has(TimeSeries.Algorithm.XGBOOST) && spec.ready();
+        return spec.enabled() && spec.ready();
     }
 
     @Scheduled(every = "${datyx.training.check-every:60s}", delayed = "${datyx.training.first-check:5s}",
@@ -244,7 +245,17 @@ public class Training {
     }
 
     private void queueIfDue(long sourceId, TimeSeries.Spec spec) {
-        String algorithm = TimeSeries.Algorithm.XGBOOST.tag;
+        for (String algorithm : algorithms(spec)) {
+            queueIfDue(sourceId, spec, algorithm);
+        }
+    }
+
+    /** The group's algorithms, by their tags: every one it is tagged for. */
+    static List<String> algorithms(TimeSeries.Spec spec) {
+        return spec.algorithms() != null ? spec.algorithms() : List.of(spec.algorithm());
+    }
+
+    private void queueIfDue(long sourceId, TimeSeries.Spec spec, String algorithm) {
         Long runId;
         synchronized (queueing) {
             runId = queue(() -> {
@@ -460,33 +471,44 @@ public class Training {
             if (!spec.enabled()) {
                 throw new IllegalArgumentException("the group is switched off (" + TimeSeries.disabledFqn(job.group()) + ") now");
             }
-            if (!TimeSeries.Algorithm.XGBOOST.tag.equals(job.algorithm())) {
-                throw new IllegalArgumentException("datyx has no " + job.algorithm() + " trainer yet: only XGBoost groups train"
-                    + (spec.has(TimeSeries.Algorithm.XGBOOST) ? " (this group's XGBoost run trains it with XGBoost)"
-                        : " (tag the table " + TimeSeries.Algorithm.XGBOOST.fqn(job.group())
-                            + " and set its timeSeriesHorizon to train this group with XGBoost)"));
-            }
-            if (!spec.has(TimeSeries.Algorithm.XGBOOST)) {
-                throw new IllegalArgumentException("the group isn't tagged for XGBoost (" + TimeSeries.Algorithm.XGBOOST.fqn(job.group())
-                    + ") now");
+            TimeSeries.Algorithm algorithm = TimeSeries.Algorithm.named(job.algorithm());
+            if (algorithm == null || !spec.has(algorithm)) {
+                throw new IllegalArgumentException("the group isn't tagged for " + job.algorithm() + " ("
+                    + (algorithm == null ? job.algorithm() : algorithm.fqn(job.group())) + ") now");
             }
             if (!spec.ready()) {
                 throw new IllegalArgumentException("the group isn't ready: " + String.join("; ", spec.problems()));
             }
-            Dataset.Builder builder = new Dataset.Builder(spec);
-            TableReader.read(job.access(), spec, builder);
-            XgbTrainer.Trained trained = XgbTrainer.train(builder.build());
-            String results = json.writeValueAsString(trained.result());
+            String results;
+            byte[] model;
+            XgbTrainer.Metrics test;
+            int examples;
+            if (algorithm == TimeSeries.Algorithm.XGBOOST) {
+                Dataset.Builder builder = new Dataset.Builder(spec);
+                TableReader.read(job.access(), spec, builder);
+                XgbTrainer.Trained trained = XgbTrainer.train(builder.build());
+                results = json.writeValueAsString(trained.result());
+                model = trained.model();
+                test = trained.result().test();
+                examples = trained.result().dataset().examples();
+            } else {
+                DeepArData.Builder builder = new DeepArData.Builder(spec);
+                TableReader.read(job.access(), spec, builder);
+                DeepArTrainer.Trained trained = DeepArTrainer.train(builder.build());
+                results = json.writeValueAsString(trained.result());
+                model = trained.model();
+                test = trained.result().test();
+                examples = trained.result().dataset().examples();
+            }
             QuarkusTransaction.requiringNew().run(() -> {
                 TrainingRun run = TrainingRun.findById(runId);
                 run.status = TrainingRun.Status.SUCCEEDED;
                 run.finishedAt = Instant.now();
                 run.results = results;
-                run.model = trained.model();
+                run.model = model;
             });
-            XgbTrainer.Metrics test = trained.result().test();
-            LOG.infof("training: run %d succeeded, %s group %s: %d examples, test MAE %.3f (naive %.3f)", runId,
-                job.tableFqn(), job.group(), trained.result().dataset().examples(), test.mae(), test.naiveMae());
+            LOG.infof("training: run %d succeeded, %s group %s (%s): %d examples, test MAE %.3f (naive %.3f)", runId,
+                job.tableFqn(), job.group(), job.algorithm(), examples, test.mae(), test.naiveMae());
         } catch (Throwable e) {
             String error = reason(e);
             LOG.warnf("training: run %d failed, %s group %s (%s): %s", runId, job.tableFqn(), job.group(), job.algorithm(), error);
@@ -505,6 +527,10 @@ public class Training {
         if (e instanceof UnsatisfiedLinkError || e instanceof NoClassDefFoundError) {
             return "XGBoost's native library can't load (it needs an OpenMP runtime: libomp on macOS, libgomp on Linux; "
                 + "and the JVM, not the native executable): " + e.getMessage();
+        }
+        if (e instanceof ai.djl.engine.EngineException) {
+            return "DeepAR's engine, PyTorch (libtorch, through DJL), can't load (it needs the JVM, not the native "
+                + "executable, and libtorch for this platform): " + e.getMessage();
         }
         if (e instanceof SQLException) {
             return "the data source can't be read: " + e.getMessage();

@@ -87,10 +87,6 @@ public class SourceTrainingResource {
             return TrainingResource.error(Response.Status.CONFLICT, cant + " with " + algorithm.tag + ": it isn't tagged for it ("
                 + algorithm.fqn(spec.group()) + "); its algorithms are " + String.join(" and ", spec.algorithms()));
         }
-        if (algorithm != TimeSeries.Algorithm.XGBOOST) {
-            return TrainingResource.error(Response.Status.CONFLICT, cant + " with " + algorithm.tag + ": datyx has no "
-                + algorithm.tag + " trainer yet, only XGBoost's");
-        }
         if (!Training.trainable(spec)) {
             return TrainingResource.error(Response.Status.CONFLICT, cant + ": " + String.join("; ", spec.problems()));
         }

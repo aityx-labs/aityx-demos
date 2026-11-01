@@ -116,10 +116,12 @@ OpenAPI, and a REST client for OpenMetadata.
   one algorithm's with `?algorithm=XGBoost`), and a group's roles,
   algorithm and horizon set on a table (`PUT`). Tag in
   OpenMetadata's UI, or with the PUT. See [specs/catalog.md](specs/catalog.md).
-- `/api/training`: the groups tagged for XGBoost, which datyx trains
-  itself (when the API starts if they never were, then as often as their
-  table's `timeSeriesRetrain` says, `1D` by default), with their runs,
-  test metrics, weightiest features and highest scores;
+- `/api/training`: the groups tagged as time series, which datyx trains
+  itself with their algorithm, XGBoost or DeepAR (DJL on its PyTorch
+  engine, libtorch bundled for the platform built on), when the API
+  starts if they never were, when one is switched on, then as often as
+  their table's `timeSeriesRetrain` says, `1D` by default; with their
+  runs, test metrics, weightiest features (XGBoost's) and highest scores;
   `/api/training/runs/{id}` one run; `POST /api/datasources/{id}/training`
   trains a group now, `PUT` sets how often. XGBoost4J needs an OpenMP
   runtime: `brew install libomp` on macOS. See

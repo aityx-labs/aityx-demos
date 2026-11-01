@@ -114,8 +114,8 @@ String thousands(int n) {
   return out.toString();
 }
 
-/// A count in few characters: 950, 48.2K, 1.3M.
-String compact(int n) {
+/// Input tokens in few characters: 950, 48.2K, 1.3M.
+String compactTokens(int n) {
   String trim(String s) => s.endsWith('.0') ? s.substring(0, s.length - 2) : s;
   if (n < 1000) return '$n';
   if (n < 999950) return '${trim((n / 1000).toStringAsFixed(1))}K';
@@ -295,7 +295,7 @@ class _Totals extends StatelessWidget {
           status: t.failed == 0 ? Aityx.green : Aityx.red,
           icon: t.failed == 0 ? Icons.check_circle_outline : Icons.error_outline,
         ),
-        StatTile(key: const ValueKey('aityx-tokens'), label: 'input tokens', value: compact(t.inputTokens), note: '${thousands(t.inputTokens)} $window'),
+        StatTile(key: const ValueKey('aityx-tokens'), label: 'input tokens', value: compactTokens(t.inputTokens), note: '${thousands(t.inputTokens)} $window'),
         StatTile(
           key: const ValueKey('aityx-cost'),
           label: 'cost',
@@ -348,7 +348,7 @@ class _Hours extends StatelessWidget {
       hours: hours,
       segments: (h) => [(h.inputTokens, Aityx.orange)],
       tip: (h) => '${_hourSpan(h.hour)}: ${_plural(h.inputTokens, 'input token')} in ${_plural(h.calls, 'call')}',
-      format: compact,
+      format: compactTokens,
     );
     return Card(
       child: Padding(

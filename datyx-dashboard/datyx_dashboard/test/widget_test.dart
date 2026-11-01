@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:datyx_dashboard/api/datyx_api.dart';
 import 'package:datyx_dashboard/auth/auth_controller.dart';
-import 'package:datyx_dashboard/dashboard/aityx_tab.dart' show AityxTab, compact, latency, thousands, usd;
+import 'package:datyx_dashboard/dashboard/aityx_tab.dart' show AityxTab, compactTokens, latency, thousands, usd;
 import 'package:datyx_dashboard/dashboard/catalog_tab.dart'
     show cleanupHelp, groupColors, groupPalette, otherGroupColor, tableKind, tagHelp;
 import 'package:datyx_dashboard/dashboard/dashboard_screen.dart';
@@ -2145,10 +2145,10 @@ void main() {
     expect(thousands(48210), '48,210');
     expect(thousands(999), '999');
     expect(thousands(1234567), '1,234,567');
-    expect(compact(950), '950');
-    expect(compact(48210), '48.2K');
-    expect(compact(12000), '12K');
-    expect(compact(1250000), '1.3M');
+    expect(compactTokens(950), '950');
+    expect(compactTokens(48210), '48.2K');
+    expect(compactTokens(12000), '12K');
+    expect(compactTokens(1250000), '1.3M');
     expect(usd(0), '\$0');
     expect(usd(0.000175), '\$0.000175');
     expect(usd(0.0123456), '\$0.0123');

@@ -13,6 +13,7 @@ import datyx.crypto.Crypto;
 import datyx.datasource.AccessCodec;
 import datyx.datasource.DataSource.Access;
 import datyx.datasource.DataSource.DatabaseAccess;
+import datyx.datasource.DataSource.KafkaAccess;
 import datyx.profile.ProfileIdentity;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.flywaydb.core.api.migration.BaseJavaMigration;
@@ -21,22 +22,26 @@ import org.jboss.logging.Logger;
 
 /**
  * Development data, dev mode only (db/devdata is a Flyway location in the
- * dev profile alone): HealthHub's PostgreSQL as a data source named
- * HealthHub, in every profile that has none of that name, the local
- * profile included (made here when missing, so authentication off has it
- * too). The details are HealthHub's development defaults
- * (HealthHub/.env.example): localhost, port 9803, database healthhub,
- * user healthhub. Encrypted as the API stores them (AccessCodec), with
- * the same master key. A repeatable migration: it runs again when
- * {@link #VERSION} changes, and then seeds the profiles made since. A
- * profile whose key another master key wrapped is skipped with a warning.
+ * dev profile alone): HealthHub as two data sources, its PostgreSQL named
+ * HealthHub and its Kafka named HealthHub Kafka, each in every profile
+ * that has none of that name, the local profile included (made here when
+ * missing, so authentication off has them too). The details are
+ * HealthHub's development defaults (HealthHub/.env.example): localhost,
+ * port 9803, database healthhub, user healthhub; Kafka's bootstrap server
+ * localhost:9804, plain text. Encrypted as the API stores them
+ * (AccessCodec), with the same master key. A repeatable migration: it
+ * runs again when {@link #VERSION} changes, and then seeds the profiles
+ * made since. A profile whose key another master key wrapped is skipped
+ * with a warning.
  */
 public class R__HealthHub_data_source extends BaseJavaMigration {
 
     /** Bump to run the seed again (the migration's checksum). */
-    static final int VERSION = 1;
+    static final int VERSION = 2;
 
     static final String NAME = "HealthHub";
+
+    static final String KAFKA_NAME = "HealthHub Kafka";
 
     private static final Logger LOG = Logger.getLogger(R__HealthHub_data_source.class);
 
@@ -47,6 +52,7 @@ public class R__HealthHub_data_source extends BaseJavaMigration {
 
     @Override
     public String getDescription() {
+        // Unchanged since the seed had one source: Flyway knows the migration by it.
         return "HealthHub data source";
     }
 
@@ -57,10 +63,20 @@ public class R__HealthHub_data_source extends BaseJavaMigration {
         ObjectMapper json = new ObjectMapper();
         Instant now = Instant.now();
         ensureLocalProfile(c, crypto, now);
-        Access access = new Access(
-            new DatabaseAccess("postgresql", "localhost", 9803, "healthhub", "healthhub", "healthhub"), null, null);
+        seed(c, crypto, json, now, NAME, "DATABASE",
+            "HealthHub's PostgreSQL, the development one (compose.yaml of HealthHub/)",
+            new Access(new DatabaseAccess("postgresql", "localhost", 9803, "healthhub", "healthhub", "healthhub"),
+                null, null, null));
+        seed(c, crypto, json, now, KAFKA_NAME, "KAFKA",
+            "HealthHub's Kafka, the development one (compose.yaml of HealthHub/): admissions, moves and hourly counts",
+            new Access(null, null, null, new KafkaAccess("localhost:9804", "PLAINTEXT", null, null, null)));
+    }
+
+    /** A data source of this name, type and details, in every profile without one of the name. */
+    private static void seed(Connection c, Crypto crypto, ObjectMapper json, Instant now, String name, String type,
+            String description, Access access) throws Exception {
         int seeded = 0;
-        for (long[] profile : profilesWithout(c)) {
+        for (long[] profile : profilesWithout(c, name)) {
             long id = profile[0];
             byte[] wrappedKey = wrappedKey(c, id);
             byte[] sealed;
@@ -74,17 +90,18 @@ public class R__HealthHub_data_source extends BaseJavaMigration {
             }
             try (PreparedStatement s = c.prepareStatement("""
                 insert into data_source (id, profile_id, name, type, description, created_at, created_by, created_by_name, access)
-                values (nextval('data_source_seq'), ?, ?, 'DATABASE', ?, ?, null, 'dev data', ?)""")) {
+                values (nextval('data_source_seq'), ?, ?, ?, ?, ?, null, 'dev data', ?)""")) {
                 s.setLong(1, id);
-                s.setString(2, NAME);
-                s.setString(3, "HealthHub's PostgreSQL, the development one (compose.yaml of HealthHub/)");
-                s.setTimestamp(4, Timestamp.from(now));
-                s.setBytes(5, sealed);
+                s.setString(2, name);
+                s.setString(3, type);
+                s.setString(4, description);
+                s.setTimestamp(5, Timestamp.from(now));
+                s.setBytes(6, sealed);
                 s.executeUpdate();
             }
             seeded++;
         }
-        LOG.infof("dev data: the %s data source added to %d profile(s)", NAME, seeded);
+        LOG.infof("dev data: the %s data source added to %d profile(s)", name, seeded);
     }
 
     /** The local profile (issuer local, subject anonymous), as Profiles makes it, when there is none yet. */
@@ -121,11 +138,11 @@ public class R__HealthHub_data_source extends BaseJavaMigration {
     }
 
     /** The ids of the profiles with no data source of this name. */
-    private static List<long[]> profilesWithout(Connection c) throws Exception {
+    private static List<long[]> profilesWithout(Connection c, String name) throws Exception {
         List<long[]> ids = new ArrayList<>();
         try (PreparedStatement s = c.prepareStatement(
                 "select p.id from profile p where not exists (select 1 from data_source d where d.profile_id = p.id and lower(d.name) = lower(?)) order by p.id")) {
-            s.setString(1, NAME);
+            s.setString(1, name);
             try (ResultSet r = s.executeQuery()) {
                 while (r.next()) {
                     ids.add(new long[] {r.getLong(1)});

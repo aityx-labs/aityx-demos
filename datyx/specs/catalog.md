@@ -1,8 +1,8 @@
 # Catalogue and time series
 
 datyx learns a customer's data without the customer changing anything
-for it: it reads what a database says about itself into OpenMetadata,
-the catalogue, and people (later, a tool that suggests) say there what
+for it: it reads what a database or a Kafka cluster says about itself
+into OpenMetadata, the catalogue, and people (later, a tool that suggests) say there what
 the columns are to a forecast, with tags. datyx reads the tags back to
 know which tables are time series, and how to train on them (DeepAR
 first). Code in `datyx-api/src/main/java/datyx/catalog/`, the
@@ -10,12 +10,13 @@ OpenMetadata client in `datyx/openmetadata/`.
 
 ```
 customer's database ──JDBC metadata──▶ datyx ──PUT──▶ OpenMetadata
+customer's Kafka ─topics, latest records─┘
                                                  ▲         │ tags, properties
                      people (OpenMetadata's UI) ─┘         ▼
                      PUT .../timeseries ───────────▶ GET .../timeseries ──▶ training
 ```
 
-## Reading a source into the catalogue
+## Reading a database into the catalogue
 
 `POST /api/datasources/{id}/catalog` connects to a database source with
 its own access details (decrypted in the API, [data-sources.md](data-sources.md))
@@ -53,9 +54,55 @@ has them: `fqn`, `schema`, `name`, `type`, `description`, each column's
 (the composite primary key) and `properties` (the custom properties).
 Before a first sync, no tables.
 
-Only database sources have a catalogue, and only PostgreSQL ones so far
-(the one JDBC driver the API carries): an S3 bucket, a folder or another
-engine is a 400. A source that can't be read (down, wrong password) is a
+## Reading a Kafka cluster into the catalogue
+
+The same `POST /api/datasources/{id}/catalog` on a Kafka source
+connects with its servers, protocol and SASL sign-in (`StreamReader`,
+Kafka's own client, `quarkus-kafka-client`) and reads every topic that
+isn't internal (none starting with `__`): its partitions, replication
+factor and settings (`cleanup.policy`, `retention.ms`,
+`retention.bytes`, `max.message.bytes`, `min.insync.replicas`). Kafka
+keeps no schema, and datyx has no schema registry to ask, so it reads
+the latest 10 records of each partition, for 5 s at most, committed
+ones only, joining no consumer group and committing nothing: the
+fields of those that are JSON objects, merged newest first (a field
+null in one record takes its type from another; nested objects and
+arrays of objects keep their fields), each with OpenMetadata's type
+(`STRING`, `INT`, `LONG`, `DOUBLE`, `BOOLEAN`, `RECORD`, `ARRAY`,
+`NULL`). Only names and types go to OpenMetadata, never a value. It
+writes:
+
+- a messaging service named `datyx-ds-{id}`, of type `Kafka`, **with no
+  connection details**, like a database's;
+- each topic, with its partitions, replication factor, cleanup policies,
+  retention (time and size, when limited), largest message, minimum
+  in-sync replicas, the settings read as its `topicConfig`, and its
+  message schema: `JSON`, the fields as `schemaFields` and a JSON Schema
+  of them as `schemaText`.
+
+It answers `{"service":"datyx-ds-2","topics":5,"fields":46,"sampled":4,
+"removed":[]}`: `fields` counts the topics' top-level fields, `sampled`
+the topics with a record. Running it again keeps what people added (the
+topic's description, a field's description and tags, sent back with
+the PUT); a topic with no record keeps the schema OpenMetadata has; a
+topic the cluster no longer has is soft-deleted (`removed`). Deleting
+the source removes its messaging service and topics.
+
+`GET /api/datasources/{id}/catalog` on a Kafka source answers
+`{"service":...,"topics":[...]}`: each topic's `fqn`, `name`,
+`description`, `partitions`, `replicationFactor`, `cleanupPolicies`,
+`retentionTime` (ms) and `retentionSize` (bytes; null when unlimited),
+`schemaType`, its `tags`, and `fields`: `name`, `dataType`, `tags` and a
+record's `children`. Before a first sync, no topics. Topics have no time
+series yet: `GET .../timeseries` answers none, and the PUT finds no
+table.
+
+## Which sources, and errors
+
+Database sources, PostgreSQL ones so far (the one JDBC driver the API
+carries), and Kafka clusters have a catalogue: an S3 bucket, a folder or
+another engine is a 400. A source that can't be read (down, wrong
+password, a broker that doesn't answer in 10 s) is a
 502 `the data source can't be read: ...`; OpenMetadata failing is a 502
 `OpenMetadata ...` with its own message. All of them within the caller's
 profile, a 404 for another's source, and no database transaction is held
@@ -186,13 +233,26 @@ quoted FQNs.
 `CatalogResourceTest`, against the Dev Services Postgres standing in for
 a source: `SchemaReader` reads a schema's table, view, column order,
 types, comments and composite key, and no system schema; an S3 source is
-a 400; a wrong password and an unreachable OpenMetadata are 502s; an
-unknown source is a 404; deleting a source doesn't wait on the catalogue.
-OpenMetadata itself isn't started for the tests.
+a 400; a wrong password, a Kafka broker that isn't there and an
+unreachable OpenMetadata are 502s; an unknown source is a 404; deleting
+a source doesn't wait on the catalogue. `StreamReaderTest`, no cluster:
+the fields and types learnt from JSON records, nested ones included,
+records merged newest first (a null's type from another record, fields
+only older ones have added, what isn't a JSON object skipped), the SASL
+sign-in only for a SASL protocol, its user and password quoted; a topic
+as the catalogue writes it, keeping a description and field tags people
+added, and the schema it had when no record was read. OpenMetadata and
+Kafka themselves aren't started for the tests.
 
 ## Known limitations
 
 - PostgreSQL sources only; another engine needs its JDBC driver.
+- A topic's fields are learnt from its latest records, JSON ones only:
+  Avro or Protobuf records, a schema registry, and the records' keys
+  aren't read; a field the sampled records don't have is missing, and a
+  number's type is what the sampled values fit (`INT` until one doesn't).
+- Kafka over SSL trusts the JVM's certificate authorities only: no
+  truststore or client certificate of the source's own yet.
 - Nothing reads rows yet: training on a series (DeepAR on GraalPy) is
   the next step, and will fill the missing hours by `timeSeriesMissing`.
 - One Target per group; a table with two values to forecast is two

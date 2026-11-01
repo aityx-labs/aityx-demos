@@ -89,13 +89,14 @@ OpenAPI, and a REST client for OpenMetadata.
   `devbox services up` (`quarkus:dev`) and Docker Compose
   (`DATYX_API_PROFILE`, `dev` unless set).
 - `/api/datasources`: the data sources on record, the first entity:
-  databases, S3 buckets and folders with their access details (secrets
+  databases, S3 buckets, folders and Kafka clusters with their access details (secrets
   never answered back), listed, added (`POST`) and removed (`DELETE`),
   within the caller's profile. See
   [specs/data-sources.md](specs/data-sources.md).
 - `/api/datasources/{id}/catalog`: a database source read into
-  OpenMetadata (`POST`: tables, columns, keys; no credentials go there)
-  and answered back as OpenMetadata has it (`GET`).
+  OpenMetadata (`POST`: tables, columns, keys; no credentials go there),
+  or a Kafka cluster (topics, their settings, and the fields of their
+  latest JSON records), and answered back as OpenMetadata has it (`GET`).
   `/api/datasources/{id}/timeseries`: the tables whose columns are tagged
   with the `TimeSeries` roles (`Timestamp`, `Target`, `SeriesKey`, the
   static and dynamic features DeepAR takes), one series per group of

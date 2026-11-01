@@ -2,7 +2,7 @@
 
 The first entity of datyx: where data lives and how to reach it, owned
 by the profile of whoever adds it ([profiles.md](profiles.md)). Users add
-and remove them; a database source is read into OpenMetadata, the
+and remove them; a database or Kafka source is read into OpenMetadata, the
 catalogue, on demand ([catalog.md](catalog.md)). Code in
 `datyx-api/src/main/java/datyx/datasource/`.
 
@@ -12,8 +12,8 @@ catalogue, on demand ([catalog.md](catalog.md)). Code in
 owner; cascade on delete), `name` (up to 100 characters, required,
 unique within the profile whatever its case: a unique index on
 `(profile_id, lower(name))`, made by the Flyway migration), `type`
-(`database`, `s3` or `filesystem`; stored as `DATABASE`, `S3`,
-`FILESYSTEM`), `description` (up to 500), `createdAt`, `createdBy` (the
+(`database`, `s3`, `filesystem` or `kafka`; stored as `DATABASE`, `S3`,
+`FILESYSTEM`, `KAFKA`), `description` (up to 500), `createdAt`, `createdBy` (the
 email of the signed-in identity, else the token's subject; null while
 authentication is off) and `createdByName`; then `access`: the access
 details of its type as one JSON document (`DataSource.Access`, the group
@@ -27,6 +27,13 @@ answer. The groups:
 - An **S3 bucket**: `bucket`, `region`, `endpoint` (S3-compatible stores
   only), `prefix`, `accessKeyId`, `secretAccessKey`.
 - A **filesystem** folder: `path`.
+- A **Kafka** cluster: `bootstrapServers` (`host:port`, comma-separated;
+  blanks dropped), `securityProtocol` (`PLAINTEXT`, the default, `SSL`,
+  `SASL_PLAINTEXT` or `SASL_SSL`; upper-cased), and with a SASL protocol
+  `saslMechanism` (`PLAIN`, the default, `SCRAM-SHA-256` or
+  `SCRAM-SHA-512`), `username` (required) and `password`. Another
+  protocol or mechanism, a SASL protocol without a username, or a
+  username, password or mechanism without one, is a 400.
 
 Secrets (`password`, `secretAccessKey`) are never answered back: answers
 carry `passwordSet` and `secretAccessKeySet` instead.
@@ -46,7 +53,8 @@ list.
   type under a key of the same name:
   `{"name":"warehouse","type":"database","description":"...","database":{"engine":"postgresql","host":"db","port":5432,"database":"dw","username":"u","password":"p"}}`,
   `{"name":"lake","type":"s3","s3":{"bucket":"b","region":"eu-west-1","prefix":"raw/","accessKeyId":"...","secretAccessKey":"..."}}`,
-  `{"name":"exports","type":"filesystem","filesystem":{"path":"/data/exports"}}`.
+  `{"name":"exports","type":"filesystem","filesystem":{"path":"/data/exports"}}`,
+  `{"name":"stream","type":"kafka","kafka":{"bootstrapServers":"broker:9092","securityProtocol":"SASL_SSL","saslMechanism":"SCRAM-SHA-512","username":"u","password":"p"}}`.
   Field constraints (Hibernate Validator) and details missing for the
   type, or given for another type, are a 400 with `{"error":"..."}`; a
   name the profile already uses is a 409: the row is flushed in the
@@ -64,9 +72,10 @@ details of its type, without secrets:
 ## Development data
 
 In dev mode the Flyway location `db/devdata` ([api.md](api.md)) seeds
-HealthHub's PostgreSQL as a data source named HealthHub in every
-profile, so the dashboard has one to show and the catalogue something to
-read; prod and tests get none.
+HealthHub's PostgreSQL as a data source named HealthHub, and its Kafka
+(`localhost:9804`, plain text) as one named HealthHub Kafka, in every
+profile, so the dashboard has them to show and the catalogue something
+to read; prod and tests get none.
 
 ## Migration
 
@@ -77,9 +86,11 @@ had no owner and their details in clear, and SQL has no key to encrypt
 them with, so the migration deletes them.
 `V3__drop_hibernate_unique_name.sql` drops the global unique constraint
 on the name that Hibernate generated on databases from before Flyway.
+`V4__kafka_sources.sql` lets the type be `KAFKA`: V1's check on the
+column named the three types before it.
 
 ## Known limitations
 
 - No update: remove and add again.
-- Only database sources, PostgreSQL ones, reach the catalogue; S3 buckets
-  and folders are kept but nothing reads them.
+- Only database sources, PostgreSQL ones, and Kafka clusters reach the
+  catalogue; S3 buckets and folders are kept but nothing reads them.

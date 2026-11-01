@@ -92,6 +92,65 @@ class DataSourceResourceTest {
     }
 
     @Test
+    void addsKafkaClusters() {
+        int plain = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {"name":"stream","type":"kafka","kafka":{"bootstrapServers":" broker-1:9092, broker-2:9092 "}}
+                """)
+            .when().post("/api/datasources")
+            .then()
+            .statusCode(201)
+            .body("type", is("kafka"))
+            .body("kafka.bootstrapServers", is("broker-1:9092,broker-2:9092"))
+            .body("kafka.securityProtocol", is("PLAINTEXT"))
+            .body("kafka.saslMechanism", nullValue())
+            .body("kafka.passwordSet", is(false))
+            .extract().path("id");
+        int sasl = given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {"name":"cloud stream","type":"kafka","kafka":{"bootstrapServers":"pkc.example.com:9092",
+                 "securityProtocol":"sasl_ssl","saslMechanism":"scram-sha-512","username":"reader","password":"s3cret"}}
+                """)
+            .when().post("/api/datasources")
+            .then()
+            .statusCode(201)
+            .body("kafka.securityProtocol", is("SASL_SSL"))
+            .body("kafka.saslMechanism", is("SCRAM-SHA-512"))
+            .body("kafka.username", is("reader"))
+            .body("kafka.passwordSet", is(true))
+            .body("kafka", not(hasKey("password")))
+            .extract().path("id");
+        given().when().delete("/api/datasources/" + plain).then().statusCode(204);
+        given().when().delete("/api/datasources/" + sasl).then().statusCode(204);
+    }
+
+    @Test
+    void rejectsKafkaDetailsThatDontFit() {
+        given().contentType(ContentType.JSON)
+            .body("{\"name\":\"k1\",\"type\":\"kafka\",\"kafka\":{\"bootstrapServers\":\"b:9092\",\"securityProtocol\":\"TLS\"}}")
+            .when().post("/api/datasources")
+            .then().statusCode(400).body("error", containsString("securityProtocol is one of"));
+        given().contentType(ContentType.JSON)
+            .body("{\"name\":\"k2\",\"type\":\"kafka\",\"kafka\":{\"bootstrapServers\":\"b:9092\",\"securityProtocol\":\"SASL_SSL\"}}")
+            .when().post("/api/datasources")
+            .then().statusCode(400).body("error", is("a kafka source over SASL_SSL needs a username"));
+        given().contentType(ContentType.JSON)
+            .body("{\"name\":\"k3\",\"type\":\"kafka\",\"kafka\":{\"bootstrapServers\":\"b:9092\",\"username\":\"u\"}}")
+            .when().post("/api/datasources")
+            .then().statusCode(400).body("error", containsString("need a SASL securityProtocol"));
+        given().contentType(ContentType.JSON)
+            .body("{\"name\":\"k4\",\"type\":\"kafka\",\"kafka\":{\"bootstrapServers\":\"b:9092\",\"securityProtocol\":\"SASL_PLAINTEXT\",\"saslMechanism\":\"GSSAPI\",\"username\":\"u\"}}")
+            .when().post("/api/datasources")
+            .then().statusCode(400).body("error", containsString("saslMechanism is one of"));
+        given().contentType(ContentType.JSON)
+            .body("{\"name\":\"k5\",\"type\":\"kafka\",\"database\":{\"engine\":\"postgresql\",\"host\":\"h\",\"port\":5432,\"database\":\"d\"}}")
+            .when().post("/api/datasources")
+            .then().statusCode(400).body("error", is("a kafka data source needs its 'kafka' details"));
+    }
+
+    @Test
     void rejectsMissingOrMismatchedDetailsAndTakenNames() {
         // No details for the type.
         given()

@@ -79,8 +79,9 @@ The dev profile starts from an empty database, Flyway's `clean-at-start`:
 every start (and every live reload's restart) drops the schema and
 migrates from zero, so data sources and profiles made in development don't
 outlive it. It runs Flyway with a second location, `db/devdata`, Java
-migrations seeding development records: HealthHub's database as a data
-source in every profile ([api.md](api.md)). Development runs the dev
+migrations seeding development records: HealthHub's database and its
+Kafka as data sources in every profile ([api.md](api.md)); reading them
+into the catalogue wants HealthHub running (`./start-datyx.sh`). Development runs the dev
 profile everywhere: `API_MODE=dev` (`quarkus:dev`, the default for
 `devbox services up`) and Docker Compose (`DATYX_API_PROFILE=dev`, the
 default). The jar and the native executable (`API_MODE=jar` or `native`)

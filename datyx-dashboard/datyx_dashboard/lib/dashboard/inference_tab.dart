@@ -121,7 +121,9 @@ class _InferenceTabState extends State<InferenceTab> {
   }
 }
 
-String _ms(num? v) => v == null ? '–' : '${v is double ? v.toStringAsFixed(1) : v} ms';
+/// Milliseconds as text: whole ones without decimals (on the web every
+/// number is a double), others to a tenth; a dash for none.
+String ms(num? v) => v == null ? '–' : '${v == v.roundToDouble() ? v.round() : v.toStringAsFixed(1)} ms';
 
 class _Totals extends StatelessWidget {
   const _Totals({required this.totals, required this.lastHour});
@@ -144,8 +146,8 @@ class _Totals extends StatelessWidget {
         icon: totals.failed == 0 ? Icons.check_circle_outline : Icons.error_outline,
       ),
       StatTile(key: const ValueKey('total-scored'), label: 'series scored', value: '${totals.scored}', note: 'in 7 days'),
-      StatTile(key: const ValueKey('total-p50'), label: 'median latency', value: _ms(totals.p50Millis), note: 'per call'),
-      StatTile(key: const ValueKey('total-p95'), label: '95th percentile', value: _ms(totals.p95Millis), note: 'per call'),
+      StatTile(key: const ValueKey('total-p50'), label: 'median latency', value: ms(totals.p50Millis), note: 'per call'),
+      StatTile(key: const ValueKey('total-p95'), label: '95th percentile', value: ms(totals.p95Millis), note: 'per call'),
     ],
   );
 }
@@ -312,8 +314,8 @@ class _InferenceModelCardState extends State<InferenceModelCard> {
                   icon: s.failed == 0 ? Icons.check_circle_outline : Icons.error_outline,
                 ),
                 StatTile(label: 'series scored', value: '${s.scored}', note: 'in 7 days'),
-                StatTile(label: 'median latency', value: _ms(s.p50Millis), note: 'mean ${_ms(s.avgMillis)}'),
-                StatTile(label: '95th percentile', value: _ms(s.p95Millis), note: 'per call'),
+                StatTile(label: 'median latency', value: ms(s.p50Millis), note: 'mean ${ms(s.avgMillis)}'),
+                StatTile(label: '95th percentile', value: ms(s.p95Millis), note: 'per call'),
               ],
             ),
             const SizedBox(height: 16),

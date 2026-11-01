@@ -4,6 +4,7 @@ import 'package:datyx_dashboard/api/datyx_api.dart';
 import 'package:datyx_dashboard/auth/auth_controller.dart';
 import 'package:datyx_dashboard/dashboard/catalog_tab.dart' show groupColors, groupPalette, otherGroupColor;
 import 'package:datyx_dashboard/dashboard/dashboard_screen.dart';
+import 'package:datyx_dashboard/dashboard/inference_tab.dart' show ms;
 import 'package:datyx_dashboard/main.dart';
 import 'package:datyx_dashboard/persist/address.dart';
 import 'package:datyx_dashboard/persist/address_memory.dart' as address;
@@ -864,6 +865,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.scoreCalls.last, isNull, reason: 'none named: all still observed');
     expect(find.text('reus-4'), findsOneWidget);
+  });
+
+  test('says milliseconds without a decimal when they are whole', () {
+    expect(ms(36), '36 ms');
+    expect(ms(36.0), '36 ms');
+    expect(ms(18.5), '18.5 ms');
+    expect(ms(null), '–');
   });
 
   test('colors groups by name, the default first, gray past the palette', () {

@@ -589,7 +589,32 @@ class Race {
     return best;
   }
 
-  double? _fuelTarget(Plane p) => _depot(p)?.x;
+  /// Toward the nearest depot ahead, as far as the water the plane can fly
+  /// straight up to it allows (the water at every row up to the depot,
+  /// taken together); none when that corridor closes on the way.
+  double? _fuelTarget(Plane p) {
+    final depot = _depot(p);
+    if (depot == null) return null;
+    final start = _spanNear(p.x, p.y);
+    var lo = start.left;
+    var hi = start.right;
+    const room = planeHalfWidth + 2;
+    for (var y = p.y + 4; y < depot.y + 4; y += 4) {
+      Span? best;
+      var overlap = double.negativeInfinity;
+      for (final s in river.spans(y)) {
+        final o = min(s.right, hi) - max(s.left, lo);
+        if (o > overlap) {
+          overlap = o;
+          best = s;
+        }
+      }
+      lo = max(lo, best!.left);
+      hi = min(hi, best.right);
+      if (hi - lo < room * 2) return null;
+    }
+    return depot.x.clamp(lo + room, hi - room);
+  }
 
   /// The nearest enemy about to collide, within [threatLook].
   Thing? _threat(Plane p) {

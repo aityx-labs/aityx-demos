@@ -21,7 +21,12 @@ center with a location ([Care centers](care-centers.md)) and makes
 `HEALTHHUB_SIM_PEOPLE` people (40) for each city that has one: Cornudella
 de Montsant, Reus, Barcelona, Miami, Fort Lauderdale, Rio de Janeiro and
 São Paulo. A person's id is the city as a slug and a number from 1
-(`sao-paulo-3`, `cornudella-de-montsant-1`).
+(`sao-paulo-3`, `cornudella-de-montsant-1`). The people are drawn with
+a fixed seed (`populationSeed` in `lib/simulation.dart`): the same
+homes, profiles, care centers and conditions at every start, so the
+admissions history covers exactly the care centers a run sends people
+to ([The history](admissions-hourly.md#the-history)); what they do from
+there, when episodes start and visits fall, is drawn afresh every run.
 
 - **Home**: a random point within 1.5 km of a random care center of the
   city, uniform over the disc, so homes fall in the city and, since care
@@ -162,11 +167,28 @@ the loops of a paused simulation too.
 ## Visits
 
 A condition's visits come in courses of `count` visits, `interval_days`
-apart ([Medical conditions](conditions.md#visits)). A planned visit
-starts on the hour, at a random hour from 08:00 to 17:00; the first visit
-of an `urgent` condition (appendicitis, renal colic, a fracture, a
-laceration, pneumonia) is made as soon as it starts, at any hour of day
-or night. A person has two processes of visits, apart:
+apart ([Medical conditions](conditions.md#visits)). The time of day of
+an arrival follows one **daily profile**, a single harmonic: an hour's
+weight is 1 + cos(2π (hour − 13) / 24), highest at 13:00 (2), lowest at
+01:00 (0), half at 07:00 and 19:00 (`arrivalPeakHour` 13 and
+`arrivalAmplitude` 1 in `lib/simulation.dart`, `arrivalHour` drawing an
+hour from it). A planned visit starts on the hour, like an appointment,
+at an hour drawn once from the profile, on its day or, when that hour
+of it has passed, the next day's at the same hour, never in the past
+(drawing again for the next day would favour the hours after the one
+asked from, and put the peak of same-day visits, as a non-urgent acute
+episode's, past 13:00); the person leaves at that turn and arrives
+within the hour, so the arrivals' hours follow the profile. The first
+visit of an `urgent` condition (appendicitis, renal colic, a fracture,
+a laceration, pneumonia) is made as soon as it starts; an acute episode
+starts on the day its gap gives, on the hour, at an hour drawn from the
+profile, so emergencies come mostly around midday too, and now and then
+at night, and, with hour-long turns, leave at the onset's turn and
+arrive within its hour; an urgent chronic condition's first visit, on
+its day, likewise. So a run's acute and chronic admissions both follow
+the profile, a first harmonic peaking at 13:00 with the profile's
+amplitude, as the history's do. A person has two processes of visits,
+apart:
 
 - **Chronic**: 60% of people have one chronic condition, for life. Its
   first visit falls within the first 10 simulated days, then one every
@@ -180,15 +202,16 @@ or night. A person has two processes of visits, apart:
 - **Acute**: episodes start at random, a gap after the start or after
   the last episode ended that is exponential with a mean of 90 days (at
   least a day), so they come about every three months, as a Poisson
-  process. Each draws an acute condition by prevalence, weighed by sex,
+  process; the gap gives the day, a later one, and the daily profile the
+  hour. Each draws an acute condition by prevalence, weighed by sex,
   for the person's age; its visits are one course, `first`, `repeat`
   and `last`, and when it ends the next gap begins. Someone without a
   chronic condition is healthy (no condition) between episodes.
 
 The two interleave, one visit at a time: a visit that falls due while
 the person is out on another (an episode that starts during a chronic
-check-up) waits until they are home, then goes at the next daytime slot,
-or at once for an emergency. When both are due at once, the earlier due
+check-up) waits until they are home, then goes at the next planned slot
+(an hour from the profile, later than now), or at once for an emergency. When both are due at once, the earlier due
 goes first.
 
 ## Admissions
@@ -315,7 +338,8 @@ whether the proxy answered its last ping (every 5 s).
 ## Known limitations
 
 - The simulation lives in the API's process: restarting the API starts a
-  new one, with new people, from 06:00 on day 1, under a new run id. The
+  new one, with the same people ([People](#people)) but new events, from
+  06:00 on day 1, under a new run id. The
   admissions of earlier runs stay in the database. The last run's
   admissions the feed had not read yet are read at start, recorded under
   their own event ids and shown among the events, as the people's ids

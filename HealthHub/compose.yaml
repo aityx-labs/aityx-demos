@@ -259,6 +259,7 @@ services:
       HEALTHHUB_SIM_PEOPLE: ${HEALTHHUB_SIM_PEOPLE:-40}
       HEALTHHUB_SIM_TURN_MS: ${HEALTHHUB_SIM_TURN_MS:-1000}
       HEALTHHUB_SIM_MINUTES_PER_TURN: ${HEALTHHUB_SIM_MINUTES_PER_TURN:-60}
+      HEALTHHUB_HISTORY_DAYS: ${HEALTHHUB_HISTORY_DAYS:-90}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

@@ -12,6 +12,7 @@ import 'care_centers.dart';
 import 'care_centers_seed.dart';
 import 'conditions.dart';
 import 'conditions_seed.dart';
+import 'history.dart';
 import 'routes.dart' show Bbox;
 import 'schema_comments.dart';
 import 'simulation.dart' show LatLon, Place;
@@ -312,9 +313,10 @@ class Db {
         CHECK ((level IS NULL) <> (error IS NULL))
       )
     ''');
-    // The admissions per run, hospital and simulated hour. The API only
-    // makes it: the Flink job (flink/admissions-hourly.sql) writes it,
-    // upserting by the key; an hour without admissions has no row.
+    // The admissions per run, hospital and simulated hour. The Flink job
+    // (flink/admissions-hourly.sql) writes the live runs', upserting by
+    // the key; the API the history run's ([writeHistory]). An hour
+    // without admissions has no row.
     await c.execute('''
       CREATE TABLE IF NOT EXISTS admissions_hourly (
         run_id TEXT NOT NULL,
@@ -1091,6 +1093,11 @@ class Db {
         ),
     ];
   });
+
+  /// Makes admissions_hourly hold [days] days of the admissions history
+  /// for [centers] (lib/history.dart's [writeAdmissionsHistory]).
+  Future<HistoryWritten> writeHistory(List<Place> centers, int days) =>
+      _run((c) => writeAdmissionsHistory(c, centers, days));
 
   Future<void> close() async {
     await _connection?.close();

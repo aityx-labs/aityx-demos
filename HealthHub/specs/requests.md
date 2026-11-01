@@ -536,3 +536,9 @@ The feature files hold the current specification; see the
    [Home](home.md), [The map](map.md), [API](api.md) and
    [Database](database.md).
 
+1. **The occupancy per hour card shows "run …, now": show the simulation's
+   current time instead.** The card's header says where the series end as
+   a simulated date and time, "Now · Jan 19, 2026 12:00" (or "Ended …"
+   for a past run), and no longer the run's id. See
+   [A care center's occupancy per hour](occupancy-timeline.md).
+

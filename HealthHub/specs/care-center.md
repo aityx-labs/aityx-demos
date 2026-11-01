@@ -61,7 +61,8 @@ order:
 3. **Occupancy per hour**: the people in care at the care center in each
    of the last 72 simulated hours up to now, a solid line with a point
    per hour, and datyx's DeepAR forecast of the next 24, dashed and
-   lighter with hollow points, in its band, under a faint line at its
+   lighter with hollow points, in its band, kept over the hours as they
+   pass to compare with what happened, under a faint line at its
    capacity ([A care center's occupancy per hour](occupancy-timeline.md)).
 4. **People here now**, then those on their way: a row each in their
    state's colour, the name and age (a link), the condition and what they

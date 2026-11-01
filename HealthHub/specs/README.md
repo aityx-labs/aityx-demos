@@ -64,7 +64,8 @@ does in HealthHub is described feature by feature in
 - [A care center's occupancy per hour](occupancy-timeline.md): the
   care center view's time series, the people in care up to now as a
   solid line with its points and datyx's DeepAR forecast of the next 24
-  dashed and lighter, in its band, under the capacity.
+  dashed and lighter, in its band, under the capacity, kept over the
+  hours as they pass to compare with what happened.
 - [Triage at the desk](triage.md): each admission triaged by aityx from
   what the patient said and their age (Jev reads the danger signs, a
   decision gives the level, the wait, the area and a nurse's check, with

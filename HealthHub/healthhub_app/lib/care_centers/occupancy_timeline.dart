@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../api/health_hub_api.dart';
@@ -25,7 +26,9 @@ typedef OccupancyForecastLoader = Future<HourlyForecast> Function(int id, {Strin
 /// dashed, lighter line with hollow, translucent points in its band of the
 /// 10th to 90th percentiles; its [capacity], when known, a faint line.
 /// Both are asked for together, now and every [refresh], so the forecast
-/// starts where the line ends; a failed read keeps what is shown. The
+/// starts where the line ends; a failed read keeps what is shown. Each
+/// hour keeps the last forecast made of it before it was counted, so as the
+/// hours pass the forecast stays on the chart over what happened. The
 /// history is anyone's; the forecast, datyx's, needs a signed-in user and
 /// a trained model, and without them the card says why.
 class OccupancyTimelineCard extends StatefulWidget {
@@ -61,6 +64,12 @@ class OccupancyTimelineCard extends StatefulWidget {
 class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
   HourlyOccupancy? _history;
   HourlyForecast? _forecast;
+
+  /// Every forecast hour seen in [_keptRun], by hour: the latest forecast
+  /// of each. A forecast only reaches past its series' end, so an hour
+  /// counted since keeps the last forecast made before it was.
+  final _kept = <DateTime, ForecastStep>{};
+  String? _keptRun;
   String? _historyError;
   String? _forecastError;
   Timer? _timer;
@@ -79,6 +88,8 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
     if (old.hospitalId != widget.hospitalId || old.run != widget.run || old.hours != widget.hours) {
       _history = null;
       _forecast = null;
+      _kept.clear();
+      _keptRun = null;
       _load();
     }
   }
@@ -104,6 +115,10 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
           case final HourlyOccupancy history:
             _history = history;
             _historyError = null;
+            if (history.run != _keptRun) {
+              _kept.clear();
+              _keptRun = history.run;
+            }
           case final error:
             _historyError = _reason(error);
         }
@@ -111,9 +126,18 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
           case final HourlyForecast forecast:
             _forecast = forecast;
             _forecastError = null;
+            // Kept once the run is known, and only for it.
+            if (_keptRun != null) {
+              for (final step in forecast.steps) {
+                _kept[step.at] = step;
+              }
+            }
           case final error:
             _forecastError = _reason(error);
         }
+        // Only the hours shown, and those ahead, are kept.
+        final first = _history?.hours.firstOrNull?.hour;
+        if (first != null) _kept.removeWhere((hour, _) => hour.isBefore(first));
       });
     } finally {
       _loading = false;
@@ -127,7 +151,7 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
     final history = _history;
     final forecast = _forecast;
     final theme = Theme.of(context);
-    final steps = forecast?.steps ?? const <ForecastStep>[];
+    final kept = [for (final hour in _kept.keys.toList()..sort()) _kept[hour]!];
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -169,9 +193,9 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
                 child: Center(child: Text('Nobody has been admitted here yet.', style: TextStyle(color: Aityx.muted))),
               )
             else ...[
-              OccupancyTimelineChart(hours: history.hours, forecast: steps, capacity: widget.capacity, unit: widget.unit),
+              OccupancyTimelineChart(hours: history.hours, forecast: kept, capacity: widget.capacity, unit: widget.unit),
               const SizedBox(height: 8),
-              _Key(forecast: steps.isNotEmpty, capacity: widget.capacity, unit: widget.unit),
+              _Key(forecast: kept.isNotEmpty, capacity: widget.capacity, unit: widget.unit),
             ],
           ],
         ),
@@ -179,8 +203,15 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
     );
   }
 
-  /// The hours shown, and what the forecast is, or why there is none.
+  /// The hours shown, and what the forecast is, or why there is none; then
+  /// how the forecast of the hours gone did against them.
   String _status(HourlyOccupancy? history, HourlyForecast? forecast) {
+    final now = _now(history, forecast);
+    final gone = history == null ? null : ForecastCheck.of(history.hours, _kept);
+    return gone == null ? now : '$now ${gone.text}';
+  }
+
+  String _now(HourlyOccupancy? history, HourlyForecast? forecast) {
     if (history == null || history.hours.isEmpty) return 'The hours of the simulation, from HealthHub\'s admissions.';
     final last = history.hours.last;
     final peak = history.hours.map((h) => h.occupancy).reduce(math.max);
@@ -197,6 +228,36 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
         'hours, ${expectedText(high)} at most'
         '${p.trainingRunId == null ? '' : ' (model of training run ${p.trainingRunId})'}.';
   }
+}
+
+/// How a forecast did over the hours it was made of and that have since
+/// been counted: how many of them, how many fell in its 80% band, and how
+/// far its mean was from what happened, on average.
+class ForecastCheck {
+  const ForecastCheck({required this.hours, required this.inBand, required this.meanError});
+
+  /// Null when no hour shown has a forecast yet.
+  static ForecastCheck? of(List<HourOccupancy> hours, Map<DateTime, ForecastStep> forecast) {
+    var n = 0;
+    var inBand = 0;
+    var error = 0.0;
+    for (final h in hours) {
+      final s = forecast[h.hour];
+      if (s == null) continue;
+      n++;
+      if (h.occupancy >= s.p10 && h.occupancy <= s.p90) inBand++;
+      error += (h.occupancy - s.mean).abs();
+    }
+    return n == 0 ? null : ForecastCheck(hours: n, inBand: inBand, meanError: error / n);
+  }
+
+  final int hours;
+  final int inBand;
+  final double meanError;
+
+  String get text =>
+      'Of the $hours ${hours == 1 ? 'hour' : 'hours'} forecast and gone, $inBand fell in the 80% band; '
+      'the mean was off by ${expectedText(meanError)} on average.';
 }
 
 /// The key under the chart: what the solid and the dashed lines are, and
@@ -229,7 +290,9 @@ class _Key extends StatelessWidget {
             children: [
               SizedBox(width: 24, height: 10, child: CustomPaint(painter: _KeyLine(_KeyKind.forecast))),
               SizedBox(width: 6),
-              Flexible(child: Text('DeepAR forecast (mean; the band, 10th to 90th percentile)', style: style)),
+              Flexible(
+                child: Text('DeepAR forecast, kept as the hours pass (mean; the band, 10th to 90th percentile)', style: style),
+              ),
             ],
           ),
         if (capacity > 0)
@@ -328,10 +391,10 @@ Path _dash(Path path, {double on = 6, double off = 4}) {
 }
 
 /// The timeline itself: [hours] as a solid line with a point per hour, the
-/// [forecast] after them dashed and lighter from the last hour, with
-/// hollow points, in its band; a faint line where the hours end ("now"),
-/// and one at the [capacity] when known. Hovering, or touching, shows the
-/// hour's numbers.
+/// [forecast] dashed and lighter, with hollow points, in its band: over the
+/// hours it has a step for, to compare, and after them from the last hour;
+/// a faint line where the hours end ("now"), and one at the [capacity] when
+/// known. Hovering, or touching, shows the hour's numbers.
 class OccupancyTimelineChart extends StatefulWidget {
   const OccupancyTimelineChart({
     super.key,
@@ -358,7 +421,12 @@ class _OccupancyTimelineChartState extends State<OccupancyTimelineChart> {
 
   @override
   Widget build(BuildContext context) {
-    final geometry = _Geometry(widget.hours, _ahead(widget.hours, widget.forecast), widget.capacity);
+    final geometry = _Geometry(
+      widget.hours,
+      _ahead(widget.hours, widget.forecast),
+      widget.capacity,
+      _past(widget.hours, widget.forecast),
+    );
     return Semantics(
       container: true,
       label: geometry.summary,
@@ -390,17 +458,24 @@ class _OccupancyTimelineChartState extends State<OccupancyTimelineChart> {
     );
   }
 
-  /// The forecast's steps after the last hour (a forecast asked a moment
-  /// before may start inside the hours shown).
+  /// The forecast's steps after the last hour.
   static List<ForecastStep> _ahead(List<HourOccupancy> hours, List<ForecastStep> forecast) =>
       hours.isEmpty ? forecast : forecast.where((s) => s.at.isAfter(hours.last.hour)).toList();
+
+  /// The forecast's step of each of the [hours], null where it has none.
+  static List<ForecastStep?> _past(List<HourOccupancy> hours, List<ForecastStep> forecast) {
+    final byHour = {for (final s in forecast) s.at: s};
+    return [for (final h in hours) byHour[h.hour]];
+  }
 
   Widget _tooltip(_Geometry g, int index, Size size) {
     final of = widget.capacity > 0 ? ' of ${widget.capacity} ${widget.unit}' : '';
     final String text;
     if (index < g.hours.length) {
       final h = g.hours[index];
-      text = '${simDateTime(h.hour)}\n${h.occupancy} in care$of';
+      final s = g.past[index];
+      text = '${simDateTime(h.hour)}\n${h.occupancy} in care$of'
+          '${s == null ? '' : '\nforecast ${expectedText(s.mean)}, ${_n(s.p10)} to ${_n(s.p90)} (80%)'}';
     } else {
       final s = g.forecast[index - g.hours.length];
       text = '${simDateTime(s.at)}, forecast\n${expectedText(s.mean)} expected$of'
@@ -434,17 +509,25 @@ class _OccupancyTimelineChartState extends State<OccupancyTimelineChart> {
 /// the hours), people on y from 0 to a whole number above the most, or
 /// the capacity.
 class _Geometry {
-  _Geometry(this.hours, this.forecast, this.capacity)
+  _Geometry(this.hours, this.forecast, this.capacity, this.past)
     : top = [
         1.0,
         capacity.toDouble(),
         for (final h in hours) h.occupancy.toDouble(),
-        for (final s in forecast) ...[s.mean, s.p90],
+        for (final s in [...forecast, ...past.nonNulls]) ...[s.mean, s.p90],
       ].reduce(math.max).ceilToDouble();
 
   final List<HourOccupancy> hours;
+
+  /// The forecast after the hours.
   final List<ForecastStep> forecast;
   final int capacity;
+
+  /// The forecast of each of the hours, as it was before they were counted.
+  final List<ForecastStep?> past;
+
+  /// The forecast's step at [index], of the hours or after them; null where none.
+  ForecastStep? stepAt(int index) => index < hours.length ? past[index] : forecast[index - hours.length];
 
   /// The top of the y axis.
   final double top;
@@ -479,9 +562,11 @@ class _Geometry {
     final now = hours.isEmpty ? 0 : hours.last.occupancy;
     final peak = hours.isEmpty ? 0 : hours.map((h) => h.occupancy).reduce(math.max);
     final mean = forecast.isEmpty ? 0.0 : forecast.fold<double>(0, (sum, s) => sum + s.mean) / forecast.length;
+    final gone = past.nonNulls.length;
     return 'Occupancy per hour: $now in care now, at most $peak in the last ${hours.length} hours'
         '${capacity > 0 ? ', of a capacity of $capacity' : ''}'
-        '${forecast.isEmpty ? '' : '; ${expectedText(mean)} on average forecast over the next ${forecast.length}'}';
+        '${forecast.isEmpty ? '' : '; ${expectedText(mean)} on average forecast over the next ${forecast.length}'}'
+        '${gone == 0 ? '' : '; the forecast kept over $gone of them'}';
   }
 }
 
@@ -538,7 +623,7 @@ class _TimelinePainter extends CustomPainter {
 
     // Where the hours end and the forecast begins.
     final now = g.x(g.hours.length - 1, size);
-    if (g.forecast.isNotEmpty) {
+    if (g.forecast.isNotEmpty || g.past.any((s) => s != null)) {
       canvas.drawPath(
         _dash(Path()
           ..moveTo(now, _Geometry.topPad)
@@ -550,25 +635,41 @@ class _TimelinePainter extends CustomPainter {
       );
     }
 
-    // The forecast: its band, then its mean, dashed, from the last hour, a hollow point per hour.
-    if (g.forecast.isNotEmpty) {
-      final last = Offset(now, g.y(g.hours.last.occupancy.toDouble(), size));
-      final band = Path()..moveTo(last.dx, last.dy);
-      for (var k = 0; k < g.forecast.length; k++) {
-        band.lineTo(g.x(g.hours.length + k, size), g.y(g.forecast[k].p90, size));
+    // The forecast, kept over the hours and ahead of them: each run of
+    // hours it has a step for, its band, then its mean, dashed, a hollow
+    // point per hour. Without a forecast of the last hour, the run ahead
+    // starts from what was counted then.
+    for (final run in _runs(g)) {
+      final anchor = run.first == g.hours.length && g.hours.isNotEmpty
+          ? Offset(now, g.y(g.hours.last.occupancy.toDouble(), size))
+          : null;
+      Offset at(int i, double v) => Offset(g.x(i, size), g.y(v, size));
+      final band = Path();
+      final mean = Path();
+      if (anchor != null) {
+        band.moveTo(anchor.dx, anchor.dy);
+        mean.moveTo(anchor.dx, anchor.dy);
       }
-      for (var k = g.forecast.length - 1; k >= 0; k--) {
-        band.lineTo(g.x(g.hours.length + k, size), g.y(g.forecast[k].p10, size));
+      for (final i in run) {
+        final p90 = at(i, g.stepAt(i)!.p90);
+        final m = at(i, g.stepAt(i)!.mean);
+        if (anchor == null && i == run.first) {
+          band.moveTo(p90.dx, p90.dy);
+          mean.moveTo(m.dx, m.dy);
+        } else {
+          band.lineTo(p90.dx, p90.dy);
+          mean.lineTo(m.dx, m.dy);
+        }
+      }
+      for (final i in run.reversed) {
+        final p10 = at(i, g.stepAt(i)!.p10);
+        band.lineTo(p10.dx, p10.dy);
       }
       band.close();
       canvas.drawPath(band, Paint()..color = _bandColor);
-      final mean = Path()..moveTo(last.dx, last.dy);
-      for (var k = 0; k < g.forecast.length; k++) {
-        mean.lineTo(g.x(g.hours.length + k, size), g.y(g.forecast[k].mean, size));
-      }
       canvas.drawPath(_dash(mean), _forecastPaint);
-      for (var k = 0; k < g.forecast.length; k++) {
-        _forecastPoint(canvas, Offset(g.x(g.hours.length + k, size), g.y(g.forecast[k].mean, size)), r);
+      for (final i in run) {
+        _forecastPoint(canvas, at(i, g.stepAt(i)!.mean), r);
       }
     }
 
@@ -600,6 +701,20 @@ class _TimelinePainter extends CustomPainter {
     }
   }
 
+  /// The indexes with a forecast step, in runs of consecutive hours.
+  static List<List<int>> _runs(_Geometry g) {
+    final runs = <List<int>>[];
+    for (var i = 0; i < g.count; i++) {
+      if (g.stepAt(i) == null) continue;
+      if (runs.isEmpty || runs.last.last != i - 1) {
+        runs.add([i]);
+      } else {
+        runs.last.add(i);
+      }
+    }
+    return runs;
+  }
+
   void _text(Canvas canvas, String text, Offset at, TextStyle style, {bool alignRight = false, bool center = false}) {
     final painter = TextPainter(text: TextSpan(text: text, style: style), textDirection: TextDirection.ltr)..layout();
     final dx = alignRight ? at.dx - painter.width : (center ? at.dx - painter.width / 2 : at.dx);
@@ -609,5 +724,9 @@ class _TimelinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_TimelinePainter old) =>
-      old.g.hours != g.hours || old.g.forecast != g.forecast || old.g.capacity != g.capacity || old.hover != hover;
+      old.g.hours != g.hours ||
+      old.g.forecast != g.forecast ||
+      !listEquals(old.g.past, g.past) ||
+      old.g.capacity != g.capacity ||
+      old.hover != hover;
 }

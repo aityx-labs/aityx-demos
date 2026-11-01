@@ -513,6 +513,18 @@ The feature files hold the current specification; see the
    hour](occupancy-hourly.md), [A care center's occupancy per
    hour](occupancy-timeline.md), [The care center view](care-center.md),
    [API](api.md) and [Database](database.md).
+1. **In the time series plot, keep the predictions plotted so they can
+   be compared with what actually happened.** The care center view's
+   occupancy chart now keeps DeepAR's forecast of each hour after the
+   hour is counted: the dashed line, hollow points and 80% band stay over
+   the solid line of what was in care, and go on into the next 24 hours.
+   Each hour keeps the last forecast made of it before it was counted,
+   as each read forecasts only from the series' end. Hovering an hour
+   says what was forecast for it; the status line says how many of the
+   hours forecast and gone fell in the band and how far off the mean was
+   on average. The card keeps them while the view is open, from when it
+   opens, and starts again for a new run. See [A care center's occupancy
+   per hour](occupancy-timeline.md).
 1. **Make sure there is enough data for DeepAR to train: generate
    enough in the data initialization, harmonic, peaking in the middle
    of the day, so there's a pattern for DeepAR to pick up.** The

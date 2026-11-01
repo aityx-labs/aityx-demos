@@ -1422,7 +1422,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('In care'), findsOneWidget);
-      expect(find.text('DeepAR forecast (mean; the band, 10th to 90th percentile)'), findsOneWidget);
+      expect(find.text('DeepAR forecast, kept as the hours pass (mean; the band, 10th to 90th percentile)'), findsOneWidget);
       expect(find.text('Capacity, 8 beds'), findsOneWidget);
       expect(
         find.bySemanticsLabel(
@@ -1441,6 +1441,87 @@ void main() {
       await tester.tapAt(Offset(xOf(8), chart.center.dy));
       await tester.pump();
       expect(find.text('Jan 19, 2026 15:00, forecast\n2.0 expected of 8 beds\n0 to 3 (80%)'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('the forecast of the hours gone stays over them, to compare, until the run changes', (tester) async {
+      final semantics = tester.ensureSemantics();
+      // Day 19, 07:00 to 12:00, forecast 13:00 to 16:00; then 09:00 to 14:00, forecast 15:00 to 18:00;
+      // then a new run.
+      var read = 0;
+      HourlyOccupancy series(String run, int from, List<int> inCare) => HourlyOccupancy.fromJson({
+        'hospitalId': 2,
+        'run': run,
+        'current': true,
+        'end': '2026-01-19T${'${from + inCare.length - 1}'.padLeft(2, '0')}:00',
+        'hours': [
+          for (var k = 0; k < inCare.length; k++)
+            {'hour': '2026-01-19T${'${from + k}'.padLeft(2, '0')}:00', 'occupancy': inCare[k]},
+        ],
+      });
+      HourlyForecast ahead(int from, List<double> means) => HourlyForecast.fromJson({
+        'trainingRunId': 5,
+        'forecast': [
+          for (var k = 0; k < means.length; k++)
+            {'at': '2026-01-19T${from + k}:00', 'mean': means[k], 'p10': 0, 'p50': 1, 'p90': 3},
+        ],
+      });
+      await tester.pumpWidget(MaterialApp(
+        theme: aityxDarkTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 720,
+            child: OccupancyTimelineCard(
+              occupancy: (id, {run, hours}) async => switch (read++) {
+                0 => series('1349d576', 7, [0, 1, 3, 2, 2, 1]),
+                1 => series('1349d576', 9, [3, 2, 2, 1, 2, 5]),
+                _ => series('5eed0002', 9, [0, 0, 0, 0, 0, 1]),
+              },
+              forecast: (id, {run}) async => read <= 1 ? ahead(13, [1.0, 1.5, 2.0, 1.5]) : ahead(15, [2.0, 2.5, 2.0, 1.5]),
+              hospitalId: 2,
+              capacity: 8,
+              unit: 'beds',
+              refresh: const Duration(seconds: 10),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('forecast and gone'), findsNothing);
+
+      // 13:00 and 14:00 were counted: 2 in care, in the band, and 5, above it; the first forecast stays over them.
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining(
+          'Of the 2 hours forecast and gone, 1 fell in the 80% band; the mean was off by ${expectedText(2.25)} on average.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel(
+          'Occupancy per hour: 5 in care now, at most 5 in the last 6 hours, of a capacity of 8; '
+          '2.0 on average forecast over the next 4; the forecast kept over 2 of them',
+        ),
+        findsOneWidget,
+      );
+      // 09:00 to 14:00 then 15:00 to 18:00: 13:00 is the fifth of ten.
+      final chart = tester.getRect(find.byType(OccupancyTimelineChart));
+      double xOf(int index) => chart.left + 28 + index / 9 * (chart.width - 36);
+      await tester.tapAt(Offset(xOf(4), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Jan 19, 2026 13:00\n2 in care of 8 beds\nforecast 1.0, 0 to 3 (80%)'), findsOneWidget);
+      // An hour from before any forecast has none.
+      await tester.tapAt(Offset(xOf(1), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Jan 19, 2026 10:00\n2 in care of 8 beds'), findsOneWidget);
+
+      // A new run starts again: nothing of the old forecast is kept.
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('5eed0002'), findsNothing); // the run's id isn't shown: the simulated time is
+      expect(tester.widget<Text>(find.byKey(const Key('occupancy-now'))).data, startsWith('Now · '));
+      expect(find.textContaining('forecast and gone'), findsNothing);
       semantics.dispose();
     });
 

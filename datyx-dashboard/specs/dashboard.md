@@ -50,7 +50,14 @@ reload).
   TimeSeries tag shown as its role and DeepAR field (`Target ·
   target`), with its group first when it isn't the default one
   (`acute: Target · target`). A table can hold several time series, one
-  per group of tags, each read by the API on its own. A tagged table has
+  per group of tags, each read by the API on its own. Each group has a
+  color, on its tags and its DeepAR box (a dot and the border): the
+  default group first, then the others by name, take orange, blue and
+  aqua (`groupPalette`, checked with the dataviz skill's validator to
+  stay apart side by side on the dark surface, for color blindness too;
+  no fourth hue does with these three), and any past the third a neutral
+  gray. The status colors (green, amber, red) are never a group's. The
+  name is always on the chip and the box, so the color is never alone. A tagged table has
   a badge, *time series: ready* or *needs work* for one group, *3 time
   series: all ready* (or how many are) for several, and a DeepAR box per
   group (`DeepAR · acute`, the default's first) with the inputs its tags
@@ -206,7 +213,9 @@ its hourly table tagged for DeepAR, the dialog showing the API's problem
 until a target is picked, then sending the roles, frequency and missing
 rows in the default group; a tagged table gets a second group, named
 `acute`, from the default's roles but its target, a second group of the
-same name is refused, and removing it sends it with no roles; the tab the address names opens; and,
+same name is refused, its box and tags take a color other than the
+default's, and removing it sends it with no roles; groups' colors go
+by name, the default first, gray past the third; the tab the address names opens; and,
 with a session store in memory, the audit is read back after a reload
 (a waiting call as never answered), a fresh token signs in without
 Google, an expired, foreign or malformed one is dropped, a refused one

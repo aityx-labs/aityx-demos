@@ -4,6 +4,18 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: a color per group of tags
+
+Asked: give the groups of tags (each a time series here, but they could
+be for other algorithms) different colors; they were all orange.
+
+Changed: a group's tags and DeepAR box (a dot and its border) take its
+color: orange, blue and aqua for the default group and then the others
+by name (`groupColors`, `groupPalette`), a neutral gray past the third;
+the three were validated together on the dark surface with the dataviz
+skill, which no fourth hue passes beside them. The fake's catalogue
+carries its groups' tags; tests for the order and the colors shown.
+
 ## 2026-11-01: groups of DeepAR tags in a table
 
 Asked: tag separate groups in the same table, to train on it more than

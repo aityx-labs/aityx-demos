@@ -47,10 +47,7 @@ class CatalogTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const CardTitle(
-                  'Catalog',
-                  'what datyx makes of the data in each source',
-                ),
+                const CardTitle('Catalog', 'what datyx makes of the data in each source'),
                 const SizedBox(height: 8),
                 const Text(
                   'Read a database source\'s schema into OpenMetadata, then tag '
@@ -62,10 +59,7 @@ class CatalogTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 if (locked)
-                  const Text(
-                    'Sign in to see the data sources.',
-                    style: TextStyle(color: Aityx.muted),
-                  )
+                  const Text('Sign in to see the data sources.', style: TextStyle(color: Aityx.muted))
                 else if (sources.isEmpty)
                   const Text(
                     'No data sources yet: add one on the Data sources tab.',
@@ -76,8 +70,7 @@ class CatalogTab extends StatelessWidget {
           ),
         ),
         if (!locked)
-          for (final s in databases)
-            SourceCatalog(key: ValueKey('catalog-${s.id}'), api: api, source: s),
+          for (final s in databases) SourceCatalog(key: ValueKey('catalog-${s.id}'), api: api, source: s),
         if (!locked)
           for (final s in others) _Row(source: s),
       ],
@@ -225,6 +218,25 @@ class _SourceCatalogState extends State<SourceCatalog> {
   }
 }
 
+/// The colors of a table's groups of tags: the brand's orange, a blue and
+/// an aqua, checked to stay apart side by side, for color blindness too
+/// (the dataviz skill's validator, on the dark surface). Group colors are
+/// never status colors (green, amber, red), so a group doesn't read as
+/// ready or not.
+const groupPalette = [Aityx.orange, Color(0xFF3987E5), Color(0xFF199E70)];
+
+/// A group past the palette's: a neutral gray, its name telling it apart.
+const otherGroupColor = Aityx.muted;
+
+/// Each group's color in a table: the default group first, then the others
+/// by name, so a group keeps its color however its columns are tagged.
+/// Every chip and box also names its group, so the color is never alone.
+Map<String, Color> groupColors(Iterable<String> groups) {
+  final names = groups.toSet().toList()
+    ..sort((a, b) => a == defaultGroup ? -1 : (b == defaultGroup ? 1 : a.compareTo(b)));
+  return {for (var i = 0; i < names.length; i++) names[i]: i < groupPalette.length ? groupPalette[i] : otherGroupColor};
+}
+
 class _TableTile extends StatelessWidget {
   const _TableTile({required this.table, required this.series, required this.onEdit, required this.onAdd});
 
@@ -237,6 +249,11 @@ class _TableTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = groupColors([
+      for (final s in series) s.group,
+      for (final c in table.columns)
+        for (final t in c.tags) ?TimeSeriesTag.parse(t)?.group,
+    ]);
     return ExpansionTile(
       key: PageStorageKey(table.fqn),
       tilePadding: EdgeInsets.zero,
@@ -268,9 +285,9 @@ class _TableTile extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(table.description!, style: const TextStyle(color: Aityx.muted)),
           ),
-        for (final c in table.columns) _ColumnRow(column: c, inKey: table.primaryKey.contains(c.name)),
+        for (final c in table.columns) _ColumnRow(column: c, inKey: table.primaryKey.contains(c.name), colors: colors),
         const SizedBox(height: 8),
-        for (final s in series) _SeriesSummary(spec: s, onEdit: () => onEdit(s)),
+        for (final s in series) _SeriesSummary(spec: s, color: colors[s.group]!, onEdit: () => onEdit(s)),
         Align(
           alignment: Alignment.centerLeft,
           child: OutlinedButton.icon(
@@ -286,10 +303,13 @@ class _TableTile extends StatelessWidget {
 }
 
 class _ColumnRow extends StatelessWidget {
-  const _ColumnRow({required this.column, required this.inKey});
+  const _ColumnRow({required this.column, required this.inKey, required this.colors});
 
   final CatalogColumn column;
   final bool inKey;
+
+  /// The table's groups' colors, for its TimeSeries tags.
+  final Map<String, Color> colors;
 
   @override
   Widget build(BuildContext context) {
@@ -324,26 +344,31 @@ class _ColumnRow extends StatelessWidget {
               style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
             ),
           ),
-          for (final tag in column.tags) _TagChip(tag),
+          for (final tag in column.tags) _TagChip(tag, colors: colors),
         ],
       ),
     );
   }
 }
 
+/// A column's tag: a TimeSeries role in its group's color, named with its
+/// group but the default's; any other tag in gray.
 class _TagChip extends StatelessWidget {
-  const _TagChip(this.tag);
+  const _TagChip(this.tag, {required this.colors});
   final String tag;
+  final Map<String, Color> colors;
 
   @override
   Widget build(BuildContext context) {
     final role = TimeSeriesTag.parse(tag);
+    final color = role == null ? null : colors[role.group] ?? otherGroupColor;
     return Container(
+      key: role == null ? null : ValueKey('tag-${role.group}-${role.role.tag}'),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: role == null ? Aityx.bg2 : Aityx.orange.withValues(alpha: 0.18),
+        color: color == null ? Aityx.bg2 : color.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: role == null ? Aityx.border : Aityx.orange),
+        border: Border.all(color: color ?? Aityx.border),
       ),
       child: Text(
         role == null
@@ -382,8 +407,11 @@ class _Badge extends StatelessWidget {
 /// One group of the table as a time series, as the API reads it: the
 /// DeepAR inputs it gives, and its problems; Edit opens it in the dialog.
 class _SeriesSummary extends StatelessWidget {
-  const _SeriesSummary({required this.spec, required this.onEdit});
+  const _SeriesSummary({required this.spec, required this.color, required this.onEdit});
   final TimeSeriesSpec spec;
+
+  /// Its group's color, as on the group's tags.
+  final Color color;
   final VoidCallback onEdit;
 
   @override
@@ -401,13 +429,20 @@ class _SeriesSummary extends StatelessWidget {
       decoration: BoxDecoration(
         color: Aityx.bg0,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Aityx.border),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Container(
+                key: ValueKey('group-color-${spec.group}'),
+                width: 10,
+                height: 10,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
               Text('DeepAR · ${spec.group}', style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(width: 8),
               Icon(
@@ -424,8 +459,7 @@ class _SeriesSummary extends StatelessWidget {
               ),
             ],
           ),
-          for (final l in lines)
-            Text(l, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+          for (final l in lines) Text(l, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
           for (final p in spec.problems)
             Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -459,10 +493,7 @@ class _Row extends StatelessWidget {
               style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
             ),
           ),
-          const Text(
-            'not read yet: only databases so far',
-            style: TextStyle(color: Aityx.amber, fontSize: 12),
-          ),
+          const Text('not read yet: only databases so far', style: TextStyle(color: Aityx.amber, fontSize: 12)),
         ],
       ),
     ),

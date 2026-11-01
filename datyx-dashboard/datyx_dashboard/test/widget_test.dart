@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:datyx_dashboard/api/datyx_api.dart';
 import 'package:datyx_dashboard/auth/auth_controller.dart';
+import 'package:datyx_dashboard/dashboard/catalog_tab.dart' show groupColors, groupPalette, otherGroupColor;
 import 'package:datyx_dashboard/dashboard/dashboard_screen.dart';
 import 'package:datyx_dashboard/main.dart';
 import 'package:datyx_dashboard/persist/session_store.dart';
@@ -103,7 +104,30 @@ class FakeDatyxApi implements DatyxApi {
   }
 
   @override
-  Future<List<CatalogTable>> catalog(int sourceId) async => catalogued;
+  Future<List<CatalogTable>> catalog(int sourceId) async => [
+    for (final t in catalogued)
+      CatalogTable(
+        fqn: t.fqn,
+        schema: t.schema,
+        name: t.name,
+        type: t.type,
+        primaryKey: t.primaryKey,
+        columns: [
+          // Each group's roles as OpenMetadata's tags, as the API answers them.
+          for (final c in t.columns)
+            CatalogColumn(
+              name: c.name,
+              dataType: c.dataType,
+              tags: [
+                for (final g in groups.values)
+                  for (final role in TimeSeriesRole.values)
+                    if (g.of(role).contains(c.name))
+                      g.group == defaultGroup ? 'TimeSeries.${role.tag}' : 'TimeSeries.${g.group}.${role.tag}',
+              ],
+            ),
+        ],
+      ),
+  ];
 
   @override
   Future<List<TimeSeriesSpec>> timeSeries(int sourceId) async => groups.values.toList();
@@ -395,6 +419,15 @@ void main() {
     expect(find.text('DeepAR · default'), findsOneWidget);
     expect(find.text('DeepAR · acute'), findsOneWidget);
     expect(find.text('2 time series: all ready'), findsOneWidget);
+    // Each group has a color of its own, on its box and on its tags.
+    Color dot(String group) =>
+        (tester.widget<Container>(find.byKey(ValueKey('group-color-$group'))).decoration! as BoxDecoration).color!;
+    Color chip(String group, String role) =>
+        (tester.widget<Container>(find.byKey(ValueKey('tag-$group-$role'))).decoration! as BoxDecoration).border!.top.color;
+    expect(dot('default'), groupPalette[0]);
+    expect(dot('acute'), groupPalette[1]);
+    expect(chip('default', 'Target'), groupPalette[0]);
+    expect(chip('acute', 'Target'), groupPalette[1]);
 
     // A group's name is taken once.
     await tester.tap(find.text('Add a group'));
@@ -418,6 +451,13 @@ void main() {
     expect(api.lastRoles!.columns, isEmpty);
     expect(find.text('DeepAR · acute'), findsNothing);
     expect(find.text('time series: ready'), findsOneWidget);
+  });
+
+  test('colors groups by name, the default first, gray past the palette', () {
+    final colors = groupColors(['zeta', 'chronic', 'default', 'acute', 'chronic']);
+    expect(colors.keys, ['default', 'acute', 'chronic', 'zeta']);
+    expect(colors.values, [...groupPalette, otherGroupColor]);
+    expect(groupColors(['chronic', 'acute']).values, groupPalette.take(2));
   });
 
   testWidgets('opens the tab the address names', (tester) async {

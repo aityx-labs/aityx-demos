@@ -20,7 +20,7 @@ class SimulationExplainer extends StatelessWidget {
       ),
       (
         'Simulated people',
-        'Ten per city, each with a name, age, job and a home near a care center. Some live with a chronic '
+        'Twenty per city, each with a name, age, job and a home near a care center. Some live with a chronic '
             'condition; now and then anyone falls ill.',
       ),
       (

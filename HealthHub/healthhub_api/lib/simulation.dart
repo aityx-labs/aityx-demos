@@ -288,12 +288,12 @@ String citySlug(String city) {
 
 /// How the simulation runs, from the environment (scripts/env.sh and
 /// compose.yaml set these):
-///   HEALTHHUB_SIM_PEOPLE            people per city (default 10)
+///   HEALTHHUB_SIM_PEOPLE            people per city (default 20)
 ///   HEALTHHUB_SIM_TURN_MS           real milliseconds per turn (default 1000)
 ///   HEALTHHUB_SIM_MINUTES_PER_TURN  simulated minutes per turn (default
 ///                                   60: a real second is a simulated hour)
 class SimulationSettings {
-  const SimulationSettings({this.peoplePerCity = 10, this.turn = const Duration(seconds: 1), this.minutesPerTurn = 60});
+  const SimulationSettings({this.peoplePerCity = 20, this.turn = const Duration(seconds: 1), this.minutesPerTurn = 60});
 
   factory SimulationSettings.fromEnvironment([Map<String, String>? env]) {
     env ??= Platform.environment;
@@ -303,7 +303,7 @@ class SimulationSettings {
     }
 
     return SimulationSettings(
-      peoplePerCity: setting('HEALTHHUB_SIM_PEOPLE', 10),
+      peoplePerCity: setting('HEALTHHUB_SIM_PEOPLE', 20),
       turn: Duration(milliseconds: setting('HEALTHHUB_SIM_TURN_MS', 1000)),
       minutesPerTurn: setting('HEALTHHUB_SIM_MINUTES_PER_TURN', 60),
     );

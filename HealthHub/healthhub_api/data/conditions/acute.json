@@ -15,6 +15,7 @@
       "interval_days": 1,
       "stay_hours": 1
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, I'm {age}. For the last three days I've had a sore throat, a blocked runny nose and I keep sneezing, and paracetamol only helps a little.",
@@ -66,6 +67,7 @@
       "interval_days": 7,
       "stay_hours": 3
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, I'm {age}. Yesterday I suddenly got a high fever, chills and aches all over my body, and I have a dry cough and a pounding headache.",
@@ -117,6 +119,7 @@
       "interval_days": 5,
       "stay_hours": 3
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, I'm {age}. I tested positive for COVID at home this morning, I've had a fever and a dry cough for two days and I can't taste my food.",
@@ -168,6 +171,7 @@
       "interval_days": 14,
       "stay_hours": 2
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, I'm {age}. I've had a chesty cough for about a week after a cold, I'm bringing up yellowish phlegm and my chest feels sore from coughing.",
@@ -219,6 +223,8 @@
       "interval_days": 21,
       "stay_hours": 24
     },
+    "setting": "hospital",
+    "follow_up_setting": "primary",
     "urgent": true,
     "follow_up_stay_hours": 2,
     "templates": {
@@ -272,6 +278,7 @@
       "interval_days": 1,
       "stay_hours": 1
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, I'm {age}. My throat is so sore I can barely swallow, I have a fever of 38.8 and there are white spots on my tonsils, but no cough.",
@@ -323,6 +330,7 @@
       "interval_days": 7,
       "stay_hours": 1
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, I'm {age}. For ten days my nose has been blocked with thick green discharge, and there's a heavy pain over my cheeks that gets worse when I bend over.",
@@ -374,6 +382,7 @@
       "interval_days": 7,
       "stay_hours": 1
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, I'm {age}. My right ear has been very painful for three days, it's itchy, there's a smelly discharge and it hurts when I touch it.",
@@ -425,6 +434,8 @@
       "interval_days": 3,
       "stay_hours": 4
     },
+    "setting": "urgent_care",
+    "follow_up_setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, I'm {age}. Since last night I've been vomiting and had watery diarrhoea more than ten times, I can't keep water down and I feel dizzy.",
@@ -476,6 +487,7 @@
       "interval_days": 3,
       "stay_hours": 2
     },
+    "setting": "primary",
     "female_share": 0.8,
     "templates": {
       "first": [
@@ -528,6 +540,7 @@
       "interval_days": 3,
       "stay_hours": 3
     },
+    "setting": "primary",
     "follow_up_stay_hours": 1,
     "templates": {
       "first": [
@@ -580,6 +593,7 @@
       "interval_days": 14,
       "stay_hours": 48
     },
+    "setting": "hospital",
     "urgent": true,
     "follow_up_stay_hours": 1,
     "templates": {
@@ -633,6 +647,7 @@
       "interval_days": 14,
       "stay_hours": 8
     },
+    "setting": "hospital",
     "female_share": 0.35,
     "urgent": true,
     "follow_up_stay_hours": 1,
@@ -687,6 +702,7 @@
       "interval_days": 1,
       "stay_hours": 4
     },
+    "setting": "urgent_care",
     "female_share": 0.75,
     "templates": {
       "first": [
@@ -739,6 +755,8 @@
       "interval_days": 14,
       "stay_hours": 3
     },
+    "setting": "urgent_care",
+    "follow_up_setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, I'm {age}. I twisted my ankle stepping off a kerb this morning, it swelled up straight away and it hurts to put any weight on it.",
@@ -790,6 +808,7 @@
       "interval_days": 14,
       "stay_hours": 4
     },
+    "setting": "hospital",
     "female_share": 0.7,
     "urgent": true,
     "follow_up_stay_hours": 2,
@@ -844,6 +863,7 @@
       "interval_days": 14,
       "stay_hours": 2
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, I'm {age}. I bent down to lift a box yesterday and felt something go in my lower back, now I can hardly stand up straight.",
@@ -895,6 +915,7 @@
       "interval_days": 1,
       "stay_hours": 1
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, I'm {age}. My left eye has been red and gritty since yesterday and this morning the lashes were stuck together with yellow discharge.",
@@ -946,6 +967,8 @@
       "interval_days": 7,
       "stay_hours": 2
     },
+    "setting": "urgent_care",
+    "follow_up_setting": "primary",
     "female_share": 0.35,
     "urgent": true,
     "follow_up_stay_hours": 1,
@@ -1000,6 +1023,7 @@
       "interval_days": 21,
       "stay_hours": 12
     },
+    "setting": "hospital",
     "female_share": 0.55,
     "urgent": true,
     "follow_up_stay_hours": 2,
@@ -1054,6 +1078,7 @@
       "interval_days": 28,
       "stay_hours": 72
     },
+    "setting": "hospital",
     "female_share": 0.35,
     "urgent": true,
     "follow_up_stay_hours": 3,
@@ -1108,6 +1133,7 @@
       "interval_days": 30,
       "stay_hours": 72
     },
+    "setting": "hospital",
     "female_share": 0.5,
     "urgent": true,
     "follow_up_stay_hours": 2,

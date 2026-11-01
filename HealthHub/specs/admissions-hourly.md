@@ -1,6 +1,8 @@
 # Admissions per hour
 
-How many people each hospital admitted in each simulated hour, counted
+How many people each care center admitted in each simulated hour (a
+hospital, a health station, a clinic: `hospital_id` names any since
+visits go where they need, [Simulation](simulation.md#people)), counted
 from the admissions stream by an Apache Flink job and kept in a Kafka
 topic and a database table: a time series per hospital, the kind of
 table a forecast is trained on (what datyx will read, as it would a

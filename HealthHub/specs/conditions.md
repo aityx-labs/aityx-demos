@@ -34,6 +34,8 @@ Each file is a JSON array; each element:
 | `female_share` | Optional, 0 to 1 (0.5 when absent): the share of its patients who are women. A person's condition is weighed by it ([Visits](#visits)) |
 | `urgent` | Optional, `true` or `false` (`false` when absent): whether the first visit is an emergency, made at any hour of day or night as soon as the condition starts, rather than at a daytime slot |
 | `follow_up_stay_hours` | Optional, 1 to 72 (`stay_hours` when absent): the stay of the visits after the first, as an appendicitis stays two days and its wound check an hour |
+| `setting` | Where the first visit goes: `hospital`, `primary`, `urgent_care`, `mental_health` or `dialysis` ([Where visits go](#where-visits-go)) |
+| `follow_up_setting` | Optional, one of the same (`setting` when absent): where the visits after the first go, as a pneumonia admitted at the hospital is checked at the health station |
 | `course_gap_days` | Optional, chronic only, 0 or more, or null (null when absent): the days from the last visit of a course to the first of the next. Null is a random 30 to 120; 0 is continuous, the next course starting `interval_days` after the last visit, as dialysis goes on |
 | `templates` | `first`, `repeat` and `last`: exactly three complaint templates each, different from one another |
 | `triage` | `first`, `repeat` and `last`: each template's reference triage level, in the templates' order: `red`, `orange`, `yellow`, `green` or `blue` ([Triage reference levels](#triage-reference-levels)) |
@@ -43,6 +45,24 @@ field, and the generator reports every problem of every element at once
 (file, index and code) and refuses duplicate codes. A missing file counts
 as no conditions of its type; with none at all, nobody goes to the
 hospital.
+
+## Where visits go
+
+Each visit goes to the care center nearest home that serves its setting
+([Simulation](simulation.md#people)): the first visit's `setting`, the
+others' `follow_up_setting`. A chronic condition's visits are all
+follow-ups but the very first, so they go where it says too.
+
+| Setting | Where | Conditions |
+|---|---|---|
+| `primary` | A health station | Colds, flu, COVID-19, bronchitis, sore throat, sinusitis, otitis externa, urinary tract infection, cellulitis, low back pain, conjunctivitis; hypertension, high cholesterol, osteoarthritis, reflux, type 2 diabetes, chronic low back pain, asthma, hypothyroidism. The follow-ups of pneumonia, gastroenteritis, a sprain and a laceration |
+| `urgent_care` | Urgent care without beds, or a hospital's emergency department, whichever is nearer | Gastroenteritis, a migraine attack, an ankle sprain, a laceration (first visit) |
+| `hospital` | A general hospital | Pneumonia (first visit), appendicitis, renal colic, a wrist fracture, anaphylaxis, acute coronary syndrome, stroke; chronic kidney disease, coronary artery disease, COPD, atrial fibrillation, heart failure, Alzheimer's, rheumatoid arthritis, breast cancer: their specialists' clinics are at the hospital |
+| `mental_health` | An adult community mental health clinic, or a health station, whichever is nearer | Depression, generalised anxiety |
+| `dialysis` | A dialysis center, or a hospital, whichever is nearer | End-stage kidney disease |
+
+Every urgent condition's first visit goes to a hospital or to urgent
+care, never to primary care; a test checks it.
 
 ## Visits
 

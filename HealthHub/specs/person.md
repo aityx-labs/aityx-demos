@@ -31,6 +31,12 @@ everything under it; the index (nobody signed in) names nobody as a link.
 - **The map**: a person's dot and a home open the view on a click or a
   tap; their tooltip shows on hover or a long press, and ends "Click to
   open". On the index a tap shows the tooltip, as before.
+- **The care center view** ([care-center.md](care-center.md)): the people
+  there and on their way, and each admission's person.
+
+The view's own hospitals are links to the [care center
+view](care-center.md): each admission's, and the pill of what they do now
+when they are going to or at the hospital.
 
 A link is the name in its usual style, underlined on hover with a hand
 cursor (`PersonLink`). The view is a page of its own, over home, with a

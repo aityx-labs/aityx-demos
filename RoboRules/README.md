@@ -8,9 +8,12 @@ senses, which of its rules fires, how it moves, turns, aims and fires,
 where the bullets fly, who is hit or rams whom, damage, energy, who is lost,
 and each round's score. The app only draws it.
 
-Start with two random robots, or pick Robocode's sample robots (Walls,
-SpinBot, Tracker, RamFire, Crazy…) written as rules: add and remove them,
-select a robot to change its rules, and see which rules win, every event
+Start with three random robots, or pick Robocode's sample robots (Walls,
+SpinBot, Tracker, RamFire, Crazy…) written as rules, or our own, with more
+involved tactics (Orbiter, Sniper, Vulture, Berserker) or just for fun
+(Matador, Chicken, Tipsy, Pacifist, BumperCar): add and remove them,
+select a robot to change its rules, download robots to keep or share and
+upload them into another battle, and see which rules win, every event
 and every aityx call in the log.
 
 ## How it works
@@ -115,14 +118,15 @@ the root of the repository.
 
 ## Playing
 
-- **Battle › New…** (or **New battle…**): how many robots (2 to 10, two by
+- **Battle › New…** (or **New battle…**): how many robots (2 to 10, three by
   default) and rounds (1 to 10); the robots get random rules.
 - **Start**, **Pause**/**Resume**, **Next turn** (while paused), **Stop**,
   **Restart**.
 - **Speed**: how many turns a second to show, from 1 to 60, or **Max**, as
-  fast as aityx plays them; the bar shows how fast that is.
-- **Select a robot** on the right (or **Robot › Edit …'s rules**) to change
-  its name, color and rules, as cards or as its aityx model's JSON.
+  fast as aityx plays them; a battle starts at 10 and speeds up by 5
+  every 15 seconds, up to 40 (*now n* says how fast it runs).
+- **Select a robot** on the right to change its name, color and rules, as
+  cards or as its aityx model's JSON, download it, or remove it.
 - **aityx call** shows the last call: the battle model with every robot's
   rules, and the turns aityx played.
 - When the last round ends, **Results** ranks the robots as Robocode did.

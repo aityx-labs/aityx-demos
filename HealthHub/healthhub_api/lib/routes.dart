@@ -6,7 +6,8 @@ import 'dart:math';
 
 import 'auth.dart';
 import 'care_centers.dart' show simulatedCapacity;
-import 'simulation.dart' show admissionsTopic, movesTopic;
+import 'conditions.dart' show CareSetting;
+import 'simulation.dart' show LatLon, Place, admissionsTopic, movesTopic;
 
 /// An answer: a status, and a JSON body or a redirect.
 class Answer {
@@ -266,7 +267,7 @@ Map<String, Object?> peopleAnswer(bool dev, List<Map<String, Object?>> moves, {B
   }
   const fields = [
     'id', 'name', 'age', 'city', 'lat', 'lon', 'homeLat', 'homeLon', 'state', 'mode',
-    'hospitalId', 'hospitalName', 'conditionName', 'conditionType',
+    'hospitalId', 'hospitalName', 'careCenterKind', 'conditionName', 'conditionType',
   ];
   return {
     'enabled': true,
@@ -338,8 +339,8 @@ Map<String, Object?>? personAnswer(
   if (move == null && admissions.isEmpty) return null;
   final latest = admissions.isEmpty ? null : admissions.first;
   const nowFields = [
-    'state', 'mode', 'lat', 'lon', 'homeLat', 'homeLon', 'hospitalId', 'hospitalName', 'conditionName',
-    'conditionType', 'simTime', 'day',
+    'state', 'mode', 'lat', 'lon', 'homeLat', 'homeLon', 'hospitalId', 'hospitalName', 'careCenterKind',
+    'conditionName', 'conditionType', 'simTime', 'day',
   ];
   return {
     'id': id,
@@ -386,8 +387,10 @@ int? careCenterIdOf(String path) {
   return id > 0 ? id : null;
 }
 
-/// What GET /api/care-centers/{id} answers: the care center, its capacity
-/// in the simulation (lib/care_centers.dart's simulatedCapacity), who is
+/// What GET /api/care-centers/{id} answers: the care center, the settings
+/// the simulation sends people to it for (lib/simulation.dart's
+/// Place.serves), its capacity in the simulation
+/// (lib/care_centers.dart's simulatedCapacity), who is
 /// there now and who is on the way (their latest [moves], in dev mode),
 /// how many have it as their hospital, and its admissions: counted in the
 /// current run and in all, and the latest; null when there is no such
@@ -397,6 +400,14 @@ Map<String, Object?>? careCenterAnswer(bool dev, CareCenterLookup lookup, List<M
   if (center == null) return null;
   final id = center['id'];
   final capacity = simulatedCapacity(center['key'] as String? ?? '$id', center['kind'] as String? ?? '');
+  final place = Place(
+    id: id is int ? id : 0,
+    name: center['name'] as String? ?? '',
+    kind: center['kind'] as String? ?? '',
+    city: center['city'] as String? ?? '',
+    at: const LatLon(0, 0),
+    subtype: center['subtype'] as String?,
+  );
   const personFields = [
     'id', 'name', 'age', 'city', 'state', 'mode', 'lat', 'lon', 'conditionName', 'conditionType', 'simTime', 'day',
   ];
@@ -414,6 +425,7 @@ Map<String, Object?>? careCenterAnswer(bool dev, CareCenterLookup lookup, List<M
   return {
     for (final MapEntry(:key, :value) in center.entries)
       if (key != 'key') key: value,
+    'serves': [for (final setting in CareSetting.values) if (place.serves(setting)) setting.json],
     'capacity': {'places': capacity.places, 'unit': capacity.unit, 'simulated': true},
     'now': {
       'enabled': dev,
@@ -507,13 +519,13 @@ String _typeOf(Map<String, Object?> event) => event['type'] == 'admission' ? 'ad
 
 const _moveEventFields = [
   'type', 'id', 'name', 'age', 'city', 'state', 'mode', 'conditionName', 'conditionType',
-  'hospitalId', 'hospitalName', 'simTime', 'day', 'turn', 'lat', 'lon', 'partition', 'offset',
+  'hospitalId', 'hospitalName', 'careCenterKind', 'simTime', 'day', 'turn', 'lat', 'lon', 'partition', 'offset',
 ];
 
 const _admissionEventFields = [
   'type', 'eventId', 'personId', 'name', 'age', 'sex', 'occupation', 'city', 'conditionCode',
   'conditionName', 'conditionType', 'visit', 'visitNumber', 'complaint', 'hospitalId',
-  'hospitalName', 'simTime', 'day', 'turn', 'partition', 'offset',
+  'hospitalName', 'careCenterKind', 'simTime', 'day', 'turn', 'partition', 'offset',
 ];
 
 /// How many admissions GET /api/admissions answers unless asked, and at

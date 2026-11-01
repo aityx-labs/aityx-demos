@@ -217,7 +217,9 @@ class Db {
         female_share DOUBLE PRECISION NOT NULL DEFAULT 0.5,
         urgent BOOLEAN NOT NULL DEFAULT false,
         follow_up_stay_hours INT,
-        course_gap_days INT
+        course_gap_days INT,
+        setting TEXT NOT NULL DEFAULT 'hospital',
+        follow_up_setting TEXT NOT NULL DEFAULT 'hospital'
       )
     ''');
     // Added after the table was first made: a database from before has it
@@ -227,6 +229,8 @@ class Db {
       'urgent BOOLEAN NOT NULL DEFAULT false',
       'follow_up_stay_hours INT',
       'course_gap_days INT',
+      "setting TEXT NOT NULL DEFAULT 'hospital'",
+      "follow_up_setting TEXT NOT NULL DEFAULT 'hospital'",
     ]) {
       await c.execute('ALTER TABLE medical_conditions ADD COLUMN IF NOT EXISTS $column');
     }

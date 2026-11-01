@@ -536,11 +536,9 @@ class _People extends StatelessWidget {
     final now = center.now;
     final String? none = !now.enabled
         ? 'The simulation runs in dev mode only.'
-        : center.kind != CareCenterKind.hospital
-        ? 'The simulation sends people to general hospitals only, so nobody comes to a '
-              '${center.kind.label.toLowerCase()} yet.'
-        : now.assigned == 0
-        ? 'Nobody in the simulation has it as their nearest general hospital.'
+        : center.serves.isEmpty
+        ? 'The simulation sends nobody to a ${center.subtype ?? center.kind.noun}: it sends people to health '
+              'stations, urgent care, adult mental health and dialysis clinics, and general hospitals.'
         : null;
     return _Section(
       icon: Icons.groups_outlined,
@@ -553,8 +551,8 @@ class _People extends StatelessWidget {
               children: [
                 if (now.here.isEmpty && now.onTheWay.isEmpty)
                   const Text('Nobody is here or on the way now.', style: TextStyle(color: Aityx.muted)),
-                for (final person in now.here) _PersonRow(person),
-                for (final person in now.onTheWay) _PersonRow(person),
+                for (final person in now.here) _PersonRow(person, center.kind),
+                for (final person in now.onTheWay) _PersonRow(person, center.kind),
               ],
             ),
     );
@@ -564,8 +562,11 @@ class _People extends StatelessWidget {
 /// One person at the care center or on the way: their state's dot, who
 /// (a link), their condition, what they are doing.
 class _PersonRow extends StatelessWidget {
-  const _PersonRow(this.person);
+  const _PersonRow(this.person, this.kind);
   final Person person;
+
+  /// The care center's kind, which they are going to or at.
+  final CareCenterKind kind;
 
   @override
   Widget build(BuildContext context) {
@@ -598,7 +599,7 @@ class _PersonRow extends StatelessWidget {
                 if (person.conditionName != null)
                   [person.conditionName!, if (person.conditionType != null) '(${person.conditionType!.label})']
                       .join(' '),
-                person.state.label,
+                person.state.labelAt(kind),
               ].join(' · '),
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Aityx.muted, fontSize: 12),

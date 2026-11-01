@@ -592,7 +592,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Simulated time 09:40, day 2'), findsOneWidget);
-    expect(find.text('Person, at the hospital'), findsOneWidget);
+    expect(find.text('Person, in care'), findsOneWidget);
 
     // It keeps following them while the map is shown, every 5 seconds.
     final asked = api.peopleAsked;
@@ -1012,7 +1012,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Clinic · Policlínica'), findsOneWidget);
     expect(tester.widget<Text>(find.byKey(const Key('usage-capacity'))).data, 'of 3 places');
-    expect(find.textContaining('nobody comes to a clinic yet'), findsOneWidget);
+    // A kind of clinic the simulation routes nobody to.
+    expect(find.textContaining('The simulation sends nobody to a Policlínica'), findsOneWidget);
     expect(find.text('No admissions recorded here.'), findsOneWidget);
 
     await tester.pumpWidget(
@@ -1020,6 +1021,18 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('No care center with the id 99.'), findsOneWidget);
+  });
+
+  test('what a person does names the kind of care center they go to', () {
+    expect(PersonState.toHospital.labelAt(CareCenterKind.healthStation), 'Going to the health station');
+    expect(PersonState.atHospital.labelAt(CareCenterKind.clinic), 'At the clinic');
+    expect(PersonState.atHospital.labelAt(null), 'At the hospital');
+    expect(PersonState.home.labelAt(CareCenterKind.clinic), 'At home');
+    final move = StreamEvent.fromJson({'id': 'reus-1', 'state': 'to_hospital', 'careCenterKind': 'health_station'});
+    expect(move.state.labelAt(move.careCenterKind), 'Going to the health station');
+    expect(StreamEvent.fromJson({'id': 'reus-1', 'state': 'home'}).careCenterKind, isNull);
+    final center = CareCenterDetail.fromJson({'id': 1, 'name': 'CAP', 'kind': 'health_station', 'serves': ['primary']});
+    expect(center.serves, ['primary']);
   });
 
   testWidgets('without a model, the prediction card says why', (tester) async {

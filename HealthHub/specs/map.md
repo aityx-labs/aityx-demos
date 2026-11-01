@@ -40,8 +40,9 @@ a failed one keeps the pins shown.
 ## Simulated people (dev mode)
 
 In dev mode (`HEALTHHUB_MODE=dev`) the API simulates people going
-between their homes and the hospital nearest to them when a visit for
-their condition is due ([Conditions](conditions.md)), and streams
+between their homes and the nearest care center a visit needs (a health
+station, urgent care, a mental health or dialysis clinic, a general
+hospital) when a visit for their condition is due ([Conditions](conditions.md)), and streams
 their moves through Kafka ([Simulation](simulation.md)). The map asks
 `GET /api/people?bbox=` for the people in view (there, or living there)
 once the view has settled after a move, and every 5 seconds while it
@@ -51,9 +52,12 @@ stays shown, not at every turn, and draws:
   started.
 - **People**: a small dot in a dark ring, above the homes and the care
   centers and below the orange you-are-here dot, coloured by state:
-  amber going to the hospital, violet at the hospital, cyan going home,
-  off-white at home. On the index, tapping or hovering one shows who it
-  is, its condition, its state, its hospital and the simulated time, one
+  amber going for care, violet in care, cyan going home, off-white at
+  home. On the index, tapping or hovering one shows who it is, its
+  condition, what it does, naming the kind of care center ("Going to the
+  health station", "At the clinic", "At the hospital"), the care center
+  (of the visit under way, else the general hospital nearest home) and
+  the simulated time, one
   line each; on home, hovering (or a long press) shows it, ending "Click
   to open", and a click opens the person's view, as a click on a home
   does ([The person view](person.md)):
@@ -68,7 +72,7 @@ stays shown, not at every turn, and draws:
   moves ([Simulation](simulation.md)); a record without them shows the
   id alone on the first line and no condition line.
 - **Legend**: under the care centers' entries, Home and one Person
-  entry per state, and "Simulated time HH:MM, day N" once the stream
+  entry per state (at home, going for care, in care, going home), and "Simulated time HH:MM, day N" once the stream
   has said.
 
 When the API answers `"enabled": false` (prod), none of this shows. A

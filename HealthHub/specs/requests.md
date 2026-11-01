@@ -376,3 +376,24 @@ The feature files hold the current specification; see the
    `admissions (hospital_id, id)`. See [The care center
    view](care-center.md), [The map](map.md), [Home](home.md), [The person
    view](person.md), [API](api.md) and [Database](database.md).
+1. **Route people by need: send them to health stations and clinics, not
+   only hospitals, so that every kind of care center has people.** Each
+   condition now says where its first visit goes (`setting`) and, when
+   elsewhere, its follow-ups (`follow_up_setting`): primary care (a
+   health station) for colds, flu, check-ups of hypertension or diabetes;
+   urgent care (a CUAP, a UPA, an urgent care center, or a hospital's
+   emergency department, whichever is nearer) for a sprain, a laceration,
+   a migraine, gastroenteritis; adult mental health clinics for
+   depression and anxiety; dialysis centers for end-stage kidney disease;
+   a general hospital for emergencies and the specialists'
+   conditions. A pneumonia is admitted at the hospital and checked at the
+   health station after. Each person goes to the nearest care center
+   serving the visit's setting, travelling by its distance; the moves and
+   admissions say `careCenterKind`, and the app names it ("Going to the
+   health station"); the legend says going for care and in care. The
+   care center view says what each serves and when the simulation sends
+   nobody there. `medical_conditions` gains `setting` and
+   `follow_up_setting`. See [Medical conditions](conditions.md#where-visits-go),
+   [Simulation](simulation.md#people), [The map](map.md), [The care
+   center view](care-center.md), [API](api.md), [Database](database.md)
+   and [Admissions per hour](admissions-hourly.md).

@@ -15,6 +15,7 @@
       "interval_days": 30,
       "stay_hours": 1
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. I've had a dull headache at the back of my head most mornings this week, and the pharmacy machine read my blood pressure as 168 over 102 twice.",
@@ -66,6 +67,7 @@
       "interval_days": 90,
       "stay_hours": 1
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. A routine blood test showed my cholesterol is high, and my father had a heart attack in his fifties, so my GP asked me to come in about it.",
@@ -117,6 +119,7 @@
       "interval_days": 42,
       "stay_hours": 2
     },
+    "setting": "primary",
     "female_share": 0.6,
     "templates": {
       "first": [
@@ -169,6 +172,7 @@
       "interval_days": 56,
       "stay_hours": 2
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. I get a burning pain behind my breastbone after meals and when I lie down, nearly every night for two months, and antacids only help for an hour.",
@@ -220,6 +224,7 @@
       "interval_days": 90,
       "stay_hours": 2
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. For the last month I've been very thirsty, going to the toilet at night three or four times, and I've lost weight without trying; my GP's finger-prick sugar was high.",
@@ -271,6 +276,7 @@
       "interval_days": 28,
       "stay_hours": 2
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. My lower back has hurt for about four months, worse after sitting for long; I'm a {occupation}, and ibuprofen only takes the edge off; no numbness or problems with the toilet.",
@@ -322,6 +328,7 @@
       "interval_days": 90,
       "stay_hours": 2
     },
+    "setting": "hospital",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. My GP said my kidney blood test has been low for three months and there's protein in my urine, so I was referred to the kidney clinic; I've noticed my ankles swelling.",
@@ -373,6 +380,7 @@
       "interval_days": 14,
       "stay_hours": 4
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}, I have asthma. Since last night I've been wheezing and tight-chested, my blue inhaler only helps for an hour, and I can't finish a sentence without stopping.",
@@ -424,6 +432,7 @@
       "interval_days": 28,
       "stay_hours": 1
     },
+    "setting": "mental_health",
     "female_share": 0.65,
     "templates": {
       "first": [
@@ -476,6 +485,7 @@
       "interval_days": 42,
       "stay_hours": 6
     },
+    "setting": "hospital",
     "female_share": 0.4,
     "templates": {
       "first": [
@@ -528,6 +538,7 @@
       "interval_days": 42,
       "stay_hours": 1
     },
+    "setting": "primary",
     "female_share": 0.8,
     "templates": {
       "first": [
@@ -580,6 +591,7 @@
       "interval_days": 30,
       "stay_hours": 6
     },
+    "setting": "hospital",
     "female_share": 0.4,
     "templates": {
       "first": [
@@ -632,6 +644,7 @@
       "interval_days": 28,
       "stay_hours": 1
     },
+    "setting": "mental_health",
     "female_share": 0.65,
     "templates": {
       "first": [
@@ -684,6 +697,7 @@
       "interval_days": 30,
       "stay_hours": 6
     },
+    "setting": "hospital",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. Since this morning my heart has been racing and fluttering irregularly, I feel a bit short of breath and light-headed, and it hasn't settled after resting.",
@@ -735,6 +749,7 @@
       "interval_days": 14,
       "stay_hours": 8
     },
+    "setting": "hospital",
     "templates": {
       "first": [
         "Hi, I'm {name}, {age}. Over the last two weeks I've got more and more breathless, I need three pillows to sleep, and my ankles and legs are badly swollen.",
@@ -786,6 +801,7 @@
       "interval_days": 90,
       "stay_hours": 2
     },
+    "setting": "hospital",
     "female_share": 0.65,
     "templates": {
       "first": [
@@ -838,6 +854,7 @@
       "interval_days": 56,
       "stay_hours": 3
     },
+    "setting": "hospital",
     "female_share": 0.75,
     "templates": {
       "first": [
@@ -890,6 +907,7 @@
       "interval_days": 21,
       "stay_hours": 6
     },
+    "setting": "hospital",
     "female_share": 0.99,
     "templates": {
       "first": [
@@ -942,6 +960,7 @@
       "interval_days": 2,
       "stay_hours": 4
     },
+    "setting": "dialysis",
     "course_gap_days": 0,
     "templates": {
       "first": [

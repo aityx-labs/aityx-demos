@@ -23,8 +23,9 @@ theirs; narrower, each goes under its row.
   the map, briefly: real care centers (7,256, from the official
   registries of Spain, the US and Brazil), simulated people (twenty per city,
   some with a chronic condition, anyone falling ill now and then), an
-  hour a second (the trip to the nearest general hospital, the desk, the
-  stay, home), and a real stream (Kafka, the admissions recorded, Flink's
+  hour a second (the trip to the nearest care center the visit needs, a
+  health station, urgent care or a general hospital, the desk, the stay,
+  home), and a real stream (Kafka, the admissions recorded, Flink's
   hours of care, datyx learning from them; a restart is a new run).
 - **Triage at the desk, by aityx** (`TriageCard`,
   [triage_card.dart](../healthhub_app/lib/triage/triage_card.dart)), under

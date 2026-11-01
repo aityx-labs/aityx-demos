@@ -1,12 +1,14 @@
 # Simulation
 
 In dev mode (`HEALTHHUB_MODE=dev`, the default) the API simulates people
-going to the hospital with their complaints, so that HealthHub has
-patients to route. Each person lives in one of the cities HealthHub
-covers and may have a chronic condition and, now and then, an acute
-one ([Medical conditions](conditions.md)); they stay home until one of
-them calls for a visit, travel to the general hospital nearest home, say
-what is wrong at the desk, stay, and travel back. Every move and every arrival goes
+going for care with their complaints, so that HealthHub has patients to
+route. Each person lives in one of the cities HealthHub covers and may
+have a chronic condition and, now and then, an acute one ([Medical
+conditions](conditions.md)); they stay home until one of them calls for
+a visit, travel to the care center nearest home of the kind the visit
+needs (a health station, urgent care, a mental health or dialysis
+clinic, a general hospital), say what is wrong at the desk, stay, and
+travel back. Every move and every arrival goes
 through Kafka, and the app shows what comes back out of it. The code is
 [lib/simulation.dart](../healthhub_api/lib/simulation.dart) and
 [lib/people_profiles.dart](../healthhub_api/lib/people_profiles.dart);
@@ -24,6 +26,28 @@ São Paulo. A person's id is the city as a slug and a number from 1
 - **Home**: a random point within 1.5 km of a random care center of the
   city, uniform over the disc, so homes fall in the city and, since care
   centers are on land, mostly on land. It is the starting position.
+- **Care centers**: for each setting a visit can need
+  ([conditions.md](conditions.md#where-visits-go)), the care center
+  nearest the home that serves it, among all of them, not only the
+  city's:
+  - `hospital`: a general hospital (below);
+  - `primary`: a health station (a CAP, a UBS, a community health
+    center);
+  - `urgent_care`: a clinic of urgent care without beds (a subtype
+    naming CUAP, UPA, pronto atendimento, pronto socorro geral, urgent
+    care or walk-in) or a general hospital's emergency department,
+    whichever is nearer;
+  - `mental_health`: an adult community mental health clinic (CSMA, a
+    centre de salut mental, a community mental health center, a CAPS I,
+    II or III; not those for children, or for alcohol and drugs) or a
+    health station, whichever is nearer;
+  - `dialysis`: a dialysis center (Florida's end-stage renal disease
+    centers; the Catalan and Brazilian registries list none apart) or a
+    general hospital, whichever is nearer.
+
+  A setting nothing serves goes to the hospital. The other clinics
+  (specialty, dental, rehabilitation, ambulatory surgery, day hospitals,
+  addiction) get nobody: their subtypes don't say what for.
 - **Hospital**: the general hospital nearest the home, among all the
   care centers of kind `hospital`, not only the city's: Cornudella de
   Montsant has none, so its people go to one in or near Reus. A hospital
@@ -62,8 +86,9 @@ São Paulo. A person's id is the city as a slug and a number from 1
   prevalence, weighed by sex, among the chronic conditions for their age,
   kept for life; and acute episodes, drawn the same way among the acute
   ones, from time to time ([Visits](#visits)).
-- **Travel mode**: by the straight-line distance from home to the
-  hospital, at a door-to-door speed that includes waiting and getting to
+- **Travel mode**: by the straight-line distance from home to the care
+  center of the trip, chosen again at every departure, at a door-to-door
+  speed that includes waiting and getting to
   the stop or the car: on foot (`walk`) up to 2 km at 5 km/h, city
   transport (`transit`) up to 15 km at 20 km/h, and by car (`car`)
   beyond, at 50 km/h. Each turn a traveller moves at most that speed
@@ -173,7 +198,7 @@ keyed by the person's id:
  "conditionCode": "influenza", "conditionName": "Influenza",
  "conditionType": "acute", "visit": "first", "visitNumber": 1,
  "complaint": "Hi, I'm Núria Puig Soler, 54...", "template": 0,
- "hospitalId": 42, "hospitalName": "Hospital Universitari de Sant Joan de Reus",
+ "hospitalId": 13, "hospitalName": "CAP Llibertat", "careCenterKind": "health_station",
  "simTime": "09:09", "day": 4, "turn": 75}
 ```
 
@@ -194,15 +219,18 @@ keyed by the person's id, valued:
 ```json
 {"id": "reus-3", "name": "Núria Puig Soler", "age": 54, "city": "Reus",
  "lat": 41.1554, "lon": 1.1076, "homeLat": 41.1621, "homeLon": 1.1081,
- "hospitalId": 42, "hospitalName": "Hospital Universitari de Sant Joan de Reus",
+ "hospitalId": 13, "hospitalName": "CAP Llibertat", "careCenterKind": "health_station",
  "state": "at_hospital", "mode": "walk", "conditionName": "Influenza",
  "conditionType": "acute", "simTime": "09:00", "day": 4, "turn": 75}
 ```
 
 The move of the turn of the admission above: `simTime` is the turn's,
-and Núria is already at the hospital, as she arrived within the turn.
-`conditionName` and `conditionType` are the condition of the visit under
-way; at home, the acute episode's if one is on, else the chronic
+and Núria is already at the health station, as she arrived within the
+turn (the state says `at_hospital` for a care center of any kind).
+`hospitalId`, `hospitalName` and `careCenterKind` (`hospital`, `clinic`
+or `health_station`) are the care center of the visit under way; at
+home, the general hospital nearest home. `conditionName` and
+`conditionType` are the condition of the visit under way; at home, the acute episode's if one is on, else the chronic
 condition's; null while the person is healthy. A failed publish is logged at most once a minute per topic, for
 all the people together, and the person carries on; when Kafka comes
 back the records do too.
@@ -272,10 +300,19 @@ whether the proxy answered its last ping (every 5 s).
 - People travel in a straight line, through buildings and, near the
   coast, over water; homes near a seaside care center can fall in the
   sea. The speeds are door-to-door averages, with no traffic or timetable.
-- Everyone goes to the general hospital nearest home, whatever the
-  condition, and is admitted on arrival; nothing routes them yet. The
-  specialised hospitals are told apart by keywords in their subtype and
-  name, which a new data source may word differently.
+- Everyone goes to the nearest care center of the visit's setting and is
+  admitted on arrival, whatever its queue or capacity; nothing routes
+  them by load yet. The settings a care center serves, and the
+  specialised hospitals, are told apart by keywords in their subtype and
+  name, which a new data source may word differently. Only Florida lists
+  dialysis centers; elsewhere dialysis is at the hospital.
+- The triage at the desk names a hospital's areas (emergency,
+  outpatients) whatever the care center: at a health station they stand
+  for how soon and where in it.
+- The moves, the admissions and their tables keep the names
+  `hospitalId` and `hospitalName` (`hospital_id`, `hospital_name`) for
+  the care center of any kind, so the Flink job and datyx's sources
+  read them as before.
 - A person has at most one chronic condition, and one acute episode at
   a time; ages don't advance.
 - Two APIs in dev mode on the same Kafka publish the same person ids, and

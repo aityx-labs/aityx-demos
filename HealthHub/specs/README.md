@@ -37,8 +37,9 @@ does in HealthHub is described feature by feature in
   hello, health, sign-in, the care centers, the simulated people, their
   events, their admissions and the admissions' triage.
 - [Simulation](simulation.md): in dev mode, people with a profile and a
-  medical condition who travel to their nearest hospital when a visit is
-  due and say what is wrong there, each its own async loop, every move
+  medical condition who travel to the nearest care center a visit needs
+  (a health station, urgent care, a mental health or dialysis clinic, a
+  general hospital) when it is due and say what is wrong there, each its own async loop, every move
   and admission streamed through Kafka and read back for the map, the
   events and the database.
 - [Admissions per hour](admissions-hourly.md): an Apache Flink job that

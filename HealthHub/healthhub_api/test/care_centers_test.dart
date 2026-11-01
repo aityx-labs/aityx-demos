@@ -148,6 +148,7 @@ void main() {
       expect(capacity['places'], simulatedCapacity('siap:43148', 'hospital').places);
       expect(capacity['unit'], 'beds');
       expect(capacity['simulated'], isTrue);
+      expect(body['serves'], ['hospital', 'urgent_care', 'dialysis']);
       final now = body['now'] as Map;
       expect(now['enabled'], isTrue);
       expect(now['run'], 'df0837e4');
@@ -169,6 +170,16 @@ void main() {
       expect(now['inUse'], 0);
       expect(now['simTime'], isNull);
       expect((body['admissions'] as Map)['total'], 5);
+    });
+
+    test('says what the simulation sends people to it for: nothing, for a dental clinic', () {
+      Map<String, Object?> serves(String kind, String subtype) => (route('GET', '/api/care-centers/3',
+          careCenter: CareCenterLookup({
+            'center': {'id': 3, 'key': 'k', 'name': 'n', 'kind': kind, 'subtype': subtype},
+          })).body as Map).cast();
+      expect(serves('health_station', 'CAP')['serves'], ['primary', 'mental_health']);
+      expect(serves('clinic', 'CUAP')['serves'], ['urgent_care']);
+      expect(serves('clinic', 'CLINICA/CENTRO DE ESPECIALIDADE - CEO-I')['serves'], isEmpty);
     });
 
     test('none is a 404, no database a 503', () {

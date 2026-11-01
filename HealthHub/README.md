@@ -73,8 +73,9 @@ a common medical condition ([specs/conditions.md](specs/conditions.md)).
 A turn is `HEALTHHUB_SIM_TURN_MS` (1 s) of real time and
 `HEALTHHUB_SIM_MINUTES_PER_TURN` (60) of simulated time, so a second is
 an hour. People stay home until their condition calls for a visit, then
-walk, take city transport or drive to the nearest hospital, stay and come
-back. Every move goes through Kafka, and every arrival is an admission
+walk, take city transport or drive to the nearest care center the visit
+needs (a health station, urgent care, a mental health or dialysis clinic,
+a general hospital), stay and come back. Every move goes through Kafka, and every arrival is an admission
 with what the person says at the desk, which the API records in the
 database and home highlights among the latest events.
 `HEALTHHUB_MODE=prod` turns it off.

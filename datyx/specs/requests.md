@@ -2,6 +2,31 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-01: XGBoost trained by a component started with the API
+
+Asked: in a separate component, started with the API, train XGBoost
+(XGBoost4J) on the groups tagged for it; let the user set how often a
+model is retrained, in OpenMetadata if possible; train at start when
+there's no training yet, and retrain by the setting; show the training's
+activity and results in a view of its own in the navigation.
+
+Changed: `datyx.training`: `Training`, a bean started with the API,
+checks every minute (Quarkus Scheduler) the groups tagged
+`TimeSeries.*XGBoost` and ready in each source's catalogue, queues the
+never-trained and those whose table's new `timeSeriesRetrain` (a span or
+never, 1D when not set: in OpenMetadata) has passed, and trains them one
+at a time on its own thread: `TableReader` reads the group's columns
+from the source, `Dataset` builds the examples (cutoffs, windows of the
+past, the Target summed over the horizon as the label, split by time),
+`XgbTrainer` trains XGBoost4J 3.4 and measures it against the naive and
+mean baselines, with SHAP weights and the highest scores. Runs are kept
+in `training_run` (V5) with the model; interrupted ones are failed at
+start. `GET /api/training`, `GET /api/training/runs/{id}`,
+`POST`/`PUT /api/datasources/{id}/training` (train now, how often). The
+spec answers `retrain`, and checks it. The JVM image installs `libgomp`;
+macOS needs Homebrew's `libomp`. Tests; `training.md`, `catalog.md`,
+`api.md`, `dev-environment.md`, README.
+
 ## 2026-11-01: Kafka clusters as data sources, in the catalogue
 
 Asked: add Kafka to the data sources, connect the dev profile to

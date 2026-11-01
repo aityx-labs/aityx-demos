@@ -34,6 +34,10 @@ HealthHub passes on unchanged.
   TimeSeries tags and table properties that say what its columns are to
   a forecast, the algorithm that trains each group (DeepAR, XGBoost) and
   how far ahead, and the time series datyx finds in them.
+- [Training](training.md): the trainer started with the API, which
+  trains the groups tagged for XGBoost when they never were and again as
+  often as their table says, and keeps each run, its test metrics, the
+  features that weighed most and the highest scores.
 - [Profiles](profiles.md): the person behind a sign-in, made on the first
   call, with identities and an encryption key of its own that protects
   the profile's data source access details at rest.

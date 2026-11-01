@@ -21,8 +21,9 @@ ARG PROFILE=prod
 ENV QUARKUS_PROFILE=$PROFILE
 WORKDIR /app
 COPY --from=build /src/target/quarkus-app/ /app/
-# compose.yaml's healthcheck uses curl.
-RUN microdnf install -y curl && microdnf clean all
+# compose.yaml's healthcheck uses curl; XGBoost's native library
+# (datyx.training) needs GCC's OpenMP runtime, libgomp.
+RUN microdnf install -y curl libgomp && microdnf clean all
 USER 65534
 EXPOSE 9900
 CMD ["java", "-jar", "/app/quarkus-run.jar"]

@@ -160,7 +160,7 @@ still to come) finds its work by its algorithm's tag, through
 | `TimeSeries.DeepAR`, `TimeSeries.{group}.DeepAR`, or none | DeepAR (GluonTS): a probabilistic forecast of each series, step by step over the horizon (its `prediction_length`) |
 | `TimeSeries.XGBoost`, `TimeSeries.{group}.XGBoost` | XGBoost: a score per series and cutoff, the Target summed over the horizon that follows, predicted from the series' static features, the Target and PastCovariates summed over windows before the cutoff, and the KnownCovariates ahead. The horizon is required |
 
-And three custom properties of the table entity, strings:
+And four custom properties of the table entity, strings:
 
 - `timeSeriesFrequency`: how often rows come, as a pandas offset
   (`15min`, `1h`, `1D`, `1W`, `1MS`...). Required.
@@ -171,6 +171,10 @@ And three custom properties of the table entity, strings:
   (`24h`, `30D`, `4W`). DeepAR forecasts each step of it, and does
   without (its trainer picks); XGBoost scores the Target summed over it,
   and needs it.
+- `timeSeriesRetrain`: how often datyx trains the table's groups again,
+  a span (`1h`, `6h`, `1D`, `1W`) or `never`; `1D` when not set. See
+  [training.md](training.md), which also sets it
+  (`PUT /api/datasources/{id}/training`).
 
 People set them in OpenMetadata's UI (a column's tags, the table's
 Custom Properties tab), or through datyx:
@@ -229,7 +233,9 @@ Timestamp or Target that also has another role; a column both
 KnownCovariate and PastCovariate; no frequency, or one that isn't a
 pandas offset; a `timeSeriesMissing` other than `zero` or `unknown`;
 the group tagged with two algorithms; for XGBoost, no horizon; a
-horizon that isn't a pandas offset.
+horizon that isn't a pandas offset; a `timeSeriesRetrain` neither a span
+nor `never`. The spec answers `retrain` as the table sets it (null when
+not).
 
 ## HealthHub, as a customer
 
@@ -305,14 +311,11 @@ Kafka themselves aren't started for the tests.
   number's type is what the sampled values fit (`INT` until one doesn't).
 - Kafka over SSL trusts the JVM's certificate authorities only: no
   truststore or client certificate of the source's own yet.
-- Nothing reads rows yet: training (DeepAR on GraalPy, XGBoost) is the
-  next step, a component that finds its groups by their algorithm's
-  tag and fills the missing rows by `timeSeriesMissing`.
+- Only XGBoost groups are trained ([training.md](training.md)); DeepAR
+  (on GraalPy) is still to come.
 - The horizon is the table's, shared by its groups like the frequency:
   groups of one table that need different horizons are two tables (or
   views).
-- XGBoost's dataset (the cutoffs, the windows before them, the sum over
-  the horizon) is described here, not built yet.
 - One Target per group; a table with two values to forecast is two
   groups.
 - A group can't be renamed: set its roles under the new name, then

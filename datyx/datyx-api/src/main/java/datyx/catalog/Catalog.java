@@ -563,6 +563,33 @@ public class Catalog {
         return TimeSeries.spec(session.call(auth -> client.table(auth, fqn, "columns,tags,extension,tableConstraints")), group);
     }
 
+    /** A table by its FQN, with its columns, tags, custom properties and constraints. */
+    public JsonNode table(String fqn) {
+        return session.call(auth -> client.table(auth, fqn, "columns,tags,extension,tableConstraints"));
+    }
+
+    /**
+     * Sets how often the table's groups are trained again (its
+     * timeSeriesRetrain), removing it for null or blank, which is the
+     * default's; other properties stay. An IllegalArgumentException says
+     * what isn't a span or never.
+     */
+    public void setRetrain(JsonNode table, String retrain) {
+        String value = retrain == null || retrain.isBlank() ? null : retrain.strip();
+        if (value != null && !TimeSeries.NEVER.equals(value) && Span.parse(value) == null) {
+            throw new IllegalArgumentException("retrain is a span such as 6h, 1D or 1W, or never: not '" + value + "'");
+        }
+        ensureVocabulary();
+        ObjectNode extension = table.path("extension").isObject()
+            ? ((ObjectNode) table.path("extension")).deepCopy() : json.createObjectNode();
+        setOrRemove(extension, TimeSeries.RETRAIN, value);
+        if (!extension.equals(table.path("extension").isObject() ? table.path("extension") : json.createObjectNode())) {
+            ArrayNode patch = json.createArrayNode();
+            patch.addObject().put("op", "add").put("path", "/extension").set("value", extension);
+            session.call(auth -> client.patchTable(auth, table.path("id").asText(), patch));
+        }
+    }
+
     /** Removes the source's service and everything under it from OpenMetadata; nothing when there is none. */
     public void forget(long sourceId, DataSource.Type type) {
         try {
@@ -610,7 +637,7 @@ public class Catalog {
         }
     }
 
-    /** The TimeSeries classification, its role and algorithm tags and the table's three custom properties, made when missing. */
+    /** The TimeSeries classification, its role and algorithm tags and the table's custom properties, made when missing. */
     void ensureVocabulary() {
         session.call(auth -> client.putClassification(auth, json.createObjectNode()
             .put("name", TimeSeries.CLASSIFICATION)
@@ -636,6 +663,8 @@ public class Catalog {
         wanted.put(TimeSeries.MISSING, "What a missing row of a time series table means: zero (nothing happened, as with counts) or unknown (not observed).");
         wanted.put(TimeSeries.HORIZON, "How far ahead a time series table's groups predict, as a pandas offset: 24h, 30D, 4W. "
             + "DeepAR forecasts each step of it; XGBoost scores the Target summed over it, and needs it.");
+        wanted.put(TimeSeries.RETRAIN, "How often datyx trains a time series table's groups again: a span such as 6h, 1D or 1W, "
+            + "or never (trained once). 1D when not set.");
         String stringType = null;
         for (Map.Entry<String, String> property : wanted.entrySet()) {
             if (existing.contains(property.getKey())) {

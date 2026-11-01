@@ -106,6 +106,14 @@ OpenAPI, and a REST client for OpenMetadata.
   one algorithm's with `?algorithm=XGBoost`), and a group's roles,
   algorithm and horizon set on a table (`PUT`). Tag in
   OpenMetadata's UI, or with the PUT. See [specs/catalog.md](specs/catalog.md).
+- `/api/training`: the groups tagged for XGBoost, which datyx trains
+  itself (when the API starts if they never were, then as often as their
+  table's `timeSeriesRetrain` says, `1D` by default), with their runs,
+  test metrics, weightiest features and highest scores;
+  `/api/training/runs/{id}` one run; `POST /api/datasources/{id}/training`
+  trains a group now, `PUT` sets how often. XGBoost4J needs an OpenMP
+  runtime: `brew install libomp` on macOS. See
+  [specs/training.md](specs/training.md).
 - `/api/profile`: the caller's profile, made the first time an identity
   signs in, which owns their data sources and holds a key of its own:
   the access details of its sources are encrypted with it at rest, the

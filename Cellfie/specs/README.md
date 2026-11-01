@@ -23,7 +23,8 @@ and response, in a side panel.
 
 - [Board](board.md): the infinite board, drawn on a canvas; drag to move,
   scroll or pinch to zoom, tap to flip a cell; **Random start**, **Clear**,
-  **Play**/**Pause**, **Step**, the **Acceleration** control and the zoom.
+  **Play**/**Pause**, **Step** and the **Acceleration** control beside the
+  title, and the zoom buttons over the board, as on a map.
 - [Generation](generation.md): how a generation is run: what the app
   counts, the Life model on aityx (the rules as a decision table), and how
   the answer becomes the next board.

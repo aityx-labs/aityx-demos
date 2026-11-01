@@ -92,6 +92,15 @@
 ///   GET  /api/care-centers/{id}/occupancy/forecast?run=
 ///                       datyx's DeepAR forecast of them, step by step, as
 ///                       the admissions' is asked
+///   GET  /api/alarms?limit=20
+///                       {"enabled", "now", "active", "recent", ...}: the
+///                       care centers whose occupancy datyx's forecast puts
+///                       over their capacity, and the latest alarm events
+///                       (lib/occupancy_alarms.dart); signed in, once
+///                       sign-in is on, as the forecast. It and
+///                       GET /api/events (which carries them too) set a
+///                       check off with the caller's token, at most once
+///                       every HEALTHHUB_ALARM_EVERY_MS, in the background
 ///   GET  /api/datyx/me, /api/datyx/datasources
 ///                       the datyx API's /api/me and /api/datasources, asked
 ///                       with the user's own token, so datyx sees the same
@@ -114,6 +123,8 @@
 ///   HEALTHHUB_KAFKA_REST_URL  Kafka's REST proxy (default
 ///                         http://127.0.0.1:9805)
 ///   HEALTHHUB_SIM_*       the simulation (see lib/simulation.dart)
+///   HEALTHHUB_ALARM_EVERY_MS  real milliseconds between two occupancy
+///                         alarm checks at least (default 5000; 0: off)
 ///
 /// `server healthcheck` instead asks a running server's /api/health on
 /// 127.0.0.1:API_PORT and exits 0 when it answers ok: the Docker health
@@ -130,6 +141,7 @@ import 'package:healthhub_api/auth.dart';
 import 'package:healthhub_api/conditions_seed.dart';
 import 'package:healthhub_api/db.dart';
 import 'package:healthhub_api/kafka_rest.dart';
+import 'package:healthhub_api/occupancy_alarms.dart';
 import 'package:healthhub_api/routes.dart';
 import 'package:healthhub_api/simulation.dart';
 import 'package:healthhub_api/triage.dart';
@@ -178,13 +190,22 @@ Future<void> main(List<String> args) async {
         ? 'http://127.0.0.1:9805'
         : env['HEALTHHUB_KAFKA_REST_URL']!,
   ));
+  final Duration alarmEvery;
+  try {
+    alarmEvery = alarmEveryOf(env['HEALTHHUB_ALARM_EVERY_MS']);
+  } on FormatException catch (error) {
+    stderr.writeln('error: ${error.message}');
+    exit(1);
+  }
   final live = _Live(dev: mode == 'dev', kafka: kafka, aityx: aityx, triage: triageSetting == 'on' && aityx.configured);
+  if (live.dev && alarmEvery > Duration.zero) live.alarms = _alarms(db, datyx, live, alarmEvery);
   final server = await HttpServer.bind(host, port);
   stdout.writeln(
     'healthhub_api on http://$host:$port (mode: $mode; aityx: ${url.host}; '
     'database: ${db.settings}; '
     'auth: ${auth.enabled ? 'on, ${auth.issuer}' : 'off'}; datyx: $datyx; '
-    'kafka: ${kafka.base}; triage: ${live.triage ? 'on' : 'off'})',
+    'kafka: ${kafka.base}; triage: ${live.triage ? 'on' : 'off'}; '
+    'alarms: ${live.alarms == null ? 'off' : 'every ${alarmEvery.inMilliseconds} ms'})',
   );
   // The tables, once the database answers: retried in the background, so
   // the server is up (and /api/health says db: false) meanwhile. The
@@ -217,6 +238,11 @@ class _Live {
   PeopleFeed? feed;
   AdmissionRecorder? recorder;
   Triager? triager;
+
+  /// The occupancy alarms, in dev mode unless turned off, and the queues
+  /// that store and publish their events.
+  OccupancyAlarms? alarms;
+  List<RetryQueue<Map<String, Object?>>> alarmQueues = const [];
 
   /// Whether the REST proxy answered its last ping. /api/health reports
   /// this rather than pinging, so a hung proxy never slows the health
@@ -260,6 +286,13 @@ Future<void> _shutdown(HttpServer server, _Live live) async {
     await live.triager?.idle.timeout(const Duration(seconds: 5));
   } catch (_) {}
   live.triager?.stop();
+  // The alarm events found, given a moment to be stored and published.
+  for (final queue in live.alarmQueues) {
+    try {
+      await queue.idle.timeout(const Duration(seconds: 3));
+    } catch (_) {}
+    queue.stop();
+  }
   live.aityx.close();
   live.kafka.close();
   await server.close(force: true);
@@ -351,6 +384,47 @@ Future<Object?> _jsonBody(HttpRequest request) async {
   }
 }
 
+/// The occupancy alarms (lib/occupancy_alarms.dart): datyx's forecast of
+/// every care center's occupancy, asked with the token of the request that
+/// set the check off, each event stored and published to [alarmsTopic] in
+/// the background, retried until it is.
+OccupancyAlarms _alarms(Db db, Uri datyx, _Live live, Duration every) {
+  String describe(Map<String, Object?> event) => '${event['id']}';
+  final store = RetryQueue<Map<String, Object?>>(
+    'occupancy alarms: recording',
+    db.recordAlarm,
+    isPermanent: Db.isPermanentError,
+    describe: describe,
+  );
+  final publish = RetryQueue<Map<String, Object?>>(
+    'occupancy alarms: publishing to $alarmsTopic',
+    (event) => live.kafka.produce(alarmsTopic, [alarmRecord(event)]),
+    describe: describe,
+  );
+  live.alarmQueues = [store, publish];
+  return OccupancyAlarms(
+    infer: (token, series) async {
+      final answer = await _inference(datyx, token, db, CareCenterSeries.occupancy.table,
+          CareCenterSeries.occupancy.group, series,
+          options: const {'algorithm': 'DeepAR'}, timeout: const Duration(seconds: 30));
+      return answer == null ? null : (status: answer.status, body: answer.body);
+    },
+    careCenters: db.alarmCareCenters,
+    run: () => live.simulation?.run,
+    clock: () => simNowOf(live.feed?.people ?? const []),
+    paused: () => live.simulation?.paused ?? false,
+    onEvent: (event) {
+      stdout.writeln(
+        'occupancy alarm: ${event['kind']} ${event['level'] ?? event['previous']} at ${event['hospitalName']} '
+        '(${event['hospitalId']}), over from ${event['overflowAt'] ?? '-'}, ${event['id']}',
+      );
+      store.add(event);
+      publish.add(event);
+    },
+    every: every,
+  );
+}
+
 /// 0 when the server on this machine answers /api/health with ok, else 1.
 Future<int> _healthcheck() async {
   final port = int.parse(Platform.environment['API_PORT'] ?? '9802');
@@ -401,6 +475,12 @@ Future<void> _handle(
     final personRoute = personPath(path);
     // /api/care-centers/{id}/admissions or .../occupancy, and .../forecast: the care center, the series, and which.
     final hourlyRoute = careCenterSeriesPath(path);
+    // The panel's polls set an alarm check off, with the caller's token for
+    // that check's datyx call only; never one without a user once sign-in
+    // is on. Returns at once.
+    if (method == 'GET' && (path == '/api/events' || path == '/api/alarms') && (!auth.enabled || identity != null)) {
+      live.alarms?.poke(token);
+    }
     // Only the routes that need the database, or datyx, ask them.
     final answer = switch ((method, path)) {
       ('GET', '/api/health') => route(
@@ -439,6 +519,20 @@ Future<void> _handle(
         events: live.feed?.recent ?? const [],
         eventsTotal: live.feed?.counter.total ?? 0,
         eventsPerSecond: live.feed?.counter.perSecond ?? 0,
+        people: live.feed?.people ?? const [],
+        alarms: live.alarms?.snapshot ?? AlarmsSnapshot.off,
+        identity: identity,
+      ),
+      ('GET', '/api/alarms') => route(
+        method,
+        path,
+        query: request.uri.queryParameters,
+        auth: auth,
+        identity: identity,
+        dev: live.dev,
+        paused: live.simulation?.paused ?? false,
+        people: live.feed?.people ?? const [],
+        alarms: live.alarms?.snapshot ?? AlarmsSnapshot.off,
       ),
       ('POST', simulationPausePath || simulationResumePath) => route(
         method,
@@ -738,7 +832,7 @@ Future<Forwarded?> _forecast(Uri datyx, String? token, Db db, CareCenterSeries s
     }
     if (chosen == null) return const Forwarded(404, {'error': 'nobody has been admitted there'});
   }
-  return _inference(datyx, token, db, series.table, series.group, {'run_id': chosen, 'hospital_id': '$id'});
+  return _inference(datyx, token, db, series.table, series.group, [{'run_id': chosen, 'hospital_id': '$id'}]);
 }
 
 /// The table and group of datyx's model of HealthHub's patients: their
@@ -760,22 +854,25 @@ Future<Forwarded?> _prediction(Uri datyx, String? token, Db db, String id, Strin
     }
     if (series == null) return const Forwarded(404, {'error': 'nobody with that id has been admitted'});
   }
-  return _inference(datyx, token, db, _predictionTable, _predictionGroup, {'run_id': series, 'person_id': id});
+  return _inference(datyx, token, db, _predictionTable, _predictionGroup, [{'run_id': series, 'person_id': id}]);
 }
 
-/// datyx's inference of one [series] of [table]'s [group], asked with the
-/// user's own [token]: their datyx data source for this API's database
-/// (the database source whose database is ours), then the inference; the
-/// answer carries the source's id. A 404 of ours when datyx has no such
-/// source; null when datyx doesn't answer (logged).
+/// datyx's inference of [series] of [table]'s [group] (each named by its
+/// key, at most 100), asked with the user's own [token]: their datyx data
+/// source for this API's database (the database source whose database is
+/// ours), then the inference; the answer carries the source's id. A 404
+/// of ours when datyx has no such source; null when datyx doesn't answer
+/// (logged). [options] go in the request too (the algorithm).
 Future<Forwarded?> _inference(
   Uri datyx,
   String? token,
   Db db,
   String table,
   String group,
-  Map<String, String> series,
-) async {
+  List<Map<String, String>> series, {
+  Map<String, Object?> options = const {},
+  Duration timeout = const Duration(seconds: 10),
+}) async {
   final sources = await _forward(datyx, '/api/datasources', token);
   if (sources == null || sources.status != 200 || sources.body is! List) return sources;
   int? sourceId;
@@ -788,10 +885,11 @@ Future<Forwarded?> _inference(
   if (sourceId == null) {
     return Forwarded(404, {'error': "datyx has no data source for HealthHub's database (${db.settings.database})"});
   }
-  final scored = await _forward(datyx, '/api/datasources/$sourceId/inference', token, payload: {
+  final scored = await _forward(datyx, '/api/datasources/$sourceId/inference', token, timeout: timeout, payload: {
     'table': table,
     'group': group,
-    'series': [series],
+    'series': series,
+    ...options,
   });
   if (scored != null && scored.body is Map) {
     return Forwarded(scored.status, {...(scored.body as Map), 'sourceId': sourceId});
@@ -802,7 +900,13 @@ Future<Forwarded?> _inference(
 /// The datyx API's answer to [path], asked with the user's own [token] so
 /// datyx sees the same person: a GET, or a POST of [payload] as JSON; null
 /// when datyx doesn't answer (logged).
-Future<Forwarded?> _forward(Uri datyx, String path, String? token, {Object? payload}) async {
+Future<Forwarded?> _forward(
+  Uri datyx,
+  String path,
+  String? token, {
+  Object? payload,
+  Duration timeout = const Duration(seconds: 10),
+}) async {
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
   try {
     final url = datyx.replace(path: path);
@@ -815,7 +919,7 @@ Future<Forwarded?> _forward(Uri datyx, String path, String? token, {Object? payl
       request.headers.contentType = ContentType.json;
       request.write(jsonEncode(payload));
     }
-    final response = await request.close().timeout(const Duration(seconds: 10));
+    final response = await request.close().timeout(timeout);
     final body = await response.transform(utf8.decoder).join();
     Object? json;
     try {

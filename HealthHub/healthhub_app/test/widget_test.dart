@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:healthhub_app/api/health_hub_api.dart';
 import 'package:healthhub_app/auth/auth_controller.dart';
 import 'package:healthhub_app/care_centers/care_center_screen.dart';
+import 'package:healthhub_app/events/simulated_clock.dart';
 import 'package:healthhub_app/events/stream_events.dart';
 import 'package:healthhub_app/care_centers/occupancy_timeline.dart';
 import 'package:healthhub_app/sim_clock.dart';
@@ -35,6 +36,10 @@ class FakeApi implements HealthHubApi {
 
   /// The event ids whose triage detail was asked for.
   final triageDetailsAsked = <String>[];
+
+  /// The occupancy alarms the events carry, as the API writes them
+  /// (`alarms` of `GET /api/events`); none without.
+  Map<String, Object?>? alarms;
 
   /// Whether the simulation is paused, and every pause (true) or resume asked.
   bool paused = false;
@@ -212,6 +217,7 @@ class FakeApi implements HealthHubApi {
       // The feed's counts; the answer read later counts more.
       total: type == StreamEventType.admission ? 48213 : 48190,
       perSecond: type == StreamEventType.admission ? 70.4 : 70.1,
+      alarms: OccupancyAlarms.fromJson(alarms),
       topics: [type == StreamEventType.admission ? 'healthhub.admissions' : 'healthhub.people.moves'],
       events: [
         for (final event in all)
@@ -1477,6 +1483,320 @@ void main() {
       expect(simDayLabel(DateTime.utc(2026, 3, 9)), 'Mar 9');
       expect(simDateOf('2026-01-19'), 'Jan 19, 2026');
       expect(simDateOf('not a date'), 'not a date');
+    });
+  });
+
+  group('occupancy alarms and the simulated clock', () {
+    // As the API writes them (specs/occupancy-alarms.md).
+    Map<String, Object?> event(String kind, String? level, {String? id, int hospital = 1, String name = 'Hospital de Santa Maria'}) => {
+      'kind': kind,
+      'id': id ?? 'cafe0001-$hospital-$kind',
+      'run': 'cafe0001',
+      'hospitalId': hospital,
+      'hospitalName': name,
+      'careCenterKind': 'hospital',
+      'level': level,
+      'previous': kind == 'cleared' ? 'possible' : null,
+      'overflowAt': kind == 'cleared' ? null : '2026-01-02T16:00',
+      'overflowDay': kind == 'cleared' ? null : 2,
+      'leadHours': kind == 'cleared' ? null : 7,
+      'mean': kind == 'cleared' ? null : (level == 'expected' ? 10.0 : 6.6),
+      'p90': kind == 'cleared' ? null : 12.4,
+      'peak': {'at': '2026-01-02T18:00', 'day': 2, 'mean': 11.3, 'p90': 13.0},
+      'capacity': 8,
+      'unit': 'beds',
+      'end': '2026-01-02T09:00',
+      'horizonHours': 24,
+      'trainingRun': 4,
+      'now': {'day': 2, 'simTime': '09:00', 'date': '2026-01-02'},
+      'raisedAt': '2026-11-01T14:03:05.120Z',
+    };
+    Map<String, Object?> active(
+      String level, {
+      int hospital = 1,
+      String name = 'Hospital de Santa Maria',
+      int lead = 7,
+      String overflowAt = '2026-01-02T16:00',
+    }) => {
+      ...event('alarm', level, hospital: hospital, name: name)..remove('kind')..remove('id'),
+      'leadHours': lead,
+      'overflowAt': overflowAt,
+      'since': '2026-11-01T14:03:05.120Z',
+      'checkedAt': '2026-11-01T14:03:10.120Z',
+    };
+    final twoAlarms = {
+      'enabled': true,
+      'checkedAt': '2026-11-01T14:03:10.120Z',
+      'status': 200,
+      'note': null,
+      'active': [
+        active('expected'),
+        active('possible', hospital: 2, name: 'Clínica do Campo', lead: 4, overflowAt: '2026-01-02T13:00'),
+      ],
+      'recent': [
+        event('alarm', 'expected', id: 'e3'),
+        event('alarm', 'possible', id: 'e2', hospital: 2, name: 'Clínica do Campo'),
+        event('cleared', null, id: 'e1', hospital: 3, name: 'Centro de Saúde'),
+      ],
+    };
+
+    Future<FakeApi> home(WidgetTester tester, {Map<String, Object?>? alarms}) async {
+      tester.view.physicalSize = const Size(1400, 2600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      final api = FakeApi(auth: false, simulation: true)..alarms = alarms;
+      final locations = FakeLocations();
+      await tester.pumpWidget(app(api: api, locations: locations));
+      locations.move(38.72, -9.14);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      return api;
+    }
+
+    Color borderOf(WidgetTester tester, Key key) {
+      final decoration = tester.widget<Container>(find.byKey(key)).decoration! as BoxDecoration;
+      return switch (decoration.border) {
+        final Border border when border.left.width == 4 && border.top == BorderSide.none => border.left.color,
+        final Border border => border.top.color,
+        _ => Colors.transparent,
+      };
+    }
+
+    test('the API answer is read: the clock, the alarms now and the events', () {
+      final events = StreamEvents.fromJson({
+        'enabled': true,
+        'now': {'day': 154, 'simTime': '16:00', 'date': '2026-06-03'},
+        'alarms': {
+          ...twoAlarms,
+          'active': [...twoAlarms['active']! as List, 'not an alarm', {'level': 'expected'}],
+        },
+        'events': [],
+      });
+      expect(events.clock!.day, 154);
+      expect(simClockLabel(events.clock!), 'Jun 3, 2026 16:00');
+      // Without the date, it is counted from day 1, Jan 1, 2026.
+      expect(simClockLabel(const SimNow(day: 2, simTime: '09:40')), 'Jan 2, 2026 09:40');
+      expect(simClockLabel(SimNow.fromJson({'date': '2026-01-03', 'simTime': '00:00'})!), 'Jan 3, 2026 00:00');
+
+      final alarms = events.alarms;
+      expect(alarms.reported, isTrue);
+      expect(alarms.active.map((a) => a.careCenterId), [1, 2]); // the entries it can't read are left out
+      final expected = alarms.active.first;
+      expect(expected.level, AlarmLevel.expected);
+      expect(expected.kind, AlarmKind.alarm);
+      expect(expected.careCenterName, 'Hospital de Santa Maria');
+      expect(expected.careCenterKind, CareCenterKind.hospital);
+      expect(expected.overflowAt, DateTime.utc(2026, 1, 2, 16));
+      expect((expected.leadHours, expected.mean, expected.p90, expected.capacity, expected.unit), (7.0, 10.0, 12.4, 8, 'beds'));
+      expect((expected.peakAt, expected.peakMean, expected.peakP90), (DateTime.utc(2026, 1, 2, 18), 11.3, 13.0));
+      expect((expected.trainingRun, expected.now!.simTime), (4, '09:00'));
+      expect(alarms.recent.map((a) => (a.id, a.kind, a.level)), [
+        ('e3', AlarmKind.alarm, AlarmLevel.expected),
+        ('e2', AlarmKind.alarm, AlarmLevel.possible),
+        ('e1', AlarmKind.cleared, null),
+      ]);
+
+      // Without `now`, the clock is the newest record's; without `alarms`, none.
+      final older = StreamEvents.fromJson({
+        'enabled': true,
+        'events': [
+          {'id': 'a', 'simTime': '08:00', 'day': 3},
+          {'id': 'b', 'simTime': '09:40', 'day': 3},
+        ],
+      });
+      expect((older.clock!.day, older.clock!.simTime), (3, '09:40'));
+      expect(older.alarms.reported, isFalse);
+      expect(older.alarms.active, isEmpty);
+    });
+
+    testWidgets('the alarms are pinned at the top of the events: expected in red, possible in amber', (tester) async {
+      await home(tester, alarms: twoAlarms);
+      final card = find.byKey(const Key('stream-events'));
+
+      // The header counts them, in red.
+      final badge = find.descendant(of: card, matching: find.byKey(const Key('alarms-badge')));
+      expect(find.descendant(of: badge, matching: find.text('2 alarms')), findsOneWidget);
+      expect((tester.widget<Container>(badge).decoration! as BoxDecoration).color, Aityx.red);
+
+      final expected = find.byKey(const Key('alarm-banner-1'));
+      final possible = find.byKey(const Key('alarm-banner-2'));
+      expect(find.descendant(of: expected, matching: find.text('Over capacity expected at ')), findsOneWidget);
+      expect(find.descendant(of: expected, matching: find.text('Hospital de Santa Maria')), findsOneWidget);
+      // How far ahead from the clock above, Jan 2, 2026 09:40, not from the check (7 h then).
+      expect(find.descendant(of: expected, matching: find.text(' in 6 h 20 min')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: expected,
+          matching: find.text('Jan 2, 2026 16:00: 10 in care of 8 beds (90% range up to 12.4) · peak 11.3 at Jan 2, 2026 18:00 (90% range up to 13)'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.descendant(of: expected, matching: find.byIcon(Icons.crisis_alert)), findsOneWidget);
+      expect(borderOf(tester, const Key('alarm-banner-1')), Aityx.red);
+
+      expect(find.descendant(of: possible, matching: find.text('Over capacity possible: ')), findsOneWidget);
+      expect(find.descendant(of: possible, matching: find.text(' may exceed its 8 beds in 3 h 20 min')), findsOneWidget);
+      expect(
+        find.descendant(of: possible, matching: find.textContaining('Jan 2, 2026 13:00: 6.6 expected in care of 8 beds, 90% range up to 12.4')),
+        findsOneWidget,
+      );
+      expect(find.descendant(of: possible, matching: find.byIcon(Icons.warning_amber)), findsOneWidget);
+      expect(borderOf(tester, const Key('alarm-banner-2')), Aityx.amber);
+      // Up to date: nothing says otherwise.
+      expect(find.byKey(const Key('alarm-stale')), findsNothing);
+      expect(find.byKey(const Key('alarms-stale')), findsNothing);
+
+      // Pinned at the top: under the simulation's controls, above every row, expected first.
+      final invite = tester.getRect(find.byKey(const Key('person-invite')));
+      expect(tester.getRect(find.byKey(const Key('simulation-pause'))).bottom, lessThanOrEqualTo(tester.getRect(expected).top));
+      expect(tester.getRect(expected).bottom, lessThanOrEqualTo(tester.getRect(possible).top));
+      expect(tester.getRect(possible).bottom, lessThan(invite.top));
+    });
+
+    testWidgets("an alarm's care center opens its view", (tester) async {
+      final api = await home(tester, alarms: twoAlarms);
+      await tester.tap(find.descendant(of: find.byKey(const Key('alarm-banner-1')), matching: find.byKey(const Key('care-center-link-1'))));
+      await tester.pumpAndSettle();
+      expect(find.byType(CareCenterScreen), findsOneWidget);
+      expect(api.careCenterAsked, [1]);
+    });
+
+    testWidgets('the alarms raised and cleared are rows of the stream: red, amber, green', (tester) async {
+      await home(tester, alarms: {
+        ...twoAlarms,
+        'recent': [...twoAlarms['recent']! as List, event('downgraded', 'possible', id: 'e0', hospital: 4, name: 'Hospital Dona Estefânia')],
+      });
+      final card = find.byKey(const Key('stream-events'));
+      final raised = find.byKey(const Key('alarm-row-e3'));
+      expect(find.descendant(of: card, matching: raised), findsOneWidget);
+      expect(find.descendant(of: raised, matching: find.text('Alarm: over capacity expected · ')), findsOneWidget);
+      expect(find.descendant(of: raised, matching: find.text('in 7 h, Jan 2, 2026 16:00 · 10 in care of 8 beds (90% range up to 12.4)')), findsOneWidget);
+      expect(find.descendant(of: raised, matching: find.text('Jan 2, 2026 09:00')), findsOneWidget);
+      expect(borderOf(tester, const Key('alarm-row-e3')), Aityx.red);
+      expect(find.descendant(of: find.byKey(const Key('alarm-row-e2')), matching: find.text('Alarm: over capacity possible · ')), findsOneWidget);
+
+      final cleared = find.byKey(const Key('alarm-row-e1'));
+      expect(find.descendant(of: cleared, matching: find.text('Cleared: no longer over capacity · ')), findsOneWidget);
+      expect(find.descendant(of: cleared, matching: find.text('Centro de Saúde')), findsOneWidget);
+      expect(find.descendant(of: cleared, matching: find.text("datyx's forecast stays within 8 beds")), findsOneWidget);
+      expect(borderOf(tester, const Key('alarm-row-e1')), Aityx.green);
+      expect(borderOf(tester, const Key('alarm-row-e0')), Aityx.amber);
+
+      // Of the same shape as the others, and in time order: after the 09:40 moves, before the 08:00 admission.
+      final rowHeight = tester.getSize(find.byKey(const Key('move-lisboa-1-42'))).height;
+      expect(tester.getSize(raised).height, rowHeight);
+      expect(tester.getRect(raised).top, greaterThan(tester.getRect(find.byKey(const Key('move-lisboa-1-42'))).top));
+      expect(tester.getRect(cleared).top, lessThan(tester.getRect(find.byKey(const Key('admission-a1b2c3d4-lisboa-3-d2-t32'))).top));
+    });
+
+    testWidgets('an overflow the clock has passed reads now, since its hour', (tester) async {
+      await home(tester, alarms: {
+        ...twoAlarms,
+        'active': [active('expected', lead: 1, overflowAt: '2026-01-02T08:00')],
+      });
+      final banner = find.byKey(const Key('alarm-banner-1'));
+      expect(find.descendant(of: banner, matching: find.text(' now, since Jan 2, 2026 08:00')), findsOneWidget);
+      expect(find.descendant(of: banner, matching: find.textContaining('in 1 h')), findsNothing);
+    });
+
+    testWidgets('alarms datyx no longer refreshes say so, and since when', (tester) async {
+      await home(tester, alarms: {
+        ...twoAlarms,
+        'status': 502,
+        'note': 'the datyx API is not answering',
+        'stale': true,
+        'active': [{...active('expected'), 'stale': true}],
+      });
+      final banner = find.byKey(const Key('alarm-banner-1'));
+      // Still pinned, still red, but marked.
+      expect(borderOf(tester, const Key('alarm-banner-1')), Aityx.red);
+      expect(
+        find.descendant(of: banner, matching: find.text('Not current: last checked Jan 2, 2026 09:00')),
+        findsOneWidget,
+      );
+      // And the panel says why, though alarms are up.
+      expect(
+        find.text('Occupancy alarms may be out of date · last checked Jan 2, 2026 09:00 · the datyx API is not answering'),
+        findsOneWidget,
+      );
+      expect(find.textContaining("datyx can't forecast yet"), findsNothing);
+    });
+
+    testWidgets('one alarm left out of the latest answer is marked alone', (tester) async {
+      await home(tester, alarms: {
+        ...twoAlarms,
+        'active': [{...active('expected'), 'stale': true}, active('possible', hospital: 2, name: 'Clínica do Campo')],
+      });
+      expect(find.descendant(of: find.byKey(const Key('alarm-banner-1')), matching: find.byKey(const Key('alarm-stale'))), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('alarm-banner-2')), matching: find.byKey(const Key('alarm-stale'))), findsNothing);
+    });
+
+    testWidgets('no alarm, no banner nor badge; why when datyx cannot forecast', (tester) async {
+      await home(tester, alarms: {'enabled': true, 'checkedAt': null, 'status': 404, 'note': 'no model of the group default has been trained yet', 'active': [], 'recent': []});
+      expect(find.byKey(const Key('alarms-badge')), findsNothing);
+      expect(find.byType(AlarmBanner), findsNothing);
+      expect(find.byType(AlarmRow), findsNothing);
+      expect(find.textContaining("Occupancy alarms: datyx can't forecast yet (no model"), findsOneWidget);
+    });
+
+    testWidgets('the simulated date and time on top of the map and of the events, and Paused', (tester) async {
+      final api = await home(tester);
+      final mapClock = find.byKey(const Key('map-clock'));
+      final eventsClock = find.byKey(const Key('events-clock'));
+      // On the map tile's header, beside its title; first in the events card.
+      expect(find.descendant(of: find.byKey(const Key('location-tile')), matching: mapClock), findsOneWidget);
+      expect(find.descendant(of: mapClock, matching: find.text('Jan 2, 2026 09:40')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('stream-events')), matching: eventsClock), findsOneWidget);
+      expect(find.descendant(of: eventsClock, matching: find.text('Jan 2, 2026 09:40')), findsOneWidget);
+      expect(tester.getRect(eventsClock).top, lessThan(tester.getRect(find.text('Latest events')).top));
+      expect(find.text('Paused'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('simulation-pause')));
+      await tester.pump();
+      expect(api.pausesAsked, [true]);
+      expect(find.descendant(of: mapClock, matching: find.text('Paused')), findsOneWidget);
+      expect(find.descendant(of: eventsClock, matching: find.text('Paused')), findsOneWidget);
+
+      // The next read says it too; resumed, it goes.
+      await tester.pump(const Duration(seconds: 5));
+      expect(find.descendant(of: eventsClock, matching: find.text('Paused')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('simulation-pause')));
+      await tester.pump();
+      expect(find.text('Paused'), findsNothing);
+    });
+
+    testWidgets('the index shows the simulated date and time under the welcome', (tester) async {
+      final locations = FakeLocations();
+      await tester.pumpWidget(app(api: FakeApi(simulation: true), locations: locations));
+      locations.move(38.72, -9.14);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      final clock = find.byKey(const Key('index-clock'));
+      expect(find.descendant(of: clock, matching: find.text('Jan 2, 2026 09:40')), findsOneWidget);
+      expect(tester.getRect(clock).top, greaterThan(tester.getRect(find.byKey(const Key('welcome'))).bottom - 1));
+    });
+
+    testWidgets('nothing of the clock before the simulation says its time', (tester) async {
+      await tester.pumpWidget(app(api: FakeApi()));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('index-clock')), findsNothing);
+      expect(find.byType(SimClockText), findsNothing);
+    });
+
+    test('the clock keeps the newest reading, but follows a new run back', () {
+      final clock = SimClock();
+      var told = 0;
+      clock.addListener(() => told++);
+      clock.report(const SimNow(day: 2, simTime: '09:40'));
+      clock.report(const SimNow(day: 2, simTime: '09:12')); // a slower poll's
+      expect(clock.now!.simTime, '09:40');
+      clock.report(null, paused: true);
+      expect((clock.paused, told), (true, 2));
+      clock.report(const SimNow(day: 1, simTime: '00:00')); // a new run
+      expect((clock.now!.day, told), (1, 3));
+      clock.dispose();
     });
   });
 }

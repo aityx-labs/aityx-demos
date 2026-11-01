@@ -18,7 +18,11 @@ theirs; narrower, each goes under its row.
   - **Where you are**: the [map](map.md) with the user's position
     highlighted, centred on the care center nearest them once both are
     known, the status line saying "The orange dot is you." or why there
-    is no location.
+    is no location. Beside the title (under it when narrow), while the
+    simulation runs, its date and time, large and bold with a clock:
+    "Jun 3, 2026 16:00" (the calendar starting on Jan 1, 2026), and
+    **Paused** in amber beside it while it is paused (see [The simulated
+    clock](#the-simulated-clock)).
 - **The data, and the simulation** (`SimulationExplainer`,
   [explainers.dart](../healthhub_app/lib/screens/explainers.dart)), beside
   the map, briefly: real care centers (7,256, from the official
@@ -67,7 +71,9 @@ theirs; narrower, each goes under its row.
   can be audited).
 - **Latest events** (`StreamEventsCard`,
   [stream_events.dart](../healthhub_app/lib/events/stream_events.dart)),
-  under the map, in dev mode only: the latest records on the Kafka
+  under the map, in dev mode only. At its top, the simulated date and
+  time, as on the map's header, a little larger, with **Paused** while
+  paused. Then the latest records on the Kafka
   streams, `healthhub.people.moves` and `healthhub.admissions`, asked
   every 5 seconds. The card asks for them apart, the 12 latest moves
   (`GET /api/events?type=move`) and the 8 latest admissions
@@ -93,12 +99,43 @@ theirs; narrower, each goes under its row.
   while paused the topics line reads "Paused: nobody moves, the clock
   stands", in amber. The button shows what the API answered until the
   next read says it too; a refusal shows in a snack bar ("Sign in to
-  pause the simulation." when the API wants a user).
+  pause the simulation." when the API wants a user). While care centers
+  have an occupancy alarm, the header has a red badge with a warning,
+  "2 alarms", beside the title.
+  - **The occupancy alarms, pinned** under the header and the
+    simulation's controls, above the rows: a banner per
+    care center whose occupancy datyx's DeepAR forecast puts over its
+    capacity ([Occupancy alarms](occupancy-alarms.md)), as the API orders
+    them (expected first, then the soonest over). Unmistakable: a tint, a
+    2 px border and a glow in the level's colour, a large warning icon,
+    bold text, the care center a link to its [view](care-center.md):
+    - **expected** (the forecast mean over the capacity), red, with
+      `Icons.crisis_alert`: "Over capacity expected at Hospital del Mar
+      in 7 h", under it "Jun 3, 2026 16:00: 10 in care of 8 beds (90%
+      range up to 12.4) · peak 11.3 at Jun 3, 2026 18:00 (90% range up
+      to 13)".
+    - **possible** (only the 90th percentile over), amber, with
+      `Icons.warning_amber`: "Over capacity possible: Clínica X may
+      exceed its 3 places in 3 h", under it "Jun 3, 2026 12:00: 2.4
+      expected in care of 3 places, 90% range up to 3.6 · peak …".
+
+    How far ahead ("in 7 h") is from the clock on top of the card, not
+    from the check, which is hours behind it by then; "now, since Jun 3,
+    2026 16:00" once the clock is past that hour. On hover, which level
+    it is, the simulated time of the check and datyx's training run.
+    One that may be out of date (datyx didn't answer the latest check,
+    or no check got a forecast for a while, or not of that care center)
+    says so in amber, "Not current: last checked Jun 3, 2026 09:00",
+    and a line under the banners says why ("Occupancy alarms may be out
+    of date · last checked Jun 3, 2026 09:00 · the datyx API is not
+    answering"). With none, nothing; while datyx can't
+    forecast (no model trained yet), one muted line says why
+    ("Occupancy alarms: datyx can't forecast yet (…)").
   - Under it, an invitation: "Open anyone by their name to see their
     data and statistics: their admissions, aityx's triage, their days of
     care and datyx's prediction."
-  - **Every event is a row of the same shape and height** (`EventRow`),
-    whatever its kind: a bar on its left and a faint tint in its colour,
+  - **Every event is a row of the same shape and height** (`EventRow`,
+    `AlarmRow`), whatever its kind: a bar on its left and a faint tint in its colour,
     a mark, and two lines that never wrap (cut with "…" when they don't
     fit). The first line: the person's name and age (a link to their
     view, [The person view](person.md); the id on hover), a heart
@@ -123,6 +160,17 @@ theirs; narrower, each goes under its row.
       the person over the next 30 days, with a bed icon ("9 h expected
       in 30 days"; the model and the hours of the last 30 days on hover).
       The link opens the person of that admission's run.
+    - **An alarm event** (`healthhub.alarms`, the 6 latest the events
+      carry, in time order among the others by the simulated time of the
+      check, before the records of its own minute): no person, the care
+      center instead, a link to its view. **Raised**, red with a warning:
+      "Alarm: over capacity expected · Hospital del Mar", then "in 7 h,
+      Jun 3, 2026 16:00 · 10 in care of 8 beds (90% range up to 12.4)". **Downgraded** (expected
+      to possible), amber: "Downgraded: over capacity possible".
+      **Cleared**, green with a check: "Cleared: no longer over capacity",
+      then "datyx's forecast stays within 8 beds". The time is the
+      check's, a date as an event row's ("Jun 3, 2026 09:00"); the record's place on the topic when the API gives it,
+      else `healthhub.alarms`.
 
     The 30-day hours are datyx's XGBoost prediction for the person of
     the admission's run, the one their view highlights ([The person
@@ -132,9 +180,26 @@ theirs; narrower, each goes under its row.
     say (no model trained, no rows, not answering, nobody signed in),
     nor on the index, which opens no person.
 
-  Nothing shows in prod, nor before the API answers. A failed read keeps
-  what is shown.
+  The alarms and the clock come with the events (`GET /api/events`
+  carries `alarms` and `now`): no other poll. Nothing shows in prod, nor
+  before the API answers. A failed read keeps what is shown.
 - At the bottom, when the build has one, the version: `HealthHub X.Y.Z`.
+
+## The simulated clock
+
+`SimClockText` ([simulated_clock.dart](../healthhub_app/lib/events/simulated_clock.dart)):
+"Jun 3, 2026 16:00", the date (the API's `now.date`, or Jan 1, 2026 plus
+the day less one) and the time as the rest of the app writes them
+([sim_clock.dart](../healthhub_app/lib/sim_clock.dart)), bold, with a clock icon (amber while paused) and the amber
+**Paused**; the meaning on hover. The events card reads it from its
+events (`now`, the newest move's; the newest record's without it) and
+`paused`; the map from `GET /api/people`'s `day` and `simTime`. Both
+report what they read to the page's `SimClock`, which the map's header
+follows: the newest reading (a slower poll's older one doesn't move it
+back, but more than an hour back is a new run and does), paused as the
+events (or the pause button) last said. It updates with each read,
+every 5 seconds. Nothing shows before the simulation says its time, nor
+in prod. The index shows it too, under its welcome ([Index](index.md)).
 
 ## Known limitations
 

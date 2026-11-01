@@ -17,6 +17,13 @@ highlighted, and a card floats over its top, at most 440 px wide:
   `HealthHub X.Y.Z` (the `HEALTHHUB_VERSION` dart-define, see
   [Development environment](dev-environment.md)).
 
+Under the card, while the map shows the simulation, a second card with
+its date and time, "Jun 3, 2026 16:00", as home's map
+header has it ([The simulated clock](home.md#the-simulated-clock)), from
+the map's reads of `GET /api/people`; nothing while the simulation is
+off. It never says Paused: `GET /api/people` doesn't say whether the
+simulation is paused (home learns it from the events).
+
 Signing in leads [home](home.md); signing out there comes back here.
 
 `HealthHubApp` ([main.dart](../healthhub_app/lib/main.dart)) picks the

@@ -12,6 +12,7 @@ import 'care_centers.dart';
 import 'care_centers_seed.dart';
 import 'conditions.dart';
 import 'conditions_seed.dart';
+import 'occupancy_alarms.dart' show AlarmCareCenter;
 import 'routes.dart' show Bbox;
 import 'schema_comments.dart';
 import 'simulation.dart' show LatLon, Place;
@@ -400,6 +401,39 @@ class Db {
                            INTERVAL '1 hour') AS hour_start
       GROUP BY run_id, hospital_id, hour_start
     ''');
+    // Each occupancy alarm event (lib/occupancy_alarms.dart): a care
+    // center's level rising, falling or clearing against datyx's forecast.
+    await c.execute('''
+      CREATE TABLE IF NOT EXISTS occupancy_alarm (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL CHECK (kind IN ('alarm', 'downgraded', 'cleared')),
+        run_id TEXT NOT NULL,
+        hospital_id INT NOT NULL,
+        hospital_name TEXT NOT NULL,
+        care_center_kind TEXT NOT NULL,
+        level TEXT CHECK (level IN ('possible', 'expected')),
+        previous_level TEXT CHECK (previous_level IN ('possible', 'expected')),
+        overflow_at TIMESTAMP,
+        lead_hours INT,
+        mean DOUBLE PRECISION,
+        p90 DOUBLE PRECISION,
+        peak_at TIMESTAMP,
+        peak_mean DOUBLE PRECISION,
+        peak_p90 DOUBLE PRECISION,
+        capacity INT NOT NULL,
+        unit TEXT NOT NULL,
+        series_end TIMESTAMP,
+        horizon_hours INT NOT NULL,
+        training_run BIGINT,
+        sim_day INT,
+        sim_time TEXT,
+        raised_at TIMESTAMPTZ NOT NULL,
+        CHECK ((kind = 'cleared') = (level IS NULL))
+      )
+    ''');
+    await c.execute(
+      'CREATE INDEX IF NOT EXISTS occupancy_alarm_run_idx ON occupancy_alarm (run_id, hospital_id, raised_at)',
+    );
     // What each table and column is, for a catalogue reading the schema.
     await commentSchema(c);
   }
@@ -1100,6 +1134,82 @@ class Db {
         ),
     ];
   });
+
+  /// The name, kind and seed key of each care center of [run] (those
+  /// with an admission in it, which occupancy_hourly has series of), for
+  /// the occupancy alarms (its capacity in the simulation is drawn from
+  /// the key and the kind).
+  Future<Map<int, AlarmCareCenter>> alarmCareCenters(String run) => _run((c) async {
+    final rows = await c.execute(Sql.named(alarmCareCentersSql), parameters: {'run': run});
+    return {
+      for (final row in rows) row[0] as int: (name: row[1] as String, kind: row[2] as String, key: row[3] as String),
+    };
+  });
+
+  /// The statement [alarmCareCenters] runs: a run's id, as occupancy_hourly
+  /// reads it from an admission's event id.
+  static const alarmCareCentersSql = '''
+    SELECT c.id, c.name, c.kind, c.key FROM care_centers c
+    WHERE c.id IN (SELECT DISTINCT hospital_id FROM admissions WHERE split_part(event_id, '-', 1) = @run)
+    ORDER BY c.id
+  ''';
+
+  /// Records [event], an occupancy alarm event (lib/occupancy_alarms.dart),
+  /// once by its id: true when it inserted it, false when it was there
+  /// already. Throws when the database doesn't answer or refuses it
+  /// ([isPermanentError]).
+  Future<bool> recordAlarm(Map<String, Object?> event) => _run((c) async {
+    final rows = await c.execute(
+      Sql.named(insertAlarmSql),
+      parameters: alarmParameters(event),
+    );
+    return rows.isNotEmpty;
+  });
+
+  /// The statement [recordAlarm] runs: every value a parameter.
+  static const insertAlarmSql = '''
+    INSERT INTO occupancy_alarm (id, kind, run_id, hospital_id, hospital_name, care_center_kind, level,
+      previous_level, overflow_at, lead_hours, mean, p90, peak_at, peak_mean, peak_p90, capacity, unit,
+      series_end, horizon_hours, training_run, sim_day, sim_time, raised_at)
+    VALUES (@id, @kind, @run, @hospitalId, @hospitalName, @careCenterKind, @level,
+      @previous, @overflowAt, @leadHours, @mean, @p90, @peakAt, @peakMean, @peakP90, @capacity, @unit,
+      @end, @horizonHours, @trainingRun, @simDay, @simTime, @raisedAt)
+    ON CONFLICT (id) DO NOTHING
+    RETURNING id
+  ''';
+
+  /// [event]'s values as [insertAlarmSql]'s parameters, each typed.
+  static Map<String, TypedValue> alarmParameters(Map<String, Object?> event) {
+    DateTime? hour(Object? at) => at is String ? DateTime.tryParse(at.endsWith('Z') ? at : '${at}Z')?.toUtc() : null;
+    double? number(Object? value) => value is num ? value.toDouble() : null;
+    final peak = event['peak'] is Map ? event['peak'] as Map : const {};
+    final now = event['now'] is Map ? event['now'] as Map : const {};
+    return {
+      'id': TypedValue(Type.text, event['id']),
+      'kind': TypedValue(Type.text, event['kind']),
+      'run': TypedValue(Type.text, event['run']),
+      'hospitalId': TypedValue(Type.integer, event['hospitalId']),
+      'hospitalName': TypedValue(Type.text, event['hospitalName']),
+      'careCenterKind': TypedValue(Type.text, event['careCenterKind']),
+      'level': TypedValue(Type.text, event['level']),
+      'previous': TypedValue(Type.text, event['previous']),
+      'overflowAt': TypedValue(Type.timestampWithoutTimezone, hour(event['overflowAt'])),
+      'leadHours': TypedValue(Type.integer, event['leadHours']),
+      'mean': TypedValue(Type.double, number(event['mean'])),
+      'p90': TypedValue(Type.double, number(event['p90'])),
+      'peakAt': TypedValue(Type.timestampWithoutTimezone, hour(peak['at'])),
+      'peakMean': TypedValue(Type.double, number(peak['mean'])),
+      'peakP90': TypedValue(Type.double, number(peak['p90'])),
+      'capacity': TypedValue(Type.integer, event['capacity']),
+      'unit': TypedValue(Type.text, event['unit']),
+      'end': TypedValue(Type.timestampWithoutTimezone, hour(event['end'])),
+      'horizonHours': TypedValue(Type.integer, event['horizonHours']),
+      'trainingRun': TypedValue(Type.bigInteger, event['trainingRun'] is num ? (event['trainingRun'] as num).toInt() : null),
+      'simDay': TypedValue(Type.integer, now['day']),
+      'simTime': TypedValue(Type.text, now['simTime']),
+      'raisedAt': TypedValue(Type.timestampWithTimezone, DateTime.parse(event['raisedAt'] as String)),
+    };
+  }
 
   Future<void> close() async {
     await _connection?.close();

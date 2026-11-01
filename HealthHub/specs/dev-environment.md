@@ -35,6 +35,7 @@ process-compose through Docker Compose comes from.
     at most. Its Docker health check runs `kafka-topics.sh --create
     --if-not-exists` (with a 64 MB heap of its own) for
     `healthhub.people.moves`, `healthhub.admissions`,
+    `healthhub.alarms` ([Occupancy alarms](occupancy-alarms.md)),
     `healthhub.test`, the API's live test's topic, and
     `healthhub.admissions.hourly`, the Flink job's, compacted
     (`cleanup.policy=compact,delete`): healthy once the broker answers
@@ -42,7 +43,12 @@ process-compose through Docker Compose comes from.
     `healthhub.admissions` was added keeps its old check until it is
     recreated (`docker compose up -d kafka`), and until then the API's
     admissions fail to publish (logged, retried); `kafka-topics.sh
-    --create` in the container makes the topic by hand. The
+    --create` in the container makes the topic by hand. The same goes for
+    `healthhub.alarms`: a container made before it was added keeps
+    retrying the alarm events until it is recreated or the topic made
+    by hand (`docker exec healthhub-kafka-1 /opt/kafka/bin/kafka-topics.sh
+    --bootstrap-server kafka:19092 --create --if-not-exists --topic
+    healthhub.alarms`). The
     check makes the topics because the REST proxy answers 404 to a record
     for a topic that doesn't exist, instead of letting the broker create
     it (the broker's auto-creation, on, serves only Kafka clients).
@@ -131,7 +137,9 @@ process-compose through Docker Compose comes from.
   people simulation; `prod` doesn't), `HEALTHHUB_SIM_PEOPLE` (40 per
   city), `HEALTHHUB_SIM_TURN_MS` (1000) and
   `HEALTHHUB_SIM_MINUTES_PER_TURN` (60, so a real second is a simulated
-  hour), every one but the key with a
+  hour), `HEALTHHUB_ALARM_EVERY_MS` (5000, the least real milliseconds
+  between two [occupancy alarm](occupancy-alarms.md) checks; 0 turns them
+  off), every one but the key with a
   default. `.env` is git-ignored.
 - **aityx's triage** ([Triage at the desk](triage.md)):
   [scripts/model-test.sh](../scripts/model-test.sh) runs the triage

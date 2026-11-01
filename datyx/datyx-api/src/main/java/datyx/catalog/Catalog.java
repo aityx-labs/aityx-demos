@@ -36,8 +36,12 @@ import org.jboss.logging.Logger;
  * source, OpenMetadata only keeps what it read. A sync again updates
  * the same entities and keeps what people added in OpenMetadata (tags,
  * descriptions, owners); a table or topic the source no longer has is
- * soft-deleted. The TimeSeries vocabulary (TimeSeries) is made with the
- * first sync, then read back from the tags to find the time series.
+ * soft-deleted. Every column and every field of a record, nested ones
+ * too, gets a PII tag, and a PersonalData one when it holds personal
+ * data in the GDPR's terms (Pii), from the names alone; a person's own
+ * tags in those classifications win. The TimeSeries vocabulary
+ * (TimeSeries) is made with the first sync, then read back from the
+ * tags to find the time series.
  */
 @ApplicationScoped
 public class Catalog {
@@ -72,7 +76,7 @@ public class Catalog {
 
     @RegisterForReflection
     public record Synced(String service, String database, List<String> schemas, int tables, int columns,
-            List<String> removed) {
+            int personal, int special, List<String> removed) {
     }
 
     /** Reads the source and writes what it holds to OpenMetadata. */
@@ -110,6 +114,8 @@ public class Catalog {
             }
         }
         int columns = 0;
+        int personal = 0;
+        int special = 0;
         Set<String> present = new HashSet<>();
         for (SchemaReader.Table table : tables) {
             String schemaFqn = fqn(service, access.database(), table.schema());
@@ -117,6 +123,13 @@ public class Catalog {
             JsonNode put = session.call(auth -> client.putTable(auth, body));
             present.add(put.path("fullyQualifiedName").asText());
             columns += table.columns().size();
+            // A PUT merges tags, and PII's are mutually exclusive: a patch replaces them.
+            Classified pii = classify(table.name(), put.path("columns"), "/columns/");
+            if (!pii.patch().isEmpty()) {
+                session.call(auth -> client.patchTable(auth, put.path("id").asText(), pii.patch()));
+            }
+            personal += pii.personal();
+            special += pii.special();
         }
         List<String> removed = new ArrayList<>();
         for (JsonNode table : known.values()) {
@@ -126,8 +139,9 @@ public class Catalog {
                 removed.add(tableFqn);
             }
         }
-        LOG.infof("catalogue: %s synced, %d tables, %d columns, %d removed", service, tables.size(), columns, removed.size());
-        return new Synced(service, database, List.copyOf(schemas), tables.size(), columns, removed);
+        LOG.infof("catalogue: %s synced, %d tables, %d columns (%d personal, %d special category), %d removed",
+            service, tables.size(), columns, personal, special, removed.size());
+        return new Synced(service, database, List.copyOf(schemas), tables.size(), columns, personal, special, removed);
     }
 
     /**
@@ -187,6 +201,35 @@ public class Catalog {
         return body;
     }
 
+    /**
+     * A classification of a table's columns or a topic's fields (Pii): the
+     * JSON Patch that gives each its PII and PersonalData tags, nothing for
+     * those whose tags say so already, and how many of the top-level ones
+     * hold personal data, and special category data, once patched.
+     */
+    record Classified(ArrayNode patch, int personal, int special) {
+    }
+
+    /** Classifies {@code items}, a table's columns or a topic's schemaFields as OpenMetadata answers them, found at {@code path}. */
+    Classified classify(String entity, JsonNode items, String path) {
+        ArrayNode patch = json.createArrayNode();
+        int personal = 0;
+        int special = 0;
+        for (Map.Entry<String, Pii.Label> label : Pii.labels(entity, items).entrySet()) {
+            JsonNode current = items.at("/" + label.getKey()).path("tags");
+            ArrayNode tags = Pii.tags(current, label.getValue());
+            if (!Pii.same(tags, current)) {
+                patch.addObject().put("op", "add").put("path", path + label.getKey() + "/tags").set("value", tags);
+            }
+            if (!label.getKey().contains("/")) {
+                Set<String> names = tagNames(tags);
+                personal += names.stream().anyMatch(n -> n.startsWith(Pii.PERSONAL_DATA + ".")) ? 1 : 0;
+                special += names.contains(Pii.Category.SPECIAL.personalData) ? 1 : 0;
+            }
+        }
+        return new Classified(patch, personal, special);
+    }
+
     private static String described(String comment, String known) {
         if (comment != null && !comment.isBlank()) {
             return comment;
@@ -195,7 +238,8 @@ public class Catalog {
     }
 
     @RegisterForReflection
-    public record StreamSynced(String service, int topics, int fields, int sampled, List<String> removed) {
+    public record StreamSynced(String service, int topics, int fields, int sampled, int personal, int special,
+            List<String> removed) {
     }
 
     /** Reads a Kafka cluster and writes its topics to OpenMetadata. */
@@ -219,6 +263,8 @@ public class Catalog {
         }
         int fields = 0;
         int sampled = 0;
+        int personal = 0;
+        int special = 0;
         Set<String> present = new HashSet<>();
         for (StreamReader.Topic topic : topics) {
             ObjectNode body = topicBody(service, topic, known.get(fqn(service, topic.name())));
@@ -226,6 +272,12 @@ public class Catalog {
             present.add(put.path("fullyQualifiedName").asText());
             fields += topic.fields() == null ? 0 : topic.fields().size();
             sampled += topic.sampled() ? 1 : 0;
+            Classified pii = classify(topic.name(), put.path("messageSchema").path("schemaFields"), "/messageSchema/schemaFields/");
+            if (!pii.patch().isEmpty()) {
+                session.call(auth -> client.patchTopic(auth, put.path("id").asText(), pii.patch()));
+            }
+            personal += pii.personal();
+            special += pii.special();
         }
         List<String> removed = new ArrayList<>();
         for (JsonNode topic : known.values()) {
@@ -235,8 +287,9 @@ public class Catalog {
                 removed.add(topicFqn);
             }
         }
-        LOG.infof("catalogue: %s synced, %d topics, %d fields, %d removed", service, topics.size(), fields, removed.size());
-        return new StreamSynced(service, topics.size(), fields, sampled, removed);
+        LOG.infof("catalogue: %s synced, %d topics, %d fields (%d personal, %d special category), %d removed",
+            service, topics.size(), fields, personal, special, removed.size());
+        return new StreamSynced(service, topics.size(), fields, sampled, personal, special, removed);
     }
 
     /**

@@ -5,7 +5,9 @@ for it: it reads what a database or a Kafka cluster says about itself
 into OpenMetadata, the catalogue, and people (later, a tool that suggests) say there what
 the columns are to a forecast, with tags. datyx reads the tags back to
 know which tables are time series, which algorithm trains on each
-(DeepAR or XGBoost) and how. Code in `datyx-api/src/main/java/datyx/catalog/`, the
+(DeepAR or XGBoost) and how. Every column and every field of a record
+also gets a PII classification, in the GDPR's terms, from its name
+([Personal data](#personal-data-gdpr)). Code in `datyx-api/src/main/java/datyx/catalog/`, the
 OpenMetadata client in `datyx/openmetadata/`.
 
 ```
@@ -40,7 +42,9 @@ each:
   table constraint, and the comments as descriptions.
 
 It answers `{"service":"datyx-ds-1","database":"datyx-ds-1.healthhub",
-"schemas":["public"],"tables":6,"columns":69,"removed":[]}`. Running it
+"schemas":["public"],"tables":8,"columns":101,"personal":50,"special":32,
+"removed":[]}`: `personal` counts the columns holding personal data,
+`special` those of a special category ([Personal data](#personal-data-gdpr)). Running it
 again updates the same entities: what people added in OpenMetadata
 (tags, descriptions where the source has no comment, owners) stays, and
 a table the source no longer has is soft-deleted (`removed`), and comes
@@ -81,8 +85,10 @@ writes:
   of them as `schemaText`.
 
 It answers `{"service":"datyx-ds-2","topics":5,"fields":46,"sampled":4,
-"removed":[]}`: `fields` counts the topics' top-level fields, `sampled`
-the topics with a record. Running it again keeps what people added (the
+"personal":37,"special":13,"removed":[]}`: `fields` counts the topics'
+top-level fields, `sampled` the topics with a record, `personal` and
+`special` the top-level fields holding personal data and special
+category data. Running it again keeps what people added (the
 topic's description, a field's description and tags, sent back with
 the PUT); a topic with no record keeps the schema OpenMetadata has; a
 topic the cluster no longer has is soft-deleted (`removed`). Deleting
@@ -96,6 +102,60 @@ the source removes its messaging service and topics.
 record's `children`. Before a first sync, no topics. Topics have no time
 series yet: `GET .../timeseries` answers none, and the PUT finds no
 table.
+
+## Personal data (GDPR)
+
+Every sync tags every column of every table, and every field of every
+topic's records, nested ones and the records holding them too, with
+one tag of OpenMetadata's own `PII` classification, and those holding
+personal data with one of its `PersonalData` classification too (both
+ship with OpenMetadata and each allows one tag per column: `Pii`). It reads only
+names, the table's or topic's, the column's and those of the records a
+field is in, never a value, so nothing new leaves the source.
+
+A column holds personal data (GDPR Art. 4(1): information relating to
+an identified or identifiable natural person) only when its record is
+about a person: the record's name says so (`patients`, `people.moves`,
+a health encounter such as `admissions` or `admission_triage`, but not
+a count of them, `admissions_hourly`), or one of its columns names one
+(`person_id`, `customer_email`, `first_name`, `date_of_birth`). A care
+center's `phone` and `address` are an organisation's, which the GDPR
+doesn't cover (Recital 14). In a record about a person, the first that
+applies:
+
+| Category | What the name says | `PII` | `PersonalData` |
+|---|---|---|---|
+| Special category | Health, genetic, biometric, racial or ethnic origin, political opinions, religious or philosophical beliefs, trade union membership, sex life or orientation (Art. 9), criminal convictions and offences (Art. 10): `condition_code`, `complaint`, `diagnosis`, `religion`, `criminal_record`. In a health care record (a patient's, or a health encounter's) every other fact is health data too, and so is a patient's number (Recital 35) | `Sensitive` | `SpecialCategory` |
+| Direct identifier | A person's name, contact details, an identification number, financial data, an online identifier, precise location, an image, a secret: `person_name`, `name`, `email`, `home_address`, `ssn`, `iban`, `ip_address`, `lat`, `homeLon`, `password` | `Sensitive` | `Personal` |
+| Quasi-identifier | Identifies the person with other data: `age`, `sex`, `date_of_birth`, `city`, `postal_code`, `occupation`, `nationality` | `NonSensitive` | `Personal` |
+| Key | A key of the person's record (`id`, `person_id`, `event_id`, `hospital_id`): pseudonymous data is still personal (Art. 4(5), Recital 26) | `NonSensitive` | `Personal` |
+| Personal | Anything else about the person (Art. 4(1)) | `NonSensitive` | `Personal` |
+
+Anything else is `PII.None`, with no `PersonalData` tag. A name, an
+address, a city or coordinates are a person's only when nothing but
+person words and modifiers come with them (`shipping_address`,
+`homeLat`), not another thing's (`store_address`, `hospital_name`). A
+record or array field is the most protected of itself and its fields,
+`holds ...` in its reason. Words match in snake, kebab or camel case,
+singular or plural.
+
+Each tag is written `Automated` and `Confirmed`, with its `reason`, the
+GDPR article it rests on (`a person's name, which identifies them
+directly (GDPR Art. 4(1))`), shown by OpenMetadata. They are
+suggestions from names: a person's own tag (`Manual`, set in
+OpenMetadata's UI) in `PII` or in `PersonalData` wins, and datyx leaves
+that classification of the column alone on every sync after; datyx's
+own are replaced when the names say something else. Since a PUT merges
+tags and both classifications are mutually exclusive, the tags are
+written after the PUT by one JSON Patch of the table or topic, only when
+something changed. `GET .../catalog` answers them among the `tags`.
+
+In HealthHub's catalogue: `admissions`, `admission_triage`,
+`patient_days` and the topics `healthhub.admissions` and
+`healthhub.people.moves` hold personal data, the conditions, complaints
+and the encounters' facts special category data; `care_centers`,
+`medical_conditions`, `complaint_templates`, `greetings` and the hourly
+counts none.
 
 ## Which sources, and errors
 
@@ -300,7 +360,13 @@ only older ones have added, what isn't a JSON object skipped), the SASL
 sign-in only for a SASL protocol, its user and password quoted; a topic
 as the catalogue writes it, keeping a description and field tags people
 added, and the schema it had when no record was read. OpenMetadata and
-Kafka themselves aren't started for the tests.
+Kafka themselves aren't started for the tests. `PiiTest`, no server:
+names split into words, HealthHub's admissions classified column by
+column, a patient's number as health data, records of things and of
+counts holding none, a column that names a person making its record
+personal, nested fields and the record holding them, a person's tags
+kept and datyx's replaced (other classifications' kept), and the patch
+`Catalog.classify` sends, with nested paths, empty once written.
 
 ## Known limitations
 
@@ -323,5 +389,17 @@ Kafka themselves aren't started for the tests.
 - No suggestion of roles yet: they are set by hand or by the PUT.
 - OpenMetadata keeps a composite key's columns in its own order, not
   the key's.
+- Personal data is told from names only, in English: a column named
+  for something else (`notes` holding a diagnosis), or in another
+  language, is missed, and a word can mislead (`client_id` of an OAuth
+  client is taken for a person's). People correct a column in
+  OpenMetadata, and their tag stays. No value is sampled to check, as
+  OpenMetadata's own auto-classification would.
+- The properties inside a `json` or `jsonb` column aren't read (no rows
+  are): the column is classified as a whole.
+- Criminal data (Art. 10) is tagged `PersonalData.SpecialCategory`,
+  OpenMetadata having no tag of its own for it; the reason says Art. 10.
+- Tables and topics themselves get no PII tag, only their columns and
+  fields.
 - A data source deleted while OpenMetadata was down leaves its service
   there (logged).

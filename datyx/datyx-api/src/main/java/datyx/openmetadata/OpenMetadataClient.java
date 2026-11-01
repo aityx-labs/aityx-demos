@@ -137,6 +137,12 @@ public interface OpenMetadataClient {
     JsonNode topics(@HeaderParam("Authorization") String authorization, @QueryParam("service") String service,
             @QueryParam("fields") String fields, @QueryParam("limit") int limit, @QueryParam("after") String after);
 
+    /** A JSON Patch (RFC 6902) of a topic: its message schema's fields' tags. */
+    @PATCH
+    @Path("/topics/{id}")
+    @Consumes("application/json-patch+json")
+    JsonNode patchTopic(@HeaderParam("Authorization") String authorization, @PathParam("id") String id, JsonNode patch);
+
     /** Soft-deletes a topic the cluster no longer has; a PUT of the same name brings it back. */
     @DELETE
     @Path("/topics/{id}")

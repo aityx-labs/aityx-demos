@@ -33,7 +33,8 @@ HealthHub passes on unchanged.
   cluster read into OpenMetadata without the source changing, the
   TimeSeries tags and table properties that say what its columns are to
   a forecast, the algorithm that trains each group (DeepAR, XGBoost) and
-  how far ahead, and the time series datyx finds in them.
+  how far ahead, and the time series datyx finds in them; and every
+  column's and field's PII classification, in the GDPR's terms.
 - [Training](training.md): the trainer started with the API, which
   trains the groups tagged for XGBoost when they never were and again as
   often as their table says, and keeps each run, its test metrics, the

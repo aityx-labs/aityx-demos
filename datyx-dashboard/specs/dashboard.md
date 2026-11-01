@@ -47,20 +47,53 @@ reload).
   again**) calls `POST .../catalog` and says how many tables and columns
   it read. Each table is a tile that opens on its columns: name (a key
   icon for the primary key), OpenMetadata's type, and its tags, a
-  TimeSeries tag shown as its role and DeepAR field (`Target ·
-  target`). A table with TimeSeries tags has a badge, *time series:
-  ready* or *needs work*, and a DeepAR box with the inputs the tags give
-  (`item_id = run_id + hospital_id`, `freq = 1h`, a missing row as 0 or
-  unknown) and the API's problems. **Tag for DeepAR** (or **Edit DeepAR
-  tags**) opens `TimeSeriesDialog`: one row per role (Timestamp, Target,
-  SeriesKey, StaticCategorical, StaticReal, KnownCovariate,
-  PastCovariate, with the DeepAR field and what it means as a tooltip),
-  each a chip per column, one column for Timestamp and Target and any
-  number for the others, starting from the tags the table has; the
-  frequency (typed, or 15min, 1h, 1D, 1W, 1MS); and whether a missing row
-  counts as 0 or is unknown. **Save tags** sends `PUT .../timeseries`:
-  a ready table closes the dialog and the card reloads; otherwise the
-  dialog stays with the API's problems. The tab only shows what the API
+  TimeSeries tag shown as its role and what it is to the algorithm that
+  trains its group, DeepAR's field (`Target · target`) or its part in
+  XGBoost's dataset (`Target · label: sum over the horizon`), with its
+  group first when it isn't the default one (`acute: Target · target`).
+  The table's own tags come first, *on the table*: a group's algorithm
+  tag shown as `care: trained by XGBoost`. A table can hold several time
+  series, one per group of tags, each read by the API on its own and
+  trained by its own algorithm (DeepAR, or XGBoost). Each group has a
+  color, on its tags and its box (a dot and the border): the
+  default group first, then the others by name, take orange, blue and
+  aqua (`groupPalette`, checked with the dataviz skill's validator to
+  stay apart side by side on the dark surface, for color blindness too;
+  no fourth hue does with these three), and any past the third a neutral
+  gray. The status colors (green, amber, red) are never a group's. The
+  name is always on the chip and the box, so the color is never alone. A tagged table has
+  a badge, *time series: ready* or *needs work* for one group, *3 time
+  series: all ready* (or how many are) for several; under its name, even
+  closed, what trains each group, in the group's color (`care: XGBoost,
+  30D ahead`, `acute: DeepAR`); and a box per group named by its
+  algorithm (`DeepAR · acute`, `XGBoost · care`, the default's first)
+  with what its tags give the algorithm (`item_id = run_id +
+  hospital_id`; for XGBoost first what it scores, `scores stay_hours
+  summed over the next 30D, per run_id + person_id`), `freq`, `horizon`
+  (the trainer's choice for DeepAR when the table has none), a missing
+  row as 0 or unknown, whether it is ready, the API's problems and
+  **Edit**.
+  **Tag for training** on an untagged table, **Add a group** on a tagged
+  one, and **Edit** open `TimeSeriesDialog`: for a new group, its name
+  (`default` for a table's first, else empty to type; a name the table
+  has already is refused there, other names by the API), starting from
+  the first group's roles but its Target; for a group, the API's
+  reading of it. **Trained by** DeepAR or XGBoost, the group's (a new
+  one's starts from the group it copies, else DeepAR), named in the
+  title (`Tag public.patient_days for XGBoost: care`) and sent
+  explicitly, so the table carries its tag. One row per role (Timestamp,
+  Target, SeriesKey, StaticCategorical, StaticReal, KnownCovariate,
+  PastCovariate, with what it is to the algorithm picked and what it
+  means as a tooltip), each a chip per column, one column for Timestamp
+  and Target and any number for the others; the table's frequency
+  (typed, or 15min, 1h, 1D, 1W, 1MS), horizon (typed, or 24h, 7D, 30D,
+  90D; *required* for XGBoost) and whether a missing row counts as 0 or
+  is unknown, shared by its groups. **Save
+  tags** sends `PUT .../timeseries` with the group, its algorithm and
+  the horizon: a ready group closes
+  the dialog and the card reloads; otherwise the dialog stays with the
+  API's problems. **Remove group**, pressed twice, sends the group with
+  no roles, which takes it off the table. The tab only shows what the API
   answers: which columns fit a role, and whether the table is ready,
   are the API's to say. S3 and folder sources are listed as not read
   yet; with authentication on and nobody signed in, the tab says to sign
@@ -194,7 +227,15 @@ confirmation; the tabs stand in their order and the Catalog lists a
 folder source as not read yet; a database source's schema is read and
 its hourly table tagged for DeepAR, the dialog showing the API's problem
 until a target is picked, then sending the roles, frequency and missing
-rows; the tab the address names opens; and,
+rows in the default group; a tagged table gets a second group, named
+`acute`, from the default's roles but its target, a second group of the
+same name is refused, its box and tags take a color other than the
+default's, and removing it sends it with no roles; a group tagged for
+XGBoost with a 30D horizon sends both, and the table then says who
+trains it (closed and open, the algorithm's tag in the group's color),
+what it scores and each role in XGBoost's terms, and its Edit starts
+from XGBoost and the horizon; groups' colors go
+by name, the default first, gray past the third; the tab the address names opens; and,
 with a session store in memory, the audit is read back after a reload
 (a waiting call as never answered), a fresh token signs in without
 Google, an expired, foreign or malformed one is dropped, a refused one

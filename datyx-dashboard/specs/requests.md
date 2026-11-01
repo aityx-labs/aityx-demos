@@ -4,6 +4,53 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: the algorithm that trains each group, XGBoost or DeepAR
+
+Asked: score each patient's care in the next 30 days with XGBoost, the
+horizon a parameter, by tagging a group with the XGBoost algorithm in
+OpenMetadata (explicit for now) for a trainer to come; see in the
+catalog clearly that XGBoost will train on the given table.
+
+Changed: the API answers each group's `algorithm` and `horizon`, and a
+table's own tags (datyx's change, in its folder). The Catalog tab shows,
+under a table's name, what trains each group (`care: XGBoost, 30D
+ahead`), the table's tags (`care: trained by XGBoost`), each role in
+the terms of its group's algorithm, and boxes named by algorithm
+(`XGBoost · care`) saying what XGBoost scores and the horizon.
+**Tag for DeepAR** is **Tag for training**; the dialog picks the
+algorithm (DeepAR or XGBoost, sent explicitly) and the table's horizon
+(required for XGBoost). Tests; `dashboard.md`.
+
+## 2026-11-01: a color per group of tags
+
+Asked: give the groups of tags (each a time series here, but they could
+be for other algorithms) different colors; they were all orange.
+
+Changed: a group's tags and DeepAR box (a dot and its border) take its
+color: orange, blue and aqua for the default group and then the others
+by name (`groupColors`, `groupPalette`), a neutral gray past the third;
+the three were validated together on the dark surface with the dataviz
+skill, which no fourth hue passes beside them. The fake's catalogue
+carries its groups' tags; tests for the order and the colors shown.
+
+## 2026-11-01: groups of DeepAR tags in a table
+
+Asked: tag separate groups in the same table, to train on it more than
+once with partly the same columns (`admissions`, `acute_admissions` and
+`chronic_admissions` of `admissions_hourly` as three targets with one
+timestamp). The groups themselves are the API's
+([../../datyx/specs/catalog.md](../../datyx/specs/catalog.md)).
+
+Changed: the Catalog tab shows a DeepAR box per group with its own
+**Edit**, a badge counting the ready series, tags with their group
+(`acute: Target · target`), and **Add a group**; `TimeSeriesDialog` names
+a new group, starts it from the first group's roles but its Target,
+refuses a name the table has, and removes a group (**Remove group**,
+twice). The API client's `TimeSeriesSpec` and `TimeSeriesRoles` carry
+the `group`, and `TimeSeriesTag` reads a tag's group and role (it
+replaces `TimeSeriesRole.ofTag`). The fake keeps groups; a widget test
+adds, refuses and removes one.
+
 ## 2026-10-31: the catalogue and DeepAR tags on the Catalog tab
 
 Asked: see HealthHub's schema in the dashboard (in dev) and tag it for

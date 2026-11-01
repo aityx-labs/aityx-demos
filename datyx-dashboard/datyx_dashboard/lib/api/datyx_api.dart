@@ -285,6 +285,7 @@ class CatalogTable {
     this.columns = const [],
     this.primaryKey = const [],
     this.properties = const {},
+    this.tags = const [],
   });
 
   factory CatalogTable.fromJson(Map<String, Object?> json) => CatalogTable(
@@ -302,6 +303,7 @@ class CatalogTable {
         '$c',
     ],
     properties: (json['properties'] as Map?)?.cast<String, Object?>() ?? const {},
+    tags: [for (final t in (json['tags'] as List?) ?? const []) '$t'],
   );
 
   final String fqn;
@@ -312,6 +314,10 @@ class CatalogTable {
   final List<CatalogColumn> columns;
   final List<String> primaryKey;
   final Map<String, Object?> properties;
+
+  /// The table's own tags (a column's are its column's), among them the
+  /// algorithm that trains a group: `TimeSeries.care.XGBoost`.
+  final List<String> tags;
 
   String get qualifiedName => schema == null ? name : '$schema.$name';
 }
@@ -337,46 +343,100 @@ class CatalogColumn {
   final List<String> tags;
 }
 
+/// The group of the TimeSeries roles tagged without one (`TimeSeries.Target`).
+const defaultGroup = 'default';
+
+/// The algorithms that train a group, as the API names them: a group
+/// without an algorithm tag is DeepAR's.
+const deepArAlgorithm = 'DeepAR';
+const xgBoostAlgorithm = 'XGBoost';
+const algorithms = [deepArAlgorithm, xgBoostAlgorithm];
+
 /// The roles a column can have in a forecast, as the API names them: the
 /// tags of OpenMetadata's TimeSeries classification, the field each is in
-/// `PUT /api/datasources/{id}/timeseries`, and the DeepAR input it becomes.
+/// `PUT /api/datasources/{id}/timeseries`, the DeepAR input it becomes and
+/// what it is to XGBoost.
 enum TimeSeriesRole {
-  timestamp('Timestamp', 'timestamp', 'start', 'The time index: a date or timestamp, one per table'),
-  target('Target', 'target', 'target', 'The value to forecast: a number, one per table'),
-  seriesKey('SeriesKey', 'seriesKey', 'item_id', 'Which series a row belongs to; none: one series'),
-  staticCategorical('StaticCategorical', 'staticCategorical', 'feat_static_cat', 'A category that holds for a whole series'),
-  staticReal('StaticReal', 'staticReal', 'feat_static_real', 'A number that holds for a whole series'),
-  knownCovariate('KnownCovariate', 'knownCovariates', 'feat_dynamic_real', 'A number over time, known ahead for the hours to forecast'),
-  pastCovariate('PastCovariate', 'pastCovariates', 'past_feat_dynamic_real', 'A number over time, known only once observed');
+  timestamp('Timestamp', 'timestamp', 'start', 'cutoffs', 'The time index: a date or timestamp, one per table'),
+  target('Target', 'target', 'target', 'label: sum over the horizon', 'The value to forecast: a number, one per table'),
+  seriesKey('SeriesKey', 'seriesKey', 'item_id', 'one score each', 'Which series a row belongs to; none: one series'),
+  staticCategorical('StaticCategorical', 'staticCategorical', 'feat_static_cat', 'categorical feature', 'A category that holds for a whole series'),
+  staticReal('StaticReal', 'staticReal', 'feat_static_real', 'numeric feature', 'A number that holds for a whole series'),
+  knownCovariate('KnownCovariate', 'knownCovariates', 'feat_dynamic_real', 'features ahead', 'A number over time, known ahead for the hours to forecast'),
+  pastCovariate('PastCovariate', 'pastCovariates', 'past_feat_dynamic_real', 'features: past sums', 'A number over time, known only once observed');
 
-  const TimeSeriesRole(this.tag, this.field, this.deepAr, this.help);
+  const TimeSeriesRole(this.tag, this.field, this.deepAr, this.xgBoost, this.help);
   final String tag;
   final String field;
   final String deepAr;
+  final String xgBoost;
   final String help;
+
+  /// What the role becomes to [algorithm]: DeepAR's input, or its part in XGBoost's dataset.
+  String to(String algorithm) => algorithm == xgBoostAlgorithm ? xgBoost : deepAr;
 
   String get fqn => 'TimeSeries.$tag';
 
   /// One column at most: the others take several.
   bool get single => this == timestamp || this == target;
 
-  static TimeSeriesRole? ofTag(String fqn) {
+  static TimeSeriesRole? ofName(String tag) {
     for (final role in values) {
-      if (role.fqn == fqn) return role;
+      if (role.tag == tag) return role;
     }
     return null;
   }
 }
 
-/// A table read as a time series by the API: `GET .../timeseries`, and the
-/// answer of `PUT .../timeseries`. [ready] when there are no [problems].
+/// A column's TimeSeries tag, as a role in a group: `TimeSeries.Target` is
+/// the default group's Target, `TimeSeries.acute.Target` the acute group's.
+class TimeSeriesTag {
+  const TimeSeriesTag(this.group, this.role);
+
+  final String group;
+  final TimeSeriesRole role;
+
+  /// The tag an FQN names, or null for one that isn't a TimeSeries role.
+  static TimeSeriesTag? parse(String fqn) {
+    final parts = fqn.split('.');
+    if (parts.length < 2 || parts.length > 3 || parts.first != 'TimeSeries') return null;
+    final role = TimeSeriesRole.ofName(parts.last);
+    if (role == null) return null;
+    return TimeSeriesTag(parts.length == 2 ? defaultGroup : parts[1], role);
+  }
+}
+
+/// A table's tag naming the algorithm that trains a group:
+/// `TimeSeries.XGBoost` for the default group, `TimeSeries.care.XGBoost`
+/// for care.
+class AlgorithmTag {
+  const AlgorithmTag(this.group, this.algorithm);
+
+  final String group;
+  final String algorithm;
+
+  /// The tag an FQN names, or null for one that isn't a TimeSeries algorithm.
+  static AlgorithmTag? parse(String fqn) {
+    final parts = fqn.split('.');
+    if (parts.length < 2 || parts.length > 3 || parts.first != 'TimeSeries') return null;
+    if (!algorithms.contains(parts.last)) return null;
+    return AlgorithmTag(parts.length == 2 ? defaultGroup : parts[1], parts.last);
+  }
+}
+
+/// One group of a table read as a time series by the API:
+/// `GET .../timeseries`, and the answer of `PUT .../timeseries`. [ready]
+/// when there are no [problems].
 class TimeSeriesSpec {
   const TimeSeriesSpec({
     required this.table,
     required this.name,
+    this.group = defaultGroup,
+    this.algorithm = deepArAlgorithm,
     this.schema,
     this.columns = const {},
     this.frequency,
+    this.horizon,
     this.missing,
     this.ready = false,
     this.problems = const [],
@@ -390,11 +450,14 @@ class TimeSeriesSpec {
     return TimeSeriesSpec(
       table: json['table'] as String? ?? '',
       name: json['name'] as String? ?? '',
+      group: json['group'] as String? ?? defaultGroup,
+      algorithm: json['algorithm'] as String? ?? deepArAlgorithm,
       schema: json['schema'] as String?,
       columns: {
         for (final role in TimeSeriesRole.values) role: list(json[role.field]),
       },
       frequency: json['frequency'] as String?,
+      horizon: json['horizon'] as String?,
       missing: json['missing'] as String?,
       ready: json['ready'] as bool? ?? false,
       problems: list(json['problems']),
@@ -403,38 +466,61 @@ class TimeSeriesSpec {
 
   final String table;
   final String name;
+  final String group;
+
+  /// What trains the group: [deepArAlgorithm] (no tag, or its own) or [xgBoostAlgorithm].
+  final String algorithm;
   final String? schema;
   final Map<TimeSeriesRole, List<String>> columns;
   final String? frequency;
+
+  /// How far ahead the group predicts (the table's, as a pandas offset); required for XGBoost.
+  final String? horizon;
   final String? missing;
   final bool ready;
   final List<String> problems;
 
   List<String> of(TimeSeriesRole role) => columns[role] ?? const [];
+
+  String? get target => of(TimeSeriesRole.target).firstOrNull;
+  List<String> get seriesKey => of(TimeSeriesRole.seriesKey);
 }
 
-/// What `PUT /api/datasources/{id}/timeseries` takes: a table's roles, its
-/// frequency and what a missing row means.
+/// What `PUT /api/datasources/{id}/timeseries` takes: a group's roles in a
+/// table (no roles: the group is gone) and the algorithm that trains it,
+/// and the table's frequency, horizon and what a missing row means, which
+/// its groups share.
 class TimeSeriesRoles {
   const TimeSeriesRoles({
     required this.table,
+    this.group = defaultGroup,
+    this.algorithm,
     this.columns = const {},
     this.frequency,
+    this.horizon,
     this.missing,
   });
 
   final String table;
+  final String group;
+
+  /// [deepArAlgorithm] or [xgBoostAlgorithm]; null leaves the group untagged, DeepAR's.
+  final String? algorithm;
   final Map<TimeSeriesRole, List<String>> columns;
   final String? frequency;
+  final String? horizon;
   final String? missing;
 
   Map<String, Object?> toJson() => {
     'table': table,
+    'group': group,
     for (final role in TimeSeriesRole.values)
       role.field: role.single
           ? (columns[role]?.isNotEmpty ?? false ? columns[role]!.first : null)
           : columns[role] ?? const <String>[],
+    'algorithm': algorithm,
     'frequency': frequency,
+    'horizon': horizon,
     'missing': missing,
   };
 }

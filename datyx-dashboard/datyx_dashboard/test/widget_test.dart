@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:datyx_dashboard/api/datyx_api.dart';
 import 'package:datyx_dashboard/auth/auth_controller.dart';
+import 'package:datyx_dashboard/dashboard/catalog_tab.dart' show groupColors, groupPalette, otherGroupColor;
 import 'package:datyx_dashboard/dashboard/dashboard_screen.dart';
 import 'package:datyx_dashboard/main.dart';
 import 'package:datyx_dashboard/persist/session_store.dart';
@@ -78,6 +79,12 @@ class FakeDatyxApi implements DatyxApi {
   List<CatalogTable> catalogued = [];
   TimeSeriesRoles? lastRoles;
 
+  /// The groups tagged so far, by name; a group sent with no roles is gone.
+  final Map<String, TimeSeriesSpec> groups = {};
+
+  /// The table's custom properties, as the last roles set them.
+  Map<String, Object?> properties = {};
+
   static const hourly = CatalogTable(
     fqn: 'datyx-ds-1.healthhub.public.admissions_hourly',
     schema: 'public',
@@ -89,6 +96,7 @@ class FakeDatyxApi implements DatyxApi {
       CatalogColumn(name: 'hospital_id', dataType: 'INT'),
       CatalogColumn(name: 'hour_start', dataType: 'TIMESTAMP'),
       CatalogColumn(name: 'admissions', dataType: 'INT'),
+      CatalogColumn(name: 'acute_admissions', dataType: 'INT'),
     ],
   );
 
@@ -99,24 +107,67 @@ class FakeDatyxApi implements DatyxApi {
   }
 
   @override
-  Future<List<CatalogTable>> catalog(int sourceId) async => catalogued;
+  Future<List<CatalogTable>> catalog(int sourceId) async => [
+    for (final t in catalogued)
+      CatalogTable(
+        fqn: t.fqn,
+        schema: t.schema,
+        name: t.name,
+        type: t.type,
+        primaryKey: t.primaryKey,
+        properties: properties,
+        // Each group's algorithm as a tag on the table, as the API answers it.
+        tags: [
+          for (final g in groups.values)
+            g.group == defaultGroup ? 'TimeSeries.${g.algorithm}' : 'TimeSeries.${g.group}.${g.algorithm}',
+        ],
+        columns: [
+          // Each group's roles as OpenMetadata's tags, as the API answers them.
+          for (final c in t.columns)
+            CatalogColumn(
+              name: c.name,
+              dataType: c.dataType,
+              tags: [
+                for (final g in groups.values)
+                  for (final role in TimeSeriesRole.values)
+                    if (g.of(role).contains(c.name))
+                      g.group == defaultGroup ? 'TimeSeries.${role.tag}' : 'TimeSeries.${g.group}.${role.tag}',
+              ],
+            ),
+        ],
+      ),
+  ];
 
   @override
-  Future<List<TimeSeriesSpec>> timeSeries(int sourceId) async => const [];
+  Future<List<TimeSeriesSpec>> timeSeries(int sourceId) async => groups.values.toList();
 
   @override
   Future<TimeSeriesSpec> setTimeSeries(int sourceId, TimeSeriesRoles roles) async {
     lastRoles = roles;
+    properties = {
+      'timeSeriesFrequency': ?roles.frequency,
+      'timeSeriesHorizon': ?roles.horizon,
+      'timeSeriesMissing': ?roles.missing,
+    };
     final ready = roles.columns[TimeSeriesRole.target]?.isNotEmpty ?? false;
-    return TimeSeriesSpec(
+    final spec = TimeSeriesSpec(
       table: roles.table,
       name: 'admissions_hourly',
-      columns: roles.columns,
+      group: roles.group,
+      algorithm: roles.algorithm ?? deepArAlgorithm,
+      columns: {for (final e in roles.columns.entries) e.key: List.of(e.value)},
       frequency: roles.frequency,
+      horizon: roles.horizon,
       missing: roles.missing,
       ready: ready,
       problems: ready ? const [] : const ['no column is tagged TimeSeries.Target, the value to forecast'],
     );
+    if (roles.columns.values.every((c) => c.isEmpty)) {
+      groups.remove(roles.group);
+    } else {
+      groups[roles.group] = spec;
+    }
+    return spec;
   }
 
   @override
@@ -305,7 +356,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('hour_start'), findsOneWidget);
 
-    await tester.tap(find.text('Tag for DeepAR'));
+    await tester.tap(find.text('Tag for training'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('Timestamp-hour_start')));
     await tester.tap(find.byKey(const ValueKey('SeriesKey-run_id')));
@@ -330,6 +381,165 @@ void main() {
     expect(sent['seriesKey'], ['run_id', 'hospital_id']);
     expect(sent['frequency'], '1h');
     expect(sent['missing'], 'zero');
+    expect(sent['group'], 'default');
+    expect(sent['algorithm'], 'DeepAR', reason: 'DeepAR unless XGBoost is picked, said explicitly');
+    expect(sent['horizon'], isNull);
+    expect(find.text('DeepAR · default'), findsOneWidget);
+    expect(find.text('default: DeepAR'), findsOneWidget);
+    expect(find.text('time series: ready'), findsOneWidget);
+  });
+
+  testWidgets('tags a group for XGBoost, with its horizon, and shows what XGBoost makes of it', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeDatyxApi();
+    await api.addDataSource(
+      const NewDataSource(
+        name: 'HealthHub',
+        type: DataSourceType.database,
+        details: {'engine': 'postgresql', 'host': 'localhost', 'port': 9803, 'database': 'healthhub'},
+      ),
+    );
+    await api.syncCatalog(1);
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tab-catalog')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('public.admissions_hourly'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Tag for training'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('group')), 'care');
+    await tester.tap(find.text('XGBoost'));
+    await tester.pump();
+    expect(find.text('Tag public.admissions_hourly for XGBoost'), findsOneWidget);
+    expect(find.text('Horizon (required)'), findsOneWidget);
+    expect(find.text('label: sum over the horizon, one'), findsOneWidget, reason: 'the roles in XGBoost\'s terms');
+    await tester.tap(find.byKey(const ValueKey('Timestamp-hour_start')));
+    await tester.tap(find.byKey(const ValueKey('Target-admissions')));
+    await tester.tap(find.byKey(const ValueKey('SeriesKey-run_id')));
+    await tester.tap(find.byKey(const ValueKey('SeriesKey-hospital_id')));
+    await tester.tap(find.byKey(const ValueKey('frequency-1h')));
+    await tester.tap(find.byKey(const ValueKey('horizon-30D')));
+    await tester.tap(find.text('counts as 0'));
+    await tester.pump();
+    await tester.tap(find.text('Save tags'));
+    await tester.pumpAndSettle();
+
+    final sent = api.lastRoles!.toJson();
+    expect(sent['group'], 'care');
+    expect(sent['algorithm'], 'XGBoost');
+    expect(sent['horizon'], '30D');
+    expect(sent['target'], 'admissions');
+    // The table says who trains the group, collapsed and open.
+    expect(find.text('care: XGBoost, 30D ahead'), findsOneWidget);
+    expect(find.text('care: trained by XGBoost'), findsOneWidget);
+    expect(find.text('XGBoost · care'), findsOneWidget);
+    expect(find.text('scores admissions summed over the next 30D, per run_id + hospital_id'), findsOneWidget);
+    expect(find.text('label: sum over the horizon = admissions'), findsOneWidget);
+    expect(find.text('horizon = 30D'), findsOneWidget);
+    expect(find.text('care: Target · label: sum over the horizon'), findsOneWidget);
+    Color chip(Key key) => (tester.widget<Container>(find.byKey(key)).decoration! as BoxDecoration).border!.top.color;
+    expect(chip(const ValueKey('algorithm-tag-care')), chip(const ValueKey('tag-care-Target')),
+        reason: 'the algorithm in its group\'s color');
+
+    // Editing it starts from XGBoost and the table's horizon.
+    await tester.tap(find.byKey(const ValueKey('edit-group-datyx-ds-1.healthhub.public.admissions_hourly-care')));
+    await tester.pumpAndSettle();
+    expect(find.text('Tag public.admissions_hourly for XGBoost: care'), findsOneWidget);
+    expect(tester.widget<TextField>(find.byKey(const ValueKey('horizon'))).controller!.text, '30D');
+  });
+
+  testWidgets('adds a group of tags to a tagged table, and removes it', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeDatyxApi();
+    await api.addDataSource(
+      const NewDataSource(
+        name: 'HealthHub',
+        type: DataSourceType.database,
+        details: {'engine': 'postgresql', 'host': 'localhost', 'port': 9803, 'database': 'healthhub'},
+      ),
+    );
+    await api.syncCatalog(1);
+    await api.setTimeSeries(
+      1,
+      const TimeSeriesRoles(
+        table: 'datyx-ds-1.healthhub.public.admissions_hourly',
+        columns: {
+          TimeSeriesRole.timestamp: ['hour_start'],
+          TimeSeriesRole.target: ['admissions'],
+          TimeSeriesRole.seriesKey: ['run_id', 'hospital_id'],
+        },
+        frequency: '1h',
+        missing: 'zero',
+      ),
+    );
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tab-catalog')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('public.admissions_hourly'));
+    await tester.pumpAndSettle();
+
+    // A new group starts from the default's roles but its target.
+    await tester.tap(find.text('Add a group'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('group')), 'acute');
+    await tester.tap(find.byKey(const ValueKey('Target-acute_admissions')));
+    await tester.pump();
+    await tester.tap(find.text('Save tags'));
+    await tester.pumpAndSettle();
+    final sent = api.lastRoles!.toJson();
+    expect(sent['group'], 'acute');
+    expect(sent['timestamp'], 'hour_start');
+    expect(sent['target'], 'acute_admissions');
+    expect(sent['seriesKey'], ['run_id', 'hospital_id']);
+    expect(find.text('DeepAR · default'), findsOneWidget);
+    expect(find.text('DeepAR · acute'), findsOneWidget);
+    expect(find.text('2 time series: all ready'), findsOneWidget);
+    // Each group has a color of its own, on its box and on its tags.
+    Color dot(String group) =>
+        (tester.widget<Container>(find.byKey(ValueKey('group-color-$group'))).decoration! as BoxDecoration).color!;
+    Color chip(String group, String role) =>
+        (tester.widget<Container>(find.byKey(ValueKey('tag-$group-$role'))).decoration! as BoxDecoration).border!.top.color;
+    expect(dot('default'), groupPalette[0]);
+    expect(dot('acute'), groupPalette[1]);
+    expect(chip('default', 'Target'), groupPalette[0]);
+    expect(chip('acute', 'Target'), groupPalette[1]);
+
+    // A group's name is taken once.
+    await tester.tap(find.text('Add a group'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('group')), 'acute');
+    await tester.tap(find.text('Save tags'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('has a group named acute already'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Removing sends the group with no roles, after a second press.
+    await tester.tap(find.byKey(const ValueKey('edit-group-datyx-ds-1.healthhub.public.admissions_hourly-acute')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('group')), findsNothing);
+    await tester.tap(find.text('Remove group'));
+    await tester.pump();
+    await tester.tap(find.text('Remove its tags: sure?'));
+    await tester.pumpAndSettle();
+    expect(api.lastRoles!.group, 'acute');
+    expect(api.lastRoles!.columns, isEmpty);
+    expect(find.text('DeepAR · acute'), findsNothing);
+    expect(find.text('time series: ready'), findsOneWidget);
+  });
+
+  test('colors groups by name, the default first, gray past the palette', () {
+    final colors = groupColors(['zeta', 'chronic', 'default', 'acute', 'chronic']);
+    expect(colors.keys, ['default', 'acute', 'chronic', 'zeta']);
+    expect(colors.values, [...groupPalette, otherGroupColor]);
+    expect(groupColors(['chronic', 'acute']).values, groupPalette.take(2));
   });
 
   testWidgets('opens the tab the address names', (tester) async {

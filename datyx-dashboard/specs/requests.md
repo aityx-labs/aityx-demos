@@ -87,6 +87,18 @@ every 15 seconds, and the log keeps the latest 100 (`CallLog.keep`)
 across reloads, so it soon read 100 and stayed there. The panel still
 says how many it keeps. The widget test no longer looks for the count.
 
+## 2026-11-01: links on the Health tab
+
+Asked: make OpenMetadata's address on the Health tab clickable, and the
+dashboard's, and the API's health check.
+
+Changed: the API, OpenMetadata and Dashboard cards end with a link that
+opens in a new tab (`StatusCard.link`): `/api/health` where the app
+calls the API (`apiAddress`), the URL OpenMetadata's check reports, and
+this page (`Address.page`). `Address.open` opens it (`window.open`,
+`noopener`; off the web it records the link, for tests). A widget test
+taps the three.
+
 ## 2026-10-31: the catalogue and DeepAR tags on the Catalog tab
 
 Asked: see HealthHub's schema in the dashboard (in dev) and tag it for

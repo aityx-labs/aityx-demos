@@ -134,7 +134,12 @@ reload).
   id, from `GET /api/me`), and Dashboard: this build's version, when built by the scripts
   (`dash 0.1.202610291200`; a bare `flutter run` or a test has none), and
   how often it asks the API. A green dot when the part is ok, red
-  otherwise, and the same red line when the API didn't answer.
+  otherwise, and the same red line when the API didn't answer. Three
+  cards end with a link, opened in a new tab (`noopener`): the API's, its
+  health check (`/api/health` where the app calls the API: its own
+  origin, or `API_BASE_URL`); OpenMetadata's, the URL its check reports
+  (the API's view of it, so behind Docker Compose it may be a name only
+  the API resolves); the Dashboard's, this page without its query.
 
 - **Profile** (`ProfileTab`): the caller's profile from
   `GET /api/profile`, which the API makes the first time an identity

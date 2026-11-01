@@ -198,6 +198,7 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
               ),
               const SizedBox(height: 8),
               _Key(
+                now: history.current,
                 predicted: steps.isNotEmpty || predictedBefore,
                 capacity: widget.capacity,
                 unit: widget.unit,
@@ -253,6 +254,15 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
   }
 }
 
+/// Where the label of the first crossing ahead goes, its top: [gap] above
+/// the ring of radius [ring] around the point at [pointY] when the [pill]
+/// fits there under the now label (whose bottom is [under]), else [gap]
+/// below the ring. Never over the point.
+double crossingLabelTop({required double pointY, required double ring, required double pill, double under = 22, double gap = 3}) {
+  final above = pointY - ring - gap - pill;
+  return above >= under ? above : pointY + ring + gap;
+}
+
 /// The first of [steps] whose mean reaches [limit] (expected), else whose
 /// 90th percentile does (not expected: possible); null when none does.
 ({DateTime at, bool expected, int index})? firstCrossing(List<ForecastStep> steps, double limit) {
@@ -267,7 +277,10 @@ class _OccupancyTimelineCardState extends State<OccupancyTimelineCard> {
 
 /// The key under the chart: what the lines and the marks are.
 class _Key extends StatelessWidget {
-  const _Key({required this.predicted, required this.capacity, required this.unit, required this.threshold});
+  const _Key({required this.now, required this.predicted, required this.capacity, required this.unit, required this.threshold});
+
+  /// Whether the run is going on, and so has a now line.
+  final bool now;
 
   final bool predicted;
   final int capacity;
@@ -293,7 +306,7 @@ class _Key extends StatelessWidget {
         entry(_KeyKind.history, 'In care (observed)'),
         if (predicted)
           entry(_KeyKind.forecast, 'Predicted by DeepAR before each hour and ahead (mean; the band, 10th to 90th percentile)'),
-        entry(_KeyKind.now, 'Now'),
+        if (now) entry(_KeyKind.now, 'Now'),
         if (capacity > 0) entry(_KeyKind.capacity, 'Capacity, $capacity $unit'),
         if (capacity > 0) ...[
           entry(_KeyKind.threshold, 'Alarm threshold, ${percentText(threshold)} (${_n(limit)})'),
@@ -438,12 +451,14 @@ typedef _Slot = ({DateTime at, int? occupancy, double? mean, double? p10, double
 /// per hour; what datyx predicted of every hour, a dashed line with hollow
 /// points in its band, over the hours observed (each hour's prediction
 /// made before it) and the [forecast] after them; a vertical line at
-/// [now] labelled with the simulated time (the last hour without it); the
+/// [now] labelled with the simulated time (none for a run that has ended,
+/// [now] null); the
 /// [capacity] when known, a faint line, and the alarm [threshold] of it a
 /// red one, labelled; every point at or above it marked in red (filled
 /// when observed, hollow when predicted), and the first hour ahead the
 /// forecast reaches it highlighted and labelled ("90% expected at Jan 19
-/// 16:00"). Hovering, or touching, shows the hour's numbers.
+/// 16:00", beside the point, never over it). Hovering, or touching, shows
+/// the hour's numbers.
 class OccupancyTimelineChart extends StatefulWidget {
   const OccupancyTimelineChart({
     super.key,
@@ -551,8 +566,10 @@ class _OccupancyTimelineChartState extends State<OccupancyTimelineChart> {
 /// Where everything goes: an hour per slot on x from the first hour
 /// observed to the forecast's last (the forecast placed by its hours, so a
 /// forecast asked a moment before starts inside the hours shown, and its
-/// steps there are left out), people on y from 0 to a whole number above
-/// the most, or the capacity.
+/// steps there are left out; one asked a moment after, of a series an hour
+/// or more longer, starts after them, and the hours between are slots
+/// without a mean), people on y from 0 to a whole number above the most,
+/// or the capacity.
 class _Geometry {
   _Geometry(List<HourOccupancy> hours, List<ForecastStep> forecast, this.capacity, this.threshold, this.now)
     : hoursObserved = hours.length,
@@ -566,8 +583,10 @@ class _Geometry {
     crossing = limit == null
         ? null
         : firstCrossing([
+            // An hour ahead the forecast has no step of (it starts after the hours shown) is left out.
             for (final s in slots)
-              if (s.ahead) ForecastStep(at: s.at, mean: s.mean!, p10: s.p10 ?? 0, p50: s.mean!, p90: s.p90 ?? s.mean!),
+              if (s.ahead && s.mean != null)
+                ForecastStep(at: s.at, mean: s.mean!, p10: s.p10 ?? 0, p50: s.mean!, p90: s.p90 ?? s.mean!),
           ], limit!);
   }
 
@@ -604,7 +623,8 @@ class _Geometry {
   /// The threshold in people, without a capacity none.
   final double? limit;
 
-  /// The simulated clock; the last hour observed without one.
+  /// The simulated clock of the run going on; null for a run that has
+  /// ended, which has no now line.
   final DateTime? now;
 
   /// The top of the y axis.
@@ -634,7 +654,8 @@ class _Geometry {
     return (clock.difference(slots.first.at).inMinutes / 60).clamp(last, (count - 1).toDouble());
   }
 
-  /// The moment the now line stands for.
+  /// The moment the now line stands for; the last hour observed for a run
+  /// that has ended.
   DateTime get nowAt => now ?? slots[hoursObserved - 1].at;
 
   /// The points' radius: smaller when the hours are close together.
@@ -661,7 +682,8 @@ class _Geometry {
     final mean = ahead.isEmpty ? 0.0 : ahead.fold<double>(0, (sum, s) => sum + s.mean!) / ahead.length;
     final predicted = observed.where((s) => s.mean != null).length;
     final cross = crossing;
-    return 'Occupancy per hour: $now in care now (${simDateTime(nowAt)}), at most $peak in the last $hoursObserved hours'
+    final when = this.now == null ? 'at the end' : 'now';
+    return 'Occupancy per hour: $now in care $when (${simDateTime(nowAt)}), at most $peak in the last $hoursObserved hours'
         '${capacity > 0 ? ', of a capacity of $capacity' : ''}'
         '${predicted == 0 ? '' : '; $predicted of them predicted before'}'
         '${ahead.isEmpty ? '' : '; ${expectedText(mean)} on average forecast over the next ${ahead.length}'}'
@@ -753,9 +775,20 @@ class _TimelinePainter extends CustomPainter {
       runs.last.add(i);
     }
     Offset meanAt(int i) => Offset(g.x(i, size), g.y(g.slots[i].mean!, size));
+    // The first run ahead goes on from the last hour observed, across the
+    // hours the forecast has no step of when it starts later.
+    List<int>? firstAhead;
     for (final run in runs) {
-      final lead = run.first == last + 1 && g.slots[last].mean == null
-          ? Offset(g.x(last, size), g.y(g.slots[last].occupancy!.toDouble(), size))
+      if (run.first > last) {
+        firstAhead = run;
+        break;
+      }
+    }
+    for (final run in runs) {
+      final lead = identical(run, firstAhead)
+          ? (g.slots[last].mean != null
+              ? meanAt(last)
+              : Offset(g.x(last, size), g.y(g.slots[last].occupancy!.toDouble(), size)))
           : null;
       final band = Path();
       if (lead != null) band.moveTo(lead.dx, lead.dy);
@@ -812,10 +845,13 @@ class _TimelinePainter extends CustomPainter {
       }
     }
 
-    // Now: a solid vertical line, labelled with the simulated time at its top.
-    final nowX = g.x(g.nowIndex, size);
-    canvas.drawLine(Offset(nowX, _Geometry.topPad - 4), Offset(nowX, plotBottom), _nowPaint);
-    _pill(canvas, 'Now ${simDayTime(g.nowAt)}', Offset(nowX, 2), size, Aityx.fg, Aityx.bg2);
+    // Now: a solid vertical line, labelled with the simulated time at its
+    // top; none for a run that has ended (the card's header says when).
+    if (g.now != null) {
+      final nowX = g.x(g.nowIndex, size);
+      canvas.drawLine(Offset(nowX, _Geometry.topPad - 4), Offset(nowX, plotBottom), _nowPaint);
+      _pill(canvas, 'Now ${simDayTime(g.nowAt)}', Offset(nowX, 2), size, Aityx.fg, Aityx.bg2);
+    }
 
     // The first hour ahead the forecast reaches the threshold: ringed and labelled.
     final cross = g.crossing;
@@ -825,25 +861,20 @@ class _TimelinePainter extends CustomPainter {
         final s = g.slots[i];
         final at = Offset(g.x(i, size), g.y(cross.expected ? s.mean! : s.p90!, size));
         final color = cross.expected ? Aityx.red : Aityx.amber;
+        final text = '${percentText(g.threshold)} ${cross.expected ? 'expected' : 'possible'} at ${simDayTime(cross.at)}';
+        // Just above the ring when there's room under the now label, else
+        // just below it: never over the point it highlights. The ring last.
+        final ring = r + 7;
+        final top = crossingLabelTop(pointY: at.dy, ring: ring, pill: _pillHeight(text));
+        _pill(canvas, text, Offset(at.dx, top), size, Aityx.fg0, color.withValues(alpha: 0.9));
         canvas.drawCircle(
           at,
-          r + 7,
+          ring,
           Paint()
             ..color = color
             ..strokeWidth = 2
             ..style = PaintingStyle.stroke,
         );
-        final text = '${percentText(g.threshold)} ${cross.expected ? 'expected' : 'possible'} at ${simDayTime(cross.at)}';
-        // At the top of the plot, under the now label, joined to the point by a thin line.
-        const labelY = _Geometry.topPad + 2;
-        canvas.drawLine(
-          Offset(at.dx, labelY + 14),
-          Offset(at.dx, at.dy - r - 7),
-          Paint()
-            ..color = color
-            ..strokeWidth = 1,
-        );
-        _pill(canvas, text, Offset(at.dx, labelY), size, Aityx.fg0, color.withValues(alpha: 0.9));
       }
     }
 
@@ -865,11 +896,17 @@ class _TimelinePainter extends CustomPainter {
     }
   }
 
+  static const _pillStyle = TextStyle(fontSize: 11, fontWeight: FontWeight.w700);
+
+  /// The height of [text]'s pill.
+  static double _pillHeight(String text) =>
+      (TextPainter(text: TextSpan(text: text, style: _pillStyle), textDirection: TextDirection.ltr)..layout()).height + 4;
+
   /// [text] in a small pill centred on [at]'s x from its y, kept inside
   /// the chart.
   void _pill(Canvas canvas, String text, Offset at, Size size, Color ink, Color fill) {
     final painter = TextPainter(
-      text: TextSpan(text: text, style: TextStyle(color: ink, fontSize: 11, fontWeight: FontWeight.w700)),
+      text: TextSpan(text: text, style: _pillStyle.copyWith(color: ink)),
       textDirection: TextDirection.ltr,
     )..layout();
     final width = painter.width + 10;

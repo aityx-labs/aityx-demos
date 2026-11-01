@@ -73,8 +73,9 @@ A check reads the run's care centers from the database (those with an
 admission in it, by the run of the admission's event id, as
 `occupancy_hourly` reads it, with their names, kinds and seed keys from
 `care_centers`) and their occupancy at the run's latest hour
-(`occupancy_hourly`; a failure there is logged and leaves the actual
-level out of that check), then asks datyx for each by name, as the occupancy
+(`occupancy_hourly`; a failure there is logged and is no reading: an
+`actual` alarm is kept as it is, marked `stale`, never lowered by it, and
+no new `actual` level is read in that check), then asks datyx for each by name, as the occupancy
 forecast asks (`_inference`, with the caller's datyx source for
 HealthHub's database): `POST /api/datasources/{id}/inference` with
 `{"table": "public.occupancy_hourly", "group": "default", "algorithm":
@@ -89,9 +90,11 @@ and is never cleared that way; it can only rise to `actual`. When datyx
 refuses (no model of the group yet: 404) or doesn't answer, the
 forecast's alarms stay as they were, the answer says why (`note`), and
 they are `stale`, while the occupancy observed is read as ever: an
-`actual` alarm is raised, kept or (once the occupancy falls, with a
-forecast to say what level then) lowered whatever datyx says, and is
-`stale` only when no check has read the occupancy for a while. When a
+`actual` alarm is raised, kept or lowered whatever datyx says. Once the
+occupancy read is below the threshold, it falls after the usual three
+checks in a row lower, to the level a forecast of it then says, or to
+none (`cleared`) without one; it is `stale` only when no check has read
+the occupancy for a while. When a
 later call of a check fails, the earlier calls' care centers are read
 and the rest kept. datyx takes a few seconds a call (7 s for 33 care
 centers on the development machine), under a simulated hour at the
@@ -403,9 +406,11 @@ latest hour, as the actual level reads it.
   counts the lead from its clock, so it says so).
 - A fall waits three checks (15 s or more, a simulated hour and a half
   or more): a cleared alarm stays up that long.
-- Without a forecast of a care center, its alarm can rise to `actual`
-  but not fall: an `actual` alarm whose occupancy has fallen waits, stale,
-  for a forecast to say its level.
+- Without a forecast of a care center, its alarm can rise to `actual`,
+  and an `actual` one falls to none once the occupancy is below the
+  threshold for three checks: a forecast coming later raises its level
+  again (an `alarm` event), where a forecast all along would have
+  downgraded it.
 - The datyx source is the first that answered since the API started:
   checks set off by a user whose datyx sees another source are ignored,
   and if that source is replaced, a restart is needed.

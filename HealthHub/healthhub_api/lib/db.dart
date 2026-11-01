@@ -13,7 +13,7 @@ import 'care_centers_seed.dart';
 import 'conditions.dart';
 import 'conditions_seed.dart';
 import 'occupancy_alarms.dart' show AlarmCareCenter, ObservedOccupancy, forecastSteps;
-import 'routes.dart' show Bbox;
+import 'routes.dart' show Bbox, hourlyMax;
 import 'schema_comments.dart';
 import 'simulation.dart' show LatLon, Place;
 
@@ -1278,7 +1278,9 @@ class Db {
   /// steps from its series' end, `{"at", "mean", "p10", "p90"}`) say of
   /// each hour in occupancy_forecast, one row per care center and hour: a
   /// forecast from a later series' end (made closer to the hour) replaces
-  /// one from an earlier one, never the other way round. One statement,
+  /// one from an earlier one, never the other way round; one from the same
+  /// end replaces it only when its numbers differ (a model retrained), so
+  /// the same forecast asked again writes nothing. One statement,
   /// the rows a JSON parameter. Throws when the database doesn't answer.
   Future<void> recordForecasts(
     String run,
@@ -1342,7 +1344,36 @@ class Db {
       series_end = EXCLUDED.series_end, lead_hours = EXCLUDED.lead_hours, mean = EXCLUDED.mean,
       p10 = EXCLUDED.p10, p90 = EXCLUDED.p90, training_run = EXCLUDED.training_run,
       forecast_at = EXCLUDED.forecast_at
-    WHERE occupancy_forecast.series_end <= EXCLUDED.series_end
+    WHERE occupancy_forecast.series_end < EXCLUDED.series_end
+      OR (occupancy_forecast.series_end = EXCLUDED.series_end
+        AND (occupancy_forecast.mean, occupancy_forecast.p10, occupancy_forecast.p90, occupancy_forecast.training_run)
+          IS DISTINCT FROM (EXCLUDED.mean, EXCLUDED.p10, EXCLUDED.p90, EXCLUDED.training_run))
+  ''';
+
+  /// Deletes what occupancy_forecast keeps of all but the [keepRuns] runs
+  /// forecast last, and of those the hours more than [keepHours] before
+  /// the run's latest hour forecast (the care center view reads [hourlyMax]
+  /// hours back at most, a day more is kept). Returns the rows deleted. Throws when the database
+  /// doesn't answer.
+  Future<int> pruneForecasts({int keepRuns = 3, int keepHours = hourlyMax + 24}) => _run((c) async {
+    final result = await c.execute(
+      Sql.named(pruneForecastsSql),
+      parameters: {'keepRuns': TypedValue(Type.integer, keepRuns), 'keepHours': TypedValue(Type.integer, keepHours)},
+    );
+    return result.affectedRows;
+  });
+
+  /// The statement [pruneForecasts] runs: every value a parameter.
+  static const pruneForecastsSql = '''
+    WITH runs AS (
+      SELECT run_id, max(forecast_at) AS forecast_at, max(hour_start) AS last FROM occupancy_forecast GROUP BY run_id
+    ), kept AS (
+      SELECT run_id, last FROM runs ORDER BY forecast_at DESC LIMIT @keepRuns
+    )
+    DELETE FROM occupancy_forecast f
+    WHERE NOT EXISTS (
+      SELECT 1 FROM kept k WHERE k.run_id = f.run_id AND f.hour_start >= k.last - make_interval(hours => @keepHours)
+    )
   ''';
 
   /// What datyx predicted of one care center's occupancy in [run], hour by

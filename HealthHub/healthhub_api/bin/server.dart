@@ -262,18 +262,32 @@ class _Live {
   Future<void> _forecastWrites = Future.value();
   int _forecastsWaiting = 0;
 
+  /// The run the last write was of, and the writes since the last prune.
+  String? _forecastRun;
+  int _forecastsSincePrune = 0;
+
   /// Keeps what datyx forecast of [run]'s care centers ([Db.recordForecasts])
   /// in the background, one write at a time; with too many waiting (the
   /// database slow) this one is dropped, as the next check's forecast says
-  /// it again. A failure is logged.
+  /// it again. Before the first write of a run (a new run, or after a
+  /// restart), and every 500 writes (an hour or so of checks), what is
+  /// kept of older runs and hours is pruned ([Db.pruneForecasts]). A
+  /// failure is logged.
   void keepForecasts(Db db, String run, Map<int, List<Object?>> forecasts, Object? trainingRun) {
     if (_forecastsWaiting >= 4) {
       stderr.writeln('occupancy forecasts: ${forecasts.length} care centers not kept, too many writes waiting');
       return;
     }
     _forecastsWaiting++;
+    final prune = run != _forecastRun || ++_forecastsSincePrune >= 500;
+    if (prune) _forecastsSincePrune = 0;
+    _forecastRun = run;
     _forecastWrites = _forecastWrites.then((_) async {
       try {
+        if (prune) {
+          final deleted = await db.pruneForecasts();
+          if (deleted > 0) stderr.writeln('occupancy forecasts: $deleted rows of older runs and hours pruned');
+        }
         await db.recordForecasts(run, forecasts, trainingRun: trainingRun);
       } catch (error) {
         stderr.writeln('occupancy forecasts: $error');
@@ -922,9 +936,10 @@ Future<({String? run, DateTime? end, List<Map<String, Object?>> rows})> _read(
 /// datyx's DeepAR forecast of one care center's [series] per hour in [run]
 /// (the newest run with its admissions when null), asked with the user's
 /// own [token], as [_prediction] asks: from the end of the care center's
-/// series of the series' table, group default. An occupancy forecast from
-/// the datyx source the alarms read is kept (occupancy_forecast), as the
-/// alarms' checks keep theirs.
+/// series of the series' table, group default. An occupancy forecast of
+/// the run going on, from the datyx source the alarms' checks settled on,
+/// is kept (occupancy_forecast), as the checks keep theirs; none before a
+/// check has, or with the alarms off.
 Future<Forwarded?> _forecast(
   Uri datyx,
   String? token,
@@ -946,7 +961,8 @@ Future<Forwarded?> _forecast(
   final answer = await _inference(datyx, token, db, series.table, series.group, [{'run_id': chosen, 'hospital_id': '$id'}]);
   final body = answer?.body;
   if (series == CareCenterSeries.occupancy && answer?.status == 200 && body is Map && live.dev) {
-    final accepted = live.alarms?.acceptsSource(body['sourceId']) ?? true;
+    // Only from the source the alarms settled on, of the run going on: nothing kept before, or with the alarms off.
+    final accepted = live.alarms?.keepsForecastOf(chosen, body['sourceId']) ?? false;
     final predictions = body['predictions'];
     final first = predictions is List && predictions.isNotEmpty && predictions.first is Map ? predictions.first as Map : null;
     final forecast = first?['forecast'];

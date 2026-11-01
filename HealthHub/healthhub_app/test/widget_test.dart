@@ -485,6 +485,9 @@ class FakeApi implements HealthHubApi {
 
   /// The care centers whose people in care per hour, and whose forecast, were asked for.
   final hourlyAsked = <(int, String?, int?)>[];
+
+  /// Whether the occupancy's run is going on; when not, it ended at day 19, 12:00.
+  bool occupancyCurrent = true;
   final forecastAsked = <(int, String?)>[];
 
   /// Care centers 1 and 2 had 0, 1, 3, 2, 2 and 1 people in care from 07:00 to 12:00 of day 19, run 1349d576
@@ -499,7 +502,7 @@ class FakeApi implements HealthHubApi {
     return HourlyOccupancy.fromJson({
       'hospitalId': id,
       'run': '1349d576',
-      'current': true,
+      'current': occupancyCurrent,
       'end': '2026-01-19T12:00',
       'threshold': 0.9,
       'now': {'day': 19, 'simTime': '12:40', 'date': '2026-01-19'},
@@ -1656,9 +1659,9 @@ void main() {
         theme: aityxDarkTheme(),
         home: Scaffold(body: SizedBox(width: 600, child: OccupancyTimelineChart(hours: hours, capacity: 10, unit: 'beds'))),
       ));
-      // Without a clock, now is the last hour; without a forecast the predicted past still shows, and its marks.
+      // Without a clock (a run that has ended), no now: the last hour; without a forecast the predicted past still shows, and its marks.
       expect(
-        find.bySemanticsLabel(RegExp(r'^Occupancy per hour: 9 in care now \(Jan 19, 2026 12:00\).*; 3 of them predicted before; '
+        find.bySemanticsLabel(RegExp(r'^Occupancy per hour: 9 in care at the end \(Jan 19, 2026 12:00\).*; 3 of them predicted before; '
             r'alarm threshold 90%, 9: 6 hours in care and 3 predicted at or above it$')),
         findsOneWidget,
       );
@@ -1673,6 +1676,62 @@ void main() {
       ));
       expect(find.bySemanticsLabel(RegExp(r'9 in care now \(Jan 19, 2026 12:30\).*alarm threshold 95%, 9\.5: 0 hours in care and 3 predicted')), findsOneWidget);
       semantics.dispose();
+    });
+
+    testWidgets('a run that has ended: its end in the header, no now line and no "Now" in the key', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final api = FakeApi()..occupancyCurrent = false;
+      await tester.pumpWidget(card(api, 2));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(find.byKey(const Key('occupancy-now'))).data, 'Ended Jan 19, 2026 12:00');
+      expect(find.text('Now'), findsNothing);
+      expect(find.text('In care (observed)'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp(r'^Occupancy per hour: 1 in care at the end \(Jan 19, 2026 12:00\)')), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('a forecast starting hours after the last hour observed is drawn from its first step, without failing', (tester) async {
+      final semantics = tester.ensureSemantics();
+      // Observed 07:00 to 12:00; datyx read a longer series, so its first step is 14:00, the third reaching 90% of 8.
+      final hours = [for (var h = 7; h <= 12; h++) HourOccupancy(hour: DateTime.utc(2026, 1, 19, h), occupancy: 3)];
+      final steps = [
+        for (final (h, mean) in [(14, 4.0), (15, 6.0), (16, 7.5)])
+          ForecastStep(at: DateTime.utc(2026, 1, 19, h), mean: mean, p10: mean - 1, p50: mean, p90: mean + 1),
+      ];
+      await tester.pumpWidget(MaterialApp(
+        theme: aityxDarkTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 600,
+            child: OccupancyTimelineChart(hours: hours, forecast: steps, capacity: 8, unit: 'beds', now: DateTime.utc(2026, 1, 19, 12, 40)),
+          ),
+        ),
+      ));
+      expect(tester.takeException(), isNull);
+      expect(
+        find.bySemanticsLabel(RegExp(r'5\.8 on average forecast over the next 3; .*; 90% expected at Jan 19, 2026 16:00$')),
+        findsOneWidget,
+      );
+      // The hour between, 13:00, has a slot and no forecast.
+      final chart = tester.getRect(find.byType(OccupancyTimelineChart));
+      double xOf(int index) => chart.left + 28 + index / 9 * (chart.width - 36);
+      await tester.tapAt(Offset(xOf(6), chart.center.dy));
+      await tester.pump();
+      expect(find.text('Jan 19, 2026 13:00, forecast'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    test('the label of the first crossing goes above its ring when there is room, else below it: never over the point', () {
+      // A point low enough: the pill ends 3 px above its ring.
+      expect(crossingLabelTop(pointY: 120, ring: 11, pill: 17), 120 - 11 - 3 - 17);
+      // Just under the threshold line near the top (capacity 10, 9.2 at y ≈ 38): below the ring.
+      expect(crossingLabelTop(pointY: 38, ring: 11, pill: 17), 38 + 11 + 3);
+      for (final y in [24.0, 41.0, 60.0, 198.0]) {
+        final top = crossingLabelTop(pointY: y, ring: 11, pill: 17);
+        // The pill [top, top + 17] never covers the ring [y - 11, y + 11], nor reaches the now label.
+        expect(top + 17 <= y - 11 || top >= y + 11, isTrue, reason: '$y');
+        expect(top, greaterThanOrEqualTo(22));
+      }
     });
 
     testWidgets('without a model the hours still show, and the card says why', (tester) async {

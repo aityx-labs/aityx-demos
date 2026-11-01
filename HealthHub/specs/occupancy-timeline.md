@@ -34,9 +34,11 @@ Both series always show:
   for colour-blind readers too (ΔE 21 protan), and dashed, hollow.
 - **Now**: a solid vertical line at the simulated clock (the API's
   `now`; within the hours shown, the last hour observed without it),
-  labelled at its top "Now Jan 19 12:40". The header says it too, "Now ·
-  Jan 19, 2026 12:40" ("Ended Jan 19, 2026 12:00" for a past run), never
-  the run's id.
+  labelled at its top "Now Jan 19 12:40", and "Now" in the key. The
+  header says it too, "Now · Jan 19, 2026 12:40", never the run's id. A
+  run that has ended (`current` false: the simulation stopped, or a care
+  center nobody was admitted to in the run going on yet) has no now line
+  nor "Now" in the key, and the header says "Ended Jan 19, 2026 12:00".
 - **The capacity**: the care center's places in the simulation, a faint
   dotted line labelled "8 beds" at its right end; **the threshold**, the
   alarms' share of it (`threshold`, 90% unless the API says otherwise), a
@@ -48,14 +50,19 @@ Both series always show:
   ahead, an hour whose 90th percentile alone reaches it, a small amber
   ring at its 90th percentile. The first hour ahead the forecast reaches
   it, by its mean (else by its 90th percentile), is ringed in red (amber)
-  and labelled at the top of the plot, joined to it by a thin line: "90%
-  expected at Jan 19 16:00" ("90% possible at ...").
+  and labelled just above the ring, or just below it when there is no
+  room there under the now label (a crossing near the top of the axis,
+  the usual case): "90% expected at Jan 19 16:00" ("90% possible at
+  ..."). The label is never over the point, and the ring is drawn last.
 - The axes: whole people on y, from 0 to a whole number above the
   highest observed hour, mean, 90th percentile or the capacity; on x
   each simulated midnight as its date ("Jun 3"), and noon when there is
   room, an hour a slot (the forecast placed by its hours, its steps
-  inside the hours shown left out). The points get smaller when the hours
-  are close together.
+  inside the hours shown left out; a forecast of a series an hour or more
+  longer than the history read, as datyx reads the table seconds later,
+  starts after the hours shown: the hours between are slots without a
+  point, and the forecast's line goes on across them from the last hour
+  observed). The points get smaller when the hours are close together.
 - Hovering an hour, or touching it, shows its numbers: "Jan 19, 2026
   09:00 · 3 in care of 8 beds (38%) · predicted 2.8, 1 h before · 1 to
   3.5 (80%)", and "at or above the 90% threshold" when it is; for an hour
@@ -118,10 +125,13 @@ its two endpoints, open the same way:
   "p50", "p90"}`, empty when datyx can't say. datyx's own error when it
   refuses (404 while no model of the group is trained), 404 without a
   source or admissions, 502 when datyx doesn't answer, 401 without a user
-  once sign-in is on. In dev mode, an answer from the datyx source the
-  occupancy alarms read (or any, before they read one) is kept in
-  `occupancy_forecast`, as the alarms' checks keep theirs
-  ([Occupancy alarms](occupancy-alarms.md#the-checks)).
+  once sign-in is on. In dev mode, an answer of the run going on from
+  the datyx source the occupancy alarms' checks settled on is kept in
+  `occupancy_forecast`, as the checks keep theirs ([Occupancy
+  alarms](occupancy-alarms.md#the-checks)); nothing is kept before a
+  check has settled on a source, with the alarms off, or of another run,
+  so a caller's own datyx (another source of a database of that name)
+  can't write what everyone sees.
 - `GET /api/care-centers/{id}/admissions?run=&hours=72` and
   `.../admissions/forecast?run=`: the same for its admissions per hour,
   from `admissions_hourly` ([Admissions per hour](admissions-hourly.md)),
@@ -141,7 +151,11 @@ forecast's steps from datyx's answer, sign-in and datyx's errors.
 `occupancy_test.dart`, against a scratch database, rolled back: each
 stay counted in every hour it covers, up to the run's latest arrival.
 `occupancy_alarm_db_test.dart`: what was predicted kept per hour, the
-forecast made closest to it winning, and read back.
+forecast made closest to it winning, the same forecast again writing no
+new row version, and read back; the pruning, keeping the runs forecast
+last and their latest hours. `occupancy_alarms_test.dart`: a forecast of
+the care center view kept only from the source a check settled on, of
+the run going on.
 `widget_test.dart` (group "a care center's occupancy per hour"): the
 card with both series (the hours observed and what was predicted of
 them, the forecast after), the now line at the clock and its header, the
@@ -152,7 +166,11 @@ capacity of 3, the hours observed and predicted at or above 90% counted,
 the first crossing ahead (possible) in the status and semantics, the
 tooltips saying so; the first crossing by the mean, else the 90th
 percentile; the now line without a clock and with one, the predicted past
-without a forecast, another threshold; without a model the hours and
+without a forecast, another threshold; a run that has ended, its header
+"Ended", no "Now" in the key nor in the semantics; a forecast starting two
+hours after the last hour observed (its crossing, the hour between a slot
+without a forecast, no failure); the crossing's label above or below its
+ring, never over it; without a model the hours and
 what was predicted still show and the card says why; without a capacity
 no capacity line; a care center nobody was admitted to; and the care
 center view opened from home shows the card under the capacity and above
@@ -168,7 +186,10 @@ the people, asking for its id.
 - What was predicted of the past hours is kept only while someone
   signed in watches (the events panel's polls set the alarms' checks
   off, and the card asks for its own forecast): hours nobody watched have
-  no prediction. A restarted API keeps what it kept, by run.
+  no prediction. A restarted API keeps what it kept, by run: the three
+  runs forecast last, each its last 744 hours (31 days) forecast, older
+  rows pruned at a run's first write and every 500 writes
+  ([Database](database.md)).
 - The series end at the run's latest arrival, the clock runs on: the now
   line can stand past the last hour observed by up to an hour or so.
 - Occupancy is counted from the stays the conditions say, not from the

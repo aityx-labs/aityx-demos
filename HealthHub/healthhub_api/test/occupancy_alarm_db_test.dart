@@ -151,7 +151,7 @@ void main() {
         'mean': 3.5, 'p10': 2.0, 'p90': 5.0},
     ]);
     // Every value a parameter: the rows one JSON parameter.
-    for (final sql in [Db.upsertForecastSql, Db.predictedOccupancySql, Db.runEndSql, Db.occupancyAtSql]) {
+    for (final sql in [Db.upsertForecastSql, Db.predictedOccupancySql, Db.runEndSql, Db.occupancyAtSql, Db.pruneForecastsSql]) {
       expect(sql, isNot(contains("'")));
     }
     final parameters = Db.forecastParameters('abcd1234', rows, 4, DateTime.utc(2026, 11, 1, 14));
@@ -206,6 +206,20 @@ void main() {
         await keep({900001: forecast(2, [30, 40, 50])}, 5);
         // An older forecast, from 01:00, comes late: it changes 02:00 (closer than 00:00's) but not 03:00 or 04:00.
         await keep({900001: forecast(1, [200, 300, 400])}, 6);
+        // The same forecast asked again writes nothing: no new row version.
+        Future<List<Object?>> versions() async => [
+          for (final row in await tx.execute(
+            Sql.named('SELECT ctid::text FROM occupancy_forecast WHERE run_id = @run ORDER BY hospital_id, hour_start'),
+            parameters: {'run': run},
+          )) row[0],
+        ];
+        final before = await versions();
+        await keep({900001: forecast(2, [30, 40, 50])}, 5);
+        await keep({900001: forecast(1, [200, 300, 400])}, 6);
+        expect(await versions(), before);
+        // From the same end with other numbers (a model retrained): replaced.
+        await keep({900002: forecast(0, [8])}, 7);
+        expect(await versions(), isNot(before));
         final rows = await tx.execute(
           Sql.named(Db.predictedOccupancySql),
           parameters: {
@@ -229,5 +243,65 @@ void main() {
     ]);
     final left = await c.execute("SELECT count(*) FROM occupancy_forecast WHERE run_id = 'fffffff0'");
     expect(left.single[0], 0);
+  });
+
+  /// Against a scratch database (HEALTHHUB_DB_*), when it is up; skipped
+  /// otherwise. Its rows are rolled back.
+  test('pruned: all but the runs forecast last, and their hours long before their latest', () async {
+    final settings = DbSettings.fromEnvironment();
+    final db = Db(settings);
+    addTearDown(db.close);
+    if (!await db.ping()) {
+      markTestSkipped('PostgreSQL not answering at $settings');
+      return;
+    }
+    await db.migrate();
+    final c = await Connection.open(
+      Endpoint(
+        host: settings.host,
+        port: settings.port,
+        database: settings.database,
+        username: settings.user,
+        password: settings.password,
+      ),
+      settings: const ConnectionSettings(sslMode: SslMode.disable),
+    );
+    addTearDown(c.close);
+    List<List<Object?>>? read;
+    int? deleted;
+    try {
+      await c.runTx((tx) async {
+        // Only these runs' rows count here.
+        await tx.execute('DELETE FROM occupancy_forecast');
+        // Four runs, forecast an hour apart, each 6 hours of one care center.
+        for (var r = 0; r < 4; r++) {
+          await tx.execute(
+            Sql.named(Db.upsertForecastSql),
+            parameters: Db.forecastParameters('fffffff$r', Db.forecastRows({
+              900001: [
+                for (var h = 1; h <= 6; h++)
+                  {'at': DateTime.utc(2026, 1, 2, h).toIso8601String().substring(0, 16), 'mean': 1, 'p10': 0, 'p50': 1, 'p90': 2},
+              ],
+            }), 4, DateTime.utc(2026, 11, 1, 10 + r)),
+          );
+        }
+        final result = await tx.execute(
+          Sql.named(Db.pruneForecastsSql),
+          parameters: {'keepRuns': TypedValue(Type.integer, 2), 'keepHours': TypedValue(Type.integer, 2)},
+        );
+        deleted = result.affectedRows;
+        final rows = await tx.execute('SELECT run_id, hour_start FROM occupancy_forecast ORDER BY run_id, hour_start');
+        read = [for (final row in rows) row.toList()];
+        throw _Rollback();
+      });
+    } on _Rollback {
+      // Nothing written stays.
+    }
+    // The two runs forecast last, the 2 hours before their latest (06:00) and it.
+    expect(read, [
+      for (final run in ['fffffff2', 'fffffff3'])
+        for (final h in [4, 5, 6]) [run, DateTime.utc(2026, 1, 2, h)],
+    ]);
+    expect(deleted, 24 - 6);
   });
 }

@@ -384,9 +384,14 @@ class OccupancyAlarms {
   /// Whether a check is under way.
   bool get checking => _checking;
 
-  /// Whether a forecast from datyx data source [sourceId] is the one the
-  /// alarms read: theirs, or any before they have one.
-  bool acceptsSource(Object? sourceId) => _sourceId == null || _sourceId == sourceId;
+  /// Whether a forecast of [run] from datyx data source [sourceId], asked
+  /// by someone else than the alarms (the care center view), may be kept
+  /// as what was predicted: only once a check has settled on a source and
+  /// it is that one, and only of the run going on. Before that, or with
+  /// the alarms off, nothing says which source is HealthHub's, so a
+  /// caller's own datyx can't write what everyone sees.
+  bool keepsForecastOf(String run, Object? sourceId) =>
+      enabled && _sourceId != null && _sourceId == sourceId && this.run() == run;
 
   /// Sets a check off in the background, with [token] for its datyx calls
   /// only, unless the alarms are off, the simulation hasn't started, one
@@ -532,12 +537,23 @@ class OccupancyAlarms {
       if (center == null) continue;
       final capacity = simulatedCapacity(center.key, center.kind);
       final limit = threshold * capacity.places;
+      final wasActual = before?.level == AlarmLevel.actual;
+      // The occupancy unread this check (the database failed): an actual
+      // alarm has nothing to be read against, so it is kept, marked stale;
+      // a failed read is no reading below the threshold.
+      if (seenAt == null && wasActual) {
+        before!.json = {...before.json, 'stale': true};
+        continue;
+      }
       // Nobody in care at the latest hour has no row: zero, once the hour is known.
       final occupancy = seenAt == null ? null : observed!.occupancy[id] ?? 0;
       final actual = occupancy != null && reaches(occupancy, limit);
       // No forecast of it this time (datyx left it out, or failed) and not
-      // reached now: kept, marked stale, never cleared.
-      if (forecast == null && !actual) {
+      // reached now: kept, marked stale, never cleared; but an actual alarm
+      // is the database's, so an occupancy read below the threshold lowers
+      // it (after [lowerAfter] checks) to what a forecast says, without one
+      // to none.
+      if (forecast == null && !actual && !wasActual) {
         if (before != null) before.json = {...before.json, 'stale': true};
         continue;
       }

@@ -720,3 +720,23 @@ The feature files hold the current specification; see the
    reset, refusals in a snack bar ("Sign in to change the flow."). See
    [The simulation](simulation.md#the-flow-at-a-care-center), [The care
    center view](care-center.md#the-flow) and [API](api.md).
+1. **Review of the operations views.** Fixes from a review of the merged
+   branch: the occupancy chart no longer fails when datyx's forecast
+   starts an hour or more after the last hour observed (datyx reads the
+   table seconds after the history, at a simulated hour every 10 s): the
+   hours between are slots without a point, the line goes on across them,
+   and the crossing reads only the hours with a step. A run that has
+   ended has no now line nor "Now" in the key (its header says "Ended
+   ..."). The first crossing's label goes just above its ring, or just
+   below it near the top of the axis, never over the point. The
+   occupancy alarms: an `actual` alarm falls (after three checks lower)
+   to what a forecast says, or to none without one, when the occupancy
+   read is below the threshold, even while datyx can't forecast; a failed
+   read of the occupancy is no reading, so an `actual` alarm is kept,
+   stale, instead of falling. `occupancy_forecast`: the same forecast
+   asked again writes nothing, the API prunes it to the three runs
+   forecast last and their last 744 hours, and the care center view's
+   forecast is kept only from the datyx source the alarms' checks settled
+   on, of the run going on (nothing before, or with the alarms off). See
+   [A care center's occupancy per hour](occupancy-timeline.md),
+   [Occupancy alarms](occupancy-alarms.md) and [Database](database.md).

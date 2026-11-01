@@ -156,6 +156,7 @@ void main() {
     late DateTime now;
     late bool paused;
     late ObservedOccupancy seen;
+    late bool seenFails;
     late List<(String, Map<int, List<Object?>>, Object?)> kept;
 
     OccupancyAlarms make({Duration every = const Duration(seconds: 5), int lowerAfter = 1, double threshold = 0.9}) =>
@@ -171,7 +172,7 @@ void main() {
       },
       run: () => currentRun,
       clock: () => {'day': 2, 'simTime': '00:20', 'date': '2026-01-02'},
-      observed: (run) async => seen,
+      observed: (run) async => seenFails ? throw StateError('occupancy_hourly timed out') : seen,
       paused: () => paused,
       onEvent: fired.add,
       onForecasts: (run, forecasts, trainingRun) => kept.add((run, forecasts, trainingRun)),
@@ -192,6 +193,7 @@ void main() {
       paused = false;
       // No hour observed yet: no actual level.
       seen = (end: null, occupancy: const {});
+      seenFails = false;
       kept = [];
     });
 
@@ -265,16 +267,50 @@ void main() {
       expect(alarms.snapshot.active, isEmpty);
     });
 
-    test('without a forecast, an actual alarm the occupancy no longer reaches is kept, stale', () async {
+    test('without a forecast, an actual alarm the occupancy no longer reaches falls, to none, after the checks lower', () async {
+      final alarms = make(lowerAfter: 3);
+      seen = (end: latest, occupancy: {1: 5});
+      // No model yet (404), then datyx silent: the occupancy is read all the same.
+      answers = [
+        (status: 404, body: {'error': 'no model of the group default of public.occupancy_hourly has been trained yet'}),
+        null,
+        (status: 404, body: {'error': 'no model'}),
+        null,
+      ];
+      await alarms.check(null);
+      expect([for (final e in fired) (e['kind'], e['level'])], [('alarm', 'actual')]);
+      seen = (end: latest.add(const Duration(hours: 1)), occupancy: {1: 2});
+      await alarms.check(null);
+      await alarms.check(null);
+      // Two checks lower: still up, read (not stale).
+      expect(fired, hasLength(1));
+      expect(alarms.snapshot.active.single['level'], 'actual');
+      expect(alarms.snapshot.active.single['stale'], isFalse);
+      await alarms.check(null);
+      expect(fired.last, containsPair('kind', 'cleared'));
+      expect(fired.last, containsPair('previous', 'actual'));
+      expect(fired.last, containsPair('occupancy', 2));
+      expect(alarms.snapshot.active, isEmpty);
+    });
+
+    test('a failed read of the occupancy is no reading: an actual alarm is kept, stale, and doesn\'t fall', () async {
       final alarms = make();
       seen = (end: latest, occupancy: {1: 5});
-      answers = [ok([prediction(1, expected(beds))]), null];
+      answers = [for (var i = 0; i < 4; i++) ok([prediction(1, calm(beds))])];
       await alarms.check(null);
-      seen = (end: latest.add(const Duration(hours: 1)), occupancy: {1: 2});
+      expect([for (final e in fired) (e['kind'], e['level'])], [('alarm', 'actual')]);
+      seenFails = true;
+      // A calm forecast, but nothing read of the occupancy: no fall, however many checks.
+      await alarms.check(null);
       await alarms.check(null);
       expect(fired, hasLength(1));
       expect(alarms.snapshot.active.single['level'], 'actual');
       expect(alarms.snapshot.active.single['stale'], isTrue);
+      // Read again, still reached: current again.
+      seenFails = false;
+      await alarms.check(null);
+      expect(fired, hasLength(1));
+      expect(alarms.snapshot.active.single['stale'], isFalse);
     });
 
     test('an actual alarm is stale once no occupancy was read for a while', () async {
@@ -309,7 +345,9 @@ void main() {
         from(7, [prediction(1, expected(beds))]),
         (status: 404, body: {'error': 'no model'}),
       ];
-      expect(alarms.acceptsSource(7), isTrue);
+      // Before a check has settled on a source, no forecast of the care center view is kept.
+      expect(alarms.keepsForecastOf(run, 7), isFalse);
+      expect(alarms.keepsForecastOf(run, 1), isFalse);
       await alarms.check(null);
       expect(kept, hasLength(1));
       expect(kept.single.$1, run);
@@ -317,8 +355,10 @@ void main() {
       expect(kept.single.$2.keys, [1]);
       expect(kept.single.$2[1], calm(beds));
       expect(kept.single.$3, 4);
-      expect(alarms.acceptsSource(1), isTrue);
-      expect(alarms.acceptsSource(7), isFalse);
+      expect(alarms.keepsForecastOf(run, 1), isTrue);
+      expect(alarms.keepsForecastOf(run, 7), isFalse);
+      // Of the run going on only.
+      expect(alarms.keepsForecastOf('ffff0000', 1), isFalse);
       await alarms.check(null);
       await alarms.check(null);
       expect(kept, hasLength(1));
@@ -685,6 +725,7 @@ void main() {
       final off = make(every: Duration.zero);
       expect(off.poke('t'), isFalse);
       expect(off.snapshot.enabled, isFalse);
+      expect(off.keepsForecastOf(run, null), isFalse);
       currentRun = null;
       expect(make().poke('t'), isFalse);
       expect(tokens, isEmpty);

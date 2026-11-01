@@ -13,6 +13,7 @@ import 'care_centers_seed.dart';
 import 'conditions.dart';
 import 'conditions_seed.dart';
 import 'routes.dart' show Bbox;
+import 'schema_comments.dart';
 import 'simulation.dart' show LatLon, Place;
 
 /// Where the database is, from the environment (scripts/api.sh and
@@ -349,6 +350,8 @@ class Db {
       WHERE a.event_id ~ '^[0-9a-f]{8}-'
       GROUP BY split_part(a.event_id, '-', 1), a.person_id, a.sim_day
     ''');
+    // What each table and column is, for a catalogue reading the schema.
+    await commentSchema(c);
   }
 
   /// Makes medical_conditions and complaint_templates hold exactly

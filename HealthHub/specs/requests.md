@@ -337,3 +337,20 @@ The feature files hold the current specification; see the
    See [Simulation](simulation.md#pausing), [API](api.md) and
    [Home](home.md).
 
+1. **Check HealthHub's data classification and quality indexing in
+   OpenMetadata, add the OpenMetadata calls needed after the data
+   initialization, reset what needs it: the console should show
+   everything at top quality, described and in context.** HealthHub's
+   part is the descriptions, set by its data initialization: every table,
+   the `patient_days` view and every column of the schema says what it
+   is, as a PostgreSQL comment that the migration sets at every start
+   (`COMMENT ON TABLE`, `COMMENT ON VIEW`, `COMMENT ON COLUMN`, from
+   `schemaComments` in
+   [lib/schema_comments.dart](../healthhub_api/lib/schema_comments.dart)).
+   HealthHub still knows nothing of datyx or OpenMetadata: datyx's schema
+   read carries a database's comments into OpenMetadata, and datyx, in
+   development, waits for them before it catalogues and curates
+   HealthHub (its own spec, `catalog.md`). A test checks against a live
+   database that the described tables and columns are exactly the
+   schema's, so a table or column added without a description fails. See
+   [Database](database.md).

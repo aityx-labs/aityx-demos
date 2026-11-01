@@ -236,6 +236,11 @@ services:
       AITYX_API_KEY: ${AITYX_API_KEY:-}
       AITYX_URL: ${AITYX_URL:-}
       HEALTHHUB_TRIAGE: ${HEALTHHUB_TRIAGE:-on}
+      # The triage's calls through datyx's aityx gateway (DATYX_API_URL,
+      # below), with datyx's service token, a secret (see .env.example):
+      # empty, on in dev mode; without the token, aityx directly.
+      HEALTHHUB_AITYX_VIA_DATYX: ${HEALTHHUB_AITYX_VIA_DATYX:-}
+      DATYX_SERVICE_TOKEN: ${DATYX_SERVICE_TOKEN:-}
       API_PORT: "9802"
       HEALTHHUB_BIND_HOST: 0.0.0.0
       HEALTHHUB_DB_HOST: postgres

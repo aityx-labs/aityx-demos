@@ -2,6 +2,39 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-01: an aityx gateway, its account, and where calls will be personalized
+
+Asked: in the datyx dashboard, an aityx tab showing the requests routed
+to aityx, and in the future personalize them (the dashboard's tab and
+HealthHub's routing are theirs).
+
+Changed: new package `datyx.aityx`. `POST /api/aityx/v1/systemone` is a
+gateway to aityx's `/v1/systemone`: the body (1 MB at most) goes through
+the personalization hook (`AityxPersonalizer`, today `NoPersonalization`,
+which changes nothing) to aityx with datyx's key (`AITYX_API_KEY`, never
+logged, stored or answered), and aityx's status, body and
+`X-aityx-Mode` come back as they were; no key is a 503. A signed-in
+user calls it as on the rest of `/api`; a service presents
+`X-Datyx-Service-Token` (`DATYX_SERVICE_TOKEN`, compared in constant
+time) instead, through a security policy of its own for
+`/api/aityx/v1/*` (`AityxGatewayPolicy`). Every call is recorded
+(`aityx_call`, `V9__aityx_calls.sql`): caller, purpose
+(`X-Datyx-Purpose`), model, decision, questions, status, mode, latency,
+input tokens and their cost ($0.042 per million), the request and the
+answer (64 KB each), the latest 2,000 per profile; a service's calls
+are the services' bucket, every profile's to see in dev mode only
+(`DATYX_AITYX_SHARE_SERVICE_CALLS`; empty, the profile decides, so
+Docker Compose's prod image shares nothing; `AityxShareConfigTest`). `GET /api/aityx` answers the account
+(totals, the last 24 hours, by purpose, model and decision, the latest
+50 calls, whether personalization is active), `GET /api/aityx/calls/{id}`
+one call with its request and answer, `GET /api/aityx/v1/status` whether
+datyx has a key (for HealthHub, which counts on aityx only when one of
+them has). Settings in `scripts/env.sh`
+(also from the root `.env`), `scripts/api.sh`, `compose.yaml` and
+`.env.example`. Tests (`AityxGatewayTest`, `AityxAuthTest`,
+`AityxNoKeyTest`, aityx a local stub); new `aityx.md`, `api.md`,
+`auth.md`, `dev-environment.md`, README.
+
 ## 2026-11-01: Data quality across HealthHub's data, set in OpenMetadata at every start
 
 Asked: cover data quality on our data; on initialization, update or set

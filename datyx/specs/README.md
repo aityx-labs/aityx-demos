@@ -50,6 +50,12 @@ HealthHub passes on unchanged.
   demand, as their training did (a DeepAR model's forecast step by step,
   with its percentiles), and the account of every call: who,
   which model, how many series, how long, failures, per hour.
+- [aityx](aityx.md): the gateway to aityx's `/v1/systemone`, with
+  datyx's key, for signed-in users and for services (HealthHub's
+  triage) with a token of their own, the account of every call (who,
+  why, model, decision, latency, input tokens and their cost, the
+  request and the answer), and the hook where calls will be
+  personalized per profile.
 - [Profiles](profiles.md): the person behind a sign-in, made on the first
   call, with identities and an encryption key of its own that protects
   the profile's data source access details at rest.

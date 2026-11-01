@@ -137,6 +137,7 @@ const schemaComments = <String, TableComments>{
       'input_tokens': 'The input tokens the call used.',
       'millis': 'How long the call took, in milliseconds.',
       'mode': 'How aityx ran the call, as its x-aityx-mode header says; null when it doesn\'t say.',
+      'via': 'Which way the call went: datyx (through datyx\'s aityx gateway, which recorded it in its aityx account) or aityx (directly, with HealthHub\'s key); null for triages recorded before, or a call that never got that far.',
       'triaged_at': 'When the triage was recorded, in real time.',
     },
   ),

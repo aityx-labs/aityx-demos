@@ -5,7 +5,10 @@
 ///                       opens the app (the web server proxies the root
 ///                       here)
 ///   GET  /api/health    {"ok": true, "db": true when the database
-///                       answers, "aityx": true when the key is set,
+///                       answers, "aityx": true when HealthHub has
+///                       the key, or calls go through datyx and datyx
+///                       last said it has one (GET /api/aityx/v1/status,
+///                       asked at most once a minute, in the background),
 ///                       "auth": true when authentication is on, "kafka":
 ///                       true when Kafka's REST proxy answers,
 ///                       "simulation": true when the simulation runs,
@@ -102,6 +105,12 @@
 ///   AITYX_URL             aityx's base URL (default https://api.aityx.ai)
 ///   HEALTHHUB_TRIAGE      on (the default, with a key) or off: whether
 ///                         each admission is triaged with aityx
+///   DATYX_SERVICE_TOKEN   datyx's service token (secret): with it, the
+///                         triage's calls go through datyx's aityx
+///                         gateway, with datyx's key, and to aityx
+///                         directly only when datyx can't pass them on
+///   HEALTHHUB_AITYX_VIA_DATYX  on or off: whether they do (default on in
+///                         dev mode, off in prod)
 ///   API_PORT              the port (default 9802)
 ///   HEALTHHUB_BIND_HOST   the address to bind (default 127.0.0.1)
 ///   ALLOWED_ORIGINS       comma-separated origins allowed by CORS
@@ -158,13 +167,11 @@ Future<void> main(List<String> args) async {
       .map((origin) => origin.trim())
       .where((origin) => origin.isNotEmpty)
       .toSet();
-  if (key.isEmpty) stderr.writeln('warning: AITYX_API_KEY is not set');
   final triageSetting = (env['HEALTHHUB_TRIAGE'] ?? '').isEmpty ? 'on' : env['HEALTHHUB_TRIAGE']!;
   if (triageSetting != 'on' && triageSetting != 'off') {
     stderr.writeln('error: HEALTHHUB_TRIAGE must be on or off');
     exit(1);
   }
-  final aityx = Aityx(url, key);
 
   final db = Db(DbSettings.fromEnvironment());
   final auth = AuthSettings.fromEnvironment();
@@ -176,6 +183,27 @@ Future<void> main(List<String> args) async {
   if (mode != 'dev' && mode != 'prod') {
     stderr.writeln('error: HEALTHHUB_MODE must be dev or prod');
     exit(1);
+  }
+  // The triage's calls through datyx's aityx gateway: on in dev mode
+  // unless off, and only with datyx's service token.
+  final viaDatyx = (env['HEALTHHUB_AITYX_VIA_DATYX'] ?? '').isEmpty
+      ? (mode == 'dev' ? 'on' : 'off')
+      : env['HEALTHHUB_AITYX_VIA_DATYX']!;
+  if (viaDatyx != 'on' && viaDatyx != 'off') {
+    stderr.writeln('error: HEALTHHUB_AITYX_VIA_DATYX must be on or off');
+    exit(1);
+  }
+  final serviceToken = env['DATYX_SERVICE_TOKEN'] ?? '';
+  if (viaDatyx == 'on' && serviceToken.isEmpty) {
+    stderr.writeln('note: DATYX_SERVICE_TOKEN is not set, so aityx is called directly, not through datyx');
+  }
+  final aityx = Aityx(url, key, datyx: viaDatyx == 'on' ? datyx : null, serviceToken: serviceToken);
+  if (key.isEmpty) {
+    stderr.writeln(
+      aityx.routesViaDatyx
+          ? 'note: AITYX_API_KEY is not set, so aityx is reached through datyx only'
+          : 'warning: AITYX_API_KEY is not set',
+    );
   }
   final int historyDays;
   try {
@@ -190,9 +218,17 @@ Future<void> main(List<String> args) async {
         : env['HEALTHHUB_KAFKA_REST_URL']!,
   ));
   final live = _Live(dev: mode == 'dev', kafka: kafka, aityx: aityx, triage: triageSetting == 'on' && aityx.configured);
+  // Without a key of HealthHub's, whether datyx has one: until it says
+  // so, aityx isn't reported and no admission is triaged.
+  if (key.isEmpty && aityx.routesViaDatyx) {
+    unawaited(aityx.check().then((available) {
+      if (!available) stderr.writeln('note: datyx has no aityx key (or no answer) and HealthHub none, so triage waits for one');
+    }));
+  }
   final server = await HttpServer.bind(host, port);
   stdout.writeln(
-    'healthhub_api on http://$host:$port (mode: $mode; aityx: ${url.host}; '
+    'healthhub_api on http://$host:$port (mode: $mode; '
+    'aityx: ${aityx.routesViaDatyx ? 'through datyx${key.isEmpty ? '' : ', else ${url.host}'}' : url.host}; '
     'database: ${db.settings}; '
     'auth: ${auth.enabled ? 'on, ${auth.issuer}' : 'off'}; datyx: $datyx; '
     'kafka: ${kafka.base}; triage: ${live.triage ? 'on' : 'off'})',
@@ -209,7 +245,7 @@ Future<void> main(List<String> args) async {
   }
 
   await for (final request in server) {
-    unawaited(_handle(request, origins, db, verifier, datyx, live, aityx: key.isNotEmpty));
+    unawaited(_handle(request, origins, db, verifier, datyx, live));
   }
 }
 
@@ -224,6 +260,17 @@ class _Live {
   /// aityx, which triages each admission recorded when [triage] is on.
   final Aityx aityx;
   final bool triage;
+
+  /// Whether there is a key to reach aityx with ([Aityx.available]), as
+  /// last known: a stale answer from datyx is asked again in the
+  /// background, so the health check never waits on datyx.
+  bool get aityxAvailable {
+    unawaited(aityx.check());
+    return aityx.available;
+  }
+
+  /// Whether admissions are triaged now: [triage] on, with a key.
+  bool get triaging => triage && aityxAvailable;
   Simulation? simulation;
   PeopleFeed? feed;
   AdmissionRecorder? recorder;
@@ -332,7 +379,10 @@ Future<void> _simulate(Db db, _Live live, int historyDays) async {
   // Each admission recorded the first time is triaged with aityx, in the
   // background; a triage the database can't record is logged and lost.
   final triager = live.triage
-      ? live.triager = Triager((admission) async => db.recordTriage(await triageAdmission(live.aityx, admission)))
+      ? live.triager = Triager(
+          (admission) async => db.recordTriage(await triageAdmission(live.aityx, admission)),
+          ready: live.aityx.check,
+        )
       : null;
   // Bad data the database refuses is dropped, not retried forever.
   final recorder = live.recorder = AdmissionRecorder(
@@ -414,9 +464,8 @@ Future<void> _handle(
   Db db,
   TokenVerifier verifier,
   Uri datyx,
-  _Live live, {
-  required bool aityx,
-}) async {
+  _Live live,
+) async {
   final response = request.response;
   final origin = request.headers.value('origin');
   if (origin != null && origins.contains(origin)) {
@@ -442,19 +491,19 @@ Future<void> _handle(
         method,
         path,
         db: await db.ping(),
-        aityx: aityx,
+        aityx: live.aityxAvailable,
         auth: auth,
         kafka: live.kafkaUp,
         simulation: live.simulation?.running ?? false,
         paused: live.simulation?.paused ?? false,
-        triageEnabled: live.triage,
+        triageEnabled: live.triaging,
       ),
       ('GET', '/api/triage') => route(
         method,
         path,
         query: request.uri.queryParameters,
         auth: auth,
-        triageEnabled: live.triage,
+        triageEnabled: live.triaging,
         triage: await _triage(db, request.uri.queryParameters),
       ),
       ('GET', _) when triageEventId(path) != null => route(
@@ -609,7 +658,7 @@ Future<void> _handle(
             ? null
             : await _forward(datyx, datyxPath(path)!, token),
       ),
-      _ => route(method, path, aityx: aityx, auth: auth, identity: identity),
+      _ => route(method, path, auth: auth, identity: identity),
     };
     response.statusCode = answer.status;
     if (answer.location case final location?) {

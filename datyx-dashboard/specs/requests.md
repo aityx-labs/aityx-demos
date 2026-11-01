@@ -4,6 +4,27 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: an aityx tab with the calls routed to aityx
+
+Asked: in the datyx dashboard, add an aityx tab showing the requests
+routed to aityx, and in the future personalize them. (The gateway,
+`POST /api/aityx/v1/systemone`, its account, `GET /api/aityx` and
+`GET /api/aityx/calls/{id}`, and the personalization hook are the API's
+change, in its folder; HealthHub's triage calls go through it.)
+
+Changed: a new tab, **aityx**, after Inference (`AityxTab`,
+`?tab=aityx`): the account of the calls over 1, 7 or 30 days in tiles
+(calls, failed, input tokens, cost, median and 95th-percentile latency,
+last call), whether datyx has a key and shows services' calls, the calls
+per hour of the last day (answered and failed stacked) beside the input
+tokens per hour, the calls by purpose, model and decision, and the
+latest calls as a table, a row opening its request and answer as JSON;
+then **Personalization**, coming and not active, saying what it will
+do. The API client reads both endpoints (`lib/api/aityx_account.dart`).
+The Audit tab's body viewer is shared as `JsonBlock`; a stat tile scales
+a value too long for it down, and a card's title gives way on a narrow
+screen. Tests (6 more, 34 in all); `dashboard.md`.
+
 ## 2026-11-01: the Inference tab as a dashboard
 
 Asked: that view (Inference) should be a dashboard, not so repeated,
@@ -33,6 +54,7 @@ separation between them; same for the Inference tab.
 Changed: the Training and Inference tabs put 16 px between their cards,
 as their padding (`spaced`, in `card_title.dart`: the theme's cards have
 no margin of their own). Tests.
+
 ## 2026-11-01: a group's buttons at its top right, and its algorithms named in full
 
 Asked: on the Catalog tab, keep a group box's buttons at its top right
@@ -61,6 +83,7 @@ error the median's) with a fifth, *inside its 80% band* (`coverage`,
 read by `TrainingRunDetail`), and it has no feature weights. With none
 tagged, the tab says to tag one for DeepAR, or XGBoost with a horizon.
 Tests.
+
 ## 2026-11-01: a group's algorithms, all trained on enabling, and the switches as events
 
 Asked: the trigger for training is enabling the tag group, captured by
@@ -136,6 +159,7 @@ when it's next due, **Train now**, and its latest success's stat tiles
 highest scores; then the activity, every run newest first; asked again
 every 3 s while a run is on. The API client gained the four training
 calls. Tests; `dashboard.md`.
+
 ## 2026-11-01: tooltips on the Catalog
 
 Asked: on the Catalog, add tooltips to the elements, so the user knows

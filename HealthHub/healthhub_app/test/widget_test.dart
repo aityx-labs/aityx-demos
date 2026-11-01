@@ -97,6 +97,7 @@ class FakeApi implements HealthHubApi {
       'reference': 'orange',
       'millis': 312,
       'inputTokens': 4100,
+      'via': 'datyx',
     },
     {
       'eventId': 'r1-lisboa-2-d2-t38',
@@ -1293,6 +1294,7 @@ void main() {
     expect(find.textContaining('The simulated patient has COPD, first visit.'), findsOneWidget);
     expect(find.textContaining('aityx gave the reference level'), findsOneWidget);
     expect(find.textContaining('8 inputs from Jev, age from the desk'), findsOneWidget);
+    expect(find.textContaining('312 ms, 4100 input tokens, via datyx.'), findsOneWidget);
 
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();

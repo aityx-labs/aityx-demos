@@ -4,6 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../persist/session_store.dart';
+import 'aityx_account.dart';
+
+export 'aityx_account.dart';
 
 /// The system as the API sees it: `GET /api/health`, its checks by name.
 /// `datyx` is the API itself (its version, configuration profile, launch
@@ -1528,6 +1531,14 @@ abstract class DatyxApi {
     List<Map<String, String>>? series,
     int limit = 25,
   });
+
+  /// The calls routed to aityx over the last [days] (1 to 30):
+  /// `GET /api/aityx?days=N`.
+  Future<AityxAccount> aityx({int days = 7});
+
+  /// One call routed to aityx, with its request and response:
+  /// `GET /api/aityx/calls/{id}`.
+  Future<AityxCallDetail> aityxCall(int id);
 }
 
 /// Gives the bearer token for a call, or null for none.
@@ -1765,6 +1776,14 @@ class HttpDatyxApi implements DatyxApi {
             as Map)
         .cast(),
   );
+
+  @override
+  Future<AityxAccount> aityx({int days = 7}) async =>
+      AityxAccount.fromJson((await _send('GET', '/api/aityx', query: {'days': '$days'}) as Map).cast());
+
+  @override
+  Future<AityxCallDetail> aityxCall(int id) async =>
+      AityxCallDetail.fromJson((await _send('GET', '/api/aityx/calls/$id') as Map).cast());
 
   @override
   Future<AuthConfig> authConfig() async => AuthConfig.fromJson(

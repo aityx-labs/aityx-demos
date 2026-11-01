@@ -55,7 +55,8 @@ theirs; narrower, each goes under its row.
     their why; the nurse's check; the reference (the simulated patient's
     condition and visit, the level a nurse applying the same rules gives,
     and how aityx's compares); and the receipt (how many inputs came from
-    Jev and which from the desk, the time and the tokens).
+    Jev and which from the desk, the time, the tokens, and "via datyx" or
+    "straight to aityx", which way the call went).
 - **What aityx does at the desk** (`AityxExplainer`), beside the triage,
   briefly: **Jev reads** (only what the patient said and their age, into
   eight danger signs' probabilities and four choices), **rules decide**

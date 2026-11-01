@@ -9,9 +9,9 @@ doesn't have, the API gets it first.
 
 ## What it shows
 
-One screen, `DashboardScreen`, with an app bar and seven tabs under it
+One screen, `DashboardScreen`, with an app bar and eight tabs under it
 (a `TabBar`, as the demos' apps have), in the order of `DashboardTab`:
-Data sources, Catalog, Training, Inference, Audit, Health, Profile. Data sources opens at
+Data sources, Catalog, Training, Inference, aityx, Audit, Health, Profile. Data sources opens at
 start, unless the page's address names another (see Kept across a
 reload).
 
@@ -303,6 +303,68 @@ reload).
   Signed out, the first card says to sign in; an error the API answers
   shows in red; *Loading…* until it answers. The tables scroll sideways
   on a narrow window.
+- **aityx** (`AityxTab`, `lib/dashboard/aityx_tab.dart`, `?tab=aityx`):
+  the account of the calls datyx routes to aityx through its gateway
+  ([../../datyx/specs/aityx.md](../../datyx/specs/aityx.md)), from
+  `GET /api/aityx?days=N`, asked when the tab is first opened, with a
+  reload button and the window as chips (1 day, 7 days, the default, 30
+  days; beside the title, under it on a narrow screen). Five cards, 16 px
+  apart:
+  - **aityx**: what the gateway is (`POST /api/aityx/v1/systemone`,
+    forwarded to aityx's `POST /v1/systemone` with datyx's own key,
+    HealthHub's desk triage going that way), a warning when the API says
+    datyx has no aityx key (`configured` false: the gateway answers 503 and
+    HealthHub calls aityx directly), whether services' calls (HealthHub's)
+    are shown with the profile's own (`sharesServiceCalls`), and seven
+    tiles: calls (the window's, and the last hour's), failed (not 2xx; a
+    status icon, green with none, red with some, and the share), input
+    tokens (compact, `48.2K`, the exact sum under it), cost (dollars as
+    small as they come, `$0.00202`, with the API's price per million input
+    tokens), median latency (with the mean), 95th percentile, and the last
+    call (how long ago, and when). A tile's value too long for it is scaled
+    down to fit (`StatTile`).
+  - **The last 24 hours** (`HourColumns`): two charts side by side (one
+    above the other when narrow), sharing their baseline, each on its own
+    scale named in its subtitle (the tallest hour): **Calls per hour**,
+    answered (2xx, the brand orange) and failed (red, the status color,
+    with its icon in the legend) stacked from the baseline with a 2 px gap,
+    and **Input tokens per hour**, one series, no legend. Columns are at
+    most 24 px wide, rounded at the top, the first hour and *now* under the
+    baseline, and each has a tooltip: the hour, its calls, failures and
+    median latency, or its input tokens and calls.
+  - **By purpose, model and decision** (`Breakdown`): three columns (one
+    under the other when narrow), each value's calls as a bar in one hue
+    scaled to the most called, its calls and failures in text, *none* in
+    italics for calls without one, at most 5 and the rest counted; a
+    tooltip per row with its input tokens too.
+  - **Calls**: the latest 50, newest first, as a table (scrolled sideways
+    below 940 px): when, the caller (a service's with a server icon, a
+    user's with a person), the purpose, model · decision (and
+    *personalized* when the hook changed the body), latency, input tokens
+    (a dash without usage) and aityx's HTTP status as a chip (green 2xx,
+    red else), a failure's error under its row. A row opens the call
+    (`AityxCallDialog`): its facts at once (when, who, why, model,
+    questions, mode, latency, tokens, cost, personalized or not, the
+    error), then, from `GET /api/aityx/calls/{id}`, the request sent to
+    aityx and its answer, pretty-printed in the Audit tab's `JsonBlock`
+    (as text, said to be truncated at 64 KB, when the API kept it so;
+    *none* when there was none, aityx unreached), or the API's words (a
+    404 for a call not the profile's).
+  - **Personalization**: coming, and clearly not active (a gray *coming:
+    not active* chip, unless the API says `personalization.active`): calls
+    go to aityx as their callers send them; what datyx's hook
+    (`AityxPersonalizer`) will do per profile, before a call goes to
+    aityx: a profile's preferred Jev model, extra context from what datyx
+    knows of its data, its own variants of a decision; and that such a
+    call will say *personalized* in the calls. Shown signed out too.
+
+  Signed out (authentication on), the tab asks nothing and says to sign
+  in; the API's error, when it answers one, is shown in the first card,
+  and the other cards but Personalization wait; with no call, the charts
+  say *none in the last 24 hours*, the breakdowns *none yet*, and the
+  calls that HealthHub's triage goes through datyx when
+  `HEALTHHUB_AITYX_VIA_DATYX` is on and both share
+  `DATYX_SERVICE_TOKEN`.
 - **Audit** (`CallsPanel`): every call made, newest first, up to 100,
   under the title *API calls* and on a tab labelled *Audit*, neither
   with a count (the refresh every 15 s soon fills it to 100): method,
@@ -350,7 +412,7 @@ replaces the status.
 A reload of the page comes back as it was:
 
 - The open tab, kept in the page's address as `?tab=<name>` (`sources`,
-  `catalog`, `audit`, `health`, `profile`; `lib/persist/address.dart`),
+  `catalog`, `training`, `inference`, `aityx`, `audit`, `health`, `profile`; `lib/persist/address.dart`),
   replaced in place as tabs change, so the back button leaves the page
   rather than walking the tabs. A bookmark or a shared link opens the
   same tab. Flutter's own route, after the `#`, is left alone.
@@ -405,8 +467,15 @@ given) and `setRetrain(source, table, retrain)`
 `groupEvents(limit)` (`GET /api/catalog/events?limit=50`, `{"events":
 [...]}` read as `GroupEvent`: id, source, table, name, group, enabled,
 via, version, by, at, receivedAt, runIds), `inference()` and
-`score(source, table, group, series, limit)`, and the `CallLog` the
-Audit tab listens to.
+`score(source, table, group, series, limit)`, `aityx(days)` (`GET
+/api/aityx?days=7`, read as `AityxAccount`: `configured`,
+`sharesServiceCalls`, `pricePerMillionInputTokens`,
+`AityxPersonalization`, `AityxStats` totals, `lastHour`, `AityxHour`s,
+`AityxCount` breakdowns and `AityxCallInfo` calls) and `aityxCall(id)`
+(`GET /api/aityx/calls/{id}`, `AityxCallDetail`: the call, `request` and
+`response` as the JSON or the text the API kept, and whether each was
+truncated), those in `lib/api/aityx_account.dart`, exported by
+`datyx_api.dart`, and the `CallLog` the Audit tab listens to.
 `HttpDatyxApi` is the real one, over `package:http`, with a token
 provider for the bearer and one for a refresh after a 401, a 20 s timeout
 on every call, and request bodies logged with their secrets (`password`,
@@ -512,3 +581,20 @@ The Inference tab shows the totals' tiles, the hours' columns in
 proportion with the tallest, a model's account and calls with their
 failure; **Score** waits for the whole key, then sends it and shows the
 answer, and scoring all sends no series.
+The aityx tab asks for 7 days when opened (not before), shows the tiles
+(12 calls, 3 in the last hour, 48.2K tokens, $0.00202 at $0.042 per M,
+2.1 s and 4.8 s, 3 min ago), the calls' columns in proportion with the
+tallest, answered and failed stacked with their 2 px gap and at most 24
+px wide, the tokens' columns, the tooltips, the breakdowns (a call with
+no purpose as *none*), a service's and a user's call with their tokens,
+status and a failure's error, and Personalization as coming, not active;
+a row opens the call's request as JSON and its answer as the truncated
+text kept, closes, and a call the API won't show says its 404; another
+window asks again. With no key and no call it says both, the charts
+none, the last call never and only the profile's own calls; an API
+error shows its words, the account's cards gone but Personalization's;
+signed out it asks nothing until signed in; at 400 px nothing
+overflows. `HttpDatyxApi` asks `/api/aityx?days=7` and
+`/api/aityx/calls/51` and reads the spec's JSON (nulls, a failure by its
+status, a 404's words); counts, tokens, dollars and latency are said
+briefly (48,210, 48.2K, $0.000175, 769 ms, 2.1 s).

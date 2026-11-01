@@ -30,7 +30,7 @@ Color levelColor(TriageLevel? level) => switch (level) {
 /// the area and the rule behind it, and above them every triage so far
 /// counted and set against the reference levels. A tap on one opens why
 /// ([TriageDetailDialog]). Asked every 5 seconds while shown; nothing
-/// shows until the API triages (it has an aityx key) or has triaged.
+/// shows until the API triages (it reaches aityx) or has triaged.
 class TriageCard extends StatefulWidget {
   const TriageCard({super.key, required this.triage, required this.detail, this.limit = 8});
 
@@ -604,7 +604,8 @@ class _RuleTrail extends StatelessWidget {
 }
 
 /// What aityx's receipt says: which inputs Jev supplied and which the
-/// desk did, how long it took and how many tokens it read.
+/// desk did, how long it took, how many tokens it read, and which way the
+/// call went (through datyx's aityx gateway, or straight to aityx).
 class _Receipt extends StatelessWidget {
   const _Receipt(this.row);
 
@@ -618,13 +619,17 @@ class _Receipt extends StatelessWidget {
       for (final MapEntry(:key, :value) in provenance.entries)
         if (value == 'state') key,
     ];
+    final call = [
+      if (row.millis != null) '${row.millis} ms',
+      if (row.inputTokens != null) '${row.inputTokens} input tokens',
+      if (row.via == 'datyx') 'via datyx' else if (row.via == 'aityx') 'straight to aityx',
+    ];
     return _Section("aityx's receipt", [
       Text(
         '$fromJev inputs from Jev'
         '${fromState.isEmpty ? '' : ', ${fromState.join(', ')} from the desk'}; '
-        'every decision traced to its rule. '
-        '${row.millis == null ? '' : '${row.millis} ms, '}'
-        '${row.inputTokens == null ? '' : '${row.inputTokens} input tokens.'}',
+        'every decision traced to its rule.'
+        '${call.isEmpty ? '' : ' ${call.join(', ')}.'}',
         style: const TextStyle(color: Aityx.muted, fontSize: 12, height: 1.4),
       ),
     ]);

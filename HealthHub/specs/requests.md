@@ -585,4 +585,28 @@ The feature files hold the current specification; see the
    a simulated date and time, "Now · Jan 19, 2026 12:00" (or "Ended …"
    for a past run), and no longer the run's id. See
    [A care center's occupancy per hour](occupancy-timeline.md).
-
+1. **In the datyx dashboard add an aityx tab showing the requests routed
+   to aityx, and in the future personalize them.** (HealthHub's part.)
+   The triage's calls to aityx go through datyx's new aityx gateway
+   (datyx's [specs/aityx.md](../../datyx/specs/aityx.md)), which calls
+   aityx with datyx's key, records each call for the dashboard's aityx
+   tab, and is where calls will be personalized per profile: `POST
+   <DATYX_API_URL>/api/aityx/v1/systemone` with datyx's service token
+   (`X-Datyx-Service-Token`), `X-Datyx-Caller: HealthHub` and
+   `X-Datyx-Purpose: triage`, and no aityx key of HealthHub's. On when
+   `HEALTHHUB_AITYX_VIA_DATYX` is `on` (the default in dev mode) and
+   `DATYX_SERVICE_TOKEN` is set, a secret both read from the repository
+   root's `.env`. When datyx can't be reached or refuses with an error
+   of its own (no aityx key, no gateway, the token refused), HealthHub
+   calls aityx directly with its key, noted in the log once a minute, so
+   the triage keeps working. Each triage records which way it went
+   (`admission_triage.via`, `datyx` or `aityx`), and its detail says
+   "via datyx" or "straight to aityx". `/api/health`'s `"aityx"` is true
+   with a key either way: the service token alone isn't one, so without
+   a key of its own HealthHub asks datyx whether it has one (`GET
+   /api/aityx/v1/status`, at most once a minute) and, until it says yes,
+   reports aityx and the triage off and skips the admissions rather than
+   recording a failure for each. See [Triage at the
+   desk](triage.md#which-way-through-datyx-or-directly), [API](api.md),
+   [Database](database.md), [Home](home.md) and [Development
+   environment](dev-environment.md).

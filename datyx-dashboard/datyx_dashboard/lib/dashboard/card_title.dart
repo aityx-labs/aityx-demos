@@ -13,7 +13,11 @@ class CardTitle extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.baseline,
     textBaseline: TextBaseline.alphabetic,
     children: [
-      Text(title, style: Theme.of(context).textTheme.titleMedium),
+      // On a narrow screen the title, too, gives way rather than overflow.
+      Flexible(
+        flex: 2,
+        child: Text(title, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium),
+      ),
       const SizedBox(width: 10),
       Flexible(
         child: Text(

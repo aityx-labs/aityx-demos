@@ -246,7 +246,7 @@ class _Header extends StatelessWidget {
                       children: [
                         _Pill(
                           [
-                            now.state.label,
+                            now.state.labelAt(now.careCenterKind),
                             if (now.state == PersonState.toHospital || now.state == PersonState.atHospital)
                               ?now.hospitalName,
                           ].join(' · '),

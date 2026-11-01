@@ -23,6 +23,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. For the last three days I've had a sore throat, a blocked runny nose and I keep sneezing, and paracetamol only helps a little.",
       "Hello, my name is {first_name}, I'm {age} and I'm a {occupation}. I've had a stuffy nose, a scratchy throat and a mild cough since the weekend, and I wanted to make sure it's nothing more than a cold.",
@@ -60,6 +62,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. Yesterday I suddenly got a high fever, chills and aches all over my body, and I have a dry cough and a pounding headache.",
       "Hello, my name is {first_name}, {age}. Since last night I've had a temperature of over 39, my muscles ache so much I can barely get out of bed, and several people around me have had the flu this week.",
@@ -97,6 +101,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. I tested positive for COVID at home this morning, I've had a fever and a dry cough for two days and I can't taste my food.",
       "Hello, my name is {first_name}, {age}. I've had a sore throat, chills and a cough since Monday, my home test is positive and I'm getting a bit breathless climbing stairs.",
@@ -134,6 +140,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. I've had a chesty cough for about a week after a cold, I'm bringing up yellowish phlegm and my chest feels sore from coughing.",
       "Hello, my name is {first_name}, {age}. I can't stop coughing, especially at night, it started ten days ago and cough syrup hasn't helped.",
@@ -171,6 +179,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: true,
     followUpStayHours: 2,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: CareSetting.primary,
     first: [
       "Hi, I'm {name}, I'm {age}. I've had a high fever and a cough with rusty-coloured phlegm for three days, and now I get a sharp pain on the right side of my chest when I breathe in.",
       "Hello, my name is {first_name}, {age}. I'm very short of breath, shaking with chills and coughing up green phlegm, and I feel confused and weak.",
@@ -208,6 +218,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. My throat is so sore I can barely swallow, I have a fever of 38.8 and there are white spots on my tonsils, but no cough.",
       "Hello, my name is {first_name}, {age}. Since yesterday my throat has been burning, the glands in my neck are swollen and painful, and ibuprofen barely helps.",
@@ -245,6 +257,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. For ten days my nose has been blocked with thick green discharge, and there's a heavy pain over my cheeks that gets worse when I bend over.",
       "Hello, my name is {first_name}, {age}. After a cold I've developed pressure behind my eyes and forehead, my top teeth ache and I can't smell anything.",
@@ -282,6 +296,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. My right ear has been very painful for three days, it's itchy, there's a smelly discharge and it hurts when I touch it.",
       "Hello, my name is {first_name}, {age}. I went swimming last week and since then my left ear feels blocked and sore, and pulling the earlobe is agony.",
@@ -319,6 +335,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.urgentCare,
+    followUpSetting: CareSetting.primary,
     first: [
       "Hi, I'm {name}, I'm {age}. Since last night I've been vomiting and had watery diarrhoea more than ten times, I can't keep water down and I feel dizzy.",
       "Hello, my name is {first_name}, {age}. I have bad stomach cramps, diarrhoea and a low fever since yesterday, after a meal out in {city}.",
@@ -356,6 +374,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. Since yesterday it burns when I pass urine, I need to go every half hour and my lower tummy aches.",
       "Hello, my name is {first_name}, {age}. My urine is cloudy and smells strong, I have to rush to the toilet all the time and it stings badly.",
@@ -393,6 +413,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: 1,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. My lower leg has gone red, hot and swollen over the last two days, it's very painful to walk on and I feel feverish.",
       "Hello, my name is {first_name}, {age}. I'm a {occupation}, I scratched my shin last week and now there's a red patch the size of my hand that keeps spreading.",
@@ -430,6 +452,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: true,
     followUpStayHours: 1,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. It started as a pain around my belly button and now it has moved to the lower right side; it's sharp and much worse when I move or cough.",
       "Hello, my name is {first_name}, {age}. I've had severe pain in the bottom right of my stomach for about twelve hours, I've vomited twice, I have a fever and I can't eat anything.",
@@ -467,6 +491,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: true,
     followUpStayHours: 1,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. An hour ago I got an unbearable pain in my right side that goes down to my groin, I can't keep still and I've been sick.",
       "Hello, my name is {first_name}, {age}. I've had pain coming in waves in my left flank for the last few hours, my urine looks pink and painkillers did nothing.",
@@ -504,6 +530,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.urgentCare,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. I've had a throbbing headache on the left side for over a day, I've vomited several times and light hurts my eyes, my usual tablets didn't work.",
       "Hello, my name is {first_name}, {age}. I get migraines but this one has lasted since yesterday morning, I can't keep anything down and I need a dark room.",
@@ -541,6 +569,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.urgentCare,
+    followUpSetting: CareSetting.primary,
     first: [
       "Hi, I'm {name}, I'm {age}. I twisted my ankle stepping off a kerb this morning, it swelled up straight away and it hurts to put any weight on it.",
       "Hello, my name is {first_name}, {age}. I rolled my right ankle on uneven ground last night, the outside is bruised and swollen and I can only hobble.",
@@ -578,6 +608,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: true,
     followUpStayHours: 2,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. I slipped on a wet floor and landed on my outstretched hand, my wrist is swollen, bent at an odd angle and extremely painful.",
       "Hello, my name is {first_name}, {age}. I fell off my bike an hour ago and put my hand out, now I can't move my wrist and my fingers feel tingly.",
@@ -615,6 +647,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. I bent down to lift a box yesterday and felt something go in my lower back, now I can hardly stand up straight.",
       "Hello, my name is {first_name}, {age}. My lower back has been in spasm for three days, the pain shoots into my right buttock and ibuprofen only helps a bit.",
@@ -652,6 +686,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. My left eye has been red and gritty since yesterday and this morning the lashes were stuck together with yellow discharge.",
       "Hello, my name is {first_name}, {age}. Both my eyes are pink, watery and itchy for two days, my vision is fine but it feels like there's sand in them.",
@@ -689,6 +725,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: true,
     followUpStayHours: 1,
     courseGapDays: null,
+    setting: CareSetting.urgentCare,
+    followUpSetting: CareSetting.primary,
     first: [
       "Hi, I'm {name}, I'm {age}. I cut my hand on a kitchen knife about an hour ago, it's a deep cut on my palm and it keeps bleeding through the towel.",
       "Hello, my name is {first_name}, {age}. I hit my head on a cupboard door and split my scalp, it bled a lot but I didn't pass out.",
@@ -726,6 +764,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: true,
     followUpStayHours: 2,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. I ate a cake with nuts in it twenty minutes ago and my throat is closing up, my lips and tongue are swelling and I can hardly breathe.",
       "Hello, my name is {first_name}, {age}. A wasp stung me in the garden and now my face is swelling, I'm covered in hives, I feel faint and my heart is racing.",
@@ -763,6 +803,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: true,
     followUpStayHours: 3,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. Half an hour ago I got a crushing pain in the middle of my chest while sitting watching TV, it goes into my left arm and jaw, I'm sweating and I feel sick.",
       "Hello, my name is {first_name}, {age}. I woke up with a heavy weight on my chest that won't go away, I'm drenched in a cold sweat, grey in the face according to my partner, and I've vomited.",
@@ -800,6 +842,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: true,
     followUpStayHours: 2,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. About forty minutes ago my right arm suddenly went weak and heavy, I dropped my cup, and my wife says the side of my face is drooping.",
       "Hello, my name is {first_name}, {age}. This morning my words suddenly came out jumbled and slurred, I can't find the right ones, and my left leg feels numb.",
@@ -837,6 +881,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. I've had a dull headache at the back of my head most mornings this week, and the pharmacy machine read my blood pressure as 168 over 102 twice.",
       "My name is {first_name}, I'm {age}. My GP measured my blood pressure high on three visits and sent me here for a check; I sometimes get a pounding in my ears but no chest pain.",
@@ -874,6 +920,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. A routine blood test showed my cholesterol is high, and my father had a heart attack in his fifties, so my GP asked me to come in about it.",
       "My name is {first_name}, I'm {age}. I've got these small yellowish lumps near my eyelids and my blood test came back with very high cholesterol; I feel well otherwise.",
@@ -911,6 +959,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. My right knee has ached for months and it's much worse going downstairs; it's stiff for about twenty minutes in the morning, and paracetamol barely helps.",
       "My name is {first_name}, I'm {age} and I'm a {occupation}. My left hip hurts in the groin when I walk more than ten minutes, and I've started limping.",
@@ -948,6 +998,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. I get a burning pain behind my breastbone after meals and when I lie down, nearly every night for two months, and antacids only help for an hour.",
       "My name is {first_name}, I'm {age}. I keep waking up with a sour taste and acid in my throat, I've had a hoarse voice and a cough, and it's worse after coffee.",
@@ -985,6 +1037,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. For the last month I've been very thirsty, going to the toilet at night three or four times, and I've lost weight without trying; my GP's finger-prick sugar was high.",
       "My name is {first_name}, I'm {age}. My blood test showed diabetes, I've been really tired, and I have a cut on my foot that won't heal after three weeks.",
@@ -1022,6 +1076,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. My lower back has hurt for about four months, worse after sitting for long; I'm a {occupation}, and ibuprofen only takes the edge off; no numbness or problems with the toilet.",
       "My name is {first_name}, I'm {age}. My back flared up badly two days ago when I bent to lift a box, and the pain goes into my right buttock; I've had back trouble on and off for a year.",
@@ -1059,6 +1115,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. My GP said my kidney blood test has been low for three months and there's protein in my urine, so I was referred to the kidney clinic; I've noticed my ankles swelling.",
       "My name is {first_name}, I'm {age}. I've had diabetes for years, and now my kidney function is down; I'm more tired than usual and my legs puff up by evening.",
@@ -1096,6 +1154,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}, I have asthma. Since last night I've been wheezing and tight-chested, my blue inhaler only helps for an hour, and I can't finish a sentence without stopping.",
       "My name is {first_name}, I'm {age}. I caught a cold three days ago and my asthma has got worse every day; I've used my reliever eight times today and my peak flow is half my normal.",
@@ -1133,6 +1193,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.mentalHealth,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. For about two months I've felt flat and hopeless, I wake at four every morning, I've stopped seeing friends, and I can't concentrate on anything.",
       "My name is {first_name}, I'm {age} and I'm a {occupation}. I've been crying most days and lost my appetite for over a month; I don't want to hurt myself, but I feel like there's no point.",
@@ -1170,6 +1232,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. For three weeks I've had a heavy, squeezing pain in the middle of my chest when I walk uphill, it goes into my left arm, and it eases after a few minutes of rest.",
       "My name is {first_name}, I'm {age}. I get tightness across my chest and shortness of breath when I climb stairs or walk in the cold; it lasted ten minutes this morning, which frightened me.",
@@ -1207,6 +1271,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.primary,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. For months I've felt exhausted, cold all the time, and I've put on five kilos without eating more; my hair is thinning too.",
       "My name is {first_name}, I'm {age}. My blood test showed an underactive thyroid; I've been constipated, my skin is very dry, and I feel slow and foggy all day.",
@@ -1244,6 +1310,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}, I have COPD. For four days I've been much more breathless, coughing up thick green phlegm, and my inhalers aren't working like they normally do.",
       "My name is {first_name}, I'm {age}. I smoked for thirty years and now I get out of breath walking to the shop; this week I can barely get dressed without stopping.",
@@ -1281,6 +1349,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.mentalHealth,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. I've been worrying constantly about everything for months, my heart races, my muscles are tense, and I lie awake most of the night going over things.",
       "My name is {first_name}, I'm {age}. I had a spell of shaking, sweating, and a tight chest this morning; it's been building for half a year and I can't switch my mind off.",
@@ -1318,6 +1388,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. Since this morning my heart has been racing and fluttering irregularly, I feel a bit short of breath and light-headed, and it hasn't settled after resting.",
       "My name is {first_name}, I'm {age}. My smartwatch keeps alerting me to an irregular rhythm, and for a week I've had palpitations and been tired on my usual walks.",
@@ -1355,6 +1427,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. Over the last two weeks I've got more and more breathless, I need three pillows to sleep, and my ankles and legs are badly swollen.",
       "My name is {first_name}, I'm {age}. I woke up twice last night gasping for air and had to sit on the edge of the bed; I've put on four kilos in a week.",
@@ -1392,6 +1466,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, I'm {age}. My family says I keep repeating questions and forgetting conversations from yesterday, and last week I got lost driving home in {city}, which has never happened before.",
       "My name is {first_name}, I'm {age}. For about a year I've been misplacing things and missing appointments, and my GP referred me to the memory clinic for tests.",
@@ -1429,6 +1505,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. For two months the knuckles and wrists on both hands have been swollen and painful, and I'm stiff for over an hour every morning before I can grip anything.",
       "My name is {first_name}, I'm {age}. The balls of my feet and my fingers ache and swell on both sides, I'm exhausted, and I'm a {occupation} struggling with everyday tasks.",
@@ -1466,6 +1544,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: null,
+    setting: CareSetting.hospital,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. I was diagnosed with breast cancer after the biopsy, and today is my first chemotherapy session at the day unit; I'm nervous but I feel well.",
       "My name is {first_name}, I'm {age}. I'm here to start the treatment the cancer team planned after my surgery; the wound has healed and I have no fever.",
@@ -1503,6 +1583,8 @@ const conditionSeed = <MedicalCondition>[
     urgent: false,
     followUpStayHours: null,
     courseGapDays: 0,
+    setting: CareSetting.dialysis,
+    followUpSetting: null,
     first: [
       "Hi, I'm {name}, {age}. My kidney function has fallen below fifteen percent, and today is my first haemodialysis session through my new fistula; I've been itchy, nauseous, and very tired.",
       "My name is {first_name}, I'm {age}. The kidney team said it's time to start dialysis; my legs are swollen, I'm breathless lying flat, and I'm worried about the needles.",

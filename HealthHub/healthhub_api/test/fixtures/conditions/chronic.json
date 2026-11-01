@@ -15,6 +15,7 @@
       "interval_days": 30,
       "stay_hours": 2
     },
+    "setting": "primary",
     "templates": {
       "first": [
         "I'm {name}, {age}, always thirsty lately.",

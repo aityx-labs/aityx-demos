@@ -78,8 +78,20 @@ class AuthOnTest {
         String other = Jwt.issuer("https://server.example.com").subject("s").audience("someone-else")
             .claim("email", "x@example.com").jws().keyId("1").sign("privateKey.jwk");
         given().auth().oauth2(other).when().get("/api/me").then().statusCode(401);
+        given().when().get("/api/catalog/events").then().statusCode(401);
         // The open paths stay open.
         given().when().get("/api/health").then().statusCode(200);
+    }
+
+    @Test
+    void openMetadatasWebhookSignsInsteadOfSigningIn() {
+        byte[] body = "{}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        given().contentType(ContentType.JSON).body(body)
+            .when().post("/api/catalog/openmetadata-events").then().statusCode(401)
+            .body("error", is("the post isn't signed with datyx's secret (X-OM-Signature)"));
+        given().contentType(ContentType.JSON).body(body)
+            .header("X-OM-Signature", datyx.catalog.CatalogEvents.sign("test-webhook-secret".getBytes(java.nio.charset.StandardCharsets.UTF_8), body))
+            .when().post("/api/catalog/openmetadata-events").then().statusCode(200);
     }
 
     @Test

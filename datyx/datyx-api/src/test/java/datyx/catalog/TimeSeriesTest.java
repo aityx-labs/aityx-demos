@@ -49,6 +49,7 @@ class TimeSeriesTest {
         assertEquals("public", spec.schema());
         assertEquals("default", spec.group());
         assertEquals("DeepAR", spec.algorithm(), "a group without an algorithm tag is DeepAR's");
+        assertEquals(List.of("DeepAR"), spec.algorithms());
         assertNull(spec.horizon());
     }
 
@@ -89,7 +90,7 @@ class TimeSeriesTest {
     }
 
     @Test
-    void xgboostWantsAHorizonAndAGroupOneAlgorithm() throws Exception {
+    void xgboostWantsAHorizonAndAGroupCanHaveBothAlgorithms() throws Exception {
         TimeSeries.Spec noHorizon = TimeSeries.spec(patientDays("[{\"tagFQN\":\"TimeSeries.care.XGBoost\"}]",
             "{\"timeSeriesFrequency\":\"1D\",\"timeSeriesMissing\":\"zero\"}"), "care");
         assertEquals(List.of("the table has no timeSeriesHorizon, how far ahead XGBoost scores (such as 30D)"), noHorizon.problems());
@@ -98,10 +99,19 @@ class TimeSeriesTest {
         assertEquals("DeepAR", deepAr.algorithm());
         assertEquals(List.of("timeSeriesHorizon 'a month' isn't a span such as 24h, 30D or 4W"), deepAr.problems());
         TimeSeries.Spec both = TimeSeries.spec(patientDays(
-            "[{\"tagFQN\":\"TimeSeries.care.XGBoost\"},{\"tagFQN\":\"TimeSeries.care.DeepAR\"},{\"tagFQN\":\"TimeSeries.XGBoost\"}]",
+            "[{\"tagFQN\":\"TimeSeries.care.DeepAR\"},{\"tagFQN\":\"TimeSeries.care.XGBoost\"},{\"tagFQN\":\"TimeSeries.DeepAR\"}]",
             "{\"timeSeriesFrequency\":\"1D\",\"timeSeriesHorizon\":\"30D\"}"), "care");
-        assertEquals(List.of("the table is tagged TimeSeries.care.XGBoost and TimeSeries.care.DeepAR; "
-            + "one algorithm trains a group (tag another group for the other)"), both.problems());
+        assertTrue(both.ready(), both.problems().toString());
+        assertEquals(List.of("XGBoost", "DeepAR"), both.algorithms(), "XGBoost first, whatever the tags' order");
+        assertEquals("XGBoost", both.algorithm(), "the first, as before a group had more than one");
+        assertTrue(both.has(TimeSeries.Algorithm.DEEPAR) && both.has(TimeSeries.Algorithm.XGBOOST));
+        TimeSeries.Spec bothNoHorizon = TimeSeries.spec(patientDays(
+            "[{\"tagFQN\":\"TimeSeries.care.DeepAR\"},{\"tagFQN\":\"TimeSeries.care.XGBoost\"}]",
+            "{\"timeSeriesFrequency\":\"1D\",\"timeSeriesMissing\":\"zero\"}"), "care");
+        assertEquals(List.of("the table has no timeSeriesHorizon, how far ahead XGBoost scores (such as 30D)"),
+            bothNoHorizon.problems(), "XGBoost among them wants the horizon");
+        assertEquals(List.of("DeepAR"), deepAr.algorithms());
+        assertFalse(deepAr.has(TimeSeries.Algorithm.XGBOOST));
     }
 
     @Test
@@ -142,6 +152,10 @@ class TimeSeriesTest {
         assertEquals(TimeSeries.Algorithm.XGBOOST, TimeSeries.Algorithm.named(" xgboost "));
         assertEquals(TimeSeries.Algorithm.DEEPAR, TimeSeries.Algorithm.named("DeepAR"));
         assertNull(TimeSeries.Algorithm.named(""));
+        assertEquals(List.of(TimeSeries.Algorithm.XGBOOST, TimeSeries.Algorithm.DEEPAR),
+            TimeSeries.Algorithm.named(List.of("deepar", " XGBoost", "DeepAR", "")), "each once, XGBoost first");
+        assertEquals(List.of(), TimeSeries.Algorithm.named((List<String>) null));
+        assertThrows(IllegalArgumentException.class, () -> TimeSeries.Algorithm.named(List.of("XGBoost", "Prophet")));
         assertEquals("the algorithm is DeepAR or XGBoost, not 'Prophet'",
             assertThrows(IllegalArgumentException.class, () -> TimeSeries.Algorithm.named("Prophet")).getMessage());
     }
@@ -172,10 +186,44 @@ class TimeSeriesTest {
             "1D", "zero", "XGBoost", "30D");
         JsonNode emptied = byPath(catalog.rolesPatch(tagged, removed));
         assertEquals(List.of("Tier.Tier2"), fqns(emptied.path("/tags")), "a group without roles loses its algorithm too");
+        JsonNode switchedOff = patientDays("[{\"tagFQN\":\"TimeSeries.care.XGBoost\"},{\"tagFQN\":\"TimeSeries.care.Disabled\"},{\"tagFQN\":\"TimeSeries.Disabled\"}]",
+            "{\"timeSeriesFrequency\":\"1D\",\"timeSeriesMissing\":\"zero\",\"timeSeriesHorizon\":\"30D\"}");
+        assertEquals(List.of("TimeSeries.Disabled"), fqns(byPath(catalog.rolesPatch(switchedOff, removed)).path("/tags")),
+            "and its switch, another group's staying");
+        assertTrue(byPath(catalog.rolesPatch(switchedOff, roles)).path("/tags").isMissingNode(),
+            "new roles keep the group switched off");
         assertEquals("[]", emptied.path("/columns/6/tags").toString());
         Catalog.Roles unknown = new Catalog.Roles("patient_days", "care", "day", null, null, null, null, null, null,
             null, null, "Prophet", null);
         assertThrows(IllegalArgumentException.class, () -> catalog.rolesPatch(tagged, unknown));
+        Catalog.Roles unknownAmong = new Catalog.Roles("patient_days", "care", "day", null, null, null, null, null, null,
+            null, null, null, null, List.of("XGBoost", "Prophet"));
+        assertThrows(IllegalArgumentException.class, () -> catalog.rolesPatch(tagged, unknownAmong));
+    }
+
+    @Test
+    void rolesSetEveryAlgorithmOfTheGroup() throws Exception {
+        Catalog catalog = new Catalog();
+        catalog.json = json;
+        JsonNode tagged = patientDays("[{\"tagFQN\":\"Tier.Tier2\"},{\"tagFQN\":\"TimeSeries.care.XGBoost\"},{\"tagFQN\":\"TimeSeries.XGBoost\"}]",
+            "{\"timeSeriesFrequency\":\"1D\",\"timeSeriesMissing\":\"zero\",\"timeSeriesHorizon\":\"30D\"}");
+        Catalog.Roles both = new Catalog.Roles("patient_days", "care", "day", "stay_hours", List.of("run_id", "person_id"),
+            List.of("chronic_condition"), List.of("age"), null, List.of("visits"), "1D", "zero", "XGBoost", "30D",
+            List.of("deepar", "XGBOOST"));
+        assertEquals(List.of("Tier.Tier2", "TimeSeries.XGBoost", "TimeSeries.care.XGBoost", "TimeSeries.care.DeepAR"),
+            fqns(byPath(catalog.rolesPatch(tagged, both)).path("/tags")), "one tag per algorithm, XGBoost first; the default group's stays");
+        JsonNode bothTagged = json.readTree(tagged.toString().replace("{\"tagFQN\":\"TimeSeries.XGBoost\"}",
+            "{\"tagFQN\":\"TimeSeries.XGBoost\"},{\"tagFQN\":\"TimeSeries.care.DeepAR\"}"));
+        assertTrue(catalog.rolesPatch(bothTagged, both).isEmpty(), "both tagged already: nothing to patch");
+        assertEquals(List.of("XGBoost", "DeepAR"), TimeSeries.spec(bothTagged, "care").algorithms());
+        Catalog.Roles none = new Catalog.Roles("patient_days", "care", "day", "stay_hours", List.of("run_id", "person_id"),
+            List.of("chronic_condition"), List.of("age"), null, List.of("visits"), "1D", "zero", "XGBoost", "30D", List.of());
+        assertEquals(List.of("Tier.Tier2", "TimeSeries.XGBoost"), fqns(byPath(catalog.rolesPatch(bothTagged, none)).path("/tags")),
+            "algorithms wins over algorithm: none named, DeepAR by no tag");
+        Catalog.Roles deepAr = new Catalog.Roles("patient_days", "care", "day", "stay_hours", List.of("run_id", "person_id"),
+            List.of("chronic_condition"), List.of("age"), null, List.of("visits"), "1D", "zero", null, "30D", List.of("DeepAR"));
+        assertEquals(List.of("Tier.Tier2", "TimeSeries.XGBoost", "TimeSeries.care.DeepAR"),
+            fqns(byPath(catalog.rolesPatch(bothTagged, deepAr)).path("/tags")));
     }
 
     private JsonNode byPath(ArrayNode patch) {
@@ -220,13 +268,66 @@ class TimeSeriesTest {
     }
 
     @Test
+    void aGroupIsSwitchedOffByItsDisabledTagOnTheTable() throws Exception {
+        JsonNode table = json.readTree(grouped().toString().replaceFirst("\\{\"name\":\"admissions_hourly\",",
+            "{\"name\":\"admissions_hourly\",\"tags\":[{\"tagFQN\":\"TimeSeries.chronic.Disabled\"},{\"tagFQN\":\"Tier.Tier2\"}],"));
+        List<TimeSeries.Spec> specs = TimeSeries.specs(table);
+        assertEquals(List.of("default", "acute", "chronic"), specs.stream().map(TimeSeries.Spec::group).toList(),
+            "a Disabled tag names no group of its own");
+        assertEquals(List.of(true, true, false), specs.stream().map(TimeSeries.Spec::enabled).toList());
+        assertEquals("TimeSeries.Disabled", TimeSeries.disabledFqn("default"));
+        assertEquals("TimeSeries.chronic.Disabled", TimeSeries.disabledFqn("chronic"));
+        assertEquals("default", TimeSeries.disabledGroupOf("TimeSeries.Disabled"));
+        assertEquals("acute", TimeSeries.disabledGroupOf("TimeSeries.acute.Disabled"));
+        assertNull(TimeSeries.disabledGroupOf("TimeSeries.acute.Target"));
+        assertNull(TimeSeries.disabledGroupOf("Other.acute.Disabled"));
+        assertThrows(IllegalArgumentException.class, () -> TimeSeries.group("disabled"), "Disabled can't name a group");
+        assertFalse(TimeSeries.spec(json.readTree(table.toString().replace("TimeSeries.chronic.Disabled", "TimeSeries.Disabled")),
+            "default").enabled());
+    }
+
+    @Test
+    void theSwitchIsTheDisabledTagAddedOrRemoved() throws Exception {
+        Catalog catalog = new Catalog();
+        catalog.json = json;
+        JsonNode on = json.readTree(grouped().toString().replaceFirst("\\{\"name\":\"admissions_hourly\",",
+            "{\"name\":\"admissions_hourly\",\"tags\":[{\"tagFQN\":\"Tier.Tier2\"}],"));
+        JsonNode off = byPath(catalog.enabledPatch(on, "chronic", false));
+        assertEquals(List.of("Tier.Tier2", "TimeSeries.chronic.Disabled"), fqns(off.path("/tags")), "the table's other tags kept");
+        assertTrue(catalog.enabledPatch(on, "chronic", true).isEmpty(), "on already: nothing to patch");
+        JsonNode offTable = json.readTree(on.toString().replace("{\"tagFQN\":\"Tier.Tier2\"}",
+            "{\"tagFQN\":\"Tier.Tier2\"},{\"tagFQN\":\"TimeSeries.chronic.Disabled\"},{\"tagFQN\":\"TimeSeries.acute.Disabled\"}"));
+        assertEquals(List.of("Tier.Tier2", "TimeSeries.acute.Disabled"),
+            fqns(byPath(catalog.enabledPatch(offTable, "chronic", true)).path("/tags")), "another group's switch stays");
+        assertThrows(java.util.NoSuchElementException.class, () -> catalog.enabledPatch(on, "care", false));
+    }
+
+    @Test
+    void openMetadatasHistorySaysWhenAGroupWasSwitchedOn() throws Exception {
+        Catalog catalog = new Catalog();
+        catalog.json = json;
+        // Newest first, each version as a JSON string, as GET /tables/{id}/versions answers.
+        JsonNode history = json.readTree(json.writeValueAsString(java.util.Map.of("versions", List.of(
+            "{\"version\":1.2,\"updatedBy\":\"julio\",\"updatedAt\":3000000,\"changeDescription\":{\"fieldsUpdated\":[{\"name\":\"description\"}]}}",
+            "{\"version\":1.1,\"updatedBy\":\"admin\",\"updatedAt\":2000000,\"changeDescription\":{\"fieldsDeleted\":[{\"name\":\"tags\",\"oldValue\":\"[{\\\"tagFQN\\\":\\\"TimeSeries.chronic.Disabled\\\",\\\"source\\\":\\\"Classification\\\"}]\"}]}}",
+            "{\"version\":1.0,\"updatedBy\":\"admin\",\"updatedAt\":1000000,\"changeDescription\":{\"fieldsAdded\":[{\"name\":\"tags\",\"newValue\":\"[{\\\"tagFQN\\\":\\\"TimeSeries.chronic.Disabled\\\"}]\"}]}}"))));
+        Catalog.Change change = catalog.enabledIn(history, "chronic", java.time.Instant.ofEpochMilli(1500000)).orElseThrow();
+        assertEquals("1.1", change.version());
+        assertEquals("admin", change.by());
+        assertEquals("table version 1.1, by admin, 1970-01-01 00:33 UTC", change.describe());
+        assertTrue(catalog.enabledIn(history, "chronic", java.time.Instant.ofEpochMilli(2500000)).isEmpty(),
+            "a run after the change: it was trained since");
+        assertTrue(catalog.enabledIn(history, "acute", java.time.Instant.EPOCH).isEmpty(), "another group's tag");
+    }
+
+    @Test
     void namesGroups() {
         assertEquals("default", TimeSeries.group(null));
         assertEquals("default", TimeSeries.group(" default "));
         assertEquals("acute_2", TimeSeries.group("acute_2"));
         assertEquals("TimeSeries.acute.Target", TimeSeries.Role.TARGET.fqn("acute"));
         assertEquals("TimeSeries.Target", TimeSeries.Role.TARGET.fqn("default"));
-        assertEquals("'target' is a role or an algorithm, so it can't name a group",
+        assertEquals("'target' is a role, an algorithm or Disabled, so it can't name a group",
             assertThrows(IllegalArgumentException.class, () -> TimeSeries.group("target")).getMessage());
         assertThrows(IllegalArgumentException.class, () -> TimeSeries.group("xgboost"));
         assertThrows(IllegalArgumentException.class, () -> TimeSeries.group("a.b"));

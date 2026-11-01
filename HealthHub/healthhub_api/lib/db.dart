@@ -13,6 +13,7 @@ import 'care_centers_seed.dart';
 import 'conditions.dart';
 import 'conditions_seed.dart';
 import 'routes.dart' show Bbox;
+import 'schema_comments.dart';
 import 'simulation.dart' show LatLon, Place;
 
 /// Where the database is, from the environment (scripts/api.sh and
@@ -217,7 +218,9 @@ class Db {
         female_share DOUBLE PRECISION NOT NULL DEFAULT 0.5,
         urgent BOOLEAN NOT NULL DEFAULT false,
         follow_up_stay_hours INT,
-        course_gap_days INT
+        course_gap_days INT,
+        setting TEXT NOT NULL DEFAULT 'hospital',
+        follow_up_setting TEXT NOT NULL DEFAULT 'hospital'
       )
     ''');
     // Added after the table was first made: a database from before has it
@@ -227,6 +230,8 @@ class Db {
       'urgent BOOLEAN NOT NULL DEFAULT false',
       'follow_up_stay_hours INT',
       'course_gap_days INT',
+      "setting TEXT NOT NULL DEFAULT 'hospital'",
+      "follow_up_setting TEXT NOT NULL DEFAULT 'hospital'",
     ]) {
       await c.execute('ALTER TABLE medical_conditions ADD COLUMN IF NOT EXISTS $column');
     }
@@ -351,6 +356,8 @@ class Db {
       WHERE a.event_id ~ '^[0-9a-f]{8}-'
       GROUP BY split_part(a.event_id, '-', 1), a.person_id, a.sim_day
     ''');
+    // What each table and column is, for a catalogue reading the schema.
+    await commentSchema(c);
   }
 
   /// Makes medical_conditions and complaint_templates hold exactly
@@ -592,6 +599,55 @@ class Db {
     'conditionName', 'conditionType', 'visit', 'visitNumber', 'complaint', 'hospitalId',
     'hospitalName', 'day', 'simTime',
   ];
+
+  /// One hospital's admissions per hour in one run, from
+  /// admissions_hourly (the Flink job's): the run (the newest run with an
+  /// admission at the hospital when [run] is null; none: no rows, run
+  /// null), the run's latest hour at any hospital (where its series end),
+  /// and the hospital's rows of the [hours] hours up to it.
+  Future<({String? run, DateTime? end, List<Map<String, Object?>> rows})> hospitalHourly(
+    int hospitalId, {
+    String? run,
+    required int hours,
+  }) => _run((c) async {
+    var chosen = run;
+    if (chosen == null) {
+      final newest = await c.execute(
+        Sql.named(
+          "SELECT split_part(event_id, '-', 1) FROM admissions WHERE hospital_id = @id ORDER BY id DESC LIMIT 1",
+        ),
+        parameters: {'id': hospitalId},
+      );
+      if (newest.isEmpty) return (run: null, end: null, rows: const <Map<String, Object?>>[]);
+      chosen = newest.first[0] as String;
+    }
+    final ends = await c.execute(
+      Sql.named('SELECT max(hour_start) FROM admissions_hourly WHERE run_id = @run'),
+      parameters: {'run': chosen},
+    );
+    final end = ends.first[0] as DateTime?;
+    if (end == null) return (run: chosen, end: null, rows: const <Map<String, Object?>>[]);
+    final rows = await c.execute(
+      Sql.named('''
+        SELECT hour_start, admissions, acute_admissions, chronic_admissions FROM admissions_hourly
+        WHERE run_id = @run AND hospital_id = @id AND hour_start > @from AND hour_start <= @end
+        ORDER BY hour_start
+      '''),
+      parameters: {
+        'run': chosen,
+        'id': hospitalId,
+        'from': TypedValue(Type.timestampWithoutTimezone, end.subtract(Duration(hours: hours))),
+        'end': TypedValue(Type.timestampWithoutTimezone, end),
+      },
+    );
+    return (
+      run: chosen,
+      end: end,
+      rows: [
+        for (final row in rows) {'hour': row[0], 'admissions': row[1], 'acute': row[2], 'chronic': row[3]},
+      ],
+    );
+  });
 
   /// How many of a person's admissions, and of their days,
   /// [personHistory] answers at most.
@@ -889,24 +945,48 @@ class Db {
         'limit': limit,
       },
     );
-    return [
-      for (final row in rows)
-        {
-          'id': row[0],
-          'name': row[1],
-          'kind': row[2],
-          'subtype': row[3],
-          'address': row[4],
-          'city': row[5],
-          'country': (row[6] as String).trim(),
-          'lat': row[7],
-          'lon': row[8],
-          'phone': row[9],
-          'website': row[10],
-          'ownership': row[11],
-        },
-    ];
+    return [for (final row in rows) _careCenter(row)];
   });
+
+  /// The care center nearest [lat], [lon], of any kind, with its
+  /// great-circle `distance` in metres; null when none has a location:
+  /// what GET /api/care-centers/nearest answers.
+  Future<Map<String, Object?>?> nearestCareCenter(double lat, double lon) => _run((c) async {
+    final rows = await c.execute(
+      Sql.named('''
+        SELECT id, name, kind, subtype, address, city, country, latitude, longitude,
+               phone, website, ownership,
+               2 * 6371008.8 * asin(least(1, sqrt(
+                 power(sin(radians(latitude - @lat) / 2), 2)
+                 + cos(radians(@lat)) * cos(radians(latitude)) * power(sin(radians(longitude - @lon) / 2), 2)
+               ))) AS distance
+        FROM care_centers
+        WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+        ORDER BY distance, id
+        LIMIT 1
+      '''),
+      parameters: {'lat': TypedValue(Type.double, lat), 'lon': TypedValue(Type.double, lon)},
+    );
+    if (rows.isEmpty) return null;
+    return {..._careCenter(rows.first), 'distance': (rows.first[12] as double).round()};
+  });
+
+  /// A care center as the API answers it, from a row of the columns
+  /// [careCenters] selects, in its order.
+  static Map<String, Object?> _careCenter(ResultRow row) => {
+    'id': row[0],
+    'name': row[1],
+    'kind': row[2],
+    'subtype': row[3],
+    'address': row[4],
+    'city': row[5],
+    'country': (row[6] as String).trim(),
+    'lat': row[7],
+    'lon': row[8],
+    'phone': row[9],
+    'website': row[10],
+    'ownership': row[11],
+  };
 
   /// Every care center with a location, as the simulation places homes
   /// near them and sends people to the hospitals among them.

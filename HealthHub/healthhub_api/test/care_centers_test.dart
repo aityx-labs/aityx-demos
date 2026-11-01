@@ -86,6 +86,31 @@ void main() {
     expect(route('GET', '/api/care-centers', query: {'bbox': '0,0,1,1'}).status, 503);
   });
 
+  test('a nearest point is lat and lon in degrees', () {
+    expect(nearestPoint({'lat': '41.15', 'lon': ' 1.1 '}), (lat: 41.15, lon: 1.1));
+    for (final bad in [
+      <String, String>{},
+      {'lat': '41'},
+      {'lat': 'x', 'lon': '1'},
+      {'lat': '91', 'lon': '0'},
+      {'lat': '0', 'lon': '-181'},
+    ]) {
+      expect(nearestPoint(bad), isNull, reason: '$bad');
+    }
+  });
+
+  test('nearest answers the care center, or none, and says why it can\'t', () {
+    const point = {'lat': '41.15', 'lon': '1.1'};
+    final center = {'id': 7, 'name': 'Hospital', 'distance': 420};
+    final answer = route('GET', '/api/care-centers/nearest', query: point, nearest: NearestCenter(center));
+    expect(answer.status, 200);
+    expect(answer.body, {'center': center});
+    expect(route('GET', '/api/care-centers/nearest', query: point, nearest: const NearestCenter(null)).body,
+        {'center': null});
+    expect(route('GET', '/api/care-centers/nearest', query: {'lat': '95', 'lon': '0'}).status, 400);
+    expect(route('GET', '/api/care-centers/nearest', query: point).status, 503);
+  });
+
   test('a care center path names its id, a positive number', () {
     expect(careCenterIdOf('/api/care-centers/42'), 42);
     expect(careCenterIdOf('/api/care-centers/0'), isNull);
@@ -148,6 +173,7 @@ void main() {
       expect(capacity['places'], simulatedCapacity('siap:43148', 'hospital').places);
       expect(capacity['unit'], 'beds');
       expect(capacity['simulated'], isTrue);
+      expect(body['serves'], ['hospital', 'urgent_care', 'dialysis']);
       final now = body['now'] as Map;
       expect(now['enabled'], isTrue);
       expect(now['run'], 'df0837e4');
@@ -169,6 +195,16 @@ void main() {
       expect(now['inUse'], 0);
       expect(now['simTime'], isNull);
       expect((body['admissions'] as Map)['total'], 5);
+    });
+
+    test('says what the simulation sends people to it for: nothing, for a dental clinic', () {
+      Map<String, Object?> serves(String kind, String subtype) => (route('GET', '/api/care-centers/3',
+          careCenter: CareCenterLookup({
+            'center': {'id': 3, 'key': 'k', 'name': 'n', 'kind': kind, 'subtype': subtype},
+          })).body as Map).cast();
+      expect(serves('health_station', 'CAP')['serves'], ['primary', 'mental_health']);
+      expect(serves('clinic', 'CUAP')['serves'], ['urgent_care']);
+      expect(serves('clinic', 'CLINICA/CENTRO DE ESPECIALIDADE - CEO-I')['serves'], isEmpty);
     });
 
     test('none is a 404, no database a 503', () {

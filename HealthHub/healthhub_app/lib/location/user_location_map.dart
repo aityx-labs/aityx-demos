@@ -21,6 +21,10 @@ typedef CareCentersLoader =
       required double north,
     });
 
+/// Gives the care center nearest the given point, or null when there is
+/// none: the API's `GET /api/care-centers/nearest`.
+typedef NearestCareCenterLoader = Future<CareCenter?> Function({required double lat, required double lon});
+
 /// Gives the simulated people and the homes between the given degrees:
 /// the API's `GET /api/people`.
 typedef PeopleLoader =
@@ -34,8 +38,9 @@ typedef PeopleLoader =
 /// A map of OpenStreetMap's tiles, darkened to the aityx palette, with the
 /// user's location highlighted: an orange dot in a white ring and a halo,
 /// inside the circle of how sure the device is. It shows the whole world
-/// until the location comes, then flies there; a button brings it back,
-/// and two more zoom in and out. With [careCenters], the hospitals, clinics
+/// until the location comes, then flies there, or with [nearest] to the
+/// care center nearest the user, close enough to show the user too; a
+/// button brings it back to the user, and two more zoom in and out. With [careCenters], the hospitals, clinics
 /// and health stations in view are pinned on it, each kind with its own
 /// icon and colour, and a legend says which is which. With [people], and
 /// while the API runs its dev-mode simulation, the simulated people and
@@ -45,6 +50,7 @@ class UserLocationMap extends StatefulWidget {
     super.key,
     required this.location,
     this.careCenters,
+    this.nearest,
     this.people,
     this.showTiles = true,
     this.zoom = 14,
@@ -54,6 +60,11 @@ class UserLocationMap extends StatefulWidget {
 
   /// Where the care centers come from; none are shown without it.
   final CareCentersLoader? careCenters;
+
+  /// Where the care center nearest the user comes from: with it, the map
+  /// centres on that care center once the location is known, not on the
+  /// user.
+  final NearestCareCenterLoader? nearest;
 
   /// Where the simulated people come from; none are shown without it, or
   /// while it says the simulation is off.
@@ -84,6 +95,14 @@ class _UserLocationMapState extends State<UserLocationMap> {
 
   /// Counts the asks, so an answer that arrives after a newer ask is dropped.
   int _asked = 0;
+
+  /// The care center nearest the user, which the map centred on: pinned
+  /// even when the care centers in view leave it out.
+  CareCenter? _nearest;
+
+  /// Whether the user has moved the map: the nearest care center then
+  /// doesn't pull it away when its answer comes late.
+  bool _touched = false;
 
   /// The simulated people as last read, and the timer that reads them again.
   People _people = const People(enabled: false);
@@ -188,11 +207,50 @@ class _UserLocationMapState extends State<UserLocationMap> {
     }
   }
 
-  /// The first location found centres the map once; later ones only move
-  /// the dot, so a user looking around isn't pulled back.
+  /// The first location found centres the map once ([_firstCentre]); later
+  /// ones only move the dot, so a user looking around isn't pulled back.
   void _moved() {
-    if (!_centred && _ready && widget.location.location != null) _centre();
+    if (!_centred && _ready && widget.location.location != null) _firstCentre();
     setState(() {});
+  }
+
+  /// Centres on the user, then, with [UserLocationMap.nearest], on the care
+  /// center nearest them once the API says which.
+  void _firstCentre() {
+    _centre();
+    _centreOnNearest();
+  }
+
+  /// Centres on the care center nearest the user, as close as
+  /// [UserLocationMap.zoom] but no closer than keeps the user in view. The
+  /// map stays on the user when the API doesn't answer, knows none, or the
+  /// user has moved the map meanwhile.
+  Future<void> _centreOnNearest() async {
+    final load = widget.nearest;
+    final here = widget.location.location?.point;
+    if (load == null || here == null) return;
+    final CareCenter? center;
+    try {
+      center = await load(lat: here.latitude, lon: here.longitude);
+    } catch (_) {
+      return;
+    }
+    if (!mounted || center == null || _touched) return;
+    final at = LatLng(center.lat, center.lon);
+    // The user and their mirror image across the care center: a view
+    // holding both is centred on it.
+    final mirror = LatLng(
+      (2 * at.latitude - here.latitude).clamp(-90.0, 90.0),
+      (2 * at.longitude - here.longitude).clamp(-180.0, 180.0),
+    );
+    final fitted = CameraFit.coordinates(
+      coordinates: [here, mirror],
+      padding: const EdgeInsets.all(48),
+      maxZoom: widget.zoom,
+      minZoom: _minZoom,
+    ).fit(_map.camera);
+    setState(() => _nearest = center);
+    _map.move(at, fitted.zoom);
   }
 
   void _centre() {
@@ -225,11 +283,13 @@ class _UserLocationMapState extends State<UserLocationMap> {
             ),
             onMapReady: () {
               _ready = true;
-              _centred = here != null;
-              if (!_centred) _centre();
+              if (widget.location.location != null) _firstCentre();
               _viewChanged(_map.camera);
             },
-            onPositionChanged: (camera, _) => _viewChanged(camera),
+            onPositionChanged: (camera, hasGesture) {
+              _touched |= hasGesture;
+              _viewChanged(camera);
+            },
           ),
           children: [
             if (widget.showTiles)
@@ -238,10 +298,13 @@ class _UserLocationMapState extends State<UserLocationMap> {
                 userAgentPackageName: 'ai.aletyx.healthhub',
                 tileBuilder: darkModeTileBuilder,
               ),
-            if (_centers.centers.isNotEmpty)
+            if (_centers.centers.isNotEmpty || _nearest != null)
               MarkerLayer(
                 markers: [
-                  for (final center in _centers.centers)
+                  for (final center in [
+                    ..._centers.centers,
+                    if (_nearest case final nearest? when !_centers.centers.any((c) => c.id == nearest.id)) nearest,
+                  ])
                     Marker(
                       point: LatLng(center.lat, center.lon),
                       width: 28,
@@ -508,7 +571,7 @@ class PersonPin extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final details = [
-      person.state.label,
+      person.state.labelAt(person.careCenterKind),
       if (person.hospitalName != null) person.hospitalName!,
       ?simTime,
     ].join(' · ');
@@ -522,7 +585,7 @@ class PersonPin extends StatelessWidget {
       person.id,
       message: [who, ?condition, details].join('\n'),
       child: Semantics(
-        label: 'Person, ${person.state.label}',
+        label: 'Person, ${person.state.labelAt(person.careCenterKind)}',
         child: Container(
           decoration: BoxDecoration(
             shape: BoxShape.circle,
@@ -578,7 +641,7 @@ class CareCenterLegend extends StatelessWidget {
                 margin: const EdgeInsets.all(2),
                 decoration: BoxDecoration(shape: BoxShape.circle, color: state.color),
               ),
-              'Person, ${state.label.toLowerCase()}',
+              'Person, ${state.legend}',
             ),
           if (people.simTime != null)
             Padding(

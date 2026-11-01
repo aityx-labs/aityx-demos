@@ -21,6 +21,13 @@
 ///                       more}: the hospitals, clinics and health stations
 ///                       in the area (lib/care_centers.dart), open to all;
 ///                       503 when the database doesn't answer
+///   GET  /api/care-centers/nearest?lat=..&lon=..
+///                       {"center": {..., "distance": metres} or null}: the
+///                       care center nearest the point, of any kind, which
+///                       home's map centres on; open to all; the point is
+///                       used for the query only, never logged or kept; 400
+///                       for a point that isn't one, 503 when the database
+///                       doesn't answer
 ///   GET  /api/people    {"enabled": dev mode, "simTime", "day", "people":
 ///                       [...]}: the simulated people's latest moves, read
 ///                       back from Kafka (lib/simulation.dart), open to all
@@ -64,6 +71,14 @@
 ///   GET  /api/people/{id}/prediction
 ///                       datyx's XGBoost prediction of their hours of
 ///                       care over the next 30 days, asked with the
+///                       user's own token; 502 when datyx is down
+///   GET  /api/care-centers/{id}/admissions?run=&hours=72
+///                       the hospital's admissions in each hour up to its
+///                       run's end, missing hours zero; open to all; 503
+///                       without the database
+///   GET  /api/care-centers/{id}/admissions/forecast?run=
+///                       datyx's DeepAR forecast of the hospital's
+///                       admissions per hour, step by step, asked with the
 ///                       user's own token; 502 when datyx is down
 ///   GET  /api/datyx/me, /api/datyx/datasources
 ///                       the datyx API's /api/me and /api/datasources, asked
@@ -357,6 +372,8 @@ Future<void> _handle(
     final identity = await verifier.verify(token);
     // /api/people/{id} and /api/people/{id}/prediction: the id, and which.
     final personRoute = personPath(path);
+    // /api/care-centers/{id}/admissions and .../forecast: the hospital, and which.
+    final hourlyRoute = careCenterAdmissionsPath(path);
     // Only the routes that need the database, or datyx, ask them.
     final answer = switch ((method, path)) {
       ('GET', '/api/health') => route(
@@ -451,6 +468,29 @@ Future<void> _handle(
         people: live.feed?.people ?? const [],
         careCenter: await _careCenter(db, careCenterIdOf(path)!, live.simulation?.run),
       ),
+      ('GET', _) when hourlyRoute != null && !hourlyRoute.$2 => route(
+        method,
+        path,
+        query: request.uri.queryParameters,
+        auth: auth,
+        hourly: await _hourly(
+          db,
+          hourlyRoute.$1,
+          request.uri.queryParameters,
+          request.uri.queryParameters['run'] ?? live.simulation?.run,
+          live.simulation?.run,
+        ),
+      ),
+      ('GET', _) when hourlyRoute != null => route(
+        method,
+        path,
+        auth: auth,
+        identity: identity,
+        forecast: auth.enabled && identity == null
+            ? null
+            : await _forecast(
+                datyx, token, db, hourlyRoute.$1, request.uri.queryParameters['run'] ?? live.simulation?.run),
+      ),
       ('GET', '/api/people') => route(
         method,
         path,
@@ -471,6 +511,13 @@ Future<void> _handle(
         path,
         query: request.uri.queryParameters,
         careCenters: await _careCenters(db, request.uri.queryParameters['bbox']),
+        auth: auth,
+      ),
+      ('GET', '/api/care-centers/nearest') => route(
+        method,
+        path,
+        query: request.uri.queryParameters,
+        nearest: await _nearest(db, request.uri.queryParameters),
         auth: auth,
       ),
       ('GET', _) when datyxPath(path) != null => route(
@@ -507,6 +554,20 @@ Future<List<Map<String, Object?>>?> _careCenters(Db db, String? bbox) async {
     return await db.careCenters(box, limit: careCentersLimit + 1);
   } catch (error) {
     stderr.writeln('care centers: $error');
+    return null;
+  }
+}
+
+/// The care center nearest the point [query] names (none for a point that
+/// isn't one, which the route answers 400); null when the database doesn't
+/// answer (logged, without the point).
+Future<NearestCenter?> _nearest(Db db, Map<String, String> query) async {
+  final point = nearestPoint(query);
+  if (point == null) return const NearestCenter(null);
+  try {
+    return NearestCenter(await db.nearestCareCenter(point.lat, point.lon));
+  } catch (error) {
+    stderr.writeln('nearest care center: $error');
     return null;
   }
 }
@@ -585,18 +646,52 @@ Future<CareCenterLookup?> _careCenter(Db db, int id, String? run) async {
   }
 }
 
+/// One hospital's admissions per hour in [run] (the newest run with its
+/// admissions when null; none for hours that aren't a number, which the
+/// route answers 400); null when the database doesn't answer (logged).
+Future<HourlyLookup?> _hourly(Db db, int id, Map<String, String> query, String? run, String? currentRun) async {
+  final hours = hoursOf(query);
+  if (hours == null) return const HourlyLookup();
+  try {
+    final read = await db.hospitalHourly(id, run: run, hours: hours);
+    return HourlyLookup(run: read.run, end: read.end, current: read.run != null && read.run == currentRun, rows: read.rows);
+  } catch (error) {
+    stderr.writeln('admissions per hour: $error');
+    return null;
+  }
+}
+
+/// The table and group of datyx's model of HealthHub's hospitals: their
+/// admissions per hour, forecast step by step by DeepAR.
+const _forecastTable = 'public.admissions_hourly';
+const _forecastGroup = 'default';
+
+/// datyx's forecast of one hospital's admissions per hour in [run] (the
+/// newest run with its admissions when null), asked with the user's own
+/// [token], as [_prediction] asks: from the hospital's series of
+/// admissions_hourly's end.
+Future<Forwarded?> _forecast(Uri datyx, String? token, Db db, int id, String? run) async {
+  var series = run;
+  if (series == null) {
+    try {
+      series = (await db.hospitalHourly(id, hours: 1)).run;
+    } catch (error) {
+      stderr.writeln('admissions per hour: $error');
+    }
+    if (series == null) return const Forwarded(404, {'error': 'nobody has been admitted there'});
+  }
+  return _inference(datyx, token, db, _forecastTable, _forecastGroup, {'run_id': series, 'hospital_id': '$id'});
+}
+
 /// The table and group of datyx's model of HealthHub's patients: their
 /// hours of care, summed over the next 30 days, by XGBoost.
 const _predictionTable = 'public.patient_days';
 const _predictionGroup = 'care';
 
 /// datyx's prediction for one person of [run] (the newest run with their
-/// admissions when null), asked with the user's own [token]: their
-/// datyx data source for this API's database (the database source whose
-/// database is ours), then the inference of their series of
-/// patient_days; the answer carries the source's id. A 404 of ours when
-/// datyx has no such source or the person no run; null when datyx
-/// doesn't answer (logged).
+/// admissions when null), asked with the user's own [token]: the
+/// inference of their series of patient_days ([_inference]). A 404 of
+/// ours when the person has no run.
 Future<Forwarded?> _prediction(Uri datyx, String? token, Db db, String id, String? run) async {
   var series = run;
   if (series == null) {
@@ -607,6 +702,22 @@ Future<Forwarded?> _prediction(Uri datyx, String? token, Db db, String id, Strin
     }
     if (series == null) return const Forwarded(404, {'error': 'nobody with that id has been admitted'});
   }
+  return _inference(datyx, token, db, _predictionTable, _predictionGroup, {'run_id': series, 'person_id': id});
+}
+
+/// datyx's inference of one [series] of [table]'s [group], asked with the
+/// user's own [token]: their datyx data source for this API's database
+/// (the database source whose database is ours), then the inference; the
+/// answer carries the source's id. A 404 of ours when datyx has no such
+/// source; null when datyx doesn't answer (logged).
+Future<Forwarded?> _inference(
+  Uri datyx,
+  String? token,
+  Db db,
+  String table,
+  String group,
+  Map<String, String> series,
+) async {
   final sources = await _forward(datyx, '/api/datasources', token);
   if (sources == null || sources.status != 200 || sources.body is! List) return sources;
   int? sourceId;
@@ -620,11 +731,9 @@ Future<Forwarded?> _prediction(Uri datyx, String? token, Db db, String id, Strin
     return Forwarded(404, {'error': "datyx has no data source for HealthHub's database (${db.settings.database})"});
   }
   final scored = await _forward(datyx, '/api/datasources/$sourceId/inference', token, payload: {
-    'table': _predictionTable,
-    'group': _predictionGroup,
-    'series': [
-      {'run_id': series, 'person_id': id},
-    ],
+    'table': table,
+    'group': group,
+    'series': [series],
   });
   if (scored != null && scored.body is Map) {
     return Forwarded(scored.status, {...(scored.body as Map), 'sourceId': sourceId});

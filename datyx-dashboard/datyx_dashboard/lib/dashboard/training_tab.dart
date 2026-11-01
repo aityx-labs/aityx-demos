@@ -10,13 +10,17 @@ import 'health_tab.dart' show ApiDownLine;
 /// The retraining intervals offered; any other span can be typed.
 const retrainChoices = ['1h', '6h', '1D', '1W', 'never'];
 
-/// The Training tab: each group tagged for XGBoost (`GET /api/training`),
+/// The Training tab: each group tagged as a time series, XGBoost's or DeepAR's (`GET /api/training`),
 /// how often it is trained again (its table's timeSeriesRetrain, set here
-/// or in OpenMetadata), when next, **Train now**, and what its latest
+/// or in OpenMetadata), when next (a disabled group: never, until it is
+/// enabled on the Catalog tab), **Train now**, and what its latest
 /// success found: its test metrics against the naive forecast, the
 /// features that weighed most, and the highest scores; then the runs of
-/// them all, newest first. While a run is queued or running it asks again
-/// every [busyEvery]. What is shown is the API's; the tab asks and shows.
+/// them all, newest first, each with the group switch that queued it, if
+/// one did; then the groups switched on or off (`GET
+/// /api/catalog/events`), however datyx heard, and the runs each queued.
+/// While a run is queued or running it asks again every [busyEvery].
+/// What is shown is the API's; the tab asks and shows.
 class TrainingTab extends StatefulWidget {
   const TrainingTab({
     super.key,
@@ -39,6 +43,13 @@ class _TrainingTabState extends State<TrainingTab> {
   TrainingOverview? _overview;
   String? _error;
   Timer? _timer;
+  List<GroupEvent>? _events;
+  String? _eventsError;
+
+  /// The event a run's link pointed to, highlighted.
+  int? _shownEvent;
+  final Map<int, GlobalKey> _eventKeys = {};
+  final ScrollController _scroll = ScrollController();
 
   @override
   void initState() {
@@ -55,11 +66,13 @@ class _TrainingTabState extends State<TrainingTab> {
   @override
   void dispose() {
     _timer?.cancel();
+    _scroll.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
     _timer?.cancel();
+    final events = _loadEvents();
     try {
       final overview = await widget.api.training();
       if (!mounted) return;
@@ -71,12 +84,44 @@ class _TrainingTabState extends State<TrainingTab> {
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     }
+    await events;
+  }
+
+  /// The group switches, on their own: an error there leaves the training shown.
+  Future<void> _loadEvents() async {
+    try {
+      final events = await widget.api.groupEvents();
+      if (!mounted) return;
+      setState(() {
+        _events = events;
+        _eventsError = null;
+      });
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _eventsError = e.message);
+    }
+  }
+
+  /// Scrolls to the group switch [id], highlighted.
+  void _showEvent(int id) {
+    setState(() => _shownEvent = id);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (_eventKeys[id]?.currentContext == null && _scroll.hasClients) {
+        // The list builds lazily: the switches, its last card, may not be built yet.
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+        await WidgetsBinding.instance.endOfFrame;
+      }
+      final target = _eventKeys[id]?.currentContext;
+      if (target != null && target.mounted) {
+        Scrollable.ensureVisible(target, duration: const Duration(milliseconds: 300), alignment: 0.3);
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final overview = _overview;
     return ListView(
+      controller: _scroll,
       padding: const EdgeInsets.all(16),
       children: [
         if (widget.statusError != null) ApiDownLine(widget.statusError!),
@@ -99,11 +144,16 @@ class _TrainingTabState extends State<TrainingTab> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'datyx trains each group tagged for XGBoost on the Catalog tab: '
+                  'datyx trains each group tagged on the Catalog tab, with its algorithm: '
                   'when the API starts, if it never was, then again as often as '
                   'its table says (timeSeriesRetrain in OpenMetadata, 1D when '
-                  'not set), and when asked. Each model scores its series: the '
-                  'Target summed over the horizon ahead.',
+                  'not set), when asked, and when the group is enabled: its '
+                  'Disabled tag removed, on the Catalog tab or in OpenMetadata, '
+                  'which tells datyx at once. Enabling queues a run for each of '
+                  'the group\'s algorithms. A disabled group isn\'t trained. An '
+                  'XGBoost model scores its series: the Target summed over the '
+                  'horizon ahead; a DeepAR model forecasts each step of it, with '
+                  'its percentiles.',
                   style: TextStyle(color: Aityx.muted),
                 ),
                 if (widget.locked) ...[
@@ -118,8 +168,8 @@ class _TrainingTabState extends State<TrainingTab> {
                 ] else if (overview.models.isEmpty) ...[
                   const SizedBox(height: 12),
                   const Text(
-                    'No group is tagged for XGBoost yet: on the Catalog tab, tag a '
-                    'table\'s group and pick XGBoost, with a horizon.',
+                    'No group is tagged yet: on the Catalog tab, tag a table\'s group '
+                    'for DeepAR, or XGBoost with a horizon.',
                     style: TextStyle(color: Aityx.amber),
                   ),
                 ],
@@ -135,15 +185,26 @@ class _TrainingTabState extends State<TrainingTab> {
         ),
         if (!widget.locked && overview != null) ...[
           for (final m in overview.models)
-            ModelCard(key: ValueKey('model-${m.table}-${m.group}'), api: widget.api, model: m, onChanged: _load),
-          _Activity(runs: overview.runs),
+            ModelCard(
+              key: ValueKey('model-${m.table}-${m.group}-${m.algorithm}'),
+              api: widget.api,
+              model: m,
+              onChanged: _load,
+            ),
+          _Activity(runs: overview.runs, onEvent: _showEvent),
+          _GroupSwitches(
+            events: _events,
+            error: _eventsError,
+            shown: _shownEvent,
+            keyOf: (id) => _eventKeys.putIfAbsent(id, GlobalKey.new),
+          ),
         ],
       ],
     );
   }
 }
 
-/// One group tagged for XGBoost: its schedule, Train now, and its latest success.
+/// One group tagged as a time series: its schedule, Train now, and its latest success.
 class ModelCard extends StatefulWidget {
   const ModelCard({super.key, required this.api, required this.model, required this.onChanged});
 
@@ -214,7 +275,8 @@ class _ModelCardState extends State<ModelCard> {
     }
   }
 
-  Future<void> _trainNow() => _act(() => widget.api.trainNow(m.sourceId, m.table, m.group), 'Queued: training now.');
+  Future<void> _trainNow() =>
+      _act(() => widget.api.trainNow(m.sourceId, m.table, m.group, algorithm: m.algorithm), 'Queued: training now.');
 
   Future<void> _saveRetrain() {
     final value = _retrain.text.trim();
@@ -248,11 +310,18 @@ class _ModelCardState extends State<ModelCard> {
                 ),
                 if (latest != null) StatusChip(latest.status),
                 if (!m.ready) const StatusChip('not ready'),
+                if (!m.enabled)
+                  Tooltip(
+                    message: 'The table has ${disabledTag(m.group)} in OpenMetadata: datyx doesn\'t train the group. '
+                        'Enable it on the Catalog tab.',
+                    child: const StatusChip('disabled'),
+                  ),
               ],
             ),
             const SizedBox(height: 6),
             Text(
-              'Scores ${m.target ?? '?'} summed over the next ${m.horizon ?? '?'}, per '
+              '${m.algorithm == deepArAlgorithm ? 'Forecasts ${m.target ?? '?'} step by step over' : 'Scores ${m.target ?? '?'} summed over'}'
+              ' the next ${m.horizon ?? '?'}, per '
               '${m.seriesKey.isEmpty ? 'table' : m.seriesKey.join(' + ')}, from steps of ${m.frequency ?? '?'}.',
               style: const TextStyle(color: Aityx.fg),
             ),
@@ -290,7 +359,7 @@ class _ModelCardState extends State<ModelCard> {
                 const SizedBox(width: 8),
                 FilledButton.icon(
                   key: ValueKey('train-now-${m.table}-${m.group}'),
-                  onPressed: _busy || active || !m.ready ? null : _trainNow,
+                  onPressed: _busy || active || !m.ready || !m.enabled ? null : _trainNow,
                   icon: const Icon(Icons.play_arrow, size: 18),
                   label: const Text('Train now'),
                 ),
@@ -309,6 +378,13 @@ class _ModelCardState extends State<ModelCard> {
             if (_error != null) ...[
               const SizedBox(height: 6),
               Text(_error!, style: const TextStyle(color: Aityx.red, fontSize: 12)),
+            ],
+            if (latest != null && latest.triggerNote != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                'The latest run (${latest.trigger}): ${latest.triggerNote}',
+                style: const TextStyle(color: Aityx.muted, fontSize: 12),
+              ),
             ],
             if (latest != null && latest.status == 'failed' && latest.error != null) ...[
               const SizedBox(height: 8),
@@ -331,6 +407,9 @@ class _ModelCardState extends State<ModelCard> {
   String _next() {
     final latest = m.latest;
     if (latest != null && latest.active) return 'A run is ${latest.status}.';
+    if (!m.enabled) {
+      return 'Disabled: not trained until enabled on the Catalog tab, which removes its ${disabledTag(m.group)} tag.';
+    }
     final next = m.nextAt;
     if (next == null) return m.ready ? 'Not trained again (never).' : 'Not trained until the group is ready.';
     final wait = next.difference(DateTime.now());
@@ -359,8 +438,12 @@ class _Results extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final test = run.test ?? const TestMetrics();
-    final unit = model.target ?? '';
+    final deepAr = model.algorithm == deepArAlgorithm;
+    // XGBoost's errors are of the Target over the horizon; DeepAR's, of each step of it (its median's).
+    final unit = deepAr ? '${model.target ?? ''} a step' : model.target ?? '';
+    final over = deepAr ? 'the forecast\'s median' : '$unit over ${model.horizon ?? '?'}';
     final better = test.improvement;
+    final coverage = detail?.coverage;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -378,13 +461,13 @@ class _Results extends StatelessWidget {
             StatTile(
               key: const ValueKey('tile-mae'),
               label: 'mean error (MAE)',
-              value: test.mae.toStringAsFixed(2),
-              note: '$unit over ${model.horizon ?? '?'}',
+              value: test.mae.toStringAsFixed(deepAr ? 3 : 2),
+              note: deepAr ? '$unit, $over' : over,
             ),
             StatTile(
               key: const ValueKey('tile-naive'),
               label: 'naive forecast\'s error',
-              value: test.naiveMae.toStringAsFixed(2),
+              value: test.naiveMae.toStringAsFixed(deepAr ? 3 : 2),
               note: 'the next ${model.horizon ?? '?'} like the last',
             ),
             StatTile(
@@ -398,9 +481,16 @@ class _Results extends StatelessWidget {
             StatTile(
               key: const ValueKey('tile-mean'),
               label: 'actual, on average',
-              value: test.meanLabel.toStringAsFixed(2),
-              note: '$unit over ${model.horizon ?? '?'}',
+              value: test.meanLabel.toStringAsFixed(deepAr ? 3 : 2),
+              note: deepAr ? unit : '$unit over ${model.horizon ?? '?'}',
             ),
+            if (deepAr && coverage != null)
+              StatTile(
+                key: const ValueKey('tile-coverage'),
+                label: 'inside its 80% band',
+                value: '${(coverage * 100).toStringAsFixed(0)}%',
+                note: 'of the steps it never saw',
+              ),
           ],
         ),
         const SizedBox(height: 16),
@@ -411,7 +501,8 @@ class _Results extends StatelessWidget {
             spacing: 32,
             runSpacing: 16,
             children: [
-              SizedBox(width: 460, child: FeatureWeights(weights: detail!.importance)),
+              // DeepAR's network has no weights per feature to show.
+              if (!deepAr) SizedBox(width: 460, child: FeatureWeights(weights: detail!.importance)),
               SizedBox(
                 width: 460,
                 child: TopScores(scores: detail!.scores, model: model),
@@ -581,7 +672,7 @@ class TopScores extends StatelessWidget {
 
 /// A run's or a call's status as an icon and a word, in a status color:
 /// succeeded and ok green, queued and running amber, failed red, not ready
-/// amber.
+/// amber; a disabled group's in gray.
 class StatusChip extends StatelessWidget {
   const StatusChip(this.status, {super.key});
   final String status;
@@ -593,6 +684,7 @@ class StatusChip extends StatelessWidget {
       'failed' => (Aityx.red, Icons.error_outline),
       'running' => (Aityx.amber, Icons.sync),
       'queued' => (Aityx.amber, Icons.schedule),
+      'disabled' => (Aityx.muted, Icons.pause_circle_outline),
       _ => (Aityx.amber, Icons.warning_amber),
     };
     return Container(
@@ -610,10 +702,16 @@ class StatusChip extends StatelessWidget {
   }
 }
 
-/// Every model's runs, the newest first: when, which, why, how it went, how long, and its error against the naive one's.
+/// Every model's runs, the newest first: when, which and with which
+/// algorithm, why (with the API's note, for a group enabled, and a link to
+/// the group switch that queued it), how it went, how long, and its error
+/// against the naive one's.
 class _Activity extends StatelessWidget {
-  const _Activity({required this.runs});
+  const _Activity({required this.runs, required this.onEvent});
   final List<TrainingRunInfo> runs;
+
+  /// Shows the group switch of this id.
+  final ValueChanged<int> onEvent;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -649,7 +747,25 @@ class _Activity extends StatelessWidget {
                         child: Align(widthFactor: 1, alignment: Alignment.centerLeft, child: StatusChip(r.status)),
                       ),
                       Text('${r.name} · ${r.group}', style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                      Text(r.algorithm, key: ValueKey('run-algorithm-${r.id}'), style: const TextStyle(fontSize: 12)),
                       Text(r.trigger, style: const TextStyle(color: Aityx.muted, fontSize: 12)),
+                      if (r.eventId != null)
+                        Tooltip(
+                          message: 'The group switch that queued it, below',
+                          child: InkWell(
+                            key: ValueKey('run-event-${r.id}'),
+                            onTap: () => onEvent(r.eventId!),
+                            child: Text(
+                              'switch #${r.eventId}',
+                              style: const TextStyle(
+                                color: Aityx.orangeLight,
+                                fontSize: 12,
+                                decoration: TextDecoration.underline,
+                                decorationColor: Aityx.orangeLight,
+                              ),
+                            ),
+                          ),
+                        ),
                       if (r.seconds != null)
                         Text('${r.seconds!.toStringAsFixed(1)} s', style: const TextStyle(color: Aityx.muted, fontSize: 12)),
                       if (r.test != null)
@@ -660,6 +776,12 @@ class _Activity extends StatelessWidget {
                         ),
                     ],
                   ),
+                  if (r.triggerNote != null)
+                    Padding(
+                      key: ValueKey('run-note-${r.id}'),
+                      padding: const EdgeInsets.only(left: 260, top: 2),
+                      child: Text(r.triggerNote!, style: const TextStyle(color: Aityx.muted, fontSize: 12)),
+                    ),
                   if (r.error != null)
                     Padding(
                       padding: const EdgeInsets.only(left: 260, top: 2),
@@ -672,4 +794,114 @@ class _Activity extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// The groups switched on or off, newest first (`GET /api/catalog/events`):
+/// when, which table and group, on or off, how datyx heard (OpenMetadata's
+/// webhook, the datyx API, or its minute check), who switched it, the
+/// table's version in OpenMetadata, and the runs it queued, one per
+/// algorithm of a group switched on. The one a run's link points to is
+/// highlighted.
+class _GroupSwitches extends StatelessWidget {
+  const _GroupSwitches({required this.events, required this.error, required this.shown, required this.keyOf});
+
+  final List<GroupEvent>? events;
+  final String? error;
+  final int? shown;
+  final GlobalKey Function(int id) keyOf;
+
+  @override
+  Widget build(BuildContext context) {
+    final events = this.events;
+    const muted = TextStyle(color: Aityx.muted, fontSize: 12);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const CardTitle('Group switches', 'GET /api/catalog/events'),
+            const SizedBox(height: 4),
+            const Text(
+              'Each time a group was switched on or off, its Disabled tag removed or added: '
+              'on the Catalog tab, or in OpenMetadata, whose webhook tells datyx at once '
+              '(its minute check catches any it missed). Switching on queues a run for each '
+              'of the group\'s algorithms.',
+              style: muted,
+            ),
+            const SizedBox(height: 8),
+            if (error != null)
+              Text(error!, style: const TextStyle(color: Aityx.red, fontSize: 12))
+            else if (events == null)
+              const Text('Loading…', style: muted)
+            else if (events.isEmpty)
+              const Text('No group switched yet.', style: muted),
+            if (error == null && events != null)
+              for (final e in events)
+                KeyedSubtree(
+                  key: keyOf(e.id),
+                  child: Container(
+                    key: ValueKey('event-${e.id}'),
+                    margin: const EdgeInsets.symmetric(vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: shown == e.id ? Aityx.orange : Colors.transparent),
+                    ),
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 10,
+                      runSpacing: 4,
+                      children: [
+                        SizedBox(
+                          width: 130,
+                          child: Text(
+                            (e.at ?? e.receivedAt) == null ? '' : when((e.at ?? e.receivedAt)!),
+                            style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
+                          ),
+                        ),
+                        _OnOff(e.enabled),
+                        Text('${e.name} · ${e.group}', style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                        Text('via ${e.viaWords}', style: muted),
+                        if (e.by != null) Text('by ${e.by}', style: muted),
+                        if (e.version != null) Text('table version ${e.version}', style: muted),
+                        Text(
+                          e.runIds.isNotEmpty
+                              ? 'queued run${e.runIds.length == 1 ? '' : 's'} ${e.runIds.join(', ')}'
+                              : (e.enabled ? 'no run queued' : 'not trained while off'),
+                          key: ValueKey('event-runs-${e.id}'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A group switched on or off: a toggle icon and the word, green on, gray off.
+class _OnOff extends StatelessWidget {
+  const _OnOff(this.on);
+  final bool on;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = on ? Aityx.green : Aityx.muted;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), border: Border.all(color: color)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(on ? Icons.toggle_on_outlined : Icons.toggle_off_outlined, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(on ? 'switched on' : 'switched off', style: TextStyle(fontSize: 11, color: color)),
+        ],
+      ),
+    );
+  }
 }

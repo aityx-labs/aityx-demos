@@ -21,6 +21,8 @@
     <quarkus.platform.version>3.40.1</quarkus.platform.version>
     <skipITs>true</skipITs>
     <surefire-plugin.version>3.5.4</surefire-plugin.version>
+    <djl.version>0.39.0</djl.version>
+    <pytorch.version>2.7.1</pytorch.version>
   </properties>
 
   <dependencyManagement>
@@ -116,6 +118,26 @@
       <groupId>org.jboss.logging</groupId>
       <artifactId>commons-logging-jboss-logging</artifactId>
     </dependency>
+    <!-- DeepAR: DJL's time series models on its PyTorch engine (libtorch
+         through JNI). The JNI glue for every platform is in pytorch-jni;
+         libtorch itself is a jar per platform, picked by the profiles below
+         (the build's own), so DJL never downloads it. -->
+    <dependency>
+      <groupId>ai.djl.timeseries</groupId>
+      <artifactId>timeseries</artifactId>
+      <version>${djl.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>ai.djl.pytorch</groupId>
+      <artifactId>pytorch-engine</artifactId>
+      <version>${djl.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>ai.djl.pytorch</groupId>
+      <artifactId>pytorch-jni</artifactId>
+      <version>${pytorch.version}-${djl.version}</version>
+      <scope>runtime</scope>
+    </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
       <artifactId>quarkus-junit5</artifactId>
@@ -191,6 +213,63 @@
   </build>
 
   <profiles>
+    <!-- libtorch (CPU) for the platform building: macOS on Apple silicon,
+         Linux on x86_64 or aarch64 (the API's image, built on its own
+         platform). -->
+    <profile>
+      <id>libtorch-osx-aarch64</id>
+      <activation>
+        <os>
+          <family>mac</family>
+          <arch>aarch64</arch>
+        </os>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>ai.djl.pytorch</groupId>
+          <artifactId>pytorch-native-cpu</artifactId>
+          <version>${pytorch.version}</version>
+          <classifier>osx-aarch64</classifier>
+          <scope>runtime</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+    <profile>
+      <id>libtorch-linux-x86_64</id>
+      <activation>
+        <os>
+          <name>Linux</name>
+          <arch>amd64</arch>
+        </os>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>ai.djl.pytorch</groupId>
+          <artifactId>pytorch-native-cpu</artifactId>
+          <version>${pytorch.version}</version>
+          <classifier>linux-x86_64</classifier>
+          <scope>runtime</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+    <profile>
+      <id>libtorch-linux-aarch64</id>
+      <activation>
+        <os>
+          <name>Linux</name>
+          <arch>aarch64</arch>
+        </os>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>ai.djl.pytorch</groupId>
+          <artifactId>pytorch-native-cpu</artifactId>
+          <version>${pytorch.version}</version>
+          <classifier>linux-aarch64</classifier>
+          <scope>runtime</scope>
+        </dependency>
+      </dependencies>
+    </profile>
     <profile>
       <id>native</id>
       <activation>

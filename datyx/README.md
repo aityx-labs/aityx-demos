@@ -97,6 +97,16 @@ OpenAPI, and a REST client for OpenMetadata.
   OpenMetadata (`POST`: tables, columns, keys; no credentials go there),
   or a Kafka cluster (topics, their settings, and the fields of their
   latest JSON records), and answered back as OpenMetadata has it (`GET`).
+  Every column and record field gets OpenMetadata's `PII` tag, and a
+  `PersonalData` one (`Personal`, `SpecialCategory`) when it holds
+  personal data in the GDPR's terms, told from the names alone. Each
+  table gets its profile and data quality checks (from its schema: no
+  nulls where `NOT NULL`, no duplicate keys), run with SQL aggregates
+  and written as OpenMetadata test cases with their results. In
+  development datyx also curates HealthHub there by itself, once its data
+  initialization is done: owners, domain, data product, glossary, tiers,
+  more checks, lineage, data contracts and Gold certifications. See
+  [specs/curation.md](specs/curation.md).
   `/api/datasources/{id}/timeseries`: the tables whose columns are tagged
   with the `TimeSeries` roles (`Timestamp`, `Target`, `SeriesKey`, the
   static and dynamic features DeepAR takes), one series per group of
@@ -106,10 +116,12 @@ OpenAPI, and a REST client for OpenMetadata.
   one algorithm's with `?algorithm=XGBoost`), and a group's roles,
   algorithm and horizon set on a table (`PUT`). Tag in
   OpenMetadata's UI, or with the PUT. See [specs/catalog.md](specs/catalog.md).
-- `/api/training`: the groups tagged for XGBoost, which datyx trains
-  itself (when the API starts if they never were, then as often as their
-  table's `timeSeriesRetrain` says, `1D` by default), with their runs,
-  test metrics, weightiest features and highest scores;
+- `/api/training`: the groups tagged as time series, which datyx trains
+  itself with their algorithm, XGBoost or DeepAR (DJL on its PyTorch
+  engine, libtorch bundled for the platform built on), when the API
+  starts if they never were, when one is switched on, then as often as
+  their table's `timeSeriesRetrain` says, `1D` by default; with their
+  runs, test metrics, weightiest features (XGBoost's) and highest scores;
   `/api/training/runs/{id}` one run; `POST /api/datasources/{id}/training`
   trains a group now, `PUT` sets how often. XGBoost4J needs an OpenMP
   runtime: `brew install libomp` on macOS. See

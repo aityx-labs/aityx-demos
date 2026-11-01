@@ -37,8 +37,9 @@ does in HealthHub is described feature by feature in
   hello, health, sign-in, the care centers, the simulated people, their
   events, their admissions and the admissions' triage.
 - [Simulation](simulation.md): in dev mode, people with a profile and a
-  medical condition who travel to their nearest hospital when a visit is
-  due and say what is wrong there, each its own async loop, every move
+  medical condition who travel to the nearest care center a visit needs
+  (a health station, urgent care, a mental health or dialysis clinic, a
+  general hospital) when it is due and say what is wrong there, each its own async loop, every move
   and admission streamed through Kafka and read back for the map, the
   events and the database.
 - [Admissions per hour](admissions-hourly.md): an Apache Flink job that
@@ -54,8 +55,11 @@ does in HealthHub is described feature by feature in
   admissions with aityx's triage and their days of care.
 - [The care center view](care-center.md): every care center named on
   home, of any kind, opens its view: where it is on a map, its capacity
-  in the simulation and how much is in use now, who is there and on the
-  way, its admissions.
+  in the simulation and how much is in use now, its admissions per hour
+  with datyx's forecast, who is there and on the way, its admissions.
+- [A care center's admissions per hour](admissions-timeline.md): the
+  care center view's time series, the hours up to now as a solid line
+  and datyx's DeepAR forecast of the next 24 dashed, in its band.
 - [Triage at the desk](triage.md): each admission triaged by aityx from
   what the patient said and their age (Jev reads the danger signs, a
   decision gives the level, the wait, the area and a nurse's check, with

@@ -96,7 +96,7 @@ public final class Dataset {
     }
 
     /** Adds rows one at a time, summing each series' steps, then {@link #build()}s the dataset. */
-    public static final class Builder {
+    public static final class Builder implements Rows {
 
         private final TimeSeries.Spec spec;
         private final Span frequency;

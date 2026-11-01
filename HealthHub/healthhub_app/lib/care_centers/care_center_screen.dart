@@ -9,17 +9,28 @@ import '../location/user_location_map.dart' show CareCenterLook, CareCenterPin, 
 import '../people/person_screen.dart' show AdmissionRow, PersonLink;
 import '../screens/link_text.dart';
 import '../theme.dart';
+import 'admissions_timeline.dart';
 
 /// How the care center view asks the API: `GET /api/care-centers/{id}`.
 typedef CareCenterLoader = Future<CareCenterDetail> Function(int id);
 
 /// Makes the care centers named under it links to their view: home puts it
 /// over its tiles. Without one (the index), a [CareCenterLink] is plain
-/// text and a pin on the map shows its tooltip.
+/// text and a pin on the map shows its tooltip. With [admissions] and
+/// [forecast], the view plots its admissions per hour.
 class CareCenterOpener extends InheritedWidget {
-  const CareCenterOpener({super.key, required this.load, this.showTiles = true, required super.child});
+  const CareCenterOpener({
+    super.key,
+    required this.load,
+    this.admissions,
+    this.forecast,
+    this.showTiles = true,
+    required super.child,
+  });
 
   final CareCenterLoader load;
+  final HourlyAdmissionsLoader? admissions;
+  final AdmissionsForecastLoader? forecast;
 
   /// The view's map tiles; off in tests, which have no network.
   final bool showTiles;
@@ -30,12 +41,19 @@ class CareCenterOpener extends InheritedWidget {
   /// [context] has a person opener.
   void open(BuildContext context, int id) => Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => withOpeners(context, CareCenterScreen(id: id, load: load, showTiles: showTiles)),
+      builder: (_) => withOpeners(
+        context,
+        CareCenterScreen(id: id, load: load, admissions: admissions, forecast: forecast, showTiles: showTiles),
+      ),
     ),
   );
 
   @override
-  bool updateShouldNotify(CareCenterOpener oldWidget) => load != oldWidget.load || showTiles != oldWidget.showTiles;
+  bool updateShouldNotify(CareCenterOpener oldWidget) =>
+      load != oldWidget.load ||
+      admissions != oldWidget.admissions ||
+      forecast != oldWidget.forecast ||
+      showTiles != oldWidget.showTiles;
 }
 
 /// A care center's name that opens its view, underlined on hover; plain
@@ -65,13 +83,24 @@ class CareCenterLink extends StatelessWidget {
 
 /// One care center, of any kind: where it is on the map, with the people
 /// there and on their way; what it is; its capacity in the simulation and
-/// how much of it is in use now; who is there; its admissions. Read again
-/// every 5 seconds while shown, as people come and go.
+/// how much of it is in use now; its admissions per hour and datyx's
+/// forecast of the next ones (with [admissions] and [forecast]); who is
+/// there; its admissions. Read again every 5 seconds while shown, as
+/// people come and go.
 class CareCenterScreen extends StatefulWidget {
-  const CareCenterScreen({super.key, required this.id, required this.load, this.showTiles = true});
+  const CareCenterScreen({
+    super.key,
+    required this.id,
+    required this.load,
+    this.admissions,
+    this.forecast,
+    this.showTiles = true,
+  });
 
   final int id;
   final CareCenterLoader load;
+  final HourlyAdmissionsLoader? admissions;
+  final AdmissionsForecastLoader? forecast;
   final bool showTiles;
 
   /// How often the view reads the care center again.
@@ -166,6 +195,14 @@ class _CareCenterScreenState extends State<CareCenterScreen> {
                         );
                       },
                     ),
+                    if (widget.admissions != null && widget.forecast != null) ...[
+                      const SizedBox(height: 16),
+                      AdmissionsTimelineCard(
+                        admissions: widget.admissions!,
+                        forecast: widget.forecast!,
+                        hospitalId: widget.id,
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     _People(center),
                     const SizedBox(height: 16),
@@ -536,11 +573,9 @@ class _People extends StatelessWidget {
     final now = center.now;
     final String? none = !now.enabled
         ? 'The simulation runs in dev mode only.'
-        : center.kind != CareCenterKind.hospital
-        ? 'The simulation sends people to general hospitals only, so nobody comes to a '
-              '${center.kind.label.toLowerCase()} yet.'
-        : now.assigned == 0
-        ? 'Nobody in the simulation has it as their nearest general hospital.'
+        : center.serves.isEmpty
+        ? 'The simulation sends nobody to a ${center.subtype ?? center.kind.noun}: it sends people to health '
+              'stations, urgent care, adult mental health and dialysis clinics, and general hospitals.'
         : null;
     return _Section(
       icon: Icons.groups_outlined,
@@ -553,8 +588,8 @@ class _People extends StatelessWidget {
               children: [
                 if (now.here.isEmpty && now.onTheWay.isEmpty)
                   const Text('Nobody is here or on the way now.', style: TextStyle(color: Aityx.muted)),
-                for (final person in now.here) _PersonRow(person),
-                for (final person in now.onTheWay) _PersonRow(person),
+                for (final person in now.here) _PersonRow(person, center.kind),
+                for (final person in now.onTheWay) _PersonRow(person, center.kind),
               ],
             ),
     );
@@ -564,8 +599,11 @@ class _People extends StatelessWidget {
 /// One person at the care center or on the way: their state's dot, who
 /// (a link), their condition, what they are doing.
 class _PersonRow extends StatelessWidget {
-  const _PersonRow(this.person);
+  const _PersonRow(this.person, this.kind);
   final Person person;
+
+  /// The care center's kind, which they are going to or at.
+  final CareCenterKind kind;
 
   @override
   Widget build(BuildContext context) {
@@ -598,7 +636,7 @@ class _PersonRow extends StatelessWidget {
                 if (person.conditionName != null)
                   [person.conditionName!, if (person.conditionType != null) '(${person.conditionType!.label})']
                       .join(' '),
-                person.state.label,
+                person.state.labelAt(kind),
               ].join(' · '),
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Aityx.muted, fontSize: 12),

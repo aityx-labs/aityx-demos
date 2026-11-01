@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import datyx.datasource.DataSource.DatabaseAccess;
 import io.quarkus.runtime.annotations.RegisterForReflection;
@@ -46,9 +47,18 @@ public class Inference {
     public record Model(long runId, Instant trainedAt, XgbTrainer.Result result, Booster booster) {
     }
 
-    /** A series scored: its key, the prediction, its Target over the last horizon; or why it wasn't. */
+    /**
+     * A series scored: its key, the prediction, its Target over the last
+     * horizon; or why it wasn't. A DeepAR model's also has its forecast,
+     * step by step ({@code predicted} is its mean summed over the horizon).
+     */
     @RegisterForReflection
-    public record Prediction(Map<String, String> series, Double predicted, Double last, String note) {
+    public record Prediction(Map<String, String> series, Double predicted, Double last, String note,
+            @JsonInclude(JsonInclude.Include.NON_NULL) List<DeepArTrainer.Step> forecast) {
+
+        Prediction(Map<String, String> series, Double predicted, Double last, String note) {
+            this(series, predicted, last, note, null);
+        }
     }
 
     /**

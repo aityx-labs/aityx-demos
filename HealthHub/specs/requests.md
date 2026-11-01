@@ -376,6 +376,75 @@ The feature files hold the current specification; see the
    `admissions (hospital_id, id)`. See [The care center
    view](care-center.md), [The map](map.md), [Home](home.md), [The person
    view](person.md), [API](api.md) and [Database](database.md).
+1. **Route people by need: send them to health stations and clinics, not
+   only hospitals, so that every kind of care center has people.** Each
+   condition now says where its first visit goes (`setting`) and, when
+   elsewhere, its follow-ups (`follow_up_setting`): primary care (a
+   health station) for colds, flu, check-ups of hypertension or diabetes;
+   urgent care (a CUAP, a UPA, an urgent care center, or a hospital's
+   emergency department, whichever is nearer) for a sprain, a laceration,
+   a migraine, gastroenteritis; adult mental health clinics for
+   depression and anxiety; dialysis centers for end-stage kidney disease;
+   a general hospital for emergencies and the specialists'
+   conditions. A pneumonia is admitted at the hospital and checked at the
+   health station after. Each person goes to the nearest care center
+   serving the visit's setting, travelling by its distance; the moves and
+   admissions say `careCenterKind`, and the app names it ("Going to the
+   health station"); the legend says going for care and in care. The
+   care center view says what each serves and when the simulation sends
+   nobody there. `medical_conditions` gains `setting` and
+   `follow_up_setting`. See [Medical conditions](conditions.md#where-visits-go),
+   [Simulation](simulation.md#people), [The map](map.md), [The care
+   center view](care-center.md), [API](api.md), [Database](database.md)
+   and [Admissions per hour](admissions-hourly.md).
+1. **Check HealthHub's data classification and quality indexing in
+   OpenMetadata, add the OpenMetadata calls needed after the data
+   initialization, reset what needs it: the console should show
+   everything at top quality, described and in context.** HealthHub's
+   part is the descriptions, set by its data initialization: every table,
+   the `patient_days` view and every column of the schema says what it
+   is, as a PostgreSQL comment that the migration sets at every start
+   (`COMMENT ON TABLE`, `COMMENT ON VIEW`, `COMMENT ON COLUMN`, from
+   `schemaComments` in
+   [lib/schema_comments.dart](../healthhub_api/lib/schema_comments.dart)).
+   HealthHub still knows nothing of datyx or OpenMetadata: datyx's schema
+   read carries a database's comments into OpenMetadata, and datyx, in
+   development, waits for them before it catalogues and curates
+   HealthHub (its own spec, `catalog.md`). A test checks against a live
+   database that the described tables and columns are exactly the
+   schema's, so a table or column added without a description fails. See
+   [Database](database.md).
+1. **When the HealthHub dashboard is opened, centre the map on the care
+   center nearest to the user.** Home's map, once the location is known,
+   asks the API for the nearest care center of any kind and centres on
+   it, at zoom 14 or as far out as keeps the user in view; it stays on
+   the user when there is no answer or the user has moved the map. The
+   index still centres on the user. The API has
+   `GET /api/care-centers/nearest?lat=..&lon=..`, answering the care
+   center and its great-circle distance in metres, the point used for
+   the query only and never logged. See [The map](map.md), [API](api.md)
+   and [Home](home.md).
+1. **In the care center view, plot a time series: for a start only the
+   admissions per hour, historically until now in simulation time, and
+   predicted for the next 24 hours in simulation time** (after an
+   earlier ask, "start by adding a timeline of admissions to the care
+   center view, the past solid and the future predictions dashed and a
+   bit transparent", whose card was written while the view was built
+   apart). The care center view now shows **Admissions per hour** under
+   its map and capacity (`AdmissionsTimelineCard`): the care center's
+   admissions in each of the last 72 simulated hours up to the run's
+   latest hour, solid, and datyx's DeepAR forecast of the next 24, dashed,
+   lighter, in the band of its 10th to 90th percentiles, with hover and
+   touch for each hour's numbers, refreshed every 10 seconds. Until datyx
+   has a model of the group, the card shows the hours and says why there
+   is no forecast. The API gains `GET /api/care-centers/{id}/admissions`
+   (from `admissions_hourly`, missing hours zero) and
+   `GET /api/care-centers/{id}/admissions/forecast` (datyx's inference of
+   the care center's series, group `default`, asked with the user's
+   token, as the person's prediction is, now through a shared
+   `_inference`). See [A care center's admissions per
+   hour](admissions-timeline.md), [The care center view](care-center.md)
+   and [API](api.md).
 
 1. **In the events where a person reaches a hospital, show their
    expected 30-day bed usage on the event line.** Each admission in the
@@ -403,3 +472,11 @@ The feature files hold the current specification; see the
    shows them beside its title, "48,213 events · 70.4/s", and a
    monitored person's rows carry a heart monitor, why on hover. See
    [Simulation](simulation.md), [API](api.md) and [Home](home.md).
+1. **(Previewing the monitored people) Fewer at-home events: monitored
+   people check in, spread over the day.** A monitored person at home is
+   now an event once a simulated day, their first move at home from
+   their check-in hour on, an hour drawn from their id, so the check-ins
+   spread over the day; their other moves at home only count, as
+   everyone else's.
+   See [Simulation](simulation.md#the-stream), [Home](home.md) and
+   [API](api.md).

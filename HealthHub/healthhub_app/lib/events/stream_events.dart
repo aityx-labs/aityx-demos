@@ -418,7 +418,7 @@ class EventRow extends StatelessWidget {
       ?event.conditionName,
       if (event.conditionType != null) '(${event.conditionType!.label})',
     ].join(' ');
-    final what = admission ? visitLabel(event) : event.state.label;
+    final what = admission ? visitLabel(event) : event.state.labelAt(event.careCenterKind);
     // The hospital, a link to its view, where the record is about one.
     final hospital = admission || event.state == PersonState.toHospital || event.state == PersonState.atHospital
         ? event.hospitalName

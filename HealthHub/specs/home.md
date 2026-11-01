@@ -16,15 +16,17 @@ theirs; narrower, each goes under its row.
   there is one, as wide as the page (less a 16 px margin) and 78% of the
   window's height, between 520 and 1100 px:
   - **Where you are**: the [map](map.md) with the user's position
-    highlighted, the status line saying "The orange dot is you." or why
-    there is no location.
+    highlighted, centred on the care center nearest them once both are
+    known, the status line saying "The orange dot is you." or why there
+    is no location.
 - **The data, and the simulation** (`SimulationExplainer`,
   [explainers.dart](../healthhub_app/lib/screens/explainers.dart)), beside
   the map, briefly: real care centers (7,256, from the official
   registries of Spain, the US and Brazil), simulated people (twenty per city,
   some with a chronic condition, anyone falling ill now and then), an
-  hour a second (the trip to the nearest general hospital, the desk, the
-  stay, home), and a real stream (Kafka, the admissions recorded, Flink's
+  hour a second (the trip to the nearest care center the visit needs, a
+  health station, urgent care or a general hospital, the desk, the stay,
+  home), and a real stream (Kafka, the admissions recorded, Flink's
   hours of care, datyx learning from them; a restart is a new run).
 - **Triage at the desk, by aityx** (`TriageCard`,
   [triage_card.dart](../healthhub_app/lib/triage/triage_card.dart)), under
@@ -74,8 +76,8 @@ theirs; narrower, each goes under its row.
   moves: asked together, an admission would scroll out before anyone saw
   it. It shows them as one list, newest first by simulated day and time,
   an admission before the moves of its own hour. Someone at home shows
-  only when monitored, the high-risk (the API leaves the others out;
-  [Simulation](simulation.md#people)). Beside the title, every event the
+  only when monitored, the high-risk, and once a day, their check-in (the
+  API leaves the others out; [Simulation](simulation.md#people)). Beside the title, every event the
   API read, those left out too, and how many a second over the last
   minute, a moving average: "48,213 events · 70.4/s" (under the title
   when narrow; nothing from an API that doesn't count). The header names

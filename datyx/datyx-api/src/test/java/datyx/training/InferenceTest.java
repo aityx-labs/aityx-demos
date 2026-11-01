@@ -109,6 +109,18 @@ class InferenceTest {
             run.results = results;
             run.model = trained.model();
             run.persist();
+            // A later run of the group's other algorithm, as if datyx trained DeepAR: never what scores.
+            TrainingRun deepAr = new TrainingRun();
+            deepAr.dataSource = run.dataSource;
+            deepAr.tableFqn = spec.table();
+            deepAr.groupName = "care";
+            deepAr.algorithm = "DeepAR";
+            deepAr.trigger = TrainingRun.Trigger.ENABLED;
+            deepAr.status = TrainingRun.Status.SUCCEEDED;
+            deepAr.queuedAt = Instant.now().plusSeconds(1);
+            deepAr.finishedAt = Instant.now().plusSeconds(2);
+            deepAr.results = "{}";
+            deepAr.persist();
             return run.id;
         });
 
@@ -146,10 +158,108 @@ class InferenceTest {
             .body("lastHour", is(3)).body("perHour", hasSize(24)).body("perHour[23].calls", is(3))
             .body("models.find { it.runId == " + runId + " }.stats.calls", is(3))
             .body("models.find { it.runId == " + runId + " }.seriesKey", is(List.of("run_id", "person")))
+            .body("models.findAll { it.table == 'datyx-ds-7.quarkus.ward.stays' }", hasSize(1))
             .body("calls", hasSize(3)).body("calls[0].status", is("failed")).body("calls[2].requested", is(2));
 
         given().when().delete("/api/datasources/" + sourceId).then().statusCode(204);
         given().when().get("/api/inference").then().statusCode(200).body("totals.calls", is(0));
+    }
+
+    /** ward.hourly: admissions per run, hospital and hour, the hospital a category; DeepAR's, 24 hours ahead by default. */
+    private TimeSeries.Spec hourly() throws Exception {
+        return TimeSeries.spec(json.readTree("""
+            {"name":"hourly","fullyQualifiedName":"datyx-ds-7.quarkus.ward.hourly","databaseSchema":{"name":"ward"},
+             "columns":[
+              {"name":"run_id","dataType":"TEXT","tags":[{"tagFQN":"TimeSeries.SeriesKey"}]},
+              {"name":"hospital_id","dataType":"INT","tags":[{"tagFQN":"TimeSeries.SeriesKey"},
+                {"tagFQN":"TimeSeries.StaticCategorical"}]},
+              {"name":"hour_start","dataType":"TIMESTAMP","tags":[{"tagFQN":"TimeSeries.Timestamp"}]},
+              {"name":"admissions","dataType":"INT","tags":[{"tagFQN":"TimeSeries.Target"}]}],
+             "extension":{"timeSeriesFrequency":"1h","timeSeriesMissing":"zero"}}
+            """), TimeSeries.DEFAULT_GROUP);
+    }
+
+    @Test
+    void forecastsADeepArGroupStepByStep() throws Exception {
+        try (Connection c = dataSource.getConnection(); Statement s = c.createStatement()) {
+            s.execute("create schema if not exists ward");
+            s.execute("drop table if exists ward.hourly");
+            s.execute("create table ward.hourly (run_id text, hospital_id int, hour_start timestamp, admissions int)");
+            // Run a ends at hour 600, run b (still going) at 720; admissions by day, more at hospital 1.
+            s.execute("""
+                insert into ward.hourly
+                select r, h, timestamp '2026-01-01 00:00' + make_interval(hours => t),
+                       case when t % 24 between 8 and 17 and (h * 7 + t) % 3 = 0 then 1 + (h = 1)::int else 0 end
+                from (values ('a', 600), ('b', 720)) runs(r, last), generate_series(1, 4) h, generate_series(0, 720) t
+                where t <= last and ((t % 24 between 8 and 17 and (h * 7 + t) % 3 = 0) or (t = last and h = 1))""");
+        }
+        TimeSeries.Spec spec = hourly();
+        DeepArData.Builder builder = new DeepArData.Builder(spec);
+        try (Connection c = dataSource.getConnection()) {
+            TableReader.read(c, spec, builder);
+        }
+        DeepArTrainer.Trained trained = DeepArTrainer.train(builder.build(), 2, java.time.Duration.ofMinutes(1), 3);
+        assertEquals(4, trained.result().scores().size(), "run b's four hospitals are still observed");
+
+        URI url = URI.create(jdbcUrl.substring("jdbc:".length()));
+        int sourceId = given().contentType(ContentType.JSON)
+            .body("""
+                {"name":"inference hourly","type":"database","database":{"engine":"postgresql","host":"%s","port":%d,
+                 "database":"%s","username":"%s","password":"%s"}}
+                """.formatted(url.getHost(), url.getPort(), url.getPath().substring(1), username, password))
+            .when().post("/api/datasources").then().statusCode(201).extract().path("id");
+        String results = json.writeValueAsString(trained.result());
+        long runId = QuarkusTransaction.requiringNew().call(() -> {
+            TrainingRun run = new TrainingRun();
+            run.dataSource = DataSource.findById((long) sourceId);
+            run.tableFqn = spec.table();
+            run.groupName = TimeSeries.DEFAULT_GROUP;
+            run.algorithm = "DeepAR";
+            run.trigger = TrainingRun.Trigger.MANUAL;
+            run.status = TrainingRun.Status.SUCCEEDED;
+            run.queuedAt = Instant.now();
+            run.finishedAt = Instant.now();
+            run.results = results;
+            run.model = trained.model();
+            run.persist();
+            return run.id;
+        });
+        try {
+            // A hospital of run b, by key: the next 24 hours from the run's end, step by step; one never seen has no rows.
+            JsonNode one = json.readTree(given().contentType(ContentType.JSON)
+                .body(Map.of("table", "ward.hourly",
+                    "series", List.of(Map.of("run_id", "b", "hospital_id", "1"), Map.of("run_id", "b", "hospital_id", "9"))))
+                .when().post("/api/datasources/" + sourceId + "/inference").then().statusCode(200)
+                .body("runId", is((int) runId)).body("group", is("default")).body("scored", is(1))
+                .body("target", is("admissions")).body("horizon", is("1D"))
+                .body("predictions[0].forecast", hasSize(24))
+                .body("predictions[0].forecast[0].at", is("2026-01-31T01:00"))
+                .body("predictions[0].forecast[23].at", is("2026-02-01T00:00"))
+                .body("predictions[1].note", is("no rows for this series")).body("predictions[1].forecast", nullValue())
+                .extract().asString());
+            double sum = 0;
+            for (JsonNode step : one.path("predictions").get(0).path("forecast")) {
+                sum += step.path("mean").asDouble();
+                double p10 = step.path("p10").asDouble();
+                double p50 = step.path("p50").asDouble();
+                double p90 = step.path("p90").asDouble();
+                assertEquals(true, p10 <= p50 && p50 <= p90 && p50 == Math.rint(p50), step.toString());
+            }
+            assertEquals(sum, one.path("predictions").get(0).path("predicted").asDouble(), 0.05, "the mean summed over the horizon");
+
+            // None named: run b's hospitals, the highest first.
+            JsonNode all = json.readTree(given().contentType(ContentType.JSON).body("{\"table\":\"hourly\",\"limit\":3}")
+                .when().post("/api/datasources/" + sourceId + "/inference").then().statusCode(200)
+                .body("predictions", hasSize(3)).extract().asString());
+            JsonNode predictions = all.path("predictions");
+            for (int i = 0; i < 3; i++) {
+                assertEquals("b", predictions.get(i).path("series").path("run_id").asText());
+                assertEquals(true, i == 0 || predictions.get(i - 1).path("predicted").asDouble()
+                    >= predictions.get(i).path("predicted").asDouble());
+            }
+        } finally {
+            given().when().delete("/api/datasources/" + sourceId).then().statusCode(204);
+        }
     }
 
     @Test

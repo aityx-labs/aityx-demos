@@ -249,6 +249,12 @@ public interface OpenMetadataClient {
     @Path("/domains")
     JsonNode putDomain(@HeaderParam("Authorization") String authorization, JsonNode domain);
 
+    /** A page of a domain's assets, its own and those they hold (a table's test cases): {"data":[{"id","type",...}],"paging":{"total"}}; 1000 at most. */
+    @GET
+    @Path("/domains/name/{name}/assets")
+    JsonNode domainAssets(@HeaderParam("Authorization") String authorization, @PathParam("name") String name,
+            @QueryParam("limit") int limit, @QueryParam("offset") int offset);
+
     /** Puts assets in a domain: {"assets":[{"id","type"}]}. */
     @PUT
     @Path("/domains/{name}/assets/add")
@@ -259,6 +265,12 @@ public interface OpenMetadataClient {
     @PUT
     @Path("/dataProducts")
     JsonNode putDataProduct(@HeaderParam("Authorization") String authorization, JsonNode product);
+
+    /** A page of a data product's assets: {"data":[{"id","type",...}],"paging":{"total"}}; 1000 at most. */
+    @GET
+    @Path("/dataProducts/name/{name}/assets")
+    JsonNode dataProductAssets(@HeaderParam("Authorization") String authorization, @PathParam("name") String name,
+            @QueryParam("limit") int limit, @QueryParam("offset") int offset);
 
     /** Puts assets in a data product: {"assets":[{"id","type"}]}. */
     @PUT
@@ -303,6 +315,13 @@ public interface OpenMetadataClient {
     @Path("/tables/{id}/tableProfile")
     JsonNode putTableProfile(@HeaderParam("Authorization") String authorization, @PathParam("id") String id,
             JsonNode profile);
+
+    /** Deletes a test case, its results with it. */
+    @DELETE
+    @Path("/dataQuality/testCases/{id}")
+    void deleteTestCase(@HeaderParam("Authorization") String authorization, @PathParam("id") String id,
+            @QueryParam("hardDelete") @DefaultValue("true") boolean hardDelete,
+            @QueryParam("recursive") @DefaultValue("true") boolean recursive);
 
     /** A table's test cases with their latest results: {"data":[...]}. */
     @GET

@@ -517,7 +517,15 @@ class _Results extends StatelessWidget {
 
 /// A headline number: its value large, what it is above, and a note below.
 class StatTile extends StatelessWidget {
-  const StatTile({super.key, required this.label, required this.value, required this.note, this.status, this.icon});
+  const StatTile({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.note,
+    this.status,
+    this.icon,
+    this.width = 190,
+  });
 
   final String label;
   final String value;
@@ -527,9 +535,12 @@ class StatTile extends StatelessWidget {
   final Color? status;
   final IconData? icon;
 
+  /// Its width: the same for a row of them.
+  final double width;
+
   @override
   Widget build(BuildContext context) => Container(
-    width: 190,
+    width: width,
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
       color: Aityx.bg0,

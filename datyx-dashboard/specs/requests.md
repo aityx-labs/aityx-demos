@@ -25,6 +25,27 @@ The Audit tab's body viewer is shared as `JsonBlock`; a stat tile scales
 a value too long for it down, and a card's title gives way on a narrow
 screen. Tests (6 more, 34 in all); `dashboard.md`.
 
+## 2026-11-01: the Inference tab as a dashboard
+
+Asked: that view (Inference) should be a dashboard, not so repeated,
+more like the time series of inferences and statistics.
+
+Changed: a card per model is gone. The tab is a row of headline tiles
+(calls, last hour, series scored, latency p50 and p95, failure rate,
+models in use, last call); **Hour by hour**, 24 hours or 7 days, three
+charts drawn with `CustomPaint` (no new dependency): calls per hour
+stacked by model with the failures as red dots, latency per hour (p50
+and p95 lines) and series scored per hour stacked by model, each with a
+legend, a crosshair and a readout, and the hours as a table on demand;
+one **Models** table, a row per model (a group's algorithm) with **Try
+it** first, in sight on a narrow card, scoring with the row's algorithm
+in a dialog; and the latest **Calls** as a table, failures tinted red.
+The palette goes to the models called in the range, the busiest three,
+by name; the other called ones are gray and named in the readout. The
+API answers what the charts need (datyx's change: `perHour` with series
+scored, latency and calls per model, `?hours=` up to 168, a model per
+group's algorithm, each model's and call's algorithm). Tests.
+
 ## 2026-11-01: space between the Training and Inference tabs' cards
 
 Asked: on the Training view the cards are glued together: add

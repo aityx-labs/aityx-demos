@@ -2,6 +2,9 @@ package datyx.catalog;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
@@ -35,9 +38,14 @@ import org.jboss.logging.Logger;
  * devdata/healthhub-catalog.json to them (Curation): owners, domain, data
  * product, glossary, tiers, topic descriptions, more checks, TimeSeries
  * roles, the Flink pipeline and lineage, and the certifications earned.
- * Then again every {@code datyx.dev-catalog.every} (10 minutes), so
- * profiles and checks follow the simulation; until the first success,
- * every half minute. After each, OpenMetadata's Data Insights run, so its
+ * At every start, so every check is set in OpenMetadata (made, updated,
+ * the stale ones removed) and run, one line logging how many and how
+ * many failed; then again every {@code datyx.dev-catalog.every} (10
+ * minutes), so profiles and checks follow the simulation; until the
+ * first success, every half minute. The first waits, at most
+ * {@code datyx.dev-catalog.rows-wait} (5 minutes), for the tables whose
+ * checks want rows to have some (a new HealthHub's admissions, Flink's
+ * first counts), so a fresh start doesn't judge empty tables. After each, OpenMetadata's Data Insights run, so its
  * coverage reports (descriptions, owners, tiers) count the curation. Off with
  * {@code datyx.dev-catalog.enabled=false}.
  */
@@ -66,6 +74,11 @@ public class DevCatalog {
 
     @ConfigProperty(name = "datyx.dev-catalog.every", defaultValue = "10m")
     Duration every;
+
+    @ConfigProperty(name = "datyx.dev-catalog.rows-wait", defaultValue = "5m")
+    Duration rowsWait;
+
+    private Instant emptySince;
 
     private Curation.Doc doc;
     private Instant lastDone = Instant.EPOCH;
@@ -97,6 +110,25 @@ public class DevCatalog {
                     return;
                 }
             }
+            if (lastDone.equals(Instant.EPOCH)) {
+                for (Pair pair : pairs) {
+                    String empty = empty(pair.database());
+                    if (empty == null) {
+                        continue;
+                    }
+                    if (emptySince == null) {
+                        emptySince = Instant.now();
+                    }
+                    if (Instant.now().isBefore(emptySince.plus(rowsWait))) {
+                        if (!empty.equals(waiting)) {
+                            LOG.infof("dev catalogue: waiting for HealthHub's data, at most %s: %s", rowsWait, empty);
+                            waiting = empty;
+                        }
+                        return;
+                    }
+                    LOG.infof("dev catalogue: %s after %s: checked all the same", empty, rowsWait);
+                }
+            }
             waiting = null;
             for (Pair pair : pairs) {
                 Catalog.Synced synced = catalog.sync(pair.databaseId(), pair.databaseName(), pair.databaseDescription(),
@@ -109,7 +141,13 @@ public class DevCatalog {
                         LOG.infof("dev catalogue: %s can't be read, curated without its topics: %s", pair.kafkaName(), e.getMessage());
                     }
                 }
-                curation.apply(doc, synced, pair.database(), stream);
+                Curation.Applied applied = curation.apply(doc, synced, pair.database(), stream);
+                int checks = synced.tests() + applied.checks();
+                int failed = synced.failed() + applied.failed();
+                LOG.infof("dev catalogue: %s's checks set in OpenMetadata and run: %d (%d of the schema, %d of the document; "
+                    + "test cases %d new, %d changed, %d removed), %d passed (or aborted, nothing to judge), %d failed", pair.databaseName(), checks,
+                    synced.tests(), applied.checks(), synced.testsCreated() + applied.testsCreated(),
+                    synced.testsUpdated() + applied.testsUpdated(), applied.testsRemoved(), checks - failed, failed);
             }
             lastDone = Instant.now();
             if (!pairs.isEmpty()) {
@@ -144,6 +182,40 @@ public class DevCatalog {
             }
             return pairs;
         });
+    }
+
+    /**
+     * The first table, of those the document gives a row count with a
+     * minimum, that has no rows yet ("public.admissions_hourly has no rows
+     * yet"), or null when each has some.
+     */
+    String empty(DatabaseAccess access) throws SQLException {
+        try (Connection c = SchemaReader.connect(access)) {
+            for (var entry : doc.tables().entrySet()) {
+                boolean wantsRows = entry.getValue().checks() != null && entry.getValue().checks().stream()
+                    .anyMatch(check -> check.test().startsWith("tableRowCount") && minimum(check) >= 1);
+                if (!wantsRows) {
+                    continue;
+                }
+                String[] name = entry.getKey().split("\\.", 2);
+                try (PreparedStatement s = c.prepareStatement("SELECT EXISTS (SELECT 1 FROM " + Quality.quote(name[0])
+                        + "." + Quality.quote(name[1]) + ")")) {
+                    s.setQueryTimeout(Quality.TIMEOUT);
+                    try (ResultSet r = s.executeQuery()) {
+                        r.next();
+                        if (!r.getBoolean(1)) {
+                            return entry.getKey() + " has no rows yet";
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static double minimum(Quality.Check check) {
+        Object min = check.parameters().getOrDefault("minValue", check.parameters().get("value"));
+        return min instanceof Number n ? n.doubleValue() : min == null ? 0 : Double.parseDouble(min.toString());
     }
 
     /** Why the database isn't initialized yet (a curated table missing or undescribed), or null once it is. */

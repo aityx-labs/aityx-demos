@@ -245,29 +245,64 @@ reload).
   fails (an API without it), its card shows the API's words and the
   rest of the tab stays. While a run is queued or running the tab asks
   again (both) every 3 s.
-- **Inference** (`InferenceTab`, `?tab=inference`): the account of the
+- **Inference** (`InferenceTab`, `?tab=inference`): a dashboard of the
   calls to the trained models, from `GET /api/inference` (the last 7
-  days), with a reload button. Six stat tiles: calls, the last hour's,
-  failed (a status icon, green with none, red with some, and the share),
-  series scored, median and 95th-percentile latency; then **Calls per
-  hour** (`CallsPerHour`): a column per hour of the last 24 on one
-  baseline in the brand orange (one series, no legend), scaled to the
-  tallest, which the subtitle names, the first hour and *now* under it,
-  and a tooltip per column with the hour, its calls and its failures. A
-  card per model (`InferenceModelCard`): `XGBoost · care`, its table and
-  source, which run answers and when it was trained, what it predicts
-  and per what key; its own tiles (calls and when last, failed, series
-  scored, median latency with the mean, 95th percentile); and **Try it**:
-  a field per key column and **Score** (on once the whole key is typed),
-  or **Score all still observed**, each a real call to
-  `POST /api/datasources/{id}/inference`, accounted for like any other;
-  the answer shows the call's id, how many it scored, how long and which
-  run, and a table of the predictions (the key, the prediction, the last
-  horizon's actual, or why a series wasn't scored), and the account is
-  asked again. Then **Calls**: the latest, newest first: when, the status
-  chip (ok green, failed red), the model, the run, how many asked and
-  scored (*all still observed* for none named), the milliseconds, who
-  asked, and a failure's error.
+  days), each part once, the cards 16 px apart:
+  - **Inference**, with a reload button: a line on what is accounted,
+    then a row of headline tiles of one width (as many in a row as fit,
+    at least 150 px each): calls (in 7 days), the last hour's, series
+    scored, latency p50 and p95, the failure rate (a status icon, green
+    with none, red with some, and *n of m calls*), models in use (those
+    called, *of n trained*) and the last call (*4 min ago*, and when).
+  - **Hour by hour** (`hour_charts.dart`), the range in its title row:
+    **24 h** or **7 d** (`?hours=24` or `168`; the previous answer stays,
+    dimmed, while asked again), and a button to show the hours as a
+    table instead (those with a call, newest first: calls, failed,
+    scored, p50, p95, each model's calls). Three charts, one y axis each
+    from zero (clean ticks, hairline gridlines), the hours along x:
+    **Calls per hour**, columns stacked by model, a red dot (ringed in the
+    card's color) at each hour's failed calls on the same scale; then,
+    side by side from 900 px, **Latency per hour**, two 2 px lines, p95
+    and p50 (one hue: the brand orange and a lighter step), broken where
+    an hour had no call, dotted, each named with its last value at its
+    end when they stand apart; and **Series scored per hour**, stacked by
+    model. Each has a legend above it (a swatch shaped as its mark), and
+    a crosshair that follows the pointer (or a tap) to an hour, with a
+    readout of every series in it. With no call in the range, each says
+    so over its axes. The models called in the range have the colors,
+    blue, aqua, yellow (steps validated for color blindness on the dark
+    card, against the failures' red too), the busiest three, in order of
+    name (table, group, algorithm), so a model keeps its color while the
+    models called stay the same, whatever else is trained; the others
+    called are gray, *other models*, each named in the readout; a model
+    not called has none. The failures are the status red, never a
+    model's.
+  - **Models**: one table, a row per model the API lists (a group's
+    algorithm: a group trained with both has two rows): **Try it** first
+    (an icon button, in sight however narrow the card, the rest of the
+    row scrolling sideways), its color in the charts (a hollow square:
+    not called in their range), the table and group with the source and
+    FQN, the algorithm, the run that answers and when it was trained, its
+    calls, failed (red, with an icon, when any), p50 / p95, when last
+    called. **Try it** opens a dialog (`TryItDialog`): what the model
+    predicts and per what key, a field per key column and **Score** (on
+    once the whole key is typed), or **Score all still observed**, each a
+    real call to `POST /api/datasources/{id}/inference` naming the row's
+    algorithm, accounted for
+    like any other; the answer shows the call's id, how many it scored,
+    how long and which run, and a table of the predictions (the key, the
+    prediction, the last horizon's actual, or why a series wasn't
+    scored), and the account is asked again. With no model, it says the
+    Training tab trains the groups tagged for XGBoost or DeepAR.
+  - **Calls**: the latest, newest first, one row each: when, the status
+    chip (ok green, failed red), the model (table, group, algorithm,
+    run), how many asked and scored (*all still observed* for none
+    named), the milliseconds and who asked; a failed call's row tinted
+    red, its error under it.
+
+  Signed out, the first card says to sign in; an error the API answers
+  shows in red; *Loading…* until it answers. The tables scroll sideways
+  on a narrow window.
 - **aityx** (`AityxTab`, `lib/dashboard/aityx_tab.dart`, `?tab=aityx`):
   the account of the calls datyx routes to aityx through its gateway
   ([../../datyx/specs/aityx.md](../../datyx/specs/aityx.md)), from

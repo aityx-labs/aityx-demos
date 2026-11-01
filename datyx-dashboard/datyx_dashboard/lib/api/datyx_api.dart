@@ -1036,7 +1036,8 @@ class InferenceStats {
   final DateTime? lastCalledAt;
 }
 
-/// A model that answers inference (a group with a trained model) and its calls' account.
+/// A model that answers inference (a group's algorithm, its latest trained
+/// model) and its calls' account: those that algorithm answered.
 class InferenceModel {
   const InferenceModel({
     required this.sourceId,
@@ -1044,6 +1045,7 @@ class InferenceModel {
     required this.name,
     required this.group,
     this.source = '',
+    this.algorithm = xgBoostAlgorithm,
     this.runId,
     this.trainedAt,
     this.target,
@@ -1058,6 +1060,7 @@ class InferenceModel {
     table: json['table'] as String? ?? '',
     name: json['name'] as String? ?? '',
     group: json['group'] as String? ?? defaultGroup,
+    algorithm: json['algorithm'] as String? ?? xgBoostAlgorithm,
     runId: (json['runId'] as num?)?.toInt(),
     trainedAt: _time(json['trainedAt']),
     target: json['target'] as String?,
@@ -1071,6 +1074,9 @@ class InferenceModel {
   final String table;
   final String name;
   final String group;
+
+  /// The model's algorithm: a group trained with both has a model of each.
+  final String algorithm;
   final int? runId;
   final DateTime? trainedAt;
   final String? target;
@@ -1087,6 +1093,8 @@ class InferenceCallInfo {
     required this.id,
     required this.name,
     required this.group,
+    this.table = '',
+    this.algorithm = xgBoostAlgorithm,
     this.runId = 0,
     this.calledAt,
     this.millis = 0,
@@ -1101,6 +1109,8 @@ class InferenceCallInfo {
     id: (json['id'] as num).toInt(),
     name: json['name'] as String? ?? '',
     group: json['group'] as String? ?? defaultGroup,
+    table: json['table'] as String? ?? '',
+    algorithm: json['algorithm'] as String? ?? xgBoostAlgorithm,
     runId: (json['runId'] as num?)?.toInt() ?? 0,
     calledAt: _time(json['calledAt']),
     millis: (json['millis'] as num?)?.toInt() ?? 0,
@@ -1114,6 +1124,10 @@ class InferenceCallInfo {
   final int id;
   final String name;
   final String group;
+
+  /// The table's fully qualified name.
+  final String table;
+  final String algorithm;
   final int runId;
   final DateTime? calledAt;
   final int millis;
@@ -1124,22 +1138,81 @@ class InferenceCallInfo {
   final String? caller;
 }
 
-/// One hour's calls.
+/// One hour's calls: how many, how many failed, series scored, latency
+/// (median and 95th percentile; null without a call) and each model's.
 class InferenceHour {
-  const InferenceHour(this.hour, this.calls, this.failed);
+  const InferenceHour(
+    this.hour,
+    this.calls,
+    this.failed, {
+    this.scored = 0,
+    this.p50Millis,
+    this.p95Millis,
+    this.byModel = const [],
+  });
+
+  factory InferenceHour.fromJson(Map<String, Object?> json) => InferenceHour(
+    _time(json['hour']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+    (json['calls'] as num?)?.toInt() ?? 0,
+    (json['failed'] as num?)?.toInt() ?? 0,
+    scored: (json['scored'] as num?)?.toInt() ?? 0,
+    p50Millis: (json['p50Millis'] as num?)?.toInt(),
+    p95Millis: (json['p95Millis'] as num?)?.toInt(),
+    byModel: [
+      for (final m in (json['byModel'] as List?) ?? const [])
+        InferenceHourModel.fromJson((m as Map).cast()),
+    ],
+  );
+
   final DateTime hour;
   final int calls;
   final int failed;
+  final int scored;
+  final int? p50Millis;
+  final int? p95Millis;
+  final List<InferenceHourModel> byModel;
+}
+
+/// A model's calls in an hour: a group's algorithm, of a table (its FQN).
+class InferenceHourModel {
+  const InferenceHourModel({
+    required this.table,
+    required this.group,
+    this.name = '',
+    this.algorithm = xgBoostAlgorithm,
+    this.calls = 0,
+    this.failed = 0,
+    this.scored = 0,
+  });
+
+  factory InferenceHourModel.fromJson(Map<String, Object?> json) => InferenceHourModel(
+    table: json['table'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    group: json['group'] as String? ?? defaultGroup,
+    algorithm: json['algorithm'] as String? ?? xgBoostAlgorithm,
+    calls: (json['calls'] as num?)?.toInt() ?? 0,
+    failed: (json['failed'] as num?)?.toInt() ?? 0,
+    scored: (json['scored'] as num?)?.toInt() ?? 0,
+  );
+
+  final String table;
+  final String name;
+  final String group;
+  final String algorithm;
+  final int calls;
+  final int failed;
+  final int scored;
 }
 
 /// `GET /api/inference`: the account of the last 7 days' calls: totals,
-/// the last hour's, each model's, the last 24 hours hour by hour, and the
+/// the last hour's, each model's, the last [hours] hour by hour, and the
 /// latest calls.
 class InferenceAccount {
   const InferenceAccount({
     this.totals = const InferenceStats(),
     this.lastHour = 0,
     this.models = const [],
+    this.hours = 24,
     this.perHour = const [],
     this.calls = const [],
   });
@@ -1151,13 +1224,10 @@ class InferenceAccount {
       for (final m in (json['models'] as List?) ?? const [])
         InferenceModel.fromJson((m as Map).cast()),
     ],
+    hours: (json['hours'] as num?)?.toInt() ?? 24,
     perHour: [
       for (final h in (json['perHour'] as List?) ?? const [])
-        InferenceHour(
-          _time((h as Map)['hour']) ?? DateTime.fromMillisecondsSinceEpoch(0),
-          (h['calls'] as num?)?.toInt() ?? 0,
-          (h['failed'] as num?)?.toInt() ?? 0,
-        ),
+        InferenceHour.fromJson((h as Map).cast()),
     ],
     calls: [
       for (final c in (json['calls'] as List?) ?? const [])
@@ -1168,6 +1238,9 @@ class InferenceAccount {
   final InferenceStats totals;
   final int lastHour;
   final List<InferenceModel> models;
+
+  /// The hours [perHour] covers: 24 by default, up to the 7 days' 168.
+  final int hours;
   final List<InferenceHour> perHour;
   final List<InferenceCallInfo> calls;
 }
@@ -1444,14 +1517,17 @@ abstract class DatyxApi {
 
   /// Sets how often a table's groups are trained again: a span, `never`, or null for the default (1D).
   Future<void> setRetrain(int sourceId, String table, String? retrain);
-  Future<InferenceAccount> inference();
+  /// The inference account, [hours] of it hour by hour (24, up to 168).
+  Future<InferenceAccount> inference({int hours = 24});
 
-  /// Scores [series] (each its key's values by column) with a group's latest
-  /// model; none: every series still observed, the highest [limit].
+  /// Scores [series] (each its key's values by column) with the latest model
+  /// of a group's [algorithm] (none: XGBoost's, if it has one); no series:
+  /// every series still observed, the highest [limit].
   Future<InferenceAnswer> score(
     int sourceId,
     String table,
     String group, {
+    String? algorithm,
     List<Map<String, String>>? series,
     int limit = 25,
   });
@@ -1680,21 +1756,22 @@ class HttpDatyxApi implements DatyxApi {
   }
 
   @override
-  Future<InferenceAccount> inference() async =>
-      InferenceAccount.fromJson((await _send('GET', '/api/inference') as Map).cast());
+  Future<InferenceAccount> inference({int hours = 24}) async =>
+      InferenceAccount.fromJson((await _send('GET', '/api/inference', query: {'hours': '$hours'}) as Map).cast());
 
   @override
   Future<InferenceAnswer> score(
     int sourceId,
     String table,
     String group, {
+    String? algorithm,
     List<Map<String, String>>? series,
     int limit = 25,
   }) async => InferenceAnswer.fromJson(
     (await _send(
               'POST',
               '/api/datasources/$sourceId/inference',
-              body: {'table': table, 'group': group, 'series': ?series, 'limit': limit},
+              body: {'table': table, 'group': group, 'algorithm': ?algorithm, 'series': ?series, 'limit': limit},
             )
             as Map)
         .cast(),

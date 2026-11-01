@@ -58,7 +58,7 @@ class _InferenceTabState extends State<InferenceTab> {
     final a = _account;
     return ListView(
       padding: const EdgeInsets.all(16),
-      children: [
+      children: spaced([
         if (widget.statusError != null) ApiDownLine(widget.statusError!),
         Card(
           child: Padding(
@@ -116,7 +116,7 @@ class _InferenceTabState extends State<InferenceTab> {
             InferenceModelCard(key: ValueKey('inference-${m.table}-${m.group}'), api: widget.api, model: m, onCalled: _load),
           _Calls(calls: a.calls),
         ],
-      ],
+      ]),
     );
   }
 }

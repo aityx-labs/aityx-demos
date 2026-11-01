@@ -32,7 +32,7 @@ Each file is a JSON array; each element:
 | `duration` | The duration as people say it (`5 to 7 days`; `lifelong, with periodic review`) |
 | `visits` | `count` (visits in one course, at least 1), `interval_days` (between visits, at least 1), `stay_hours` (per visit, 1 to 72) |
 | `female_share` | Optional, 0 to 1 (0.5 when absent): the share of its patients who are women. A person's condition is weighed by it ([Visits](#visits)) |
-| `urgent` | Optional, `true` or `false` (`false` when absent): whether the first visit is an emergency, made at any hour of day or night as soon as the condition starts, rather than at a daytime slot |
+| `urgent` | Optional, `true` or `false` (`false` when absent): whether the first visit is an emergency, made at any hour of day or night as soon as the condition starts, rather than at a planned slot |
 | `follow_up_stay_hours` | Optional, 1 to 72 (`stay_hours` when absent): the stay of the visits after the first, as an appendicitis stays two days and its wound check an hour |
 | `setting` | Where the first visit goes: `hospital`, `primary`, `urgent_care`, `mental_health` or `dialysis` ([Where visits go](#where-visits-go)) |
 | `follow_up_setting` | Optional, one of the same (`setting` when absent): where the visits after the first go, as a pneumonia admitted at the hospital is checked at the health station |

@@ -55,16 +55,17 @@ their moves through Kafka ([Simulation](simulation.md)). The map asks
 once the view has settled after a move, and every 5 seconds while it
 stays shown, not at every turn, and draws:
 
-- **Homes**: a small muted house (`Icons.home`) where each person
-  started.
-- **People**: a small dot in a dark ring, above the homes and the care
+- **Homes**: a small muted house (`Icons.home`, 11 px) where each
+  person started.
+- **People**: a small dot (8 px) in a thin dark ring, small enough for
+  hundreds of people a city to show where care is under pressure, above the homes and the care
   centers and below the orange you-are-here dot, coloured by state:
   amber going for care, violet in care, cyan going home, off-white at
   home. On the index, tapping or hovering one shows who it is, its
   condition, what it does, naming the kind of care center ("Going to the
   health station", "At the clinic", "At the hospital"), the care center
   (of the visit under way, else the general hospital nearest home) and
-  the simulated time, one
+  the simulated time as a date ("Jan 4, 2026 09:00"), one
   line each; on home, hovering (or a long press) shows it, ending "Click
   to open", and a click opens the person's view, as a click on a home
   does ([The person view](person.md)):
@@ -72,14 +73,14 @@ stays shown, not at every turn, and draws:
   ```
   Jordi Puig, 41, reus-3
   Influenza (acute)
-  Going to the hospital · Hospital Universitari Sant Joan de Reus · 09:00
+  Going to the hospital · Hospital Universitari Sant Joan de Reus · Jan 4, 2026 09:00
   ```
 
   The name, age and condition come from the person's profile in the
   moves ([Simulation](simulation.md)); a record without them shows the
   id alone on the first line and no condition line.
 - **Legend**: under the care centers' entries, Home and one Person
-  entry per state (at home, going for care, in care, going home), and "Simulated time HH:MM, day N" once the stream
+  entry per state (at home, going for care, in care, going home), and "Simulated time: Jan 4, 2026 09:00" once the stream
   has said.
 
 When the API answers `"enabled": false` (prod), none of this shows. A

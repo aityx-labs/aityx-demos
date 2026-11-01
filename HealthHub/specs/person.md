@@ -46,13 +46,14 @@ back button and a refresh.
 
 ## The view
 
-`PersonScreen`, at most 960 px wide, in this order:
+`PersonScreen`, the window's full width (less a 16 px margin), in this order:
 
 1. **Who**: the name large, then age, sex, occupation and city (sex and
    occupation come from an admission: a move doesn't carry them), the
    id and run, and "a past run" when it isn't the current one. Now, when
    it is: a pill in their state's colour (the map's) with the hospital
-   when going to or at one, their condition, the simulated time.
+   when going to or at one, their condition, the simulated time, as a
+   date ("Jan 4, 2026 09:00").
 2. **Return in the next 30 days**, the highlighted card: an orange
    border and an orange wash, set apart from the plain cards around it.
    datyx's XGBoost prediction of the hours of hospital care the person

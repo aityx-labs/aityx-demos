@@ -68,7 +68,7 @@
     .chip.aityx { color: var(--orange-light); border-color: rgba(227, 103, 66, .5); }
     .status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-top: auto; }
     .status[hidden] { display: none; }
-    .status + .actions { margin-top: 0; }
+    .status:not([hidden]) + .actions { margin-top: 0; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
     .btn {
       display: inline-flex; align-items: center; gap: 6px; cursor: pointer;

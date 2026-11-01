@@ -7,6 +7,7 @@ import '../events/stream_events.dart';
 import '../location/location_controller.dart';
 import '../location/user_location_map.dart';
 import '../theme.dart';
+import '../triage/triage_card.dart';
 
 /// Home: where the user lands after signing in. A dashboard of tiles; for
 /// now one, the map with the user's position highlighted, full width.
@@ -18,6 +19,8 @@ class HomeScreen extends StatelessWidget {
     this.careCenters,
     this.people,
     this.events,
+    this.triage,
+    this.triageDetail,
     this.showTiles = true,
   });
 
@@ -32,6 +35,10 @@ class HomeScreen extends StatelessWidget {
 
   /// Where the latest events on the stream come from, under the map.
   final EventsLoader? events;
+
+  /// Where aityx's triage of the admissions comes from, under the map.
+  final TriageLoader? triage;
+  final TriageDetailLoader? triageDetail;
   final bool showTiles;
 
   @override
@@ -75,6 +82,11 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
         ),
+        if (triage != null && triageDetail != null)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            sliver: SliverToBoxAdapter(child: TriageCard(triage: triage!, detail: triageDetail!)),
+          ),
         if (events != null)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),

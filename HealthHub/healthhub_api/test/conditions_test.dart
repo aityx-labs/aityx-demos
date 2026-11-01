@@ -47,6 +47,10 @@ void main() {
         'repeat': ['x', 'x', 'y'],
         'last': ['only one'],
       },
+      'triage': {
+        'first': ['red', 'amber', 'blue'],
+        'repeat': ['blue'],
+      },
     };
     final problems = MedicalCondition.problems(bad, type: 'acute');
     expect(
@@ -63,8 +67,12 @@ void main() {
         contains('stray brace'),
         contains('repeats a template'),
         contains('"templates.last"'),
+        contains('"triage.first"'),
+        contains('"triage.repeat"'),
+        contains('"triage.last"'),
       ]),
     );
+    expect(MedicalCondition.problems({...influenza(), 'triage': null}, type: 'acute').join(), contains('"triage"'));
     expect(() => MedicalCondition.fromJson(bad, type: 'acute'), throwsFormatException);
     expect(MedicalCondition.problems(influenza(), type: 'acute'), isEmpty);
     // A chronic condition has no treatment duration.
@@ -95,7 +103,21 @@ void main() {
     expect(conditionSeed.map((c) => c.values), data.map((c) => c.values));
     for (final kind in VisitKind.values) {
       expect(conditionSeed.map((c) => c.templates(kind)), data.map((c) => c.templates(kind)));
+      expect(conditionSeed.map((c) => c.triageOf(kind)), data.map((c) => c.triageOf(kind)));
     }
+  });
+
+  test('every template has a reference triage level, and every level has templates', () {
+    final levels = [
+      for (final c in conditionSeed)
+        for (final kind in VisitKind.values) ...c.triageOf(kind),
+    ];
+    expect(levels, hasLength(conditionSeed.length * VisitKind.values.length * templatesPerVisit));
+    for (final level in triageLevels) {
+      expect(levels.where((l) => l == level), isNotEmpty, reason: level);
+    }
+    final flu = readConditions(fixtures).first;
+    expect(flu.triageOf(VisitKind.repeat), ['yellow', 'blue', 'green']);
   });
 
   test('the optional fields default, and are checked when set', () {
@@ -140,6 +162,7 @@ void main() {
       'duration': 'd',
       'visits': {'count': 2, 'interval_days': 2, 'stay_hours': 4},
       'templates': {for (final kind in VisitKind.values) kind.json: diabetes.templates(kind)},
+      'triage': {for (final kind in VisitKind.values) kind.json: diabetes.triageOf(kind)},
     };
     expect(MedicalCondition.problems({...chronic, 'course_gap_days': 0}, type: 'chronic'), isEmpty);
     expect(MedicalCondition.fromJson({...chronic, 'course_gap_days': 0}, type: 'chronic').courseGapDays, 0);

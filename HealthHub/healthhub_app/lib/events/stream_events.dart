@@ -270,10 +270,14 @@ class AdmissionRow extends StatelessWidget {
 /// Which visit of the course an admission is: "First visit", "Return
 /// visit, the 2nd", "Last visit, the 3rd". A first visit needs no number.
 String visitLabel(StreamEvent event) {
-  final kind = event.visit?.label ?? 'Admission';
-  final n = event.visitNumber;
-  if (n == null || event.visit == VisitKind.first) return kind;
-  return '$kind, the ${_ordinal(n)}';
+  final visit = event.visit;
+  return visit == null ? 'Admission' : visitOf(visit, event.visitNumber);
+}
+
+/// A [visit] of the course, the [number]th: "Return visit, the 2nd".
+String visitOf(VisitKind visit, int? number) {
+  if (number == null || visit == VisitKind.first) return visit.label;
+  return '${visit.label}, the ${_ordinal(number)}';
 }
 
 String _ordinal(int n) {

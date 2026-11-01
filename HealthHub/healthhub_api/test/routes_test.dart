@@ -15,11 +15,13 @@ void main() {
     expect(without.status, 200);
     expect(without.body, {
       'ok': true, 'db': false, 'aityx': false, 'auth': false, 'kafka': false, 'simulation': false,
+      'triage': false,
     });
 
-    final withBoth = route('GET', '/api/health', db: true, aityx: true);
+    final withBoth = route('GET', '/api/health', db: true, aityx: true, triageEnabled: true);
     expect(withBoth.body, {
       'ok': true, 'db': true, 'aityx': true, 'auth': false, 'kafka': false, 'simulation': false,
+      'triage': true,
     });
   });
 

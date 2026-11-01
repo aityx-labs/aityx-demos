@@ -61,6 +61,9 @@ void main() {
       }
       out.writeln('    ],');
     }
+    for (final kind in VisitKind.values) {
+      out.writeln('    ${kind.json}Triage: [${c.triageOf(kind).map(_literal).join(', ')}],');
+    }
     out.writeln('  ),');
   }
   out.writeln('];');

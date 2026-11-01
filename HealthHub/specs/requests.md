@@ -262,3 +262,32 @@ The feature files hold the current specification; see the
    first visit or a follow-up, as the simulation keeps people. Nothing in
    HealthHub knows about datyx or XGBoost. See [Patient
    days](patient-days.md) and [Database](database.md).
+
+1. **Use aityx for triage at the desk, and write a document apart from
+   the specs about HealthHub's aityx features, starting with this one:
+   how Jev and aityx help, sample classifications, plenty of cases in the
+   data, matching the tables, explainable.** Each admission the API
+   records is triaged by aityx from what the patient said and their age,
+   nothing else: one call, in which Jev reads eight danger signs as
+   probabilities and four choices (pain, onset, why they came, the part
+   of the body), and a decision (`data/triage/triage.json`) gives the
+   level on five levels after the Manchester Triage System's, the longest
+   wait, the area of the hospital and a nurse's check, with the rule
+   behind each. The API keeps each triage with aityx's receipt
+   (`admission_triage`) and answers `GET /api/triage` and
+   `GET /api/triage/{eventId}`; home gains the **Triage at the desk**
+   card, whose rows open why: the signs against the thresholds and each
+   rule tried in order. `HEALTHHUB_TRIAGE=off` turns it off. For plenty
+   of cases, every complaint template now has a reference level, the one
+   a nurse applying the same policy gives it, and admissions say which
+   template they were said from, so every triage is set against it; three
+   acute conditions bring immediate and time-critical cases: anaphylaxis,
+   acute coronary syndrome and stroke. `scripts/model-test.sh` checks the
+   decision on aityx at each rule and threshold, and
+   `scripts/triage-cases.sh` triages all 369 templates into
+   `docs/aityx-triage-cases.md`: 93.5% at the reference level, 97.8%
+   within one, after the questions were made more precise (85.1% at
+   first). The document is [docs/aityx.md](../docs/aityx.md). See
+   [Triage at the desk](triage.md), [Medical conditions](conditions.md),
+   [Simulation](simulation.md), [Database](database.md), [API](api.md),
+   [Home](home.md) and [Development environment](dev-environment.md).

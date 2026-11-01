@@ -25,6 +25,113 @@ class FakeApi implements HealthHubApi {
   /// The types the events card asked for, in order.
   final eventTypes = <StreamEventType?>[];
 
+  /// The event ids whose triage detail was asked for.
+  final triageDetailsAsked = <String>[];
+
+  static const _signs = {
+    'life_threat': 0.04,
+    'breathing': 0.86,
+    'cardiac': 0.12,
+    'stroke': 0.02,
+    'major_injury': 0.01,
+    'serious_infection': 0.41,
+    'dehydration': 0.05,
+    'self_harm': 0.01,
+  };
+
+  /// As the API answers a triage: the COPD flare-up, a sprain and a failure.
+  static final _triaged = <Map<String, Object?>>[
+    {
+      'eventId': 'r1-lisboa-1-d2-t40',
+      'name': 'Rui Matos',
+      'age': 71,
+      'complaint': "Hi, I'm Rui Matos, 71, I have COPD. For four days I've been much more breathless.",
+      'conditionName': 'COPD',
+      'visit': 'first',
+      'visitNumber': 1,
+      'hospitalName': 'Hospital de Santa Maria',
+      'level': 'orange',
+      'waitMinutes': 10,
+      'area': 'emergency',
+      'nurseCheck': true,
+      'levelRule': 3,
+      'levelWhy': 'Struggling to breathe at rest or while talking.',
+      'areaRule': 3,
+      'areaWhy': 'Very urgent and urgent patients are seen in the emergency department.',
+      'signs': _signs,
+      'choices': {
+        'pain': {'choice': 'none', 'confidence': 0.9},
+        'onset': {'choice': 'this_week', 'confidence': 0.8},
+        'visit_purpose': {'choice': 'worse', 'confidence': 0.7},
+        'body_system': {'choice': 'breathing', 'confidence': 0.95},
+      },
+      'reference': 'orange',
+      'millis': 312,
+      'inputTokens': 4100,
+    },
+    {
+      'eventId': 'r1-lisboa-2-d2-t38',
+      'name': 'Ana Sousa',
+      'age': 34,
+      'complaint': 'I twisted my ankle stepping off a kerb this morning.',
+      'level': 'yellow',
+      'waitMinutes': 60,
+      'area': 'emergency',
+      'levelWhy': 'Moderate pain: it hurts to move, swallow or bear weight.',
+      'reference': 'green',
+    },
+    {'eventId': 'r1-lisboa-3-d2-t30', 'name': 'Inês Carvalho', 'age': 67, 'error': 'aityx answered 401: invalid_key'},
+  ];
+
+  @override
+  Future<Triages> triage({int limit = 20}) async {
+    if (!simulation) return const Triages();
+    return Triages.fromJson({
+      'enabled': true,
+      'summary': {
+        'total': 3,
+        'failed': 1,
+        'compared': 2,
+        'matched': 1,
+        'withinOne': 2,
+        'under': 0,
+        'over': 1,
+        'nurseChecks': 1,
+        'inputTokens': 8200,
+        'medianMillis': 312,
+        'levels': {'red': 0, 'orange': 1, 'yellow': 1, 'green': 0, 'blue': 0},
+      },
+      'triaged': _triaged,
+    });
+  }
+
+  @override
+  Future<Triaged> triageOf(String eventId) async {
+    triageDetailsAsked.add(eventId);
+    return Triaged.fromJson({
+      ..._triaged.firstWhere((row) => row['eventId'] == eventId),
+      'receipt': {
+        'provenance': {'age': 'state', for (final sign in _signs.keys) '${sign}_probability': 'jev'},
+        'decisions': {
+          'level': {'value': 'orange', 'rule': 3},
+        },
+      },
+      'rules': {
+        'level': [
+          'An immediate threat to life: seen at once, in resuscitation.',
+          'Signs of a stroke or another sudden problem in the brain: every minute counts.',
+          'Struggling to breathe at rest or while talking.',
+          'Chest pain or palpitations that may come from the heart, until a tracing says otherwise.',
+        ],
+        'area': [
+          'Immediate threats to life go to the resuscitation room.',
+          'The mental health liaison team sees a patient at risk, in a safe room.',
+          'Very urgent and urgent patients are seen in the emergency department.',
+        ],
+      },
+    });
+  }
+
   @override
   Future<StreamEvents> events({int limit = 20, StreamEventType? type}) async {
     eventTypes.add(type);
@@ -333,8 +440,8 @@ void main() {
   });
 
   testWidgets('home lists the latest events on the stream under the map', (tester) async {
-    // Tall enough for the card under the map.
-    tester.view.physicalSize = const Size(1200, 1400);
+    // Tall enough for the cards under the map.
+    tester.view.physicalSize = const Size(1200, 2600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     await tester.pumpWidget(app(api: FakeApi(auth: false, simulation: true)));
@@ -349,7 +456,7 @@ void main() {
   });
 
   testWidgets('an admission stands out in the events, with the complaint in full', (tester) async {
-    tester.view.physicalSize = const Size(1200, 1400);
+    tester.view.physicalSize = const Size(1200, 2600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     final api = FakeApi(auth: false, simulation: true);
@@ -429,6 +536,65 @@ void main() {
     expect(events.events[1].name, 'Anna Vidal');
     expect(events.events[2].type, StreamEventType.move);
     expect(StreamEvents.fromJson({'enabled': true, 'topic': 'healthhub.people.moves'}).topics, ['healthhub.people.moves']);
+  });
+
+  testWidgets("home shows aityx's triage of the admissions, against the reference", (tester) async {
+    tester.view.physicalSize = const Size(1200, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(app(api: FakeApi(auth: false, simulation: true)));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('triage-card')), findsOneWidget);
+    expect(find.text('Triage at the desk, by aityx'), findsOneWidget);
+    expect(find.text('3 triaged · 50% at the reference level'), findsOneWidget);
+    expect(find.text('Very urgent 1'), findsOneWidget);
+    expect(find.text('failed 1'), findsOneWidget);
+    // The COPD flare-up: very urgent, why, a nurse's check, the reference.
+    expect(find.text('Very urgent · within 10 min'), findsOneWidget);
+    expect(find.text('Struggling to breathe at rest or while talking.'), findsOneWidget);
+    expect(find.text('a nurse checks'), findsOneWidget);
+    expect(find.text('✓ the reference level'), findsOneWidget);
+    // The sprain, one level more urgent than the reference; the failure.
+    expect(find.text('one level more urgent than the reference'), findsOneWidget);
+    expect(find.text('Not triaged'), findsOneWidget);
+    expect(find.text('aityx answered 401: invalid_key'), findsOneWidget);
+  });
+
+  testWidgets('a tap on a triage shows why: what Jev read, the rules tried, the reference', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeApi(auth: false, simulation: true);
+    await tester.pumpWidget(app(api: api));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('triage-r1-lisboa-1-d2-t40')));
+    await tester.pumpAndSettle();
+    expect(api.triageDetailsAsked, ['r1-lisboa-1-d2-t40']);
+    expect(find.byKey(const Key('triage-detail')), findsOneWidget);
+    expect(find.text('Very urgent, within 10 min'), findsOneWidget);
+    expect(find.text('What Jev read'), findsOneWidget);
+    expect(find.text('Struggling to breathe'), findsOneWidget);
+    expect(find.text('0.86 present'), findsOneWidget);
+    expect(find.text('0.41 in doubt'), findsOneWidget);
+    expect(find.text('The level: rule 3 of 4'), findsOneWidget);
+    expect(find.text('✗ 1. An immediate threat to life: seen at once, in resuscitation.'), findsOneWidget);
+    expect(find.text('✓ 3. Struggling to breathe at rest or while talking.'), findsOneWidget);
+    expect(find.textContaining('A nurse confirms the level'), findsOneWidget);
+    expect(find.textContaining('The simulated patient has COPD, first visit.'), findsOneWidget);
+    expect(find.textContaining('aityx gave the reference level'), findsOneWidget);
+    expect(find.textContaining('8 inputs from Jev, age from the desk'), findsOneWidget);
+
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('triage-detail')), findsNothing);
+  });
+
+  testWidgets('no triage card when the API triages nothing', (tester) async {
+    await tester.pumpWidget(app(api: FakeApi(auth: false)));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('triage-card')), findsNothing);
   });
 
   testWidgets('no events card when the simulation is off', (tester) async {

@@ -237,9 +237,16 @@ class Db {
         visit TEXT NOT NULL CHECK (visit IN ('first', 'repeat', 'last')),
         position INT NOT NULL,
         text TEXT NOT NULL,
+        triage TEXT CHECK (triage IN ('red', 'orange', 'yellow', 'green', 'blue')),
         UNIQUE (condition_code, visit, position)
       )
     ''');
+    // Added after the table was first made: the template's reference
+    // triage level (lib/conditions.dart's triageLevels).
+    await c.execute(
+      "ALTER TABLE complaint_templates ADD COLUMN IF NOT EXISTS triage TEXT "
+      "CHECK (triage IN ('red', 'orange', 'yellow', 'green', 'blue'))",
+    );
     await seedConditions(c, conditionSeed);
     // The simulated people's arrivals at the hospital, as the feed reads
     // them from healthhub.admissions; their moves are not kept.
@@ -259,11 +266,41 @@ class Db {
         visit TEXT NOT NULL CHECK (visit IN ('first', 'repeat', 'last')),
         visit_number INT NOT NULL,
         complaint TEXT NOT NULL,
+        template INT,
         hospital_id INT NOT NULL,
         hospital_name TEXT NOT NULL,
         sim_day INT NOT NULL,
         sim_time TEXT NOT NULL,
         recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    ''');
+    // Added after the table was first made: which complaint template the
+    // admission was said from, null for those recorded before.
+    await c.execute('ALTER TABLE admissions ADD COLUMN IF NOT EXISTS template INT');
+    // Each admission's triage by aityx (lib/triage.dart): the level, the
+    // wait, the area, the rules behind them, what Jev read, aityx's
+    // receipt and the template's reference level; or why it failed.
+    await c.execute('''
+      CREATE TABLE IF NOT EXISTS admission_triage (
+        event_id TEXT PRIMARY KEY REFERENCES admissions (event_id) ON DELETE CASCADE,
+        level TEXT CHECK (level IN ('red', 'orange', 'yellow', 'green', 'blue')),
+        wait_minutes INT,
+        area TEXT,
+        nurse_check BOOLEAN,
+        level_rule INT,
+        level_why TEXT,
+        area_rule INT,
+        area_why TEXT,
+        signs JSONB,
+        choices JSONB,
+        receipt JSONB,
+        reference TEXT CHECK (reference IN ('red', 'orange', 'yellow', 'green', 'blue')),
+        error TEXT,
+        input_tokens INT,
+        millis INT,
+        mode TEXT,
+        triaged_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CHECK ((level IS NULL) <> (error IS NULL))
       )
     ''');
     // The admissions per run, hospital and simulated hour. The API only
@@ -335,11 +372,18 @@ class Db {
             for (final (position, text) in condition.templates(kind).indexed) {
               await tx.execute(
                 Sql.named(
-                  'INSERT INTO complaint_templates (condition_code, visit, position, text) '
-                  'VALUES (@code, @visit, @position, @text) '
-                  'ON CONFLICT (condition_code, visit, position) DO UPDATE SET text = EXCLUDED.text',
+                  'INSERT INTO complaint_templates (condition_code, visit, position, text, triage) '
+                  'VALUES (@code, @visit, @position, @text, @triage) '
+                  'ON CONFLICT (condition_code, visit, position) '
+                  'DO UPDATE SET text = EXCLUDED.text, triage = EXCLUDED.triage',
                 ),
-                parameters: {'code': condition.code, 'visit': kind.json, 'position': position, 'text': text},
+                parameters: {
+                  'code': condition.code,
+                  'visit': kind.json,
+                  'position': position,
+                  'text': text,
+                  'triage': condition.triageOf(kind)[position],
+                },
               );
               codes.add(condition.code);
               visits.add(kind.json);
@@ -376,18 +420,166 @@ class Db {
     final rows = await c.execute(
       Sql.named('''
         INSERT INTO admissions (event_id, person_id, person_name, age, sex, occupation, city,
-          condition_code, condition_name, condition_type, visit, visit_number, complaint,
+          condition_code, condition_name, condition_type, visit, visit_number, complaint, template,
           hospital_id, hospital_name, sim_day, sim_time)
         VALUES (@eventId, @personId, @name, @age, @sex, @occupation, @city,
-          @conditionCode, @conditionName, @conditionType, @visit, @visitNumber, @complaint,
+          @conditionCode, @conditionName, @conditionType, @visit, @visitNumber, @complaint, @template,
           @hospitalId, @hospitalName, @day, @simTime)
         ON CONFLICT (event_id) DO NOTHING
         RETURNING id
       '''),
-      parameters: {for (final field in _admissionFields) field: admission[field]},
+      parameters: {
+        for (final field in _admissionFields) field: admission[field],
+        'template': TypedValue(Type.integer, admission['template']),
+      },
     );
     return rows.isNotEmpty;
   });
+
+  /// Records [triage], an admission's triage (lib/triage.dart's
+  /// triageAdmission), once: a second for the same admission is left
+  /// out. Throws when the database doesn't answer or refuses it.
+  Future<void> recordTriage(Map<String, Object?> triage) => _run((c) async {
+    Object? json(String field) => triage[field] == null ? null : TypedValue(Type.jsonb, triage[field]);
+    await c.execute(
+      Sql.named('''
+        INSERT INTO admission_triage (event_id, level, wait_minutes, area, nurse_check, level_rule,
+          level_why, area_rule, area_why, signs, choices, receipt, reference, error, input_tokens,
+          millis, mode)
+        VALUES (@eventId, @level, @waitMinutes, @area, @nurseCheck, @levelRule, @levelWhy,
+          @areaRule, @areaWhy, @signs, @choices, @receipt, @reference, @error, @inputTokens,
+          @millis, @mode)
+        ON CONFLICT (event_id) DO NOTHING
+      '''),
+      parameters: {
+        'eventId': triage['eventId'],
+        'level': TypedValue(Type.text, triage['level']),
+        'waitMinutes': TypedValue(Type.integer, triage['waitMinutes']),
+        'area': TypedValue(Type.text, triage['area']),
+        'nurseCheck': TypedValue(Type.boolean, triage['nurseCheck']),
+        'levelRule': TypedValue(Type.integer, triage['levelRule']),
+        'levelWhy': TypedValue(Type.text, triage['levelWhy']),
+        'areaRule': TypedValue(Type.integer, triage['areaRule']),
+        'areaWhy': TypedValue(Type.text, triage['areaWhy']),
+        'signs': json('signs'),
+        'choices': json('choices'),
+        'receipt': json('receipt'),
+        'reference': TypedValue(Type.text, triage['reference']),
+        'error': TypedValue(Type.text, triage['error']),
+        'inputTokens': TypedValue(Type.integer, triage['inputTokens']),
+        'millis': TypedValue(Type.integer, triage['millis']),
+        'mode': TypedValue(Type.text, triage['mode']),
+      },
+    );
+  });
+
+  /// The latest [limit] admissions triaged, newest first, each with what
+  /// the desk heard and its triage, without the receipt: what GET
+  /// /api/triage lists.
+  Future<List<Map<String, Object?>>> latestTriage({required int limit}) => _run((c) async {
+    final rows = await c.execute(
+      Sql.named('''
+        SELECT $_triageColumns
+        FROM admission_triage t JOIN admissions a USING (event_id)
+        ORDER BY t.triaged_at DESC, a.id DESC LIMIT @limit
+      '''),
+      parameters: {'limit': limit},
+    );
+    return [for (final row in rows) _triageRow(row)];
+  });
+
+  /// One admission's triage with aityx's receipt, or null when it has
+  /// none: GET /api/triage/{eventId}.
+  Future<Map<String, Object?>?> triageOf(String eventId) => _run((c) async {
+    final rows = await c.execute(
+      Sql.named('''
+        SELECT $_triageColumns, t.receipt
+        FROM admission_triage t JOIN admissions a USING (event_id)
+        WHERE t.event_id = @eventId
+      '''),
+      parameters: {'eventId': eventId},
+    );
+    if (rows.isEmpty) return null;
+    return {..._triageRow(rows.first), 'receipt': rows.first[_triageColumnCount]};
+  });
+
+  /// Every triage so far, counted: how many, by level, how many failed,
+  /// how many matched the reference, were within one level of it, or
+  /// less (under) or more (over) urgent than it, how many a nurse
+  /// checks, and the time and tokens they took.
+  Future<Map<String, Object?>> triageSummary() => _run((c) async {
+    const rank = "array_position(ARRAY['red', 'orange', 'yellow', 'green', 'blue']::text[], %s)";
+    final level = rank.replaceAll('%s', 'level');
+    final reference = rank.replaceAll('%s', 'reference');
+    final rows = await c.execute('''
+      SELECT count(*), count(*) FILTER (WHERE error IS NOT NULL),
+        count(*) FILTER (WHERE level IS NOT NULL AND reference IS NOT NULL),
+        count(*) FILTER (WHERE level = reference),
+        count(*) FILTER (WHERE abs($level - $reference) <= 1),
+        count(*) FILTER (WHERE $level > $reference),
+        count(*) FILTER (WHERE $level < $reference),
+        count(*) FILTER (WHERE nurse_check),
+        coalesce(sum(input_tokens), 0), percentile_disc(0.5) WITHIN GROUP (ORDER BY millis)
+          FILTER (WHERE level IS NOT NULL),
+        count(*) FILTER (WHERE level = 'red'), count(*) FILTER (WHERE level = 'orange'),
+        count(*) FILTER (WHERE level = 'yellow'), count(*) FILTER (WHERE level = 'green'),
+        count(*) FILTER (WHERE level = 'blue')
+      FROM admission_triage
+    ''');
+    final r = rows.first;
+    int n(int i) => (r[i] as int?) ?? 0;
+    return {
+      'total': n(0),
+      'failed': n(1),
+      'compared': n(2),
+      'matched': n(3),
+      'withinOne': n(4),
+      'under': n(5),
+      'over': n(6),
+      'nurseChecks': n(7),
+      'inputTokens': n(8),
+      'medianMillis': r[9],
+      'levels': {'red': n(10), 'orange': n(11), 'yellow': n(12), 'green': n(13), 'blue': n(14)},
+    };
+  });
+
+  static const _triageColumns = '''
+    t.event_id, a.person_name, a.age, a.sex, a.city, a.complaint, a.condition_name, a.condition_type,
+    a.visit, a.visit_number, a.hospital_name, a.sim_day, a.sim_time, t.level, t.wait_minutes, t.area,
+    t.nurse_check, t.level_rule, t.level_why, t.area_rule, t.area_why, t.signs, t.choices,
+    t.reference, t.error, t.input_tokens, t.millis, t.triaged_at''';
+  static const _triageColumnCount = 28;
+
+  static Map<String, Object?> _triageRow(ResultRow row) => {
+    'eventId': row[0],
+    'name': row[1],
+    'age': row[2],
+    'sex': row[3],
+    'city': row[4],
+    'complaint': row[5],
+    'conditionName': row[6],
+    'conditionType': row[7],
+    'visit': row[8],
+    'visitNumber': row[9],
+    'hospitalName': row[10],
+    'day': row[11],
+    'simTime': row[12],
+    'level': row[13],
+    'waitMinutes': row[14],
+    'area': row[15],
+    'nurseCheck': row[16],
+    'levelRule': row[17],
+    'levelWhy': row[18],
+    'areaRule': row[19],
+    'areaWhy': row[20],
+    'signs': row[21],
+    'choices': row[22],
+    'reference': row[23],
+    'error': row[24],
+    'inputTokens': row[25],
+    'millis': row[26],
+    'triagedAt': (row[27] as DateTime).toUtc().toIso8601String(),
+  };
 
   static const _admissionFields = [
     'eventId', 'personId', 'name', 'age', 'sex', 'occupation', 'city', 'conditionCode',

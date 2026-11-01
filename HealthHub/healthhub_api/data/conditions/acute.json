@@ -31,6 +31,23 @@
         "Hello, it's {first_name} again. It has been {days_since_first_visit} days since I first came in, the congestion has cleared and I've stopped taking anything for it.",
         "I'm {name}, back one last time about the cold. I feel well again apart from a tickle in my throat, so I'd just like to be signed off."
       ]
+    },
+    "triage": {
+      "first": [
+        "green",
+        "green",
+        "green"
+      ],
+      "repeat": [
+        "green",
+        "green",
+        "green"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
+      ]
     }
   },
   {
@@ -64,6 +81,23 @@
         "Hi, I'm {name}, {age}. The fever has been gone for several days and I'm only a bit tired now, so I'm here for the final check you asked for.",
         "Hello, it's {first_name}. It's been {days_since_first_visit} days since the flu started and I'm breathing normally again, I just want to know if I can go back to my normal activities.",
         "I'm {name}, back for my last visit about the flu. I feel much better, I've stopped all the medicines, and only a light cough is left."
+      ]
+    },
+    "triage": {
+      "first": [
+        "yellow",
+        "yellow",
+        "yellow"
+      ],
+      "repeat": [
+        "yellow",
+        "blue",
+        "green"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -99,6 +133,23 @@
         "Hello, it's {first_name}. It's been {days_since_first_visit} days since I got COVID, I'm breathing normally and my oxygen readings are fine, I'd like to know I can go back to my normal routine.",
         "I'm {name}, back for my final COVID visit. I feel well apart from tiring a little faster than usual, and I've stopped all the medicines."
       ]
+    },
+    "triage": {
+      "first": [
+        "green",
+        "green",
+        "green"
+      ],
+      "repeat": [
+        "orange",
+        "green",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
+      ]
     }
   },
   {
@@ -132,6 +183,23 @@
         "Hi, I'm {name}, {age}. The cough has almost gone and I'm sleeping through the night again, so I came for the final check.",
         "Hello, it's {first_name}. It has been {days_since_first_visit} days since I first came in, my chest feels clear and I've stopped the cough medicine.",
         "I'm {name}, back for my last visit about the bronchitis. I only cough now and then, no more phlegm or wheezing."
+      ]
+    },
+    "triage": {
+      "first": [
+        "green",
+        "blue",
+        "green"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -169,6 +237,23 @@
         "Hello, it's {first_name}. It's been {days_since_first_visit} days since I was admitted with pneumonia, my breathing is normal and I'd like the final check before going back to my normal activities.",
         "I'm {name}, back for the last pneumonia appointment. No fever, hardly any cough, and I can climb stairs without stopping."
       ]
+    },
+    "triage": {
+      "first": [
+        "yellow",
+        "orange",
+        "orange"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
+      ]
     }
   },
   {
@@ -202,6 +287,23 @@
         "Hi, I'm {name}, {age}. I've finished the antibiotics, my throat is fine now and the neck glands have gone down.",
         "Hello, it's {first_name}. It has been {days_since_first_visit} days since my strep throat started, I'm eating normally again and just want a final look.",
         "I'm {name}, back one last time about the throat infection. No more fever or pain, I'd like to know I'm no longer infectious."
+      ]
+    },
+    "triage": {
+      "first": [
+        "yellow",
+        "yellow",
+        "yellow"
+      ],
+      "repeat": [
+        "yellow",
+        "green",
+        "green"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -237,6 +339,23 @@
         "Hello, it's {first_name}. It has been {days_since_first_visit} days since the sinusitis began, my sense of smell is back and I've stopped the spray.",
         "I'm {name}, back one last time about my sinuses. Just a bit of stuffiness left, no pain or fever."
       ]
+    },
+    "triage": {
+      "first": [
+        "blue",
+        "green",
+        "yellow"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
+      ]
     }
   },
   {
@@ -271,6 +390,23 @@
         "Hello, it's {first_name}. It's been {days_since_first_visit} days since the ear infection started and I've finished the drops, my hearing is back.",
         "I'm {name}, back one last time about my ear. It's healed up, I just want to know when I can swim again."
       ]
+    },
+    "triage": {
+      "first": [
+        "yellow",
+        "orange",
+        "yellow"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
+      ]
     }
   },
   {
@@ -304,6 +440,23 @@
         "Hi, I'm {name}, {age}. The diarrhoea stopped yesterday and I'm eating normally again, so I've come for the final check.",
         "Hello, it's {first_name}. It's been {days_since_first_visit} days since the stomach bug, the stool test came back and I'd like the results.",
         "I'm {name}, back for my last visit about the gastroenteritis. I feel fine now and want to know when I can safely be around other people again."
+      ]
+    },
+    "triage": {
+      "first": [
+        "yellow",
+        "yellow",
+        "yellow"
+      ],
+      "repeat": [
+        "blue",
+        "yellow",
+        "green"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -340,6 +493,23 @@
         "Hello, it's {first_name}. It has been {days_since_first_visit} days since the urine infection started, I feel normal again and wanted the culture results.",
         "I'm {name}, back for my last visit about the infection. No more symptoms, I just want to know how to stop it coming back."
       ]
+    },
+    "triage": {
+      "first": [
+        "green",
+        "green",
+        "yellow"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
+      ]
     }
   },
   {
@@ -374,6 +544,23 @@
         "Hi, I'm {name}, {age}. I'm on the last of the antibiotics, the redness has almost faded and the swelling is gone, so I'm here for the final check.",
         "Hello, it's {first_name}. It has been {days_since_first_visit} days since the cellulitis started, and I can walk normally again.",
         "I'm {name}, back for my last visit about my leg. The skin is just a bit peeling now, no pain, I want to know how to avoid it happening again."
+      ]
+    },
+    "triage": {
+      "first": [
+        "yellow",
+        "green",
+        "yellow"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "green"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -410,6 +597,23 @@
         "Hi, I'm {name}, {age}. I'm here for the wound check after my appendix operation, the cuts have healed and I'm eating normally.",
         "Hello, it's {first_name}. It's been {days_since_first_visit} days since my appendix surgery, I feel fine and want to know when I can lift heavy things again; I'm a {occupation}.",
         "I'm {name}, back for my final appointment after the appendicitis. No pain, no fever, I'd like to be discharged from the clinic."
+      ]
+    },
+    "triage": {
+      "first": [
+        "yellow",
+        "orange",
+        "orange"
+      ],
+      "repeat": [
+        "green",
+        "blue",
+        "green"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -448,6 +652,23 @@
         "Hello, it's {first_name}. It's been {days_since_first_visit} days since the kidney stone, the follow-up scan is done and I'd like the results.",
         "I'm {name}, back for my last appointment about the stone. The pain has gone completely and I want advice on stopping more stones from forming."
       ]
+    },
+    "triage": {
+      "first": [
+        "orange",
+        "yellow",
+        "orange"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "yellow"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
+      ]
     }
   },
   {
@@ -483,6 +704,23 @@
         "Hello, it's {first_name}. It's been {days_since_first_visit} days since the bad migraine, I'm headache-free and want to talk about preventing the next one.",
         "I'm {name}, back one last time about my migraine. The headache has fully settled and I'd like to know which tablets to take next time."
       ]
+    },
+    "triage": {
+      "first": [
+        "yellow",
+        "yellow",
+        "orange"
+      ],
+      "repeat": [
+        "yellow",
+        "green",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
+      ]
     }
   },
   {
@@ -516,6 +754,23 @@
         "Hi, I'm {name}, {age}. My ankle feels almost normal now, I've done the physio exercises and I'm here for the final check.",
         "Hello, it's {first_name}. It's been {days_since_first_visit} days since the sprain, the swelling is gone and I'd like to know if I can start running again.",
         "I'm {name}, back for my last visit about the ankle. I no longer need the brace and can walk without pain."
+      ]
+    },
+    "triage": {
+      "first": [
+        "yellow",
+        "yellow",
+        "yellow"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -554,6 +809,23 @@
         "Hello, it's {first_name}. It has been {days_since_first_visit} days since I broke my wrist, the cast is off and I'd like to start physiotherapy.",
         "I'm {name}, back for my last fracture clinic visit. My wrist is stiff but not painful, and I want to know when I can use it fully again; I'm a {occupation}."
       ]
+    },
+    "triage": {
+      "first": [
+        "orange",
+        "yellow",
+        "yellow"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "green"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
+      ]
     }
   },
   {
@@ -588,6 +860,23 @@
         "Hello, it's {first_name}. It's been {days_since_first_visit} days since my back went, I've stopped the anti-inflammatories and I'm moving freely.",
         "I'm {name}, back for my last visit about the back pain. Only a slight ache after long days, and I want advice on preventing it again."
       ]
+    },
+    "triage": {
+      "first": [
+        "yellow",
+        "yellow",
+        "orange"
+      ],
+      "repeat": [
+        "blue",
+        "blue",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
+      ]
     }
   },
   {
@@ -621,6 +910,23 @@
         "Hi, I'm {name}, {age}. My eye has cleared up, no redness or discharge, and I'm here for a final check.",
         "Hello, it's {first_name}. It has been {days_since_first_visit} days since the conjunctivitis, I've stopped the drops and I'd like to know if I can wear contact lenses again.",
         "I'm {name}, back one last time about my eye. It's back to normal and I want to make sure I'm not contagious anymore."
+      ]
+    },
+    "triage": {
+      "first": [
+        "green",
+        "green",
+        "green"
+      ],
+      "repeat": [
+        "blue",
+        "green",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   },
@@ -658,6 +964,185 @@
         "Hi, I'm {name}, {age}. I'm here to have my stitches taken out, the cut looks well healed.",
         "Hello, it's {first_name}. It's been {days_since_first_visit} days since I cut myself, the wound has closed and I'd like the stitches removed.",
         "I'm {name}, back for my last visit about the cut. No pain or redness now, I just want to know how to look after the scar."
+      ]
+    },
+    "triage": {
+      "first": [
+        "yellow",
+        "yellow",
+        "yellow"
+      ],
+      "repeat": [
+        "green",
+        "green",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
+      ]
+    }
+  },
+  {
+    "code": "anaphylaxis",
+    "name": "Anaphylaxis (severe allergic reaction)",
+    "type": "acute",
+    "prevalence": 0.3,
+    "min_age": 18,
+    "max_age": 90,
+    "summary": "A sudden, severe, life-threatening allergic reaction, most often to a food, an insect sting or a medicine, with swelling of the throat or tongue, difficulty breathing, wheeze, a rash and a fall in blood pressure.",
+    "treatment": "Give intramuscular adrenaline at once, repeated after 5 minutes if needed, with high-flow oxygen, IV fluids for low blood pressure and nebulised bronchodilators for wheeze; antihistamines and steroids are secondary. Observe for at least 6 to 12 hours for a second reaction, prescribe two adrenaline auto-injectors with training, and refer to an allergy clinic to confirm the trigger.",
+    "treatment_duration_days": 14,
+    "duration": "Hours, with observation for 6 to 12 hours and an allergy clinic review within weeks",
+    "visits": {
+      "count": 2,
+      "interval_days": 21,
+      "stay_hours": 12
+    },
+    "female_share": 0.55,
+    "urgent": true,
+    "follow_up_stay_hours": 2,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. I ate a cake with nuts in it twenty minutes ago and my throat is closing up, my lips and tongue are swelling and I can hardly breathe.",
+        "Hello, my name is {first_name}, {age}. A wasp stung me in the garden and now my face is swelling, I'm covered in hives, I feel faint and my heart is racing.",
+        "I'm {name}, a {age}-year-old {sex}. I took the new antibiotic an hour ago, my whole body came out in a rash, my tongue feels huge and I nearly passed out in the car."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I had the severe allergic reaction {days_since_first_visit} days ago. I'm here for the allergy clinic to find out exactly what caused it.",
+        "Hello, I'm {first_name}, {age}, back after my anaphylaxis. My skin has been itchy and blotchy again since yesterday, but my breathing and my mouth are fine.",
+        "I'm {name}, this is visit {visit_number} after my allergic reaction. I'd like someone to check I'm using the adrenaline pen correctly."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. I'm here for the results of the allergy tests after my reaction, I've had no symptoms since.",
+        "Hello, it's {first_name}. It's been {days_since_first_visit} days since the anaphylaxis, I carry two pens everywhere and I'd like my written allergy plan.",
+        "I'm {name}, back for my last allergy appointment. I feel completely well and want to know which foods and medicines I must avoid from now on."
+      ]
+    },
+    "triage": {
+      "first": [
+        "red",
+        "red",
+        "red"
+      ],
+      "repeat": [
+        "blue",
+        "green",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
+      ]
+    }
+  },
+  {
+    "code": "acute_coronary_syndrome",
+    "name": "Acute coronary syndrome (heart attack)",
+    "type": "acute",
+    "prevalence": 0.4,
+    "min_age": 35,
+    "max_age": 90,
+    "summary": "A sudden reduction of blood flow to the heart muscle, from a ruptured plaque and clot in a coronary artery, with crushing chest pain at rest spreading to the arm or jaw, sweating, nausea and breathlessness: unstable angina or a myocardial infarction.",
+    "treatment": "Record an ECG within 10 minutes of arrival, give aspirin, pain relief and oxygen if saturation is low, and measure troponin; a heart attack with ST elevation goes for immediate angioplasty, others for anticoagulation and angiography within 24 to 72 hours. Start secondary prevention (antiplatelets, a statin, a beta-blocker and an ACE inhibitor) and refer to cardiac rehabilitation.",
+    "treatment_duration_days": 60,
+    "duration": "A hospital stay of 2 to 5 days, then cardiac rehabilitation over 6 to 12 weeks",
+    "visits": {
+      "count": 3,
+      "interval_days": 28,
+      "stay_hours": 72
+    },
+    "female_share": 0.35,
+    "urgent": true,
+    "follow_up_stay_hours": 3,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. Half an hour ago I got a crushing pain in the middle of my chest while sitting watching TV, it goes into my left arm and jaw, I'm sweating and I feel sick.",
+        "Hello, my name is {first_name}, {age}. I woke up with a heavy weight on my chest that won't go away, I'm drenched in a cold sweat, grey in the face according to my partner, and I've vomited.",
+        "I'm {name}, a {age}-year-old {occupation}. For the last hour I've had a tight pressure in my chest and between my shoulder blades, it's not as bad as it was but it keeps coming back even at rest."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I had a heart attack {days_since_first_visit} days ago and got a stent. I'm here for the cardiac rehab review and I've had no chest pain since.",
+        "Hello, I'm {first_name}, {age}, back after my heart attack. Last night I had the same tightness in my chest again while lying in bed, it lasted ten minutes and the spray helped.",
+        "I'm {name}, this is visit {visit_number} after my heart attack. The new tablets make me tired and I bruise easily, and I wanted to go over the doses."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. I've finished cardiac rehab, I can walk for an hour without any chest pain, and I'm here for the final review.",
+        "Hello, it's {first_name}. It's been {days_since_first_visit} days since my heart attack, the follow-up scan is done and I'd like to know when I can go back to work as a {occupation}.",
+        "I'm {name}, back for my last appointment after the heart attack. I've stopped smoking, I take all my tablets, and I'd like the plan for my GP."
+      ]
+    },
+    "triage": {
+      "first": [
+        "red",
+        "red",
+        "orange"
+      ],
+      "repeat": [
+        "blue",
+        "orange",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
+      ]
+    }
+  },
+  {
+    "code": "stroke",
+    "name": "Stroke",
+    "type": "acute",
+    "prevalence": 0.3,
+    "min_age": 40,
+    "max_age": 90,
+    "summary": "A sudden loss of blood flow to part of the brain, from a clot (ischaemic) or a bleed (haemorrhagic), with weakness of the face, arm or leg on one side, slurred or lost speech, or loss of vision.",
+    "treatment": "Treat as a time-critical emergency: a brain scan straight away, then clot-busting treatment within 4.5 hours of onset, or clot retrieval within 6 to 24 hours for a large-vessel blockage, if the scan shows no bleed. Admit to a stroke unit for monitoring, swallow assessment and early rehabilitation, then start antiplatelets, a statin and blood pressure control to prevent another.",
+    "treatment_duration_days": 90,
+    "duration": "A stroke unit stay of days to weeks, then rehabilitation over months",
+    "visits": {
+      "count": 3,
+      "interval_days": 30,
+      "stay_hours": 72
+    },
+    "female_share": 0.5,
+    "urgent": true,
+    "follow_up_stay_hours": 2,
+    "templates": {
+      "first": [
+        "Hi, I'm {name}, I'm {age}. About forty minutes ago my right arm suddenly went weak and heavy, I dropped my cup, and my wife says the side of my face is drooping.",
+        "Hello, my name is {first_name}, {age}. This morning my words suddenly came out jumbled and slurred, I can't find the right ones, and my left leg feels numb.",
+        "I'm {name}, a {age}-year-old {sex}. An hour ago I suddenly lost half the vision in both eyes and my left hand went clumsy and numb; it hasn't come back."
+      ],
+      "repeat": [
+        "Hi, it's {name} again, I had a stroke {days_since_first_visit} days ago. I'm here for the stroke clinic, my arm is getting stronger with physiotherapy.",
+        "Hello, I'm {first_name}, {age}, back after my stroke. Since yesterday my speech has been a bit more slurred again when I'm tired, though it's no worse than last week.",
+        "I'm {name}, this is visit {visit_number} after my stroke. I'm taking the blood thinner and the statin, and I'd like my blood pressure checked."
+      ],
+      "last": [
+        "Hi, I'm {name}, {age}. I've finished the rehabilitation programme after my stroke and I can walk without the stick now, so this is my final stroke clinic review.",
+        "Hello, it's {first_name}. It's been {days_since_first_visit} days since the stroke and I'd like to know if I'm allowed to drive again.",
+        "I'm {name}, back for my last appointment after the stroke. My speech is nearly back to normal, and I want the plan for my GP to keep it from happening again."
+      ]
+    },
+    "triage": {
+      "first": [
+        "orange",
+        "orange",
+        "orange"
+      ],
+      "repeat": [
+        "blue",
+        "green",
+        "blue"
+      ],
+      "last": [
+        "blue",
+        "blue",
+        "blue"
       ]
     }
   }

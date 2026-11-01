@@ -558,8 +558,9 @@ Map<String, Object?> _admit(Person person, int turn, int minutes, Random random,
     ..dueAt = null;
   person.leaveAt = minutes + condition.stayHoursOf(kind) * 60;
   final templates = condition.templates(kind);
+  final template = random.nextInt(templates.length);
   final complaint = renderComplaint(
-    templates[random.nextInt(templates.length)],
+    templates[template],
     complaintValues(person, visitNumber: course.visits, daysSinceFirstVisit: day - course.firstVisitDay!),
   );
   return admissionEvent(
@@ -571,6 +572,7 @@ Map<String, Object?> _admit(Person person, int turn, int minutes, Random random,
     kind: kind,
     visitNumber: course.visits,
     complaint: complaint,
+    template: template,
   );
 }
 
@@ -646,6 +648,7 @@ Map<String, Object?> admissionEvent(
   required VisitKind kind,
   required int visitNumber,
   required String complaint,
+  int? template,
 }) {
   final day = simDay(minutes);
   return {
@@ -663,6 +666,9 @@ Map<String, Object?> admissionEvent(
     'visit': kind.json,
     'visitNumber': visitNumber,
     'complaint': complaint,
+    // Which of the visit kind's templates it was said from (0 to 2), so
+    // its reference triage level is known (lib/triage.dart).
+    'template': ?template,
     'hospitalId': person.hospital.id,
     'hospitalName': person.hospital.name,
     'simTime': simTime(minutes),
@@ -995,7 +1001,8 @@ class PeopleFeed {
         simTime is String &&
         _hhmm.hasMatch(simTime) &&
         within('day', 1, maxDay) &&
-        within('turn', 0, int32Max);
+        within('turn', 0, int32Max) &&
+        (value['template'] == null || within('template', 0, templatesPerVisit - 1));
   }
 
   void _keep(ListQueue<(int, Map<String, Object?>)> queue, Map<String, Object?> event) {

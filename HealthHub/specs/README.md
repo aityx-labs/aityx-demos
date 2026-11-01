@@ -52,6 +52,10 @@ does in HealthHub is described feature by feature in
   view: who they are, what they do now, datyx's XGBoost prediction of
   their hours of care over the next 30 days (highlighted), their
   admissions with aityx's triage and their days of care.
+- [The care center view](care-center.md): every care center named on
+  home, of any kind, opens its view: where it is on a map, its capacity
+  in the simulation and how much is in use now, who is there and on the
+  way, its admissions.
 - [Triage at the desk](triage.md): each admission triaged by aityx from
   what the patient said and their age (Jev reads the danger signs, a
   decision gives the level, the wait, the area and a nurse's check, with

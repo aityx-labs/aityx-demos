@@ -348,3 +348,23 @@ The feature files hold the current specification; see the
    with its count, filters the events in the app, several at once, kept
    through the 5-second reads; the header counts what is shown. See
    [Home](home.md).
+1. **The hospital view: clicking a care center's name or id opens a view,
+   for every kind of care center, with its position on the map, the
+   people in it, its capacity and its current usage.** Every care center
+   named on home is now a link: a pin on the map (a click opens, the
+   tooltip shows on hover), the hospital of a move or an admission in the
+   events, of a triage (in the row and its detail) and of a person's
+   admissions and what they do now. The view shows what and where it is,
+   a map around it with a badge of who is there and the people on their
+   way, a highlighted card of the capacity in use ("1 of 8 beds", a bar,
+   the share, green, amber, red), who is there and on the way (links to
+   them), and its admissions, counted this run and in all, the latest
+   with who and aityx's triage; it reads again every 5 seconds. The
+   registries have no beds, so the capacity is the simulation's, sized to
+   its people and fixed per care center. Pages and dialogs opened from
+   home now carry home's links, so the person in a triage's detail opens
+   too. The API gains `GET /api/care-centers/{id}`, `hospitalId` on the
+   moves, a person's now and the triage rows, and an index on
+   `admissions (hospital_id, id)`. See [The care center
+   view](care-center.md), [The map](map.md), [Home](home.md), [The person
+   view](person.md), [API](api.md) and [Database](database.md).

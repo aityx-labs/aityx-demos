@@ -27,9 +27,11 @@ what is in view once it has stood still for 0.4 s (on the first view
 and after every move or zoom), and pins each [care center](care-centers.md):
 a white-ringed circle with the kind's icon, hospitals red
 (`Icons.local_hospital`), clinics blue (`Icons.medical_services`) and
-health stations green (`Icons.health_and_safety`). Tapping or hovering a
-pin shows its name, its type (the source's own: "CAP", "UBS"...), its
-address and phone. A legend at the bottom left says which icon is which,
+health stations green (`Icons.health_and_safety`). On the index, tapping
+or hovering a pin shows its name, its type (the source's own: "CAP",
+"UBS"...), its address and phone; on home a click or a tap opens the
+[care center view](care-center.md) and the tooltip shows on hover or a
+long press, ending "Click to open". A legend at the bottom left says which icon is which,
 and "Zoom in to see them all" when the view holds more than the API
 answers at once (500, hospitals first, then health stations, then
 clinics). An answer that arrives after a newer question is dropped, and

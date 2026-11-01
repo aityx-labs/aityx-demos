@@ -2,6 +2,31 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-01: HealthHub's occupancy alarms and forecasts curated
+
+Asked (a review of HealthHub's occupancy alarms merged with the data
+quality work): HealthHub's API now makes `occupancy_alarm` and
+`occupancy_forecast` and publishes `healthhub.alarms`, but the curation
+document and its test fixture left them out, so they were synced with
+their schema's checks only, while the document said it curated every
+table.
+
+Changed: `devdata/healthhub-catalog.json` curates both tables (22 and 9
+checks: an alarm's kind follows its levels, each level reaches the
+threshold by its own measure, its hour and peak are the forecast's, its
+capacity is its kind's, its care center is one of the run's, its
+occupancy no more than the view counts; a forecast's lead, quantiles
+and care center; information: the actual alarms, the settled hours
+observed outside the band), the topic `healthhub.alarms` (every field,
+nested ones too), two glossary terms (Occupancy Alarm, Occupancy
+Forecast), the `occupancy-alarms` pipeline of HealthHub's API and its
+lineage from `occupancy_hourly` and `care_centers`. The fixture has both
+tables as `lib/db.dart` makes them, with correct rows; new defects in
+`HealthHubChecksTest`; `CurationTest` holds the document and the
+fixture to every `CREATE TABLE` and `CREATE VIEW` of HealthHub's
+`lib/db.dart`, so the next table HealthHub adds fails it until it is
+curated. `curation.md`.
+
 ## 2026-11-01: HealthHub's occupancy model retrained every 15 minutes
 
 Asked (HealthHub's request): make sure the occupancy forecast is

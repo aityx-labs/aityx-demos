@@ -125,8 +125,8 @@ profiles and contracts follow the simulation:
    read, the curation goes on without its topics), then applies the
    document.
 3. It logs one line per pass: `dev catalogue: HealthHub's checks set in
-   OpenMetadata and run: 217 (80 of the schema, 137 of the document;
-   test cases 0 new, 1 changed, 1 removed), 215 passed (or aborted,
+   OpenMetadata and run: 269 (101 of the schema, 168 of the document;
+   test cases 0 new, 1 changed, 1 removed), 267 passed (or aborted,
    nothing to judge), 2 failed`.
 4. It runs OpenMetadata's Data Insights (`DataInsightsApplication`), so
    the coverage reports (descriptions, owners, tiers) count the curation.
@@ -137,15 +137,18 @@ pass. `datyx.dev-catalog.enabled=false` turns it off.
 
 With HealthHub's document, OpenMetadata shows: the Healthcare domain
 and the HealthHub data product holding every asset; the HealthHub Data
-team owning them; 18 glossary terms on the tables, columns and topics;
+team owning them; 21 glossary terms on the tables, columns and topics;
 every asset described and tiered (Data Insights: 100% descriptions,
-owners and tiers); 206 test cases on the nine curated tables (137 of
-the document, 69 of the schema), each with its result; the tables
-certified Gold whose checks all pass, and 4 topics; a contract per
+owners and tiers); 258 test cases on the eleven curated tables (168 of
+the document, 90 of the schema), each with its result; the tables
+certified Gold whose checks all pass, and 5 topics; a contract per
 table, kept while its tests pass; the Flink job and HealthHub's API
-pipelines (simulation, admissions feed, triage) with the lineage from
-the care centers and conditions through the topics to the tables and
-the `patient_days` and `occupancy_hourly` views; and the TimeSeries
+pipelines (simulation, admissions feed, triage, occupancy alarms) with
+the lineage from the care centers and conditions through the topics to
+the tables and the `patient_days` and `occupancy_hourly` views, and
+from `occupancy_hourly` to the occupancy alarms (`occupancy_alarm`,
+`healthhub.alarms`) and the forecasts they keep
+(`occupancy_forecast`); and the TimeSeries
 roles of `admissions_hourly` (`default`, `acute`, `chronic`),
 `occupancy_hourly` (`default`, retrained every `15min`: HealthHub's
 occupancy alarms and its care center view forecast from it while a run
@@ -165,6 +168,8 @@ not-nulls and keys):
 | `admissions_hourly` | 19 | seven columns, those of its DeepAR groups there; acute and chronic add up to admissions; on the hour; the hospital is a care center; **no count beyond the admissions table's**, for each settled hour of every run with admissions (before the hour of its latest admission recorded two minutes ago or more; a generated history, without admissions, isn't compared): Flink counting more than the table holds is admissions the feed lost; information: the settled hours Flink counted short, which HealthHub's spec allows (a restarted job recounting the topic, an hour at the edge of its one-day retention rewritten lower, counts held back while the database is down) |
 | `patient_days` | 15 | the columns of the care group; one row per run, person and day; visits add up; the hours fit the visits (1 to 72 a visit); the chronic condition is a chronic one of the seed, named when there are chronic visits; the hospital is a care center |
 | `occupancy_hourly` | 14 | five columns, those of its DeepAR group there; one row per run, care center and hour; on the hour; the care center is one, under its name; everyone arriving is in care in their hour; no hour after the run's latest arrival; information: the hours above the largest capacity of the care center's kind |
+| `occupancy_alarm` | 22 | ids of the run, the care center and a counter, and of their row; the kind is what the levels did (an alarm rises, a downgrade falls, a clearing falls to none); the capacity is its kind's in the simulation (4 to 12 beds, 2 to 6 or 2 to 5 places); the care center is one, under its name and kind, with an admission in the run; each level reaches the threshold by its own measure (the occupancy observed, the forecast's mean, its p90 while the mean doesn't); the hour reaching it is its level's (the hour observed, or a step of the forecast its lead hours after the series' end, within the horizon), and the peak at least as high; on the hour; the occupancy observed no more than `occupancy_hourly` counts in that hour; information: the actual alarms |
+| `occupancy_forecast` | 9 | ahead of its series' end by its lead hours, on the hour; a count's forecast, never negative, p10 at most p90, a mean of 100 people at most; the care center is one, with an admission in the run; information: the settled hours observed outside the band |
 | `care_centers` | 13 | keys unique and made of the source and its id; both coordinates or none, within the country; postal codes and websites well formed |
 | `medical_conditions` | 20 | codes well formed; settings known; prevalence above zero; ages in order; a treatment length for an acute condition only; nine complaint templates each |
 | `complaint_templates` | 8 | one per condition, visit and position; the condition is in the seed; placeholders are the simulation's |
@@ -186,7 +191,11 @@ added and quoted, other tags kept as they were, nothing patched when
 they're there), what keeps an entity from its certification, nested
 fields flattened, and HealthHub's document: it reads, its terms,
 related terms, lineage ends, pipelines and time series tables all
-exist, every topic is described, no em dashes. `HealthHubChecksTest`,
+exist, every topic is described, no em dashes; and it and the fixture
+below have exactly the tables and views HealthHub's API makes (each
+`CREATE TABLE` and `CREATE VIEW` of `HealthHub/healthhub_api/lib/db.dart`,
+beside datyx in this repository; skipped without it), so a table
+HealthHub adds fails the build until it is curated. `HealthHubChecksTest`,
 on the Dev Services Postgres: HealthHub's schema
 (`src/test/resources/catalog/healthhub-fixture.sql`, the tables and
 views of HealthHub's `lib/db.dart`) with a few rows of correct data;
@@ -196,9 +205,15 @@ schema's too), and passes; then defects (an age out of range, an event
 id that isn't its row's, a renamed condition, a wait not its level's,
 hourly counts above the admissions, an hour Flink counted that admissions
 hasn't, a triage call past its timeouts, swapped coordinates, a missing template, an unknown
-placeholder, a view counting ahead of the run) fail exactly the checks
-meant for them, while an hour Flink counted short and a slow call
-within the timeouts fail none. `QualityChecksTest`: a check that can't
+placeholder, a view counting ahead of the run, a hospital's capacity in
+places, an expected alarm whose mean doesn't reach the threshold, a fall
+filed as an alarm, an hour reaching it that isn't its lead's, more people
+observed than the view counts, an event under another care center's id,
+an alarm or a forecast of a care center the run never sent anyone to,
+quantiles out of order, a lead that isn't its hours) fail exactly the
+checks meant for them, while an hour Flink counted short, a slow call
+within the timeouts and an hour observed outside its forecast's band
+fail none. `QualityChecksTest`: a check that can't
 run fails with its error and the next ones run; a broken connection is
 opened again; an empty table's min, max and mean are aborted.
 `DevCatalog` itself runs against the live stack only.
@@ -219,11 +234,16 @@ opened again; an empty table's min, max and mean are aborted.
 - A topic has no checks: OpenMetadata's test cases are for tables.
 - One curation document; another customer would be another file and
   another schedule.
-- The document's checks are HealthHub's as `main` has it: a table
-  HealthHub adds (as `occupancy_alarm` on a branch) is synced, with its
-  schema's checks, and left uncurated until the document names it; and
-  the document naming a table HealthHub doesn't have keeps the
-  curation waiting.
+- The document's checks are HealthHub's as this repository has it
+  (`CurationTest` holds the document and the fixture to `lib/db.dart`'s
+  tables): against a HealthHub of another version, a table it adds is
+  synced, with its schema's checks, and left uncurated until the
+  document names it; and the document naming a table HealthHub doesn't
+  have (a HealthHub from before `occupancy_alarm` and
+  `occupancy_forecast`) keeps the curation waiting.
+- An alarm's capacity is checked against its kind's range only: the
+  care center's own, drawn from a hash of its key (FNV-1a, in Dart), isn't
+  computed again in SQL.
 - Two datyx instances curating the same OpenMetadata with different
   documents undo each other's changes: a test case one removes the
   other makes again. Each removes only marked test cases, so a person's

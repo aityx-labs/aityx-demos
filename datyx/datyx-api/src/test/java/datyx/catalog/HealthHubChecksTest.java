@@ -250,4 +250,51 @@ class HealthHubChecksTest {
         failsOnly("public.occupancy_hourly", "tableCustomSQLQuery_arrivals_are_in_care",
             "tableCustomSQLQuery_not_ahead_of_the_run");
     }
+
+    @Test
+    void alarmsDefects() throws Exception {
+        assertEquals("1", run("public.occupancy_alarm").get("tableCustomSQLQuery_actual_alarms").values()
+            .get("resultRowCount"), "information: none fails");
+        // A hospital's capacity in places, an expected level whose mean doesn't reach the threshold.
+        write("update occupancy_alarm set unit = 'places' where id = 'a1b2c3d4-3-2'");
+        write("update occupancy_alarm set mean = 2.2 where id = 'a1b2c3d4-3-3'");
+        failsOnly("public.occupancy_alarm", "tableCustomSQLQuery_capacity_of_its_kind",
+            "tableCustomSQLQuery_level_reaches_the_threshold");
+        fixture();
+        // A fall filed as an alarm, an hour reaching the threshold that isn't its lead's.
+        write("update occupancy_alarm set kind = 'alarm' where id = 'a1b2c3d4-3-5'");
+        write("update occupancy_alarm set overflow_at = '2026-01-05 17:00' where id = 'a1b2c3d4-3-3'");
+        failsOnly("public.occupancy_alarm", "tableCustomSQLQuery_kind_follows_the_levels",
+            "tableCustomSQLQuery_overflow_is_its_levels");
+        fixture();
+        // More people observed than the view counts; an event under another care center's id.
+        write("update occupancy_alarm set occupancy = 3 where id = 'a1b2c3d4-2-1'");
+        write("update occupancy_alarm set id = 'a1b2c3d4-9-4' where id = 'a1b2c3d4-2-4'");
+        failsOnly("public.occupancy_alarm", "tableCustomSQLQuery_id_is_its_rows",
+            "tableCustomSQLQuery_occupancy_not_beyond_the_view");
+        fixture();
+        // An alarm of a run that never sent anyone to the care center.
+        write("update occupancy_alarm set run_id = 'ffffffff', id = 'ffffffff-3-2' where id = 'a1b2c3d4-3-2'");
+        failsOnly("public.occupancy_alarm", "tableCustomSQLQuery_care_center_of_the_run",
+            "tableCustomSQLQuery_occupancy_not_beyond_the_view");
+    }
+
+    @Test
+    void forecastDefects() throws Exception {
+        assertEquals("0", run("public.occupancy_forecast").get("tableCustomSQLQuery_hours_outside_the_band").values()
+            .get("resultRowCount"));
+        // The settled hour observed above its band: information, not a failure.
+        write("update occupancy_forecast set p90 = 0.5 where hour_start = '2026-01-03 11:00'");
+        failsOnly("public.occupancy_forecast");
+        assertEquals("1", run("public.occupancy_forecast").get("tableCustomSQLQuery_hours_outside_the_band").values()
+            .get("resultRowCount"));
+        fixture();
+        write("update occupancy_forecast set p10 = 3 where hour_start = '2026-01-05 08:00'");
+        write("update occupancy_forecast set lead_hours = 3 where hour_start = '2026-01-05 10:00'");
+        failsOnly("public.occupancy_forecast", "tableCustomSQLQuery_quantiles_in_order",
+            "tableCustomSQLQuery_lead_is_its_hours");
+        fixture();
+        write("update occupancy_forecast set hospital_id = 1 where hour_start = '2026-01-05 09:00'");
+        failsOnly("public.occupancy_forecast", "tableCustomSQLQuery_care_center_of_the_run");
+    }
 }

@@ -152,6 +152,9 @@ enum CareCenterKind {
 
   final String label;
 
+  /// As in "going to the health station".
+  String get noun => label.toLowerCase();
+
   /// The API's name for it (`hospital`, `clinic`, `health_station`);
   /// anything else counts as a clinic.
   static CareCenterKind named(String? name) => switch (name) {
@@ -197,7 +200,28 @@ enum PersonState {
     'to_home' => toHome,
     _ => home,
   };
+
+  /// What they are doing when the care center they go to or are at is a
+  /// [kind]: "Going to the health station", "At the clinic"; the hospital
+  /// when the record doesn't say, as before visits went elsewhere.
+  String labelAt(CareCenterKind? kind) => switch (this) {
+    toHospital => 'Going to the ${(kind ?? CareCenterKind.hospital).noun}',
+    atHospital => 'At the ${(kind ?? CareCenterKind.hospital).noun}',
+    _ => label,
+  };
+
+  /// The legend's words for it, of any kind of care center.
+  String get legend => switch (this) {
+    home => 'at home',
+    toHospital => 'going for care',
+    atHospital => 'in care',
+    toHome => 'going home',
+  };
 }
+
+/// The kind of care center a record names (`careCenterKind`); null when
+/// it doesn't say.
+CareCenterKind? _kindOf(Object? name) => name is String ? CareCenterKind.named(name) : null;
 
 /// A simulated person, as the last record the API read from the Kafka
 /// stream left them: one row of `GET /api/people`.
@@ -211,6 +235,7 @@ class Person {
     required this.homeLon,
     required this.state,
     this.hospitalName,
+    this.careCenterKind,
     this.name,
     this.age,
     this.conditionName,
@@ -226,6 +251,7 @@ class Person {
     homeLon: (json['homeLon'] as num).toDouble(),
     state: PersonState.named(json['state'] as String?),
     hospitalName: json['hospitalName'] as String?,
+    careCenterKind: _kindOf(json['careCenterKind']),
     name: _string(json['name']),
     age: _int(json['age']),
     conditionName: _string(json['conditionName']),
@@ -241,9 +267,10 @@ class Person {
   final double homeLon;
   final PersonState state;
 
-  /// The hospital they go to when a visit is due, the one closest to
-  /// their home.
+  /// The care center of the visit under way, else the general hospital
+  /// closest to their home, and its kind.
   final String? hospitalName;
+  final CareCenterKind? careCenterKind;
 
   /// Who they are and what brings them to the hospital, from their
   /// profile; null when the record doesn't carry them (an older API).
@@ -340,6 +367,7 @@ class StreamEvent {
     this.type = StreamEventType.move,
     this.city,
     this.hospitalName,
+    this.careCenterKind,
     this.simTime,
     this.day,
     this.partition,
@@ -369,6 +397,7 @@ class StreamEvent {
       state: admission ? PersonState.atHospital : PersonState.named(json['state'] as String?),
       city: _string(json['city']),
       hospitalName: _string(json['hospitalName']),
+      careCenterKind: _kindOf(json['careCenterKind']),
       simTime: _string(json['simTime']),
       day: _int(json['day']),
       partition: _int(json['partition']),
@@ -394,6 +423,9 @@ class StreamEvent {
   final PersonState state;
   final String? city;
   final String? hospitalName;
+
+  /// What kind of care center [hospitalName] is.
+  final CareCenterKind? careCenterKind;
   final String? simTime;
   final int? day;
   final int? partition;
@@ -538,6 +570,7 @@ class Triaged {
     this.conditionName,
     this.visit,
     this.visitNumber,
+    this.hospitalId,
     this.hospitalName,
     this.day,
     this.simTime,
@@ -572,6 +605,7 @@ class Triaged {
       conditionName: _string(json['conditionName']),
       visit: VisitKind.named(json['visit']),
       visitNumber: _int(json['visitNumber']),
+      hospitalId: _int(json['hospitalId']),
       hospitalName: _string(json['hospitalName']),
       day: _int(json['day']),
       simTime: _string(json['simTime']),
@@ -617,6 +651,7 @@ class Triaged {
   final String? conditionName;
   final VisitKind? visit;
   final int? visitNumber;
+  final int? hospitalId;
   final String? hospitalName;
   final int? day;
   final String? simTime;
@@ -797,7 +832,9 @@ class PersonNow {
   const PersonNow({
     this.state = PersonState.home,
     this.mode,
+    this.hospitalId,
     this.hospitalName,
+    this.careCenterKind,
     this.conditionName,
     this.conditionType,
     this.simTime,
@@ -807,7 +844,9 @@ class PersonNow {
   factory PersonNow.fromJson(Map<String, Object?> json) => PersonNow(
     state: PersonState.named(json['state'] as String?),
     mode: _string(json['mode']),
+    hospitalId: _int(json['hospitalId']),
     hospitalName: _string(json['hospitalName']),
+    careCenterKind: _kindOf(json['careCenterKind']),
     conditionName: _string(json['conditionName']),
     conditionType: ConditionType.named(json['conditionType']),
     simTime: _string(json['simTime']),
@@ -816,7 +855,9 @@ class PersonNow {
 
   final PersonState state;
   final String? mode;
+  final int? hospitalId;
   final String? hospitalName;
+  final CareCenterKind? careCenterKind;
   final String? conditionName;
   final ConditionType? conditionType;
   final String? simTime;
@@ -853,15 +894,20 @@ class PersonSummary {
   final num stayHours;
 }
 
-/// One admission of a person, with its triage when it has one.
+/// One admission, with its triage when it has one: of a person, in their
+/// view, or at a care center, in its view, where it says who.
 class PersonAdmission {
   const PersonAdmission({
     required this.eventId,
+    this.personId,
+    this.name,
+    this.age,
     this.conditionName,
     this.conditionType,
     this.visit,
     this.visitNumber,
     this.complaint,
+    this.hospitalId,
     this.hospitalName,
     this.day,
     this.simTime,
@@ -879,11 +925,15 @@ class PersonAdmission {
     final t = triage is Map ? triage.cast<String, Object?>() : const <String, Object?>{};
     return PersonAdmission(
       eventId: json['eventId'] as String,
+      personId: _string(json['personId']),
+      name: _string(json['name']),
+      age: _int(json['age']),
       conditionName: _string(json['conditionName']),
       conditionType: ConditionType.named(json['conditionType']),
       visit: VisitKind.named(json['visit']),
       visitNumber: _int(json['visitNumber']),
       complaint: _string(json['complaint']),
+      hospitalId: _int(json['hospitalId']),
       hospitalName: _string(json['hospitalName']),
       day: _int(json['day']),
       simTime: _string(json['simTime']),
@@ -898,11 +948,17 @@ class PersonAdmission {
   }
 
   final String eventId;
+
+  /// Who was admitted: their id, name and age.
+  final String? personId;
+  final String? name;
+  final int? age;
   final String? conditionName;
   final ConditionType? conditionType;
   final VisitKind? visit;
   final int? visitNumber;
   final String? complaint;
+  final int? hospitalId;
   final String? hospitalName;
   final int? day;
   final String? simTime;
@@ -935,6 +991,209 @@ class PersonDay {
   final int acuteVisits;
   final int chronicVisits;
   final int stayHours;
+}
+
+/// One care center: `GET /api/care-centers/{id}`. Where it is, what it
+/// is, its capacity in the simulation, who is there and on the way now,
+/// and its admissions.
+class CareCenterDetail {
+  const CareCenterDetail({
+    required this.id,
+    required this.name,
+    required this.kind,
+    this.subtype,
+    this.address,
+    this.postalCode,
+    this.city,
+    this.region,
+    this.country,
+    this.lat,
+    this.lon,
+    this.phone,
+    this.website,
+    this.ownership,
+    this.source,
+    this.serves = const [],
+    this.capacity = 0,
+    this.unit = 'places',
+    this.now = const CareCenterNow(),
+    this.admissions = const CareCenterAdmissions(),
+  });
+
+  factory CareCenterDetail.fromJson(Map<String, Object?> json) {
+    final capacity = (json['capacity'] as Map?)?.cast<String, Object?>() ?? const {};
+    return CareCenterDetail(
+      id: _int(json['id']) ?? 0,
+      name: _string(json['name']) ?? '',
+      kind: CareCenterKind.named(json['kind'] as String?),
+      subtype: _string(json['subtype']),
+      address: _string(json['address']),
+      postalCode: _string(json['postalCode']),
+      city: _string(json['city']),
+      region: _string(json['region']),
+      country: _string(json['country']),
+      lat: (json['lat'] as num?)?.toDouble(),
+      lon: (json['lon'] as num?)?.toDouble(),
+      phone: _string(json['phone']),
+      website: _string(json['website']),
+      ownership: _string(json['ownership']),
+      source: _string(json['source']),
+      serves: [for (final s in json['serves'] as List? ?? const []) if (s is String) s],
+      capacity: _int(capacity['places']) ?? 0,
+      unit: _string(capacity['unit']) ?? 'places',
+      now: CareCenterNow.fromJson((json['now'] as Map?)?.cast() ?? const {}),
+      admissions: CareCenterAdmissions.fromJson((json['admissions'] as Map?)?.cast() ?? const {}),
+    );
+  }
+
+  final int id;
+  final String name;
+  final CareCenterKind kind;
+
+  /// The source's own type: "CAP", "UBS", "Hospital Geral"...
+  final String? subtype;
+  final String? address;
+  final String? postalCode;
+  final String? city;
+  final String? region;
+  final String? country;
+
+  /// Null when the registry has no location for it.
+  final double? lat;
+  final double? lon;
+  final String? phone;
+  final String? website;
+
+  /// public, private or unknown.
+  final String? ownership;
+
+  /// The registry it comes from.
+  final String? source;
+
+  /// What the simulation sends people to it for: `hospital`, `primary`,
+  /// `urgent_care`, `mental_health`, `dialysis`; none for a kind of clinic
+  /// it doesn't route to (dental, rehabilitation...).
+  final List<String> serves;
+
+  /// How many people it takes at once in the simulation, in [unit]s (beds
+  /// for a hospital, places for the rest): sized to the simulation, not
+  /// the building.
+  final int capacity;
+  final String unit;
+  final CareCenterNow now;
+  final CareCenterAdmissions admissions;
+}
+
+/// Who is at a care center now and who is on the way, in dev mode.
+class CareCenterNow {
+  const CareCenterNow({
+    this.enabled = false,
+    this.run,
+    this.simTime,
+    this.day,
+    this.inUse = 0,
+    this.usage = 0,
+    this.assigned = 0,
+    this.here = const [],
+    this.onTheWay = const [],
+  });
+
+  factory CareCenterNow.fromJson(Map<String, Object?> json) {
+    List<Person> people(Object? list) => [
+      for (final p in list as List? ?? const [])
+        if (p is Map && p['id'] is String) _personOf(p.cast()),
+    ];
+    return CareCenterNow(
+      enabled: json['enabled'] == true,
+      run: _string(json['run']),
+      simTime: _string(json['simTime']),
+      day: _int(json['day']),
+      inUse: _int(json['inUse']) ?? 0,
+      usage: (json['usage'] as num?)?.toDouble() ?? 0,
+      assigned: _int(json['assigned']) ?? 0,
+      here: people(json['here']),
+      onTheWay: people(json['onTheWay']),
+    );
+  }
+
+  /// A person of the answer, where they are; no home in it.
+  static Person _personOf(Map<String, Object?> json) {
+    final lat = (json['lat'] as num?)?.toDouble() ?? 0;
+    final lon = (json['lon'] as num?)?.toDouble() ?? 0;
+    return Person(
+      id: json['id'] as String,
+      city: _string(json['city']) ?? '',
+      lat: lat,
+      lon: lon,
+      homeLat: lat,
+      homeLon: lon,
+      state: PersonState.named(json['state'] as String?),
+      name: _string(json['name']),
+      age: _int(json['age']),
+      conditionName: _string(json['conditionName']),
+      conditionType: ConditionType.named(json['conditionType']),
+    );
+  }
+
+  /// Off in prod, where nobody moves.
+  final bool enabled;
+  final String? run;
+  final String? simTime;
+  final int? day;
+
+  /// How many are there now, and that over the capacity.
+  final int inUse;
+  final double usage;
+
+  /// How many people have it as their hospital, wherever they are now.
+  final int assigned;
+  final List<Person> here;
+  final List<Person> onTheWay;
+}
+
+/// A care center's admissions: counted in the current run and in all, and
+/// the latest, of the current run when it has any there ([latestOf] `run`).
+class CareCenterAdmissions {
+  const CareCenterAdmissions({
+    this.run,
+    this.thisRun = 0,
+    this.thisRunAcute = 0,
+    this.thisRunChronic = 0,
+    this.total = 0,
+    this.acute = 0,
+    this.chronic = 0,
+    this.latestOfRun = false,
+    this.latest = const [],
+  });
+
+  factory CareCenterAdmissions.fromJson(Map<String, Object?> json) => CareCenterAdmissions(
+    run: _string(json['run']),
+    thisRun: _int(json['thisRun']) ?? 0,
+    thisRunAcute: _int(json['thisRunAcute']) ?? 0,
+    thisRunChronic: _int(json['thisRunChronic']) ?? 0,
+    total: _int(json['total']) ?? 0,
+    acute: _int(json['acute']) ?? 0,
+    chronic: _int(json['chronic']) ?? 0,
+    latestOfRun: json['latestOf'] == 'run',
+    latest: [
+      for (final a in json['latest'] as List? ?? const [])
+        if (a is Map && a['eventId'] is String) PersonAdmission.fromJson(a.cast()),
+    ],
+  );
+
+  final String? run;
+  final int thisRun;
+  final int thisRunAcute;
+  final int thisRunChronic;
+  final int total;
+  final int acute;
+  final int chronic;
+
+  /// Whether [latest] are the current run's (else of any run).
+  final bool latestOfRun;
+
+  /// Newest first.
+  final List<PersonAdmission> latest;
 }
 
 /// datyx's prediction for a person: `GET /api/people/{id}/prediction`,
@@ -1031,6 +1290,9 @@ abstract class HealthHubApi {
   /// days: `GET /api/people/{id}/prediction?run=`.
   Future<Prediction> prediction(String id, {String? run});
 
+  /// One care center, with who is there now: `GET /api/care-centers/{id}`.
+  Future<CareCenterDetail> careCenter(int id);
+
   /// Pauses the simulation, or resumes it: `POST /api/simulation/pause`
   /// or `/resume`. Whether it is paused now.
   Future<bool> pauseSimulation(bool pause);
@@ -1117,6 +1379,10 @@ class HttpHealthHubApi implements HealthHubApi {
   @override
   Future<Prediction> prediction(String id, {String? run}) async =>
       Prediction.fromJson(await _getMap(_personPath(id, '/prediction', run)));
+
+  @override
+  Future<CareCenterDetail> careCenter(int id) async =>
+      CareCenterDetail.fromJson(await _getMap('/api/care-centers/$id'));
 
   static String _personPath(String id, String suffix, String? run) =>
       '/api/people/${Uri.encodeComponent(id)}$suffix${run == null ? '' : '?run=${Uri.encodeQueryComponent(run)}'}';

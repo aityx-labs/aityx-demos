@@ -36,7 +36,7 @@ void main() {
 
   Map<String, Object?> moveOf(String id, int turn, String time) => {
     'id': id, 'city': 'Reus', 'lat': 41.15, 'lon': 1.1, 'homeLat': 41.16, 'homeLon': 1.11,
-    'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan', 'state': 'to_hospital',
+    'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan', 'careCenterKind': 'hospital', 'state': 'to_hospital',
     'simTime': time, 'day': 1, 'turn': turn, 'name': 'Núria Puig Soler', 'age': 54,
     'mode': 'transit', 'conditionName': 'Influenza', 'conditionType': 'acute',
   };
@@ -53,7 +53,7 @@ void main() {
     expect((body['people'] as List).first, {
       'id': 'reus-1', 'name': 'Núria Puig Soler', 'age': 54, 'city': 'Reus', 'lat': 41.15,
       'lon': 1.1, 'homeLat': 41.16, 'homeLon': 1.11, 'state': 'to_hospital', 'mode': 'transit',
-      'hospitalName': 'Hospital Sant Joan', 'conditionName': 'Influenza', 'conditionType': 'acute',
+      'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan', 'careCenterKind': 'hospital', 'conditionName': 'Influenza', 'conditionType': 'acute',
     });
   });
 
@@ -87,7 +87,9 @@ void main() {
     expect(list.first, {
       'type': 'move', 'id': 'reus-1', 'name': 'Núria Puig Soler', 'age': 54, 'city': 'Reus',
       'state': 'to_hospital', 'mode': 'transit', 'conditionName': 'Influenza', 'conditionType': 'acute',
-      'hospitalName': 'Hospital Sant Joan', 'simTime': '09:00', 'day': 1, 'turn': 30, 'lat': 41.15,
+      'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan', 'careCenterKind': 'hospital', 'simTime': '09:00',
+      'day': 1, 'turn': 30,
+      'lat': 41.15,
       'lon': 1.1, 'partition': 0, 'offset': 130,
     });
     expect(body['topics'], ['healthhub.people.moves', 'healthhub.admissions']);
@@ -101,6 +103,7 @@ void main() {
     'age': 54, 'sex': 'woman', 'occupation': 'teacher', 'city': 'Reus', 'conditionCode': 'influenza',
     'conditionName': 'Influenza', 'conditionType': 'acute', 'visit': 'first', 'visitNumber': 1,
     'complaint': 'I have had a fever since yesterday.', 'hospitalId': 7, 'hospitalName': 'Hospital Sant Joan',
+    'careCenterKind': 'hospital',
     'simTime': '09:00', 'day': 1, 'turn': turn, 'partition': 0, 'offset': 5,
   };
 

@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../api/health_hub_api.dart';
+import '../care_centers/care_center_screen.dart' show CareCenterOpener;
 import '../people/person_screen.dart';
 import '../theme.dart';
 import 'location_controller.dart';
@@ -457,11 +458,14 @@ extension CareCenterLook on CareCenterKind {
 }
 
 /// A care center on the map: its kind's icon on its colour, in a white
-/// ring. Tapping or hovering shows its name, type and address.
+/// ring. Tapping or hovering shows its name, type and address; where there
+/// is a care center view to open ([CareCenterOpener], home) and it [opens],
+/// the tooltip shows on hover or a long press and the tap opens the view.
 class CareCenterPin extends StatelessWidget {
-  const CareCenterPin(this.center, {super.key});
+  const CareCenterPin(this.center, {super.key, this.opens = true});
 
   final CareCenter center;
+  final bool opens;
 
   @override
   Widget build(BuildContext context) {
@@ -471,18 +475,30 @@ class CareCenterPin extends StatelessWidget {
       if (center.address != null) center.address!,
       if (center.phone != null) center.phone!,
     ].join(' · ');
-    return Tooltip(
-      message: '${center.name}\n$details',
-      triggerMode: TooltipTriggerMode.tap,
-      child: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: kind.color,
-          border: Border.all(color: Colors.white, width: 2),
-          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 4)],
+    final pin = Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: kind.color,
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 4)],
+      ),
+      alignment: Alignment.center,
+      child: Icon(kind.icon, size: 15, color: Colors.white, semanticLabel: kind.label),
+    );
+    final opener = opens ? CareCenterOpener.of(context) : null;
+    if (opener == null) {
+      return Tooltip(message: '${center.name}\n$details', triggerMode: TooltipTriggerMode.tap, child: pin);
+    }
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => opener.open(context, center.id),
+        child: Tooltip(
+          message: '${center.name}\n$details\nClick to open',
+          triggerMode: TooltipTriggerMode.longPress,
+          child: pin,
         ),
-        alignment: Alignment.center,
-        child: Icon(kind.icon, size: 15, color: Colors.white, semanticLabel: kind.label),
       ),
     );
   }
@@ -555,7 +571,7 @@ class PersonPin extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final details = [
-      person.state.label,
+      person.state.labelAt(person.careCenterKind),
       if (person.hospitalName != null) person.hospitalName!,
       ?simTime,
     ].join(' · ');
@@ -569,7 +585,7 @@ class PersonPin extends StatelessWidget {
       person.id,
       message: [who, ?condition, details].join('\n'),
       child: Semantics(
-        label: 'Person, ${person.state.label}',
+        label: 'Person, ${person.state.labelAt(person.careCenterKind)}',
         child: Container(
           decoration: BoxDecoration(
             shape: BoxShape.circle,
@@ -625,7 +641,7 @@ class CareCenterLegend extends StatelessWidget {
                 margin: const EdgeInsets.all(2),
                 decoration: BoxDecoration(shape: BoxShape.circle, color: state.color),
               ),
-              'Person, ${state.label.toLowerCase()}',
+              'Person, ${state.legend}',
             ),
           if (people.simTime != null)
             Padding(

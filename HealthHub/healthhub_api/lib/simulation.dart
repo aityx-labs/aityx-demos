@@ -2,11 +2,12 @@
 /// covers, each with a profile (lib/people_profiles.dart), maybe a
 /// chronic condition and, now and then, an acute episode
 /// (lib/conditions.dart), who stay home until a visit one of them calls
-/// for is due, travel to the general hospital nearest home on foot, by
-/// city transport or by car, stay, and travel back. Every turn
-/// each person's move goes to Kafka (healthhub.people.moves), and every
-/// arrival at the hospital is an admission (healthhub.admissions) with
-/// what the person says there. The map doesn't read this memory: the
+/// for is due, travel on foot, by city transport or by car to the care
+/// center nearest home of the kind the visit needs (a health station, urgent
+/// care, a mental health or dialysis clinic, a general hospital), stay, and
+/// travel back. Every turn each person's move goes to Kafka
+/// (healthhub.people.moves), and every arrival at a care center is an
+/// admission (healthhub.admissions) with what the person says there. The map doesn't read this memory: the
 /// API's consumer ([PeopleFeed]) reads the streams back, /api/people
 /// answers from the moves, and the admissions are recorded in the
 /// database, so what the app shows went through Kafka.
@@ -75,8 +76,8 @@ enum PersonState {
   final String json;
 }
 
-/// How a person gets to the hospital, by the straight-line distance from
-/// home, at a door-to-door speed that includes waiting and walking to the
+/// How a person gets to the care center of a visit, by the straight-line
+/// distance from home, at a door-to-door speed that includes waiting and walking to the
 /// stop or the car: walking up to 2 km, city transport up to 15 km, the
 /// car beyond.
 enum TravelMode {
@@ -142,7 +143,53 @@ class Place {
   /// a general or acute one, not one specialised in a kind of patient or
   /// care ([isSpecialised]).
   bool get isGeneralHospital => isHospital && !isSpecialised(subtype, name);
+
+  /// Whether it is primary care: a health station.
+  bool get isPrimaryCare => kind == 'health_station';
+
+  /// Whether it is a clinic of urgent care without beds ([_urgentCare]).
+  bool get isUrgentCare => kind == 'clinic' && subtype != null && _urgentCare.hasMatch(subtype!);
+
+  /// Whether it is an adult community mental health clinic ([_mentalHealth]).
+  bool get isMentalHealth => kind == 'clinic' && subtype != null && _mentalHealth.hasMatch(subtype!);
+
+  /// Whether it is a dialysis center.
+  bool get isDialysis => kind == 'clinic' && subtype != null && _dialysis.hasMatch(subtype!);
+
+  /// Whether a visit made in [setting] may be made here: a general
+  /// hospital takes the urgent cases and dialysis where no clinic is
+  /// nearer, a health station the mental health visits.
+  bool serves(CareSetting setting) => switch (setting) {
+    CareSetting.hospital => isGeneralHospital,
+    CareSetting.primary => isPrimaryCare,
+    CareSetting.urgentCare => isUrgentCare || isGeneralHospital,
+    CareSetting.mentalHealth => isMentalHealth || isPrimaryCare,
+    CareSetting.dialysis => isDialysis || isGeneralHospital,
+  };
 }
+
+/// The clinics of urgent care without beds, as the sources' subtypes name
+/// them (data/care_centers.jsonl): Catalonia's CUAP, Brazil's UPA, pronto
+/// atendimento and general pronto socorro, Florida's urgent care and
+/// walk-in clinics.
+final _urgentCare = RegExp(
+  r'\bCUAP\b|\bUPA\b|pronto atendimento|pronto socorro geral|urgent care|walk-in',
+  caseSensitive: false,
+);
+
+/// The adult community mental health clinics: Catalonia's CSMA and
+/// Barcelona's centres de salut mental, Brazil's CAPS I to III (not those
+/// for children or for alcohol and drugs), Florida's community mental
+/// health centers.
+final _mentalHealth = RegExp(
+  r'^CSMA$|centre de salut mental|community mental health|CAPS (I|II|III)$',
+  caseSensitive: false,
+);
+
+/// The dialysis centers: Florida's end-stage renal disease centers.
+/// Catalonia's and Brazil's registries list none apart, so their dialysis
+/// is at the hospital.
+final _dialysis = RegExp(r'end-stage renal disease', caseSensitive: false);
 
 /// What marks a hospital specialised in its subtype, as the sources word
 /// it (data/care_centers.jsonl): Brazil's CNES says ESPECIALIZADO
@@ -227,6 +274,24 @@ Place? nearestHospital(LatLon home, Iterable<Place> places) {
   return best;
 }
 
+/// The care center nearest [home] that serves [setting] ([Place.serves]),
+/// among all of them; the nearest hospital ([nearestHospital]) when none
+/// does. Null when there are no hospitals either.
+Place? nearestCareCenter(LatLon home, CareSetting setting, Iterable<Place> places) {
+  if (setting == CareSetting.hospital) return nearestHospital(home, places);
+  Place? best;
+  var bestDistance = double.infinity;
+  for (final place in places) {
+    if (!place.serves(setting)) continue;
+    final distance = distanceMeters(home, place.at);
+    if (distance < bestDistance) {
+      best = place;
+      bestDistance = distance;
+    }
+  }
+  return best ?? nearestHospital(home, places);
+}
+
 /// A random point within [radiusMeters] of [center], uniform over the
 /// disc.
 LatLon randomPointNear(LatLon center, Random random, {double radiusMeters = homeRadiusMeters}) {
@@ -288,12 +353,12 @@ String citySlug(String city) {
 
 /// How the simulation runs, from the environment (scripts/env.sh and
 /// compose.yaml set these):
-///   HEALTHHUB_SIM_PEOPLE            people per city (default 10)
+///   HEALTHHUB_SIM_PEOPLE            people per city (default 20)
 ///   HEALTHHUB_SIM_TURN_MS           real milliseconds per turn (default 1000)
 ///   HEALTHHUB_SIM_MINUTES_PER_TURN  simulated minutes per turn (default
 ///                                   60: a real second is a simulated hour)
 class SimulationSettings {
-  const SimulationSettings({this.peoplePerCity = 10, this.turn = const Duration(seconds: 1), this.minutesPerTurn = 60});
+  const SimulationSettings({this.peoplePerCity = 20, this.turn = const Duration(seconds: 1), this.minutesPerTurn = 60});
 
   factory SimulationSettings.fromEnvironment([Map<String, String>? env]) {
     env ??= Platform.environment;
@@ -303,7 +368,7 @@ class SimulationSettings {
     }
 
     return SimulationSettings(
-      peoplePerCity: setting('HEALTHHUB_SIM_PEOPLE', 10),
+      peoplePerCity: setting('HEALTHHUB_SIM_PEOPLE', 20),
       turn: Duration(milliseconds: setting('HEALTHHUB_SIM_TURN_MS', 1000)),
       minutesPerTurn: setting('HEALTHHUB_SIM_MINUTES_PER_TURN', 60),
     );
@@ -354,8 +419,9 @@ class Course {
   bool get nextIsUrgent => visits == 0 && condition.urgent;
 }
 
-/// One simulated person: who they are, where they live, the hospital they
-/// go to and how, their conditions and their visits, and where they are.
+/// One simulated person: who they are, where they live, the care centers
+/// they go to and how, their conditions and their visits, and where they
+/// are.
 /// A person has at most one chronic condition, for life, and, apart from
 /// it, acute episodes that come and go: two processes whose visits
 /// interleave, one at a time.
@@ -366,7 +432,8 @@ class Person {
     required this.home,
     required this.hospital,
     required this.profile,
-    required int minutesPerTurn,
+    required this.minutesPerTurn,
+    this.careCenters = const {},
   }) : mode = travelMode(distanceMeters(home, hospital.at)),
        at = home {
     step = stepMeters(mode, minutesPerTurn);
@@ -375,13 +442,32 @@ class Person {
   final String id;
   final String city;
   final LatLon home;
-  final Place hospital;
-  final Profile profile;
 
-  /// How they travel between home and the hospital, and how far they get
-  /// in a turn, in meters.
-  final TravelMode mode;
-  late final double step;
+  /// The general hospital nearest home: where a visit goes when no nearer
+  /// care center serves it, and the one the moves name at home.
+  final Place hospital;
+
+  /// The care center nearest home for each setting ([nearestCareCenter]);
+  /// a setting missing goes to [hospital].
+  final Map<CareSetting, Place> careCenters;
+  final Profile profile;
+  final int minutesPerTurn;
+
+  /// How they travel to the care center of the trip under way (of the
+  /// hospital, before the first), and how far they get in a turn, in
+  /// meters: set again at every departure, by the trip's length.
+  TravelMode mode;
+  late double step;
+
+  /// The care center of the visit under way, from leaving home to coming
+  /// back; null at home.
+  Place? destination;
+
+  /// Where a visit made in [setting] goes.
+  Place careCenterFor(CareSetting setting) => careCenters[setting] ?? hospital;
+
+  /// The care center the moves name: the visit's, else the hospital.
+  Place get shownCareCenter => destination ?? hospital;
 
   LatLon at;
   PersonState state = PersonState.home;
@@ -461,8 +547,9 @@ class Person {
         'lon': at.lon,
         'homeLat': home.lat,
         'homeLon': home.lon,
-        'hospitalId': hospital.id,
-        'hospitalName': hospital.name,
+        'hospitalId': shownCareCenter.id,
+        'hospitalName': shownCareCenter.name,
+        'careCenterKind': shownCareCenter.kind,
         'state': state.json,
         'mode': mode.json,
         'conditionName': shown?.name,
@@ -476,10 +563,11 @@ class Person {
 }
 
 /// One turn of [person] at [turn]: an acute episode starting when its
-/// onset comes, the trip to the hospital when a visit of either condition
-/// is due, the stay, and the trip home, at most [Person.step] meters a
-/// turn. Returns the admission event when they arrive at the hospital
-/// this turn ([admissionEvent]), else null. A new acute episode is drawn
+/// onset comes, the trip to the care center the visit needs
+/// ([MedicalCondition.settingOf], [Person.careCenterFor]) when a visit of
+/// either condition is due, the stay, and the trip home, at most
+/// [Person.step] meters a turn. Returns the admission event when they
+/// arrive this turn ([admissionEvent]), else null. A new acute episode is drawn
 /// from the acute ones among [conditions]; [run] is the simulation's run
 /// id, part of every event id.
 Map<String, Object?>? advance(
@@ -505,15 +593,21 @@ Map<String, Object?>? advance(
   if (person.state == PersonState.home) {
     final course = _due(person, now);
     if (course == null) return null;
+    final destination = person.careCenterFor(course.condition.settingOf(course.nextKind));
+    final meters = distanceMeters(person.home, destination.at);
     person
       ..visiting = course
+      ..destination = destination
+      ..mode = travelMode(meters)
+      ..step = stepMeters(travelMode(meters), person.minutesPerTurn)
       ..state = PersonState.toHospital
       ..tripStart = now
-      ..tripMeters = distanceMeters(person.home, person.hospital.at);
+      ..tripMeters = meters;
   }
   if (person.state == PersonState.toHospital) {
-    person.at = stepTowards(person.at, person.hospital.at, person.step);
-    if (person.at != person.hospital.at) return null;
+    final there = person.destination!.at;
+    person.at = stepTowards(person.at, there, person.step);
+    if (person.at != there) return null;
     person.state = PersonState.atHospital;
     // The minute they get there: the departure plus the trip, which falls
     // within this turn (or, after turns skipped by a slow publish, now).
@@ -581,7 +675,9 @@ Map<String, Object?> _admit(Person person, int turn, int minutes, Random random,
 /// back, at once for an emergency, else the next daytime slot.
 void _backHome(Person person, int now, Random random) {
   final course = person.visiting;
-  person.visiting = null;
+  person
+    ..visiting = null
+    ..destination = null;
   if (course != null) _scheduleNext(person, course, now, random);
   for (final waiting in [?person.chronic, ?person.acute]) {
     final due = waiting.dueAt;
@@ -630,12 +726,12 @@ Map<String, Object> complaintValues(Person person, {required int visitNumber, re
   'sex': person.profile.sex,
   'occupation': person.profile.occupation,
   'city': person.city,
-  'hospital': person.hospital.name,
+  'hospital': person.shownCareCenter.name,
   'visit_number': visitNumber,
   'days_since_first_visit': daysSinceFirstVisit,
 };
 
-/// The admission event of [person] arriving at the hospital at [minutes]
+/// The admission event of [person] arriving at their care center at [minutes]
 /// on the clock with [condition], in [turn] of the run [run]: the value
 /// published to [admissionsTopic]. The run id makes the event id unique
 /// across runs, whose people and turns repeat.
@@ -669,8 +765,11 @@ Map<String, Object?> admissionEvent(
     // Which of the visit kind's templates it was said from (0 to 2), so
     // its reference triage level is known (lib/triage.dart).
     'template': ?template,
-    'hospitalId': person.hospital.id,
-    'hospitalName': person.hospital.name,
+    // The care center, of any kind: the names stay those of when every
+    // visit was to a hospital, as the table and the Flink job have them.
+    'hospitalId': person.shownCareCenter.id,
+    'hospitalName': person.shownCareCenter.name,
+    'careCenterKind': person.shownCareCenter.kind,
     'simTime': simTime(minutes),
     'day': day,
     'turn': turn,
@@ -694,7 +793,8 @@ void startConditions(Person person, List<MedicalCondition> conditions, Random ra
 
 /// The people of every city in [places] with a care center, [perCity]
 /// each, living within [homeRadiusMeters] of a random care center of
-/// their city and going to the hospital nearest home, each with a profile
+/// their city and going to the care centers nearest home, of the kind each
+/// visit needs ([nearestCareCenter]), each with a profile
 /// of their city and their conditions from [conditions]
 /// ([startConditions]).
 List<Person> populate(
@@ -719,6 +819,9 @@ List<Person> populate(
         city: city,
         home: home,
         hospital: hospital,
+        careCenters: {
+          for (final setting in CareSetting.values) setting: nearestCareCenter(home, setting, places) ?? hospital,
+        },
         profile: randomProfile(city, random),
         minutesPerTurn: minutesPerTurn,
       );

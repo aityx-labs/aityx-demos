@@ -336,6 +336,84 @@ The feature files hold the current specification; see the
    `GET /api/events` say `"paused"`; the API logs each pause and resume.
    See [Simulation](simulation.md#pausing), [API](api.md) and
    [Home](home.md).
+
+1. **Add more people to the simulation: double it.** The default of
+   `HEALTHHUB_SIM_PEOPLE` is now 20 a city, not 10: 140 people across the
+   seven cities, each publishing a move a turn, and about twice the
+   admissions (and so twice the aityx triage calls). The explainer beside
+   the map says twenty per city. See [Simulation](simulation.md),
+   [Home](home.md), [API](api.md), [Database](database.md) and
+   [Development environment](dev-environment.md).
+1. **In the events view, make the event cards look the same always,
+   with filterable conditions on top, in a new row below the pause
+   control.** Moves and admissions are now rows of one shape and
+   height: a bar and tint in the event's colour (the state's for a move,
+   orange for an admission), a mark, and two lines that never wrap: who,
+   the condition and the time; what happened, the hospital and where the
+   record sits. An admission's complaint is cut to what fits, in full on
+   hover, instead of wrapped below. Under the header with the pause, a
+   row of chips, **All conditions** and one per condition of the events
+   with its count, filters the events in the app, several at once, kept
+   through the 5-second reads; the header counts what is shown. See
+   [Home](home.md).
+1. **The hospital view: clicking a care center's name or id opens a view,
+   for every kind of care center, with its position on the map, the
+   people in it, its capacity and its current usage.** Every care center
+   named on home is now a link: a pin on the map (a click opens, the
+   tooltip shows on hover), the hospital of a move or an admission in the
+   events, of a triage (in the row and its detail) and of a person's
+   admissions and what they do now. The view shows what and where it is,
+   a map around it with a badge of who is there and the people on their
+   way, a highlighted card of the capacity in use ("1 of 8 beds", a bar,
+   the share, green, amber, red), who is there and on the way (links to
+   them), and its admissions, counted this run and in all, the latest
+   with who and aityx's triage; it reads again every 5 seconds. The
+   registries have no beds, so the capacity is the simulation's, sized to
+   its people and fixed per care center. Pages and dialogs opened from
+   home now carry home's links, so the person in a triage's detail opens
+   too. The API gains `GET /api/care-centers/{id}`, `hospitalId` on the
+   moves, a person's now and the triage rows, and an index on
+   `admissions (hospital_id, id)`. See [The care center
+   view](care-center.md), [The map](map.md), [Home](home.md), [The person
+   view](person.md), [API](api.md) and [Database](database.md).
+1. **Route people by need: send them to health stations and clinics, not
+   only hospitals, so that every kind of care center has people.** Each
+   condition now says where its first visit goes (`setting`) and, when
+   elsewhere, its follow-ups (`follow_up_setting`): primary care (a
+   health station) for colds, flu, check-ups of hypertension or diabetes;
+   urgent care (a CUAP, a UPA, an urgent care center, or a hospital's
+   emergency department, whichever is nearer) for a sprain, a laceration,
+   a migraine, gastroenteritis; adult mental health clinics for
+   depression and anxiety; dialysis centers for end-stage kidney disease;
+   a general hospital for emergencies and the specialists'
+   conditions. A pneumonia is admitted at the hospital and checked at the
+   health station after. Each person goes to the nearest care center
+   serving the visit's setting, travelling by its distance; the moves and
+   admissions say `careCenterKind`, and the app names it ("Going to the
+   health station"); the legend says going for care and in care. The
+   care center view says what each serves and when the simulation sends
+   nobody there. `medical_conditions` gains `setting` and
+   `follow_up_setting`. See [Medical conditions](conditions.md#where-visits-go),
+   [Simulation](simulation.md#people), [The map](map.md), [The care
+   center view](care-center.md), [API](api.md), [Database](database.md)
+   and [Admissions per hour](admissions-hourly.md).
+1. **Check HealthHub's data classification and quality indexing in
+   OpenMetadata, add the OpenMetadata calls needed after the data
+   initialization, reset what needs it: the console should show
+   everything at top quality, described and in context.** HealthHub's
+   part is the descriptions, set by its data initialization: every table,
+   the `patient_days` view and every column of the schema says what it
+   is, as a PostgreSQL comment that the migration sets at every start
+   (`COMMENT ON TABLE`, `COMMENT ON VIEW`, `COMMENT ON COLUMN`, from
+   `schemaComments` in
+   [lib/schema_comments.dart](../healthhub_api/lib/schema_comments.dart)).
+   HealthHub still knows nothing of datyx or OpenMetadata: datyx's schema
+   read carries a database's comments into OpenMetadata, and datyx, in
+   development, waits for them before it catalogues and curates
+   HealthHub (its own spec, `catalog.md`). A test checks against a live
+   database that the described tables and columns are exactly the
+   schema's, so a table or column added without a description fails. See
+   [Database](database.md).
 1. **When the HealthHub dashboard is opened, centre the map on the care
    center nearest to the user.** Home's map, once the location is known,
    asks the API for the nearest care center of any kind and centres on

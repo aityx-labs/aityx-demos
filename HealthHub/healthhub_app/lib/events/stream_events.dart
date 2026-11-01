@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/health_hub_api.dart';
+import '../care_centers/care_center_screen.dart' show CareCenterLink;
 import '../location/user_location_map.dart' show PersonLook;
 import '../people/person_screen.dart';
 import '../theme.dart';
@@ -15,13 +16,14 @@ typedef EventsLoader = Future<StreamEvents> Function({int limit, StreamEventType
 /// paused now: the API's `POST /api/simulation/pause` and `/resume`.
 typedef SimulationControl = Future<bool> Function(bool pause);
 
-/// The latest events on the Kafka stream, newest first: people's moves,
-/// compact, and their admissions at a hospital, highlighted with what they
-/// said on arrival. Asked every 5 seconds while shown, like the map's
-/// people. Nothing shows until the API says the simulation runs (dev
-/// mode), and nothing in prod. Each row names its person, a link to
-/// their view, and the card invites opening anyone's. With [simulation],
-/// a button at the top pauses the simulation and resumes it.
+/// The latest events on the Kafka stream, newest first: people's moves and
+/// their admissions at a hospital, each a row of the same shape, an
+/// admission marked in orange with what they said on arrival. Asked every
+/// 5 seconds while shown, like the map's people. Nothing shows until the
+/// API says the simulation runs (dev mode), and nothing in prod. Each row
+/// names its person, a link to their view, and the card invites opening
+/// anyone's. With [simulation], a button at the top pauses the simulation
+/// and resumes it; under it, a chip per condition keeps only its events.
 ///
 /// Moves and admissions are asked for apart: every person moves every
 /// second, so the latest [limit] records of the stream are nearly always
@@ -57,6 +59,12 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
   bool? _pausedNow;
 
   bool get _paused => _pausedNow ?? _events.paused;
+
+  /// The conditions whose events are shown; all of them when empty. Kept
+  /// across reads, even while a condition has no event to show.
+  final Set<String> _conditions = {};
+
+  bool _shown(StreamEvent event) => _conditions.isEmpty || _conditions.contains(event.conditionName);
 
   Future<void> _switch() async {
     final control = widget.simulation;
@@ -115,8 +123,9 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
   @override
   Widget build(BuildContext context) {
     if (!_events.enabled) return const SizedBox.shrink();
-    final admissions = _events.events.where((event) => event.isAdmission).length;
-    final moves = _events.events.length - admissions;
+    final shown = _events.events.where(_shown).toList();
+    final admissions = shown.where((event) => event.isAdmission).length;
+    final moves = shown.length - admissions;
     return Card(
       key: const Key('stream-events'),
       child: Padding(
@@ -158,7 +167,21 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
+            _ConditionFilter(
+              events: _events.events,
+              selected: _conditions,
+              onChanged: (condition, on) => setState(() {
+                if (condition == null) {
+                  _conditions.clear();
+                } else if (on) {
+                  _conditions.add(condition);
+                } else {
+                  _conditions.remove(condition);
+                }
+              }),
+            ),
+            const SizedBox(height: 8),
             const Row(
               children: [
                 Icon(Icons.touch_app_outlined, color: Aityx.orangeLight, size: 16),
@@ -176,11 +199,79 @@ class _StreamEventsCardState extends State<StreamEventsCard> {
             const SizedBox(height: 8),
             if (_events.events.isEmpty)
               const Text('Waiting for the first event…', style: TextStyle(color: Aityx.muted))
+            else if (shown.isEmpty)
+              const Text(
+                'No event of these conditions among the latest.',
+                key: Key('stream-events-none'),
+                style: TextStyle(color: Aityx.muted),
+              )
             else
-              for (final event in _events.events) event.isAdmission ? AdmissionRow(event) : _EventRow(event),
+              for (final event in shown) EventRow(event),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The filter under the pause: **All**, then a chip per condition of the
+/// [events], by name, with how many of them it has; a condition [selected]
+/// stays, with 0, until it is unselected. Events without a condition (a
+/// healthy person's moves) show only under All.
+class _ConditionFilter extends StatelessWidget {
+  const _ConditionFilter({required this.events, required this.selected, required this.onChanged});
+
+  final List<StreamEvent> events;
+  final Set<String> selected;
+
+  /// A condition chip turned [on] or off; a null condition is All.
+  final void Function(String? condition, bool on) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final counts = <String, int>{for (final condition in selected) condition: 0};
+    for (final event in events) {
+      final condition = event.conditionName;
+      if (condition != null) counts[condition] = (counts[condition] ?? 0) + 1;
+    }
+    final conditions = counts.keys.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    FilterChip chip(Key key, String label, bool on, ValueChanged<bool> onSelected) => FilterChip(
+      key: key,
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+      selected: on,
+      onSelected: onSelected,
+      showCheckmark: false,
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      selectedColor: Aityx.orange.withValues(alpha: 0.25),
+      side: BorderSide(color: on ? Aityx.orange : Aityx.border),
+    );
+    return Row(
+      key: const Key('condition-filter'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 6),
+          child: Icon(Icons.filter_list, color: Aityx.muted, size: 18),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              chip(const Key('condition-filter-all'), 'All conditions', selected.isEmpty, (_) => onChanged(null, false)),
+              for (final condition in conditions)
+                chip(
+                  Key('condition-filter-$condition'),
+                  '$condition ${counts[condition]}',
+                  selected.contains(condition),
+                  (on) => onChanged(condition, on),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -222,133 +313,143 @@ int _minutes(StreamEvent event) {
 /// When a record happened, "09:40, day 2".
 String _when(StreamEvent event) => [?event.simTime, if (event.day != null) 'day ${event.day}'].join(', ');
 
-/// Where a record sits in its topic, "p0 · #67070".
-String _where(StreamEvent event) => event.offset == null ? '' : 'p${event.partition ?? 0} · #${event.offset}';
+/// What happened, and the hospital it happened at or is headed to, a link
+/// to its view, on one line: "Going to the hospital · Hospital del Mar".
+class _What extends StatelessWidget {
+  const _What(this.what, this.hospitalId, this.hospital, {required this.admission});
 
-/// One move: a dot in the state's colour (the map's), the simulated time,
-/// who, what and where to, and the record's partition and offset.
-class _EventRow extends StatelessWidget {
-  const _EventRow(this.event);
-
-  final StreamEvent event;
+  final String what;
+  final int? hospitalId;
+  final String? hospital;
+  final bool admission;
 
   @override
   Widget build(BuildContext context) {
-    final what = [
-      event.state.label,
-      if (event.state == PersonState.toHospital || event.state == PersonState.atHospital) ?event.hospitalName,
-    ].join(' · ');
-    const muted = TextStyle(color: Aityx.muted, fontSize: 12);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: event.state.color),
-          ),
-          const SizedBox(width: 10),
-          SizedBox(width: 96, child: Text(_when(event), style: muted)),
-          SizedBox(
-            width: 190,
-            child: Tooltip(
-              message: event.id,
-              child: PersonLink(event.id, event.name ?? event.id, overflow: TextOverflow.ellipsis),
-            ),
-          ),
-          Expanded(child: Text(what, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13))),
-          Text(_where(event), style: muted.copyWith(fontFamily: 'monospace')),
-        ],
-      ),
+    final style = TextStyle(color: admission ? Aityx.orangeLight : Aityx.muted, fontSize: 12);
+    if (hospital == null) return Text(what, style: style);
+    return Row(
+      children: [
+        Flexible(child: Text('$what · ', style: style)),
+        Flexible(
+          flex: 2,
+          child: CareCenterLink(hospitalId, hospital!, style: style, overflow: TextOverflow.ellipsis),
+        ),
+      ],
     );
   }
 }
 
-/// One admission, set apart from the moves by an orange bar and tint: who
-/// arrived (name and age), with what condition and whether it is acute or
-/// chronic, which visit of the course, at which hospital, and in full what
-/// they said on arrival, the text a triage would route on.
-class AdmissionRow extends StatelessWidget {
-  const AdmissionRow(this.event, {super.key});
+/// Where a record sits in its topic, "p0 · #67070".
+String _where(StreamEvent event) => event.offset == null ? '' : 'p${event.partition ?? 0} · #${event.offset}';
+
+/// One event, a move or an admission, always the same shape: a bar and a
+/// faint tint in its colour, a mark (a dot in the person's state colour,
+/// the map's, or the orange hospital of an admission), then two lines,
+/// never more: who (a link to their view) with the condition and the
+/// simulated time; what happened, at which hospital, with the record's
+/// partition and offset. An admission's second line says which visit it
+/// is and, in italics, as much of what the person said as fits, all of it
+/// on hover.
+class EventRow extends StatelessWidget {
+  const EventRow(this.event, {super.key});
 
   final StreamEvent event;
 
   @override
   Widget build(BuildContext context) {
     const muted = TextStyle(color: Aityx.muted, fontSize: 12);
+    final admission = event.isAdmission;
+    final color = admission ? Aityx.orange : event.state.color;
     final who = [event.name ?? event.id, if (event.age != null) '${event.age}'].join(', ');
     final condition = [
       ?event.conditionName,
       if (event.conditionType != null) '(${event.conditionType!.label})',
     ].join(' ');
-    final visit = [visitLabel(event), ?event.hospitalName].join(' · ');
+    final what = admission ? visitLabel(event) : event.state.labelAt(event.careCenterKind);
+    // The hospital, a link to its view, where the record is about one.
+    final hospital = admission || event.state == PersonState.toHospital || event.state == PersonState.atHospital
+        ? event.hospitalName
+        : null;
     return Container(
-      key: Key('admission-${event.eventId ?? event.id}'),
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      key: Key(admission ? 'admission-${event.eventId ?? event.id}' : 'move-${event.id}-${event.offset}'),
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
       decoration: BoxDecoration(
-        color: Aityx.orange.withValues(alpha: 0.10),
-        border: const Border(left: BorderSide(color: Aityx.orange, width: 4)),
+        color: color.withValues(alpha: 0.08),
+        border: Border(left: BorderSide(color: color, width: 4)),
         borderRadius: const BorderRadius.horizontal(right: Radius.circular(6)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 1),
-            child: Icon(Icons.local_hospital, color: Aityx.orange, size: 20),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          children: [
-                            // The person of this admission's run.
-                            WidgetSpan(
-                              alignment: PlaceholderAlignment.baseline,
-                              baseline: TextBaseline.alphabetic,
-                              child: PersonLink(
-                                event.id,
-                                who,
-                                run: runOf(event.eventId),
-                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                              ),
-                            ),
-                            if (condition.isNotEmpty) TextSpan(text: '  $condition'),
-                          ],
-                        ),
-                        style: const TextStyle(fontSize: 13),
+      // One line each, whatever the text: every row is as tall as the next.
+      child: DefaultTextStyle.merge(
+        maxLines: 1,
+        softWrap: false,
+        overflow: TextOverflow.ellipsis,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              child: admission
+                  ? const Icon(Icons.local_hospital, color: Aityx.orange, size: 18)
+                  : Center(
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
                       ),
                     ),
-                    Text(_when(event), style: muted),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Expanded(child: Text(visit, style: muted.copyWith(color: Aityx.orangeLight))),
-                    Text(_where(event), style: muted.copyWith(fontFamily: 'monospace')),
-                  ],
-                ),
-                if (event.complaint != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    '“${event.complaint}”',
-                    softWrap: true,
-                    style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 13, height: 1.35),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Tooltip(
+                          message: event.id,
+                          // An admission's person is of its own run; a move's, of the run going on.
+                          child: PersonLink(
+                            event.id,
+                            who,
+                            run: admission ? runOf(event.eventId) : null,
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(condition, style: const TextStyle(fontSize: 13))),
+                      const SizedBox(width: 8),
+                      Text(_when(event), style: muted),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      if (admission && event.complaint != null) ...[
+                        Flexible(flex: 2, child: _What(what, event.hospitalId, hospital, admission: true)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 3,
+                          child: Tooltip(
+                            message: event.complaint!,
+                            child: Text(
+                              '“${event.complaint}”',
+                              style: muted.copyWith(fontStyle: FontStyle.italic, color: Aityx.fg),
+                            ),
+                          ),
+                        ),
+                      ] else
+                        Expanded(child: _What(what, event.hospitalId, hospital, admission: admission)),
+                      const SizedBox(width: 8),
+                      Text(_where(event), style: muted.copyWith(fontFamily: 'monospace')),
+                    ],
                   ),
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -63,6 +63,11 @@
 ///                       one, else the newest with their admissions):
 ///                       facts, where they
 ///                       are now, admissions with triage, days of care
+///   GET  /api/care-centers/{id}
+///                       one care center: where it is, its capacity in
+///                       the simulation, who is there and on the way now,
+///                       its admissions counted and the latest; open to
+///                       all; 404 for none, 503 without the database
 ///   GET  /api/people/{id}/prediction
 ///                       datyx's XGBoost prediction of their hours of
 ///                       care over the next 30 days, asked with the
@@ -443,6 +448,14 @@ Future<void> _handle(
             : await _prediction(
                 datyx, token, db, personRoute.$1, request.uri.queryParameters['run'] ?? live.simulation?.run),
       ),
+      ('GET', _) when careCenterIdOf(path) != null => route(
+        method,
+        path,
+        auth: auth,
+        dev: live.dev,
+        people: live.feed?.people ?? const [],
+        careCenter: await _careCenter(db, careCenterIdOf(path)!, live.simulation?.run),
+      ),
       ('GET', '/api/people') => route(
         method,
         path,
@@ -583,6 +596,17 @@ Future<PersonLookup?> _person(Db db, String id, String? run, String? currentRun)
     return PersonLookup(await db.personHistory(id, run: run), currentRun: currentRun);
   } catch (error) {
     stderr.writeln('people: $error');
+    return null;
+  }
+}
+
+/// One care center, with its admissions of [run] (the current one) and
+/// of all runs; null when the database doesn't answer (logged).
+Future<CareCenterLookup?> _careCenter(Db db, int id, String? run) async {
+  try {
+    return CareCenterLookup(await db.careCenterHistory(id, run: run), currentRun: run);
+  } catch (error) {
+    stderr.writeln('care centers: $error');
     return null;
   }
 }

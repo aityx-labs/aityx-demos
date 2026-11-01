@@ -128,7 +128,7 @@ process-compose through Docker Compose comes from.
   `HEALTHHUB_KAFKA_REST_PORT` (9805), `HEALTHHUB_FLINK_PORT` (9806),
   `HEALTHHUB_KAFKA_REST_URL`
   (http://127.0.0.1:9805), `HEALTHHUB_MODE` (`dev`, which runs the
-  people simulation; `prod` doesn't), `HEALTHHUB_SIM_PEOPLE` (10 per
+  people simulation; `prod` doesn't), `HEALTHHUB_SIM_PEOPLE` (20 per
   city), `HEALTHHUB_SIM_TURN_MS` (1000) and
   `HEALTHHUB_SIM_MINUTES_PER_TURN` (60, so a real second is a simulated
   hour), every one but the key with a
@@ -239,7 +239,7 @@ process-compose through Docker Compose comes from.
   devbox services have run end to end (PostgreSQL, the API and the app,
   with `/api/hello` answering from the database).
 - `kafka` and `kafka-rest` have run from process-compose (both ready,
-  the health monitor's 📨 Kafka ✅, the API in dev mode moving 70 people
+  the health monitor's 📨 Kafka ✅, the API in dev mode moving 140 people
   through the topic and `/api/people` reading them back) and with `docker
   compose up kafka kafka-rest`; the whole Compose stack hasn't run with
   them. The host listener (9804) has only been checked to accept

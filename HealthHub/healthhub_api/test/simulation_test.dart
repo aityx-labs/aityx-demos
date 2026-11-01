@@ -173,6 +173,62 @@ void main() {
     }
   });
 
+  test('a care center serves the settings of its kind and subtype', () {
+    Place clinic(String subtype) => Place(id: 9, name: 'c', kind: 'clinic', city: 'x', at: sagradaFamilia, subtype: subtype);
+    const hospital = Place(id: 1, name: 'Hospital del Mar', kind: 'hospital', city: 'Barcelona', at: hospitalDelMar);
+    const cap = Place(id: 2, name: 'CAP', kind: 'health_station', city: 'Barcelona', at: sagradaFamilia);
+    expect([for (final s in CareSetting.values) if (hospital.serves(s)) s],
+        [CareSetting.hospital, CareSetting.urgentCare, CareSetting.dialysis]);
+    expect([for (final s in CareSetting.values) if (cap.serves(s)) s], [CareSetting.primary, CareSetting.mentalHealth]);
+    for (final urgent in ['CUAP', 'PRONTO ATENDIMENTO - UPA', 'PRONTO SOCORRO GERAL', 'Urgent care',
+        'Health Care Clinic Exemption (Urgent care)', 'Health Care Clinic Exemption (Primary care / walk-in clinic)']) {
+      expect(clinic(urgent).serves(CareSetting.urgentCare), true, reason: urgent);
+    }
+    for (final mental in ['CSMA', 'Centre de salut mental / addiccions', 'Community Mental Health Center',
+        'CENTRO DE ATENCAO PSICOSSOCIAL - CAPS II', 'CENTRO DE ATENCAO PSICOSSOCIAL - CAPS III']) {
+      expect(clinic(mental).serves(CareSetting.mentalHealth), true, reason: mental);
+    }
+    // Not the children's, nor alcohol and drugs.
+    for (final other in ['CSMIJ', 'CENTRO DE ATENCAO PSICOSSOCIAL - CAPS INFANTO/JUVENIL',
+        'CENTRO DE ATENCAO PSICOSSOCIAL - CAPS ALCOOL E DROGA', 'POLICLINICA', 'Ambulatory Surgical Center']) {
+      expect([for (final s in CareSetting.values) if (clinic(other).serves(s)) s], isEmpty, reason: other);
+    }
+    expect(clinic('End-Stage Renal Disease Center').serves(CareSetting.dialysis), true);
+  });
+
+  test('a setting goes to the nearest care center serving it, else the hospital', () {
+    const home = LatLon(41.40, 2.17);
+    final hospital = place(1, 'Barcelona', 'hospital', hospitalDelMar); // ~2.5 km
+    final cap = place(2, 'Barcelona', 'health_station', const LatLon(41.402, 2.172));
+    final farCap = place(3, 'Barcelona', 'health_station', const LatLon(41.45, 2.2));
+    final cuap = Place(id: 4, name: 'CUAP', kind: 'clinic', city: 'Barcelona', at: const LatLon(41.395, 2.17), subtype: 'CUAP');
+    final places = [hospital, farCap, cap, cuap];
+    expect(nearestCareCenter(home, CareSetting.hospital, places), hospital);
+    expect(nearestCareCenter(home, CareSetting.primary, places), cap);
+    expect(nearestCareCenter(home, CareSetting.urgentCare, places), cuap);
+    // No mental health clinic: primary care is nearer than the hospital.
+    expect(nearestCareCenter(home, CareSetting.mentalHealth, places), cap);
+    // No dialysis center: the hospital.
+    expect(nearestCareCenter(home, CareSetting.dialysis, places), hospital);
+    // No health station at all: the hospital.
+    expect(nearestCareCenter(home, CareSetting.primary, [hospital]), hospital);
+  });
+
+  test('the seed gives every city primary care and urgent care, and people a place for each setting', () {
+    final places = [
+      for (final c in careCenterSeed)
+        if (c.latitude != null && c.longitude != null)
+          Place(id: 0, name: c.name, kind: c.kind, city: c.city, at: LatLon(c.latitude!, c.longitude!), subtype: c.subtype),
+    ];
+    final people = populate(places, 5, 60, Random(12));
+    for (final person in people) {
+      expect(person.careCenters.keys.toSet(), CareSetting.values.toSet());
+      expect(person.careCenterFor(CareSetting.primary).isPrimaryCare, true, reason: person.city);
+      final urgent = person.careCenterFor(CareSetting.urgentCare);
+      expect(urgent.isUrgentCare || urgent.isGeneralHospital, true, reason: person.city);
+    }
+  });
+
   test('homes are within 1.5 km of a care center of their own city', () {
     final random = Random(1);
     for (var i = 0; i < 200; i++) {
@@ -223,7 +279,7 @@ void main() {
     final value = record['value'] as Map;
     expect(value.keys, [
       'id', 'name', 'age', 'city', 'lat', 'lon', 'homeLat', 'homeLon', 'hospitalId', 'hospitalName',
-      'state', 'mode', 'conditionName', 'conditionType', 'simTime', 'day', 'turn',
+      'careCenterKind', 'state', 'mode', 'conditionName', 'conditionType', 'simTime', 'day', 'turn',
     ]);
     expect(value['name'], person.profile.name);
     expect(value['conditionName'], 'Common cold');
@@ -397,7 +453,7 @@ void main() {
 
   test('settings fall back to the defaults', () {
     final settings = SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '0', 'HEALTHHUB_SIM_TURN_MS': 'x'});
-    expect(settings.peoplePerCity, 10);
+    expect(settings.peoplePerCity, 20);
     expect(settings.turn, const Duration(seconds: 1));
     expect(settings.minutesPerTurn, 60);
     expect(SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '3'}).peoplePerCity, 3);
@@ -417,6 +473,8 @@ MedicalCondition condition(
   bool urgent = false,
   int? followUpStay,
   int? courseGap,
+  CareSetting setting = CareSetting.hospital,
+  CareSetting? followUpSetting,
 }) =>
     MedicalCondition(
       code: code,
@@ -442,6 +500,8 @@ MedicalCondition condition(
       urgent: urgent,
       followUpStayHours: followUpStay,
       courseGapDays: courseGap,
+      setting: setting,
+      followUpSetting: followUpSetting,
     );
 
 final cold = condition('cold', 'acute');

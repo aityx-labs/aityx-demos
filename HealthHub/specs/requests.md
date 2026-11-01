@@ -487,3 +487,10 @@ The feature files hold the current specification; see the
    seven cities, against 0.6 with twenty, and 149 care centers see
    someone, against 91: the capacities (2 to 12) are still mostly empty.
    See [Simulation](simulation.md#people).
+1. **Make the cards' attributes align in the events view.** The time of
+   each row drifted with the length of its person's name: the name and
+   the condition each had half the row's spare width up front, and what
+   a short name left over went after the time. Now they share what the
+   time leaves, so every row's time ends at its right edge, over the
+   record's partition and offset, in figures of one width. See
+   [Home](home.md).

@@ -847,6 +847,16 @@ void main() {
     final move = find.byKey(const Key('move-lisboa-1-42'));
     expect(tester.getSize(row).height, tester.getSize(move).height);
     expect(tester.getSize(row).height, tester.getSize(find.byKey(const Key('move-lisboa-2-41'))).height);
+    // The time and the offset end at the right edge of every row, whatever
+    // the name and condition before them.
+    final whens = find.byKey(const Key('event-when'));
+    final wheres = find.byKey(const Key('event-where'));
+    expect(whens, findsNWidgets(3));
+    final rightEdge = tester.getTopRight(whens.first).dx;
+    for (var i = 0; i < 3; i++) {
+      expect(tester.getTopRight(whens.at(i)).dx, moreOrLessEquals(rightEdge));
+      expect(tester.getTopRight(wheres.at(i)).dx, moreOrLessEquals(rightEdge));
+    }
     // It sorts by simulated time: 08:00 is older than the moves at 09:40.
     expect(
       tester.getTopLeft(row).dy,

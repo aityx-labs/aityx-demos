@@ -109,6 +109,8 @@ theirs; narrower, each goes under its row.
     on hover: "Monitored at home: aged 84"), the condition
     and whether it is acute or chronic, and the simulated time and day.
     The second: what happened and the record's partition and offset.
+    The time and the offset end at the row's right edge, the one over
+    the other, so they line up down the list whatever the names.
     - **A move**: the person's state colour (the map's) for the bar and
       a dot; what they are doing, and the hospital, on the way there or
       in it, a link to its [view](care-center.md). The link opens the

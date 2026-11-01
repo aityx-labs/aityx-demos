@@ -2,6 +2,26 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-01: a PII classification for every column and JSON field, by the GDPR
+
+Asked: make sure the catalogue has a PII classification for every data
+column and JSON property, in OpenMetadata if possible, following the
+GDPR's definitions and standards for data classification.
+
+Changed: every sync (`POST /api/datasources/{id}/catalog`) tags every
+column, and every field of a topic's records (nested ones too), with
+OpenMetadata's own `PII` classification (`None`, `NonSensitive`,
+`Sensitive`), and those holding personal data with its `PersonalData`
+(`Personal`, `SpecialCategory`), from names alone (`Pii`): personal only
+in a record about a person; special category for Art. 9 and Art. 10
+data and the facts of a health care record (Recital 35); direct and
+quasi-identifiers, keys (pseudonymous, Recital 26) and other facts as
+personal. Each tag is `Automated` with its GDPR reason; a person's own
+tags win. Written by a JSON Patch after the PUT (a PUT merges tags, and
+both classifications are mutually exclusive); the sync answers how many
+columns or fields hold `personal` and `special` data. Tests
+(`PiiTest`); `catalog.md`, `api.md`, README.
+
 ## 2026-11-01: inference on the trained models, and its account
 
 Asked: an Inference panel on the dashboard, to account for inference

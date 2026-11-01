@@ -117,7 +117,7 @@ Services and Keycloak Dev Services are off.
 `test` profile and launch mode, `jvm`, a version and a start time),
 `DataSourceResourceTest` ([data-sources.md](data-sources.md)),
 `AuthOffTest` and `AuthOnTest` ([auth.md](auth.md)), `CatalogResourceTest`,
-`StreamReaderTest` and `TimeSeriesTest` ([catalog.md](catalog.md)), `XgbTrainerTest` and
+`StreamReaderTest`, `TimeSeriesTest` and `PiiTest` ([catalog.md](catalog.md)), `XgbTrainerTest` and
 `TrainingTest` ([training.md](training.md)), `InferenceTest`
 ([inference.md](inference.md)), `ProfileTest` and
 `CryptoTest` ([profiles.md](profiles.md)), and `DevDataTest`, which adds

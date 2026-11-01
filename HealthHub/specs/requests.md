@@ -397,3 +397,10 @@ The feature files hold the current specification; see the
    [Simulation](simulation.md#people), [The map](map.md), [The care
    center view](care-center.md), [API](api.md), [Database](database.md)
    and [Admissions per hour](admissions-hourly.md).
+1. **Still little to no occupancy in the care centers: double the
+   population of each city.** Forty simulated people a city, double the
+   twenty: 280 in all, 280 moves a second. Over 90 simulated days (after
+   a 30-day warm-up) about one person is in care at any hour across the
+   seven cities, against 0.6 with twenty, and 149 care centers see
+   someone, against 91: the capacities (2 to 12) are still mostly empty.
+   See [Simulation](simulation.md#people).

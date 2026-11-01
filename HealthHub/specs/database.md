@@ -51,6 +51,6 @@ missing, and the view anew, so a fresh database works without a separate migrati
 - `admissions` and `admissions_hourly` grow with every run of the
   simulation and nothing prunes them (`admissions_hourly` by at most a
   row per hospital and simulated hour, fewer, as most hours have none).
-  `admissions`: one row per visit, about twenty a minute of real time with the
+  `admissions`: one row per visit, about forty a minute of real time with the
   defaults at the start of a run, when most people's first visits fall,
   and fewer after.

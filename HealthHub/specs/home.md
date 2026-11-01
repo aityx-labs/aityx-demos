@@ -21,7 +21,7 @@ theirs; narrower, each goes under its row.
 - **The data, and the simulation** (`SimulationExplainer`,
   [explainers.dart](../healthhub_app/lib/screens/explainers.dart)), beside
   the map, briefly: real care centers (7,256, from the official
-  registries of Spain, the US and Brazil), simulated people (twenty per city,
+  registries of Spain, the US and Brazil), simulated people (forty per city,
   some with a chronic condition, anyone falling ill now and then), an
   hour a second (the trip to the nearest care center the visit needs, a
   health station, urgent care or a general hospital, the desk, the stay,

@@ -15,13 +15,13 @@ void main() {
     expect(without.status, 200);
     expect(without.body, {
       'ok': true, 'db': false, 'aityx': false, 'auth': false, 'kafka': false, 'simulation': false,
-      'triage': false,
+      'paused': false, 'triage': false,
     });
 
     final withBoth = route('GET', '/api/health', db: true, aityx: true, triageEnabled: true);
     expect(withBoth.body, {
       'ok': true, 'db': true, 'aityx': true, 'auth': false, 'kafka': false, 'simulation': false,
-      'triage': true,
+      'paused': false, 'triage': true,
     });
   });
 
@@ -29,6 +29,8 @@ void main() {
     final up = route('GET', '/api/health', kafka: true, simulation: true).body as Map;
     expect(up['kafka'], true);
     expect(up['simulation'], true);
+    expect(up['paused'], false);
+    expect((route('GET', '/api/health', simulation: true, paused: true).body as Map)['paused'], true);
     expect(route('GET', '/api/health', db: true).body, containsPair('ok', true));
   });
 
@@ -309,6 +311,62 @@ void main() {
     expect(noModel.body, {'error': 'no model of the group care has been trained yet'});
     expect(route('GET', '/api/people/reus-5/prediction').status, 502);
     expect(route('GET', '/api/people/reus-5/prediction', auth: on).status, 401);
+  });
+
+  group('pausing the simulation', () {
+    // A fake simulation's control: records each call, answers the state.
+    late List<bool> calls;
+    bool control(bool pause) {
+      calls.add(pause);
+      return pause;
+    }
+
+    setUp(() => calls = []);
+
+    test('pause and resume answer the state after the call', () {
+      final paused = route('POST', '/api/simulation/pause', dev: true, simulation: true, control: control);
+      expect(paused.status, 200);
+      expect(paused.body, {'paused': true});
+      // Again: still paused, no harm done.
+      expect(route('POST', '/api/simulation/pause', dev: true, simulation: true, control: control).body,
+          {'paused': true});
+      final resumed = route('POST', '/api/simulation/resume', dev: true, simulation: true, control: control);
+      expect(resumed.status, 200);
+      expect(resumed.body, {'paused': false});
+      expect(calls, [true, true, false]);
+    });
+
+    test('want a signed-in user once authentication is on, before anything changes', () {
+      for (final path in ['/api/simulation/pause', '/api/simulation/resume']) {
+        final answer = route('POST', path, auth: on, dev: true, simulation: true, control: control);
+        expect(answer.status, 401);
+        expect(answer.body, {'error': 'sign in first'});
+      }
+      expect(calls, isEmpty);
+      expect(route('POST', '/api/simulation/pause', auth: on, identity: alice, dev: true, simulation: true,
+          control: control).body, {'paused': true});
+    });
+
+    test('are a 409 when the simulation does not run: prod, or not started', () {
+      for (final (dev, simulation) in [(false, false), (false, true), (true, false)]) {
+        final answer = route('POST', '/api/simulation/pause', dev: dev, simulation: simulation, control: control);
+        expect(answer.status, 409);
+        expect(answer.body, {'error': 'the simulation does not run'});
+      }
+      expect(route('POST', '/api/simulation/resume', dev: true, simulation: true).status, 409);
+      expect(calls, isEmpty);
+    });
+
+    test('only by POST', () {
+      expect(route('GET', '/api/simulation/pause', dev: true, simulation: true, control: control).status, 404);
+      expect(calls, isEmpty);
+    });
+
+    test('events say whether it is paused, and never in prod', () {
+      expect((route('GET', '/api/events', dev: true).body as Map)['paused'], false);
+      expect((route('GET', '/api/events', dev: true, paused: true).body as Map)['paused'], true);
+      expect((route('GET', '/api/events', paused: true).body as Map)['paused'], false);
+    });
   });
 
   test('a preflight answers 204', () {

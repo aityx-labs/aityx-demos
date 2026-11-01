@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api/health_hub_api.dart';
 import '../events/stream_events.dart' show visitOf;
 import '../location/user_location_map.dart' show PersonLook;
+import '../screens/explainers.dart' show Explainer;
 import '../theme.dart';
 import '../triage/triage_card.dart' show levelColor;
 
@@ -132,6 +133,8 @@ class _PersonScreenState extends State<PersonScreen> {
                 _Header(person),
                 const SizedBox(height: 16),
                 PredictionCard(prediction: _prediction),
+                const SizedBox(height: 16),
+                const PredictionExplainer(),
                 const SizedBox(height: 16),
                 _Summary(person.summary),
                 const SizedBox(height: 16),
@@ -359,6 +362,40 @@ class PredictionCard extends StatelessWidget {
         ),
       ],
     ),
+  );
+}
+
+/// Under the prediction: how datyx's XGBoost model makes it, from the
+/// person's own history, and why Jev, which reads text, can't.
+class PredictionExplainer extends StatelessWidget {
+  const PredictionExplainer({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Explainer(
+    key: Key('prediction-explainer'),
+    icon: Icons.account_tree_outlined,
+    title: 'How this prediction is made',
+    points: [
+      (
+        'XGBoost, on their history',
+        'datyx trained an XGBoost model on patient_days, every simulated patient\'s hours of hospital care, day '
+            'by day. For this person it builds the same features from their own days up to now: the hours of '
+            'care over the last day, 30, 90 and 360 days, the days since their last stay, how much history '
+            'there is. Its trees add up to the hours expected over the next 30 days.',
+      ),
+      (
+        'Learned from everyone',
+        'What the trees know is what followed histories like this one in every other patient\'s days; the line '
+            'above says which training run made them, and when.',
+      ),
+      (
+        'Why not Jev',
+        'Jev reads text: it answers questions about what someone says, as at the triage desk. This number isn\'t '
+            'in anything the person says. It comes from their own history of stays, and from patterns in '
+            'everyone else\'s: rows of numbers Jev never sees. So the history goes to a model trained on it, '
+            'and Jev stays at the desk.',
+      ),
+    ],
   );
 }
 

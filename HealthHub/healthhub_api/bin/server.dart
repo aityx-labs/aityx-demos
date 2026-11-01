@@ -8,7 +8,8 @@
 ///                       answers, "aityx": true when the key is set,
 ///                       "auth": true when authentication is on, "kafka":
 ///                       true when Kafka's REST proxy answers,
-///                       "simulation": true when the simulation runs}
+///                       "simulation": true when the simulation runs,
+///                       "paused": true when it is paused, "triage"}
 ///   GET  /api/hello     {"message": "Hello, world", "since": when the
 ///                       row was written, "postgres": the server's
 ///                       version(), "user": who is signed in, or null},
@@ -24,10 +25,16 @@
 ///                       [...]}: the simulated people's latest moves, read
 ///                       back from Kafka (lib/simulation.dart), open to all
 ///   GET  /api/events?limit=20&type=admission|move
-///                       {"enabled", "topic", "topics", "events": [...]}:
-///                       the latest moves and admissions read from the
-///                       streams, newest first, each with its "type" (dev
-///                       mode), for home's events; open to all
+///                       {"enabled", "paused", "topic", "topics", "events":
+///                       [...]}: the latest moves and admissions read from
+///                       the streams, newest first, each with its "type"
+///                       (dev mode), and whether the simulation is paused,
+///                       for home's events; open to all
+///   POST /api/simulation/pause, POST /api/simulation/resume
+///                       {"paused": true|false}, the state after the call:
+///                       freezes or resumes the simulation, the same one
+///                       everyone watches (idempotent); 401 without a user
+///                       once authentication is on, 409 when it doesn't run
 ///   GET  /api/admissions?limit=20
 ///                       {"admissions": [...]}: the latest admissions
 ///                       recorded in the database, newest first (at most
@@ -355,6 +362,7 @@ Future<void> _handle(
         auth: auth,
         kafka: live.kafkaUp,
         simulation: live.simulation?.running ?? false,
+        paused: live.simulation?.paused ?? false,
         triageEnabled: live.triage,
       ),
       ('GET', '/api/triage') => route(
@@ -377,7 +385,26 @@ Future<void> _handle(
         query: request.uri.queryParameters,
         auth: auth,
         dev: live.dev,
+        paused: live.simulation?.paused ?? false,
         events: live.feed?.recent ?? const [],
+      ),
+      ('POST', simulationPausePath || simulationResumePath) => route(
+        method,
+        path,
+        auth: auth,
+        identity: identity,
+        dev: live.dev,
+        simulation: live.simulation?.running ?? false,
+        control: (pause) {
+          final simulation = live.simulation;
+          if (simulation == null) return false;
+          if (pause) {
+            simulation.pause();
+          } else {
+            simulation.resume();
+          }
+          return simulation.paused;
+        },
       ),
       ('GET', '/api/admissions') => route(
         method,

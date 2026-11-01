@@ -310,3 +310,30 @@ The feature files hold the current specification; see the
    `admissions.person_id`, and `personId` on the triage rows. See
    [The person view](person.md), [Home](home.md), [The map](map.md),
    [API](api.md) and [Database](database.md).
+
+1. **On HealthHub's dashboard: beside the map, explain the data and how
+   the simulation works; beside the triage at the desk, what aityx does,
+   where Jev is, where the rules (DMN, decision tables) are and what
+   aityx adds, briefly. In the events, name the person on each row, a
+   link to their view, and invite opening anyone's. In the person view,
+   explain the XGBoost inference beside the return chance, and why Jev
+   can't calculate it: it depends on history.** Two explainer cards sit
+   to the right of the map and the triage from 1000 px wide (under them
+   when narrower); a move's row now names the person, not their id; the
+   events card invites opening anyone; the person view explains how
+   datyx's XGBoost model predicts from the person's own history, and why
+   Jev, which reads text, can't. See [Home](home.md) and
+   [The person view](person.md).
+1. **On top of the events, a button to pause the simulation.** **Pause
+   the simulation** (then **Resume the simulation**) heads the events
+   card. The API has `POST /api/simulation/pause` and `/resume`,
+   answering `{"paused": true|false}` (idempotent), 401 without a user
+   once sign-in is on, 409 when the simulation doesn't run. Pausing stops
+   the simulation's clock and holds every person's loop before its next
+   turn: nobody moves or is admitted, the simulated time stands still,
+   and resuming goes on from the same turn with none skipped. There is
+   one simulation, so a pause is everyone's. `GET /api/health` and
+   `GET /api/events` say `"paused"`; the API logs each pause and resume.
+   See [Simulation](simulation.md#pausing), [API](api.md) and
+   [Home](home.md).
+

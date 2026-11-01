@@ -329,6 +329,72 @@ void main() {
     expect(second.toSet().length, second.length);
   });
 
+  test('a paused simulation publishes nothing, and resumes from the turn it stood at', () async {
+    final proxy = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final turns = <int>[];
+    proxy.listen((request) async {
+      final body = jsonDecode(await utf8.decodeStream(request)) as Map;
+      for (final record in body['records'] as List) {
+        turns.add(((record as Map)['value'] as Map)['turn'] as int);
+      }
+      request.response
+        ..headers.contentType = ContentType.json
+        ..write('{"offsets":[{"partition":0,"offset":0}]}');
+      await request.response.close();
+    });
+    final kafka = KafkaRest(Uri.parse('http://127.0.0.1:${proxy.port}'));
+    addTearDown(() async {
+      kafka.close();
+      await proxy.close(force: true);
+    });
+    final places = [const Place(id: 1, name: 'H', kind: 'hospital', city: 'Reus', at: LatLon(41.1554, 1.1076))];
+    final simulation = Simulation(populate(places, 1, 10, Random(6)), const SimulationSettings(turn: Duration(milliseconds: 40), minutesPerTurn: 10), kafka);
+    addTearDown(simulation.stop);
+    // Not running: nothing to pause.
+    simulation.pause();
+    expect(simulation.paused, isFalse);
+
+    simulation.start();
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    simulation
+      ..pause()
+      ..pause();
+    expect(simulation.paused, isTrue);
+    expect(simulation.running, isTrue);
+    // A publish under way when paused may still land.
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    final before = List.of(turns);
+    expect(before, isNotEmpty);
+    // Several turns' length: nothing published.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(turns, before);
+
+    simulation.resume();
+    expect(simulation.paused, isFalse);
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    final after = turns.skip(before.length).toList();
+    expect(after, isNotEmpty);
+    // The clock stood still: the next turn follows on (a slow publish may
+    // skip one), not the ~7 turns the pause lasted.
+    expect(after.first, inInclusiveRange(before.last + 1, before.last + 2));
+
+    // Stopped while paused: the loops end, and a new start runs one loop.
+    simulation.pause();
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    simulation.stop();
+    expect(simulation.paused, isFalse);
+    expect(simulation.running, isFalse);
+    final stopped = turns.length;
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    expect(turns, hasLength(stopped));
+    simulation.start();
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    simulation.stop();
+    final second = turns.skip(stopped).toList();
+    expect(second.first, 0);
+    expect(second.toSet().length, second.length);
+  });
+
   test('settings fall back to the defaults', () {
     final settings = SimulationSettings.fromEnvironment({'HEALTHHUB_SIM_PEOPLE': '0', 'HEALTHHUB_SIM_TURN_MS': 'x'});
     expect(settings.peoplePerCity, 10);

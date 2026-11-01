@@ -2,8 +2,10 @@
 
 Where the user lands after signing in
 ([home_screen.dart](../healthhub_app/lib/screens/home_screen.dart)): a
-dashboard of tiles under an app bar titled **HealthHub** with the
-account corner.
+dashboard in rows under an app bar titled **HealthHub** with the
+account corner. From 1000 px wide, an explainer card 340 px wide sits to
+the right of the first two rows (the map, the triage), its top level with
+theirs; narrower, each goes under its row.
 
 - **The account corner** (`UserMenu`,
   [user_menu.dart](../healthhub_app/lib/auth/user_menu.dart)): the
@@ -16,6 +18,14 @@ account corner.
   - **Where you are**: the [map](map.md) with the user's position
     highlighted, the status line saying "The orange dot is you." or why
     there is no location.
+- **The data, and the simulation** (`SimulationExplainer`,
+  [explainers.dart](../healthhub_app/lib/screens/explainers.dart)), beside
+  the map, briefly: real care centers (7,256, from the official
+  registries of Spain, the US and Brazil), simulated people (ten per city,
+  some with a chronic condition, anyone falling ill now and then), an
+  hour a second (the trip to the nearest general hospital, the desk, the
+  stay, home), and a real stream (Kafka, the admissions recorded, Flink's
+  hours of care, datyx learning from them; a restart is a new run).
 - **Triage at the desk, by aityx** (`TriageCard`,
   [triage_card.dart](../healthhub_app/lib/triage/triage_card.dart)), under
   the map, when the API triages admissions or has triaged some
@@ -44,6 +54,15 @@ account corner.
     condition and visit, the level a nurse applying the same rules gives,
     and how aityx's compares); and the receipt (how many inputs came from
     Jev and which from the desk, the time and the tokens).
+- **What aityx does at the desk** (`AityxExplainer`), beside the triage,
+  briefly: **Jev reads** (only what the patient said and their age, into
+  eight danger signs' probabilities and four choices), **rules decide**
+  (DMN decision tables, the first rule that matches: 14 rules for the
+  level, 8 for the area, written by people, not learned), **in one call**
+  (Jev and the tables together on aityx, about a quarter of a second, a
+  fraction of a cent), and **explained** (the receipt: each reading, the
+  rule that fired and why; rules change without retraining; any triage
+  can be audited).
 - **Latest events** (`StreamEventsCard`,
   [stream_events.dart](../healthhub_app/lib/events/stream_events.dart)),
   under the map, in dev mode only: the latest records on the Kafka
@@ -55,10 +74,19 @@ account corner.
   moves: asked together, an admission would scroll out before anyone saw
   it. It shows them as one list, newest first by simulated day and time,
   an admission before the moves of its own hour. The header names the
-  topics and counts what is shown, "3 admissions · 12 moves".
+  topics and counts what is shown, "3 admissions · 12 moves", and has
+  **Pause the simulation** (`POST /api/simulation/pause`; then **Resume
+  the simulation**, `/resume`; [Simulation](simulation.md#pausing)):
+  while paused the topics line reads "Paused: nobody moves, the clock
+  stands", in amber. The button shows what the API answered until the
+  next read says it too; a refusal shows in a snack bar ("Sign in to
+  pause the simulation." when the API wants a user). Under the header,
+  an invitation: "Open anyone by their name to see their data and
+  statistics: their admissions, aityx's triage, their days of care and
+  datyx's prediction."
   - **A move** is one compact row: a dot in the person's state colour
-    (the map's), the simulated time and day, the person's id (a link to
-    their view, [The person view](person.md)), what they
+    (the map's), the simulated time and day, the person's name (a link
+    to their view, [The person view](person.md); the id on hover), what they
     are doing (and the hospital, on the way there or in it), and the
     record's partition and offset.
   - **An admission** stands out: an orange bar on its left and an orange
@@ -75,6 +103,8 @@ account corner.
 
 ## Known limitations
 
+- The pause is the API's, so everyone watching sees it: there is one
+  simulation.
 - One tile so far. The API still serves `/api/hello`, `/api/health` and
   the datyx routes, and the API client still has them, but no page shows
   them now.

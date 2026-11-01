@@ -11,6 +11,7 @@ import 'package:datyx_dashboard/main.dart';
 import 'package:datyx_dashboard/persist/address.dart';
 import 'package:datyx_dashboard/persist/address_memory.dart' as address;
 import 'package:datyx_dashboard/persist/session_store.dart';
+import 'package:datyx_dashboard/dashboard/card_title.dart' show spaced;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -338,6 +339,14 @@ class FakeDatyxApi implements DatyxApi {
 Finder tip(String text) => find.byWidgetPredicate((w) => w is Tooltip && (w.message ?? '').contains(text));
 
 void main() {
+  test("the Training and Inference tabs' cards stand 16 px apart, none before the first", () {
+    final cards = spaced([const Text('a'), const Text('b'), const Text('c')]);
+    expect(cards.length, 5);
+    expect(cards.first, isA<Text>());
+    expect(cards.whereType<SizedBox>().map((g) => g.height), [16, 16]);
+    expect(spaced(const []), isEmpty);
+  });
+
   testWidgets('shows the health, with the version', (tester) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;

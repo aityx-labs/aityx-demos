@@ -4,6 +4,38 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: an Inference tab, the account of the calls to the models
+
+Asked: an Inference panel on the dashboard, to account for inference
+calls and their statistics. (Inference itself, and its account, are the
+API's change, in its folder.)
+
+Changed: an Inference tab after Training (`InferenceTab`,
+`?tab=inference`): the last 7 days' totals as stat tiles (calls, the
+last hour's, failures, series scored, median and 95th-percentile
+latency), the calls per hour of the last 24 as columns, a card per model
+with its own account and **Try it** (score a series by its key, or all
+still observed, through the accounted endpoint, showing the
+predictions), and the latest calls. The API client gained `inference()`
+and `score(...)`; the status chip says ok in green. Tests;
+`dashboard.md`.
+
+## 2026-11-01: a Training tab, the models datyx trains and their runs
+
+Asked: present the training's activity and results in a view of its
+own, in the navigation; let the user set how often a model is retrained
+(in OpenMetadata where possible). (The training, a component started
+with the API, is datyx's change, in its folder.)
+
+Changed: a Training tab after Catalog (`TrainingTab`, `?tab=training`):
+a card per model tagged for XGBoost, with its latest status, what it
+scores, **Retrain every** (saved to OpenMetadata through the API),
+when it's next due, **Train now**, and its latest success's stat tiles
+(its error against the naive forecast's), features' weights as bars and
+highest scores; then the activity, every run newest first; asked again
+every 3 s while a run is on. The API client gained the four training
+calls. Tests; `dashboard.md`.
+
 ## 2026-11-01: Kafka sources, a Streams section, and cards apart
 
 Asked: add Kafka to the data sources, with HealthHub's Kafka in the dev

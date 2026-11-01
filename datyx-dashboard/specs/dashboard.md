@@ -9,9 +9,9 @@ doesn't have, the API gets it first.
 
 ## What it shows
 
-One screen, `DashboardScreen`, with an app bar and five tabs under it
+One screen, `DashboardScreen`, with an app bar and seven tabs under it
 (a `TabBar`, as the demos' apps have), in the order of `DashboardTab`:
-Data sources, Catalog, Audit, Health, Profile. Data sources opens at
+Data sources, Catalog, Training, Inference, Audit, Health, Profile. Data sources opens at
 start, unless the page's address names another (see Kept across a
 reload).
 
@@ -117,6 +117,64 @@ reload).
   the tab says to sign in. An error answer shows the API's own words
   (`{"error":...}`).
 
+- **Training** (`TrainingTab`, `?tab=training`): the models datyx
+  trains, from `GET /api/training`. A card says what datyx does (each
+  group tagged for XGBoost trained at the API's start if it never was,
+  then as often as its table's `timeSeriesRetrain` says, 1D when not
+  set, and when asked), with a reload button; the sources whose
+  catalogue couldn't be read in amber; none tagged yet, where to tag one.
+  A card per model (`ModelCard`): `XGBoost · care`, its table and
+  source, its latest run's status (`StatusChip`: an icon and the word,
+  succeeded green, queued and running amber, failed red; *not ready*
+  amber, with the API's problems), and what it scores (*Scores
+  stay_hours summed over the next 30D, per run_id + person_id, from
+  steps of 1D.*). **Retrain every**: the table's setting, typed or
+  picked (1h, 6h, 1D, 1W, never; empty for the default) and **Save**d
+  with `PUT /api/datasources/{id}/training`, which writes it to
+  OpenMetadata, saying so; under it what applies and when the model is
+  next due (*Next in 42 min, at ...*, *Due now*, *A run is running*, or
+  never). **Train now** (`POST .../training`; off while a run is on or
+  the group isn't ready). A failed latest run shows its error in red.
+  From its latest success (`GET /api/training/runs/{id}`): which run,
+  when, why and how long, and how many test examples; four stat tiles
+  (`StatTile`: a large value, its label above and a note below): the
+  mean error, the naive forecast's, *better than naive* as a percentage
+  (with an arrow icon, green when better), and the actual average; the
+  features that weighed most (`FeatureWeights`): a bar per feature, its
+  share of the mean |SHAP| in the brand orange (one series, no legend;
+  checked against the card's surface with the dataviz skill's
+  validator), the name and the percentage in text beside it and a
+  tooltip saying it; and the highest scores now (`TopScores`): a table of
+  the 10 series still observed with the highest prediction, their key's
+  values, the prediction and the last horizon's actual. Then
+  **Activity**: every run of them all, newest first, with when it was
+  queued, its status chip, the table and group, why (initial, schedule,
+  manual), how long, its test MAE against the naive one and its
+  examples, and a failure's error. While a run is queued or running the
+  tab asks again every 3 s.
+- **Inference** (`InferenceTab`, `?tab=inference`): the account of the
+  calls to the trained models, from `GET /api/inference` (the last 7
+  days), with a reload button. Six stat tiles: calls, the last hour's,
+  failed (a status icon, green with none, red with some, and the share),
+  series scored, median and 95th-percentile latency; then **Calls per
+  hour** (`CallsPerHour`): a column per hour of the last 24 on one
+  baseline in the brand orange (one series, no legend), scaled to the
+  tallest, which the subtitle names, the first hour and *now* under it,
+  and a tooltip per column with the hour, its calls and its failures. A
+  card per model (`InferenceModelCard`): `XGBoost · care`, its table and
+  source, which run answers and when it was trained, what it predicts
+  and per what key; its own tiles (calls and when last, failed, series
+  scored, median latency with the mean, 95th percentile); and **Try it**:
+  a field per key column and **Score** (on once the whole key is typed),
+  or **Score all still observed**, each a real call to
+  `POST /api/datasources/{id}/inference`, accounted for like any other;
+  the answer shows the call's id, how many it scored, how long and which
+  run, and a table of the predictions (the key, the prediction, the last
+  horizon's actual, or why a series wasn't scored), and the account is
+  asked again. Then **Calls**: the latest, newest first: when, the status
+  chip (ok green, failed red), the model, the run, how many asked and
+  scored (*all still observed* for none named), the milliseconds, who
+  asked, and a failure's error.
 - **Audit** (`CallsPanel`): every call made, newest first, up to 100,
   under the title *API calls* and on a tab labelled *Audit*, neither
   with a count (the refresh every 15 s soon fills it to 100): method,
@@ -201,8 +259,11 @@ tokens live an hour. Signing in or out refreshes the screen.
 `profile()`, `status()`, `dataSources(limit)`, `addDataSource(NewDataSource)`,
 `removeDataSource(id)`, `syncCatalog(id)`, `catalog(id)` (a database's
 tables), `topics(id)` (a Kafka source's topics, `CatalogTopic` and
-`CatalogField`), `timeSeries(id)`, `setTimeSeries(id, roles)`, and the
-`CallLog` the Audit tab listens to.
+`CatalogField`), `timeSeries(id)`, `setTimeSeries(id, roles)`,
+`training()`, `trainingRun(id)`, `trainNow(source, table, group)` and
+`setRetrain(source, table, retrain)`, `inference()` and
+`score(source, table, group, series, limit)`, and the `CallLog` the
+Audit tab listens to.
 `HttpDatyxApi` is the real one, over `package:http`, with a token
 provider for the bearer and one for a refresh after a 401, a 20 s timeout
 on every call, and request bodies logged with their secrets (`password`,
@@ -272,4 +333,12 @@ by name, the default first, gray past the third; the tab the address names opens
 with a session store in memory, the audit is read back after a reload
 (a waiting call as never answered), a fresh token signs in without
 Google, an expired, foreign or malformed one is dropped, a refused one
-that can't be renewed signs out, and signing out forgets it.
+that can't be renewed signs out, and signing out forgets it. The
+Training tab shows a model's scope, its next run, its latest run's
+failure, its latest success's tiles (3.10 against 5.20, 40% better),
+its features' bars in proportion with their shares, its scores and
+every run newest first; **Train now** and saving *never* call the API.
+The Inference tab shows the totals' tiles, the hours' columns in
+proportion with the tallest, a model's account and calls with their
+failure; **Score** waits for the whole key, then sends it and shows the
+answer, and scoring all sends no series.

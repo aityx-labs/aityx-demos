@@ -603,6 +603,478 @@ class TimeSeriesRoles {
   };
 }
 
+/// The test metrics of a training run, as the API measured them: the mean
+/// absolute error ([mae]) against the naive forecast's (the next horizon
+/// like the last) and the training mean's, and [improvement], the share of
+/// the naive error saved.
+class TestMetrics {
+  const TestMetrics({
+    this.examples = 0,
+    this.mae = 0,
+    this.rmse = 0,
+    this.naiveMae = 0,
+    this.meanMae = 0,
+    this.improvement = 0,
+    this.meanLabel = 0,
+  });
+
+  factory TestMetrics.fromJson(Map<String, Object?> json) {
+    double n(String k) => (json[k] as num?)?.toDouble() ?? 0;
+    return TestMetrics(
+      examples: (json['examples'] as num?)?.toInt() ?? 0,
+      mae: n('mae'),
+      rmse: n('rmse'),
+      naiveMae: n('naiveMae'),
+      meanMae: n('meanMae'),
+      improvement: n('improvement'),
+      meanLabel: n('meanLabel'),
+    );
+  }
+
+  final int examples;
+  final double mae;
+  final double rmse;
+  final double naiveMae;
+  final double meanMae;
+  final double improvement;
+  final double meanLabel;
+}
+
+DateTime? _time(Object? value) => value is String ? DateTime.tryParse(value) : null;
+
+/// A training run at a glance: why it ran ([trigger]: initial, schedule,
+/// manual), how it went ([status]: queued, running, succeeded, failed) and,
+/// once it succeeded, its [test] metrics.
+class TrainingRunInfo {
+  const TrainingRunInfo({
+    required this.id,
+    required this.sourceId,
+    required this.table,
+    required this.name,
+    required this.group,
+    this.source = '',
+    this.algorithm = xgBoostAlgorithm,
+    this.trigger = 'manual',
+    this.status = 'queued',
+    this.queuedAt,
+    this.startedAt,
+    this.finishedAt,
+    this.seconds,
+    this.error,
+    this.examples,
+    this.test,
+  });
+
+  factory TrainingRunInfo.fromJson(Map<String, Object?> json) => TrainingRunInfo(
+    id: (json['id'] as num).toInt(),
+    sourceId: (json['sourceId'] as num?)?.toInt() ?? 0,
+    source: json['source'] as String? ?? '',
+    table: json['table'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    group: json['group'] as String? ?? defaultGroup,
+    algorithm: json['algorithm'] as String? ?? xgBoostAlgorithm,
+    trigger: json['trigger'] as String? ?? '',
+    status: json['status'] as String? ?? '',
+    queuedAt: _time(json['queuedAt']),
+    startedAt: _time(json['startedAt']),
+    finishedAt: _time(json['finishedAt']),
+    seconds: (json['seconds'] as num?)?.toDouble(),
+    error: json['error'] as String?,
+    examples: (json['examples'] as num?)?.toInt(),
+    test: json['test'] is Map ? TestMetrics.fromJson((json['test'] as Map).cast()) : null,
+  );
+
+  final int id;
+  final int sourceId;
+  final String source;
+  final String table;
+  final String name;
+  final String group;
+  final String algorithm;
+  final String trigger;
+  final String status;
+  final DateTime? queuedAt;
+  final DateTime? startedAt;
+  final DateTime? finishedAt;
+  final double? seconds;
+  final String? error;
+  final int? examples;
+  final TestMetrics? test;
+
+  /// Queued or running: not done yet.
+  bool get active => status == 'queued' || status == 'running';
+}
+
+/// A group tagged for XGBoost, as `GET /api/training` answers it: what it
+/// scores, how often it is trained again ([retrainEvery], the table's
+/// timeSeriesRetrain or 1D; [retrain] as set, null when not), when next
+/// ([nextAt], null when never or while a run is on), its latest run and its
+/// latest success.
+class TrainingModel {
+  const TrainingModel({
+    required this.sourceId,
+    required this.table,
+    required this.name,
+    required this.group,
+    this.source = '',
+    this.schema,
+    this.algorithm = xgBoostAlgorithm,
+    this.target,
+    this.seriesKey = const [],
+    this.ready = false,
+    this.problems = const [],
+    this.frequency,
+    this.horizon,
+    this.retrain,
+    this.retrainEvery = '1D',
+    this.nextAt,
+    this.latest,
+    this.lastSucceeded,
+  });
+
+  factory TrainingModel.fromJson(Map<String, Object?> json) => TrainingModel(
+    sourceId: (json['sourceId'] as num?)?.toInt() ?? 0,
+    source: json['source'] as String? ?? '',
+    table: json['table'] as String? ?? '',
+    schema: json['schema'] as String?,
+    name: json['name'] as String? ?? '',
+    group: json['group'] as String? ?? defaultGroup,
+    algorithm: json['algorithm'] as String? ?? xgBoostAlgorithm,
+    target: json['target'] as String?,
+    seriesKey: [for (final k in (json['seriesKey'] as List?) ?? const []) '$k'],
+    ready: json['ready'] as bool? ?? false,
+    problems: [for (final p in (json['problems'] as List?) ?? const []) '$p'],
+    frequency: json['frequency'] as String?,
+    horizon: json['horizon'] as String?,
+    retrain: json['retrain'] as String?,
+    retrainEvery: json['retrainEvery'] as String? ?? '1D',
+    nextAt: _time(json['nextAt']),
+    latest: json['latest'] is Map ? TrainingRunInfo.fromJson((json['latest'] as Map).cast()) : null,
+    lastSucceeded: json['lastSucceeded'] is Map
+        ? TrainingRunInfo.fromJson((json['lastSucceeded'] as Map).cast())
+        : null,
+  );
+
+  final int sourceId;
+  final String source;
+  final String table;
+  final String? schema;
+  final String name;
+  final String group;
+  final String algorithm;
+  final String? target;
+  final List<String> seriesKey;
+  final bool ready;
+  final List<String> problems;
+  final String? frequency;
+  final String? horizon;
+  final String? retrain;
+  final String retrainEvery;
+  final DateTime? nextAt;
+  final TrainingRunInfo? latest;
+  final TrainingRunInfo? lastSucceeded;
+
+  String get qualifiedName => schema == null ? name : '$schema.$name';
+}
+
+/// `GET /api/training`: the groups tagged for XGBoost, the latest runs of
+/// them all, and the sources whose catalogue couldn't be read.
+class TrainingOverview {
+  const TrainingOverview({this.models = const [], this.runs = const [], this.errors = const []});
+
+  factory TrainingOverview.fromJson(Map<String, Object?> json) => TrainingOverview(
+    models: [
+      for (final m in (json['models'] as List?) ?? const [])
+        TrainingModel.fromJson((m as Map).cast()),
+    ],
+    runs: [
+      for (final r in (json['runs'] as List?) ?? const [])
+        TrainingRunInfo.fromJson((r as Map).cast()),
+    ],
+    errors: [for (final e in (json['errors'] as List?) ?? const []) '$e'],
+  );
+
+  final List<TrainingModel> models;
+  final List<TrainingRunInfo> runs;
+  final List<String> errors;
+
+  /// Whether a run is queued or running: worth asking again soon.
+  bool get busy => runs.any((r) => r.active) || models.any((m) => m.latest?.active ?? false);
+}
+
+/// A feature's weight in a model: its [share] of the mean absolute SHAP contribution.
+class FeatureWeight {
+  const FeatureWeight(this.feature, this.share);
+  final String feature;
+  final double share;
+}
+
+/// A series scored at its end: its key's values, the [predicted] Target
+/// over the horizon ahead, and its Target over the [last] horizon.
+class SeriesScore {
+  const SeriesScore(this.series, this.predicted, this.last);
+  final Map<String, String> series;
+  final double predicted;
+  final double last;
+}
+
+/// `GET /api/training/runs/{id}`: a run and what it found, once it succeeded.
+class TrainingRunDetail {
+  const TrainingRunDetail({
+    required this.run,
+    this.importance = const [],
+    this.scores = const [],
+    this.dataset = const {},
+    this.params = const {},
+    this.bestIteration,
+  });
+
+  factory TrainingRunDetail.fromJson(Map<String, Object?> json) {
+    final results = (json['results'] as Map?)?.cast<String, Object?>() ?? const {};
+    return TrainingRunDetail(
+      run: TrainingRunInfo.fromJson((json['run'] as Map).cast()),
+      importance: [
+        for (final i in (results['importance'] as List?) ?? const [])
+          FeatureWeight('${(i as Map)['feature']}', (i['share'] as num?)?.toDouble() ?? 0),
+      ],
+      scores: [
+        for (final sc in (results['scores'] as List?) ?? const [])
+          SeriesScore(
+            {
+              for (final e in (((sc as Map)['series'] as Map?) ?? const {}).entries) '${e.key}': '${e.value}',
+            },
+            (sc['predicted'] as num?)?.toDouble() ?? 0,
+            (sc['last'] as num?)?.toDouble() ?? 0,
+          ),
+      ],
+      dataset: (results['dataset'] as Map?)?.cast<String, Object?>() ?? const {},
+      params: (results['params'] as Map?)?.cast<String, Object?>() ?? const {},
+      bestIteration: (results['bestIteration'] as num?)?.toInt(),
+    );
+  }
+
+  final TrainingRunInfo run;
+  final List<FeatureWeight> importance;
+  final List<SeriesScore> scores;
+  final Map<String, Object?> dataset;
+  final Map<String, Object?> params;
+  final int? bestIteration;
+}
+
+/// Inference calls' account: how many, how many failed, series scored,
+/// and latency in milliseconds (mean, median, 95th percentile).
+class InferenceStats {
+  const InferenceStats({
+    this.calls = 0,
+    this.failed = 0,
+    this.scored = 0,
+    this.avgMillis,
+    this.p50Millis,
+    this.p95Millis,
+    this.lastCalledAt,
+  });
+
+  factory InferenceStats.fromJson(Map<String, Object?> json) => InferenceStats(
+    calls: (json['calls'] as num?)?.toInt() ?? 0,
+    failed: (json['failed'] as num?)?.toInt() ?? 0,
+    scored: (json['scored'] as num?)?.toInt() ?? 0,
+    avgMillis: (json['avgMillis'] as num?)?.toDouble(),
+    p50Millis: (json['p50Millis'] as num?)?.toInt(),
+    p95Millis: (json['p95Millis'] as num?)?.toInt(),
+    lastCalledAt: _time(json['lastCalledAt']),
+  );
+
+  final int calls;
+  final int failed;
+  final int scored;
+  final double? avgMillis;
+  final int? p50Millis;
+  final int? p95Millis;
+  final DateTime? lastCalledAt;
+}
+
+/// A model that answers inference (a group with a trained model) and its calls' account.
+class InferenceModel {
+  const InferenceModel({
+    required this.sourceId,
+    required this.table,
+    required this.name,
+    required this.group,
+    this.source = '',
+    this.runId,
+    this.trainedAt,
+    this.target,
+    this.horizon,
+    this.seriesKey = const [],
+    this.stats = const InferenceStats(),
+  });
+
+  factory InferenceModel.fromJson(Map<String, Object?> json) => InferenceModel(
+    sourceId: (json['sourceId'] as num?)?.toInt() ?? 0,
+    source: json['source'] as String? ?? '',
+    table: json['table'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    group: json['group'] as String? ?? defaultGroup,
+    runId: (json['runId'] as num?)?.toInt(),
+    trainedAt: _time(json['trainedAt']),
+    target: json['target'] as String?,
+    horizon: json['horizon'] as String?,
+    seriesKey: [for (final k in (json['seriesKey'] as List?) ?? const []) '$k'],
+    stats: json['stats'] is Map ? InferenceStats.fromJson((json['stats'] as Map).cast()) : const InferenceStats(),
+  );
+
+  final int sourceId;
+  final String source;
+  final String table;
+  final String name;
+  final String group;
+  final int? runId;
+  final DateTime? trainedAt;
+  final String? target;
+  final String? horizon;
+  final List<String> seriesKey;
+  final InferenceStats stats;
+}
+
+/// One inference call, as accounted: which model, how many series asked
+/// ([requested], 0 for all those still observed) and scored, how long,
+/// whether it failed, and who asked.
+class InferenceCallInfo {
+  const InferenceCallInfo({
+    required this.id,
+    required this.name,
+    required this.group,
+    this.runId = 0,
+    this.calledAt,
+    this.millis = 0,
+    this.requested = 0,
+    this.scored = 0,
+    this.status = 'ok',
+    this.error,
+    this.caller,
+  });
+
+  factory InferenceCallInfo.fromJson(Map<String, Object?> json) => InferenceCallInfo(
+    id: (json['id'] as num).toInt(),
+    name: json['name'] as String? ?? '',
+    group: json['group'] as String? ?? defaultGroup,
+    runId: (json['runId'] as num?)?.toInt() ?? 0,
+    calledAt: _time(json['calledAt']),
+    millis: (json['millis'] as num?)?.toInt() ?? 0,
+    requested: (json['requested'] as num?)?.toInt() ?? 0,
+    scored: (json['scored'] as num?)?.toInt() ?? 0,
+    status: json['status'] as String? ?? '',
+    error: json['error'] as String?,
+    caller: json['caller'] as String?,
+  );
+
+  final int id;
+  final String name;
+  final String group;
+  final int runId;
+  final DateTime? calledAt;
+  final int millis;
+  final int requested;
+  final int scored;
+  final String status;
+  final String? error;
+  final String? caller;
+}
+
+/// One hour's calls.
+class InferenceHour {
+  const InferenceHour(this.hour, this.calls, this.failed);
+  final DateTime hour;
+  final int calls;
+  final int failed;
+}
+
+/// `GET /api/inference`: the account of the last 7 days' calls: totals,
+/// the last hour's, each model's, the last 24 hours hour by hour, and the
+/// latest calls.
+class InferenceAccount {
+  const InferenceAccount({
+    this.totals = const InferenceStats(),
+    this.lastHour = 0,
+    this.models = const [],
+    this.perHour = const [],
+    this.calls = const [],
+  });
+
+  factory InferenceAccount.fromJson(Map<String, Object?> json) => InferenceAccount(
+    totals: json['totals'] is Map ? InferenceStats.fromJson((json['totals'] as Map).cast()) : const InferenceStats(),
+    lastHour: (json['lastHour'] as num?)?.toInt() ?? 0,
+    models: [
+      for (final m in (json['models'] as List?) ?? const [])
+        InferenceModel.fromJson((m as Map).cast()),
+    ],
+    perHour: [
+      for (final h in (json['perHour'] as List?) ?? const [])
+        InferenceHour(
+          _time((h as Map)['hour']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+          (h['calls'] as num?)?.toInt() ?? 0,
+          (h['failed'] as num?)?.toInt() ?? 0,
+        ),
+    ],
+    calls: [
+      for (final c in (json['calls'] as List?) ?? const [])
+        InferenceCallInfo.fromJson((c as Map).cast()),
+    ],
+  );
+
+  final InferenceStats totals;
+  final int lastHour;
+  final List<InferenceModel> models;
+  final List<InferenceHour> perHour;
+  final List<InferenceCallInfo> calls;
+}
+
+/// A series scored by a call: its key, the prediction and its Target over
+/// the last horizon; or, with neither, why ([note]).
+class Prediction {
+  const Prediction(this.series, this.predicted, this.last, this.note);
+  final Map<String, String> series;
+  final double? predicted;
+  final double? last;
+  final String? note;
+}
+
+/// What `POST /api/datasources/{id}/inference` answers.
+class InferenceAnswer {
+  const InferenceAnswer({
+    required this.callId,
+    required this.runId,
+    this.requested = 0,
+    this.scored = 0,
+    this.millis = 0,
+    this.predictions = const [],
+  });
+
+  factory InferenceAnswer.fromJson(Map<String, Object?> json) => InferenceAnswer(
+    callId: (json['callId'] as num).toInt(),
+    runId: (json['runId'] as num).toInt(),
+    requested: (json['requested'] as num?)?.toInt() ?? 0,
+    scored: (json['scored'] as num?)?.toInt() ?? 0,
+    millis: (json['millis'] as num?)?.toInt() ?? 0,
+    predictions: [
+      for (final p in (json['predictions'] as List?) ?? const [])
+        Prediction(
+          {for (final e in (((p as Map)['series'] as Map?) ?? const {}).entries) '${e.key}': '${e.value}'},
+          (p['predicted'] as num?)?.toDouble(),
+          (p['last'] as num?)?.toDouble(),
+          p['note'] as String?,
+        ),
+    ],
+  );
+
+  final int callId;
+  final int runId;
+  final int requested;
+  final int scored;
+  final int millis;
+  final List<Prediction> predictions;
+}
+
 /// What `POST /api/datasources/{id}/catalog` answers: what it wrote. A
 /// database's tables and columns, or a Kafka cluster's topics, their
 /// top-level fields and how many had a record to learn them from.
@@ -812,6 +1284,23 @@ abstract class DatyxApi {
   Future<List<CatalogTopic>> topics(int sourceId);
   Future<List<TimeSeriesSpec>> timeSeries(int sourceId);
   Future<TimeSeriesSpec> setTimeSeries(int sourceId, TimeSeriesRoles roles);
+  Future<TrainingOverview> training();
+  Future<TrainingRunDetail> trainingRun(int id);
+  Future<TrainingRunInfo> trainNow(int sourceId, String table, String group);
+
+  /// Sets how often a table's groups are trained again: a span, `never`, or null for the default (1D).
+  Future<void> setRetrain(int sourceId, String table, String? retrain);
+  Future<InferenceAccount> inference();
+
+  /// Scores [series] (each its key's values by column) with a group's latest
+  /// model; none: every series still observed, the highest [limit].
+  Future<InferenceAnswer> score(
+    int sourceId,
+    String table,
+    String group, {
+    List<Map<String, String>>? series,
+    int limit = 25,
+  });
 }
 
 /// Gives the bearer token for a call, or null for none.
@@ -981,6 +1470,45 @@ class HttpDatyxApi implements DatyxApi {
       TimeSeriesSpec.fromJson(
         (await _send('PUT', '/api/datasources/$sourceId/timeseries', body: roles.toJson()) as Map).cast(),
       );
+
+  @override
+  Future<TrainingOverview> training() async =>
+      TrainingOverview.fromJson((await _send('GET', '/api/training') as Map).cast());
+
+  @override
+  Future<TrainingRunDetail> trainingRun(int id) async =>
+      TrainingRunDetail.fromJson((await _send('GET', '/api/training/runs/$id') as Map).cast());
+
+  @override
+  Future<TrainingRunInfo> trainNow(int sourceId, String table, String group) async => TrainingRunInfo.fromJson(
+    (await _send('POST', '/api/datasources/$sourceId/training', body: {'table': table, 'group': group}) as Map).cast(),
+  );
+
+  @override
+  Future<void> setRetrain(int sourceId, String table, String? retrain) async {
+    await _send('PUT', '/api/datasources/$sourceId/training', body: {'table': table, 'retrain': retrain});
+  }
+
+  @override
+  Future<InferenceAccount> inference() async =>
+      InferenceAccount.fromJson((await _send('GET', '/api/inference') as Map).cast());
+
+  @override
+  Future<InferenceAnswer> score(
+    int sourceId,
+    String table,
+    String group, {
+    List<Map<String, String>>? series,
+    int limit = 25,
+  }) async => InferenceAnswer.fromJson(
+    (await _send(
+              'POST',
+              '/api/datasources/$sourceId/inference',
+              body: {'table': table, 'group': group, 'series': ?series, 'limit': limit},
+            )
+            as Map)
+        .cast(),
+  );
 
   @override
   Future<AuthConfig> authConfig() async => AuthConfig.fromJson(

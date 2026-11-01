@@ -4,6 +4,7 @@ import 'package:datyx_dashboard/api/datyx_api.dart';
 import 'package:datyx_dashboard/auth/auth_controller.dart';
 import 'package:datyx_dashboard/dashboard/catalog_tab.dart' show groupColors, groupPalette, otherGroupColor;
 import 'package:datyx_dashboard/dashboard/dashboard_screen.dart';
+import 'package:datyx_dashboard/dashboard/inference_tab.dart' show ms;
 import 'package:datyx_dashboard/main.dart';
 import 'package:datyx_dashboard/persist/address.dart';
 import 'package:datyx_dashboard/persist/address_memory.dart' as address;
@@ -86,6 +87,57 @@ class FakeDatyxApi implements DatyxApi {
 
   /// The table's custom properties, as the last roles set them.
   Map<String, Object?> properties = {};
+
+  /// The trainer, as the API answers it, and what was asked of it.
+  TrainingOverview trainingOverview = const TrainingOverview();
+  final Map<int, TrainingRunDetail> runDetails = {};
+  final List<String> trainCalls = [];
+  final List<String?> retrainCalls = [];
+
+  @override
+  Future<TrainingOverview> training() async => trainingOverview;
+
+  @override
+  Future<TrainingRunDetail> trainingRun(int id) async => runDetails[id]!;
+
+  @override
+  Future<TrainingRunInfo> trainNow(int sourceId, String table, String group) async {
+    trainCalls.add('$sourceId $table $group');
+    return TrainingRunInfo(id: 99, sourceId: sourceId, table: table, name: 'patient_days', group: group);
+  }
+
+  @override
+  Future<void> setRetrain(int sourceId, String table, String? retrain) async => retrainCalls.add(retrain);
+
+  /// Inference, as the API answers it, and the calls made.
+  InferenceAccount inferenceAccount = const InferenceAccount();
+  final List<List<Map<String, String>>?> scoreCalls = [];
+
+  @override
+  Future<InferenceAccount> inference() async => inferenceAccount;
+
+  @override
+  Future<InferenceAnswer> score(
+    int sourceId,
+    String table,
+    String group, {
+    List<Map<String, String>>? series,
+    int limit = 25,
+  }) async {
+    scoreCalls.add(series);
+    return InferenceAnswer(
+      callId: 40 + scoreCalls.length,
+      runId: 7,
+      requested: series?.length ?? 0,
+      scored: 1,
+      millis: 12,
+      predictions: [
+        series == null
+            ? const Prediction({'run_id': 'adf5309c', 'person_id': 'reus-4'}, 4.7, 8, null)
+            : Prediction(series.first, 3.25, 2, null),
+      ],
+    );
+  }
 
   static const hourly = CatalogTable(
     fqn: 'datyx-ds-1.healthhub.public.admissions_hourly',
@@ -346,6 +398,8 @@ void main() {
     expect(DashboardTab.values.map((t) => t.label), [
       'Data sources',
       'Catalog',
+      'Training',
+      'Inference',
       'Audit',
       'Health',
       'Profile',
@@ -627,6 +681,197 @@ void main() {
     expect(api.lastRoles!.columns, isEmpty);
     expect(find.text('DeepAR · acute'), findsNothing);
     expect(find.text('time series: ready'), findsOneWidget);
+  });
+
+  testWidgets('shows the models datyx trains, what they found and their runs, and trains one now', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    const fqn = 'datyx-ds-1.healthhub.public.patient_days';
+    final now = DateTime.now();
+    final done = TrainingRunInfo(
+      id: 7,
+      sourceId: 1,
+      table: fqn,
+      name: 'patient_days',
+      group: 'care',
+      trigger: 'initial',
+      status: 'succeeded',
+      queuedAt: now.subtract(const Duration(hours: 5)),
+      finishedAt: now.subtract(const Duration(hours: 5)),
+      seconds: 2.5,
+      examples: 9000,
+      test: const TestMetrics(examples: 1800, mae: 3.1, naiveMae: 5.2, meanMae: 6, improvement: 0.404, meanLabel: 7.5),
+    );
+    final failed = TrainingRunInfo(
+      id: 8,
+      sourceId: 1,
+      table: fqn,
+      name: 'patient_days',
+      group: 'care',
+      trigger: 'schedule',
+      status: 'failed',
+      queuedAt: now.subtract(const Duration(minutes: 30)),
+      error: 'the data source can\'t be read: refused',
+    );
+    final api = FakeDatyxApi()
+      ..trainingOverview = TrainingOverview(
+        models: [
+          TrainingModel(
+            sourceId: 1,
+            source: 'HealthHub',
+            table: fqn,
+            schema: 'public',
+            name: 'patient_days',
+            group: 'care',
+            target: 'stay_hours',
+            seriesKey: const ['run_id', 'person_id'],
+            ready: true,
+            frequency: '1D',
+            horizon: '30D',
+            retrain: '6h',
+            retrainEvery: '6h',
+            nextAt: now.add(const Duration(minutes: 30)),
+            latest: failed,
+            lastSucceeded: done,
+          ),
+        ],
+        runs: [failed, done],
+      );
+    api.runDetails[7] = TrainingRunDetail(
+      run: done,
+      importance: const [FeatureWeight('stay_hours, last 30D', 0.42), FeatureWeight('age', 0.1)],
+      scores: const [
+        SeriesScore({'run_id': 'adf5309c', 'person_id': 'reus-3'}, 41.5, 12),
+      ],
+    );
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tab-training')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('XGBoost · care'), findsOneWidget);
+    expect(find.text('Scores stay_hours summed over the next 30D, per run_id + person_id, from steps of 1D.'), findsOneWidget);
+    expect(find.textContaining('Next in 2'), findsOneWidget);
+    expect(find.textContaining('The latest run failed: the data source can\'t be read'), findsOneWidget);
+    // The latest success's metrics as tiles, its weights as bars, its scores as a table.
+    expect(find.descendant(of: find.byKey(const ValueKey('tile-mae')), matching: find.text('3.10')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('tile-naive')), matching: find.text('5.20')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('tile-better')), matching: find.text('40%')), findsOneWidget);
+    expect(find.text('42.0%'), findsOneWidget);
+    double bar(String feature) => tester.getSize(find.byKey(ValueKey('weight-$feature'))).width;
+    expect(bar('age'), lessThan(bar('stay_hours, last 30D') / 3));
+    expect(find.text('reus-3'), findsOneWidget);
+    expect(find.text('41.5'), findsOneWidget);
+    // Every run, newest first.
+    expect(find.byKey(const ValueKey('run-8')), findsOneWidget);
+    expect(find.text('MAE 3.10 vs naive 5.20, 9000 examples'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('run-8'))).dy,
+      lessThan(tester.getTopLeft(find.byKey(const ValueKey('run-7'))).dy),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('train-now-$fqn-care')));
+    await tester.pumpAndSettle();
+    expect(api.trainCalls, ['1 $fqn care']);
+    expect(find.text('Queued: training now.'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('retrain-never')));
+    await tester.tap(find.byKey(const ValueKey('save-retrain-$fqn-care')));
+    await tester.pumpAndSettle();
+    expect(api.retrainCalls, ['never']);
+    expect(find.text('Saved in OpenMetadata: retrain never.'), findsOneWidget);
+  });
+
+  testWidgets('accounts for inference calls, and scores a series by its key or all still observed', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    const fqn = 'datyx-ds-1.healthhub.public.patient_days';
+    final now = DateTime.now().toUtc();
+    final top = DateTime.utc(now.year, now.month, now.day, now.hour);
+    final api = FakeDatyxApi()
+      ..inferenceAccount = InferenceAccount(
+        totals: const InferenceStats(calls: 12, failed: 1, scored: 40, avgMillis: 18.5, p50Millis: 14, p95Millis: 61),
+        lastHour: 5,
+        models: [
+          InferenceModel(
+            sourceId: 1,
+            source: 'HealthHub',
+            table: fqn,
+            name: 'patient_days',
+            group: 'care',
+            runId: 7,
+            trainedAt: now,
+            target: 'stay_hours',
+            horizon: '30D',
+            seriesKey: const ['run_id', 'person_id'],
+            stats: InferenceStats(calls: 12, failed: 1, scored: 40, avgMillis: 18.5, p50Millis: 14, p95Millis: 61, lastCalledAt: now),
+          ),
+        ],
+        perHour: [
+          for (var h = 23; h >= 0; h--) InferenceHour(top.subtract(Duration(hours: h)), h == 0 ? 5 : (h == 3 ? 10 : 0), h == 3 ? 1 : 0),
+        ],
+        calls: [
+          InferenceCallInfo(id: 31, name: 'patient_days', group: 'care', runId: 7, calledAt: now, millis: 14, requested: 2, scored: 1, caller: 'ana@example.com'),
+          InferenceCallInfo(
+            id: 30,
+            name: 'patient_days',
+            group: 'care',
+            runId: 7,
+            calledAt: now,
+            millis: 3,
+            requested: 1,
+            status: 'failed',
+            error: 'a series names its key: run_id, person_id',
+          ),
+        ],
+      );
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tab-inference')));
+    await tester.pumpAndSettle();
+
+    expect(find.descendant(of: find.byKey(const ValueKey('total-calls')), matching: find.text('12')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('total-last-hour')), matching: find.text('5')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('total-p95')), matching: find.text('61 ms')), findsOneWidget);
+    expect(find.text('the last 24 hours; the tallest is 10'), findsOneWidget);
+    double column(int hoursAgo) => tester
+        .getSize(find.byKey(ValueKey('hour-${top.subtract(Duration(hours: hoursAgo)).toIso8601String()}')))
+        .height;
+    expect(column(3), 90);
+    expect(column(0), 45, reason: 'half the tallest');
+    expect(column(1), 0);
+    expect(find.text('XGBoost · care'), findsOneWidget);
+    expect(find.textContaining('Predicts stay_hours over the next 30D, per run_id + person_id.'), findsOneWidget);
+    expect(find.text('2 asked, 1 scored'), findsOneWidget);
+    expect(find.text('a series names its key: run_id, person_id'), findsOneWidget);
+
+    // Score is on once the whole key is typed.
+    final score = find.byKey(const ValueKey('score-$fqn-care'));
+    expect(tester.widget<FilledButton>(score).onPressed, isNull);
+    await tester.enterText(find.byKey(const ValueKey('key-run_id')), 'adf5309c');
+    await tester.enterText(find.byKey(const ValueKey('key-person_id')), 'reus-3');
+    await tester.pump();
+    await tester.tap(score);
+    await tester.pumpAndSettle();
+    expect(api.scoreCalls.last, [
+      {'run_id': 'adf5309c', 'person_id': 'reus-3'},
+    ]);
+    expect(find.text('Call 41: 1 scored in 12 ms by run 7'), findsOneWidget);
+    expect(find.text('3.3'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('score-all-$fqn-care')));
+    await tester.pumpAndSettle();
+    expect(api.scoreCalls.last, isNull, reason: 'none named: all still observed');
+    expect(find.text('reus-4'), findsOneWidget);
+  });
+
+  test('says milliseconds without a decimal when they are whole', () {
+    expect(ms(36), '36 ms');
+    expect(ms(36.0), '36 ms');
+    expect(ms(18.5), '18.5 ms');
+    expect(ms(null), '–');
   });
 
   test('colors groups by name, the default first, gray past the palette', () {

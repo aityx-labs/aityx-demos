@@ -4,6 +4,24 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: groups of DeepAR tags in a table
+
+Asked: tag separate groups in the same table, to train on it more than
+once with partly the same columns (`admissions`, `acute_admissions` and
+`chronic_admissions` of `admissions_hourly` as three targets with one
+timestamp). The groups themselves are the API's
+([../../datyx/specs/catalog.md](../../datyx/specs/catalog.md)).
+
+Changed: the Catalog tab shows a DeepAR box per group with its own
+**Edit**, a badge counting the ready series, tags with their group
+(`acute: Target · target`), and **Add a group**; `TimeSeriesDialog` names
+a new group, starts it from the first group's roles but its Target,
+refuses a name the table has, and removes a group (**Remove group**,
+twice). The API client's `TimeSeriesSpec` and `TimeSeriesRoles` carry
+the `group`, and `TimeSeriesTag` reads a tag's group and role (it
+replaces `TimeSeriesRole.ofTag`). The fake keeps groups; a widget test
+adds, refuses and removes one.
+
 ## 2026-10-31: the catalogue and DeepAR tags on the Catalog tab
 
 Asked: see HealthHub's schema in the dashboard (in dev) and tag it for

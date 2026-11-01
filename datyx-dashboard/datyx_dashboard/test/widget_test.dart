@@ -78,6 +78,9 @@ class FakeDatyxApi implements DatyxApi {
   List<CatalogTable> catalogued = [];
   TimeSeriesRoles? lastRoles;
 
+  /// The groups tagged so far, by name; a group sent with no roles is gone.
+  final Map<String, TimeSeriesSpec> groups = {};
+
   static const hourly = CatalogTable(
     fqn: 'datyx-ds-1.healthhub.public.admissions_hourly',
     schema: 'public',
@@ -89,6 +92,7 @@ class FakeDatyxApi implements DatyxApi {
       CatalogColumn(name: 'hospital_id', dataType: 'INT'),
       CatalogColumn(name: 'hour_start', dataType: 'TIMESTAMP'),
       CatalogColumn(name: 'admissions', dataType: 'INT'),
+      CatalogColumn(name: 'acute_admissions', dataType: 'INT'),
     ],
   );
 
@@ -102,21 +106,28 @@ class FakeDatyxApi implements DatyxApi {
   Future<List<CatalogTable>> catalog(int sourceId) async => catalogued;
 
   @override
-  Future<List<TimeSeriesSpec>> timeSeries(int sourceId) async => const [];
+  Future<List<TimeSeriesSpec>> timeSeries(int sourceId) async => groups.values.toList();
 
   @override
   Future<TimeSeriesSpec> setTimeSeries(int sourceId, TimeSeriesRoles roles) async {
     lastRoles = roles;
     final ready = roles.columns[TimeSeriesRole.target]?.isNotEmpty ?? false;
-    return TimeSeriesSpec(
+    final spec = TimeSeriesSpec(
       table: roles.table,
       name: 'admissions_hourly',
-      columns: roles.columns,
+      group: roles.group,
+      columns: {for (final e in roles.columns.entries) e.key: List.of(e.value)},
       frequency: roles.frequency,
       missing: roles.missing,
       ready: ready,
       problems: ready ? const [] : const ['no column is tagged TimeSeries.Target, the value to forecast'],
     );
+    if (roles.columns.values.every((c) => c.isEmpty)) {
+      groups.remove(roles.group);
+    } else {
+      groups[roles.group] = spec;
+    }
+    return spec;
   }
 
   @override
@@ -330,6 +341,83 @@ void main() {
     expect(sent['seriesKey'], ['run_id', 'hospital_id']);
     expect(sent['frequency'], '1h');
     expect(sent['missing'], 'zero');
+    expect(sent['group'], 'default');
+    expect(find.text('DeepAR · default'), findsOneWidget);
+    expect(find.text('time series: ready'), findsOneWidget);
+  });
+
+  testWidgets('adds a group of tags to a tagged table, and removes it', (tester) async {
+    tester.view.physicalSize = const Size(1600, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    final api = FakeDatyxApi();
+    await api.addDataSource(
+      const NewDataSource(
+        name: 'HealthHub',
+        type: DataSourceType.database,
+        details: {'engine': 'postgresql', 'host': 'localhost', 'port': 9803, 'database': 'healthhub'},
+      ),
+    );
+    await api.syncCatalog(1);
+    await api.setTimeSeries(
+      1,
+      const TimeSeriesRoles(
+        table: 'datyx-ds-1.healthhub.public.admissions_hourly',
+        columns: {
+          TimeSeriesRole.timestamp: ['hour_start'],
+          TimeSeriesRole.target: ['admissions'],
+          TimeSeriesRole.seriesKey: ['run_id', 'hospital_id'],
+        },
+        frequency: '1h',
+        missing: 'zero',
+      ),
+    );
+    await tester.pumpWidget(DatyxDashApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tab-catalog')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('public.admissions_hourly'));
+    await tester.pumpAndSettle();
+
+    // A new group starts from the default's roles but its target.
+    await tester.tap(find.text('Add a group'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('group')), 'acute');
+    await tester.tap(find.byKey(const ValueKey('Target-acute_admissions')));
+    await tester.pump();
+    await tester.tap(find.text('Save tags'));
+    await tester.pumpAndSettle();
+    final sent = api.lastRoles!.toJson();
+    expect(sent['group'], 'acute');
+    expect(sent['timestamp'], 'hour_start');
+    expect(sent['target'], 'acute_admissions');
+    expect(sent['seriesKey'], ['run_id', 'hospital_id']);
+    expect(find.text('DeepAR · default'), findsOneWidget);
+    expect(find.text('DeepAR · acute'), findsOneWidget);
+    expect(find.text('2 time series: all ready'), findsOneWidget);
+
+    // A group's name is taken once.
+    await tester.tap(find.text('Add a group'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('group')), 'acute');
+    await tester.tap(find.text('Save tags'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('has a group named acute already'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Removing sends the group with no roles, after a second press.
+    await tester.tap(find.byKey(const ValueKey('edit-group-datyx-ds-1.healthhub.public.admissions_hourly-acute')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('group')), findsNothing);
+    await tester.tap(find.text('Remove group'));
+    await tester.pump();
+    await tester.tap(find.text('Remove its tags: sure?'));
+    await tester.pumpAndSettle();
+    expect(api.lastRoles!.group, 'acute');
+    expect(api.lastRoles!.columns, isEmpty);
+    expect(find.text('DeepAR · acute'), findsNothing);
+    expect(find.text('time series: ready'), findsOneWidget);
   });
 
   testWidgets('opens the tab the address names', (tester) async {

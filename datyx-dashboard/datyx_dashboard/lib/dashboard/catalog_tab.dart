@@ -10,9 +10,9 @@ import 'time_series_dialog.dart';
 /// The Catalog tab: each database source as the catalogue (OpenMetadata)
 /// has it, after the API reads its schema ("Read schema": tables, columns,
 /// types, keys), and the time series in it: a table's columns tagged with
-/// their roles for a forecast (DeepAR), set with "Tag for DeepAR". What is
-/// shown, the readiness and the problems are the API's; the tab asks and
-/// shows.
+/// their roles for a forecast (DeepAR), set with "Tag for DeepAR", in one
+/// or more groups, each a series of its own ("Add a group"). What is shown,
+/// the readiness and the problems are the API's; the tab asks and shows.
 class CatalogTab extends StatelessWidget {
   const CatalogTab({
     super.key,
@@ -98,7 +98,7 @@ class SourceCatalog extends StatefulWidget {
 
 class _SourceCatalogState extends State<SourceCatalog> {
   List<CatalogTable>? _tables;
-  Map<String, TimeSeriesSpec> _series = const {};
+  Map<String, List<TimeSeriesSpec>> _series = const {};
   String? _error;
   String? _note;
   bool _busy = false;
@@ -116,7 +116,10 @@ class _SourceCatalogState extends State<SourceCatalog> {
       if (!mounted) return;
       setState(() {
         _tables = tables;
-        _series = {for (final s in series) s.table: s};
+        _series = {};
+        for (final s in series) {
+          _series.putIfAbsent(s.table, () => []).add(s);
+        }
         _error = null;
       });
     } on ApiException catch (e) {
@@ -143,13 +146,17 @@ class _SourceCatalogState extends State<SourceCatalog> {
     }
   }
 
-  Future<void> _tag(CatalogTable table) async {
+  /// Edits [spec]'s group of [table], or adds one starting from [startFrom].
+  Future<void> _tag(CatalogTable table, {TimeSeriesSpec? spec, TimeSeriesSpec? startFrom}) async {
     final saved = await showDialog<TimeSeriesSpec>(
       context: context,
       builder: (_) => TimeSeriesDialog(
         api: widget.api,
         sourceId: widget.source.id,
         table: table,
+        spec: spec,
+        startFrom: startFrom,
+        groups: [for (final s in _series[table.fqn] ?? const <TimeSeriesSpec>[]) s.group],
       ),
     );
     if (saved != null) await _load();
@@ -205,7 +212,12 @@ class _SourceCatalogState extends State<SourceCatalog> {
               )
             else if (tables != null)
               for (final t in tables)
-                _TableTile(table: t, series: _series[t.fqn], onTag: () => _tag(t)),
+                _TableTile(
+                  table: t,
+                  series: _series[t.fqn] ?? const [],
+                  onEdit: (spec) => _tag(t, spec: spec),
+                  onAdd: (from) => _tag(t, startFrom: from),
+                ),
           ],
         ),
       ),
@@ -214,15 +226,17 @@ class _SourceCatalogState extends State<SourceCatalog> {
 }
 
 class _TableTile extends StatelessWidget {
-  const _TableTile({required this.table, required this.series, required this.onTag});
+  const _TableTile({required this.table, required this.series, required this.onEdit, required this.onAdd});
 
   final CatalogTable table;
-  final TimeSeriesSpec? series;
-  final VoidCallback onTag;
+
+  /// Its groups as the API reads them, the default first; none: not tagged.
+  final List<TimeSeriesSpec> series;
+  final void Function(TimeSeriesSpec spec) onEdit;
+  final void Function(TimeSeriesSpec? from) onAdd;
 
   @override
   Widget build(BuildContext context) {
-    final s = series;
     return ExpansionTile(
       key: PageStorageKey(table.fqn),
       tilePadding: EdgeInsets.zero,
@@ -243,7 +257,7 @@ class _TableTile extends StatelessWidget {
           const SizedBox(width: 8),
           Text('${table.columns.length} columns', style: const TextStyle(color: Aityx.muted, fontSize: 12)),
           const SizedBox(width: 8),
-          if (s != null) _Badge(ready: s.ready),
+          if (series.isNotEmpty) _Badge(series: series),
         ],
       ),
       childrenPadding: const EdgeInsets.only(left: 40, bottom: 12),
@@ -256,13 +270,14 @@ class _TableTile extends StatelessWidget {
           ),
         for (final c in table.columns) _ColumnRow(column: c, inKey: table.primaryKey.contains(c.name)),
         const SizedBox(height: 8),
-        if (s != null) _SeriesSummary(spec: s),
+        for (final s in series) _SeriesSummary(spec: s, onEdit: () => onEdit(s)),
         Align(
           alignment: Alignment.centerLeft,
           child: OutlinedButton.icon(
-            onPressed: onTag,
-            icon: const Icon(Icons.sell_outlined, size: 18),
-            label: Text(s == null ? 'Tag for DeepAR' : 'Edit DeepAR tags'),
+            key: ValueKey('add-group-${table.fqn}'),
+            onPressed: () => onAdd(series.isEmpty ? null : series.first),
+            icon: Icon(series.isEmpty ? Icons.sell_outlined : Icons.add, size: 18),
+            label: Text(series.isEmpty ? 'Tag for DeepAR' : 'Add a group'),
           ),
         ),
       ],
@@ -322,7 +337,7 @@ class _TagChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final role = TimeSeriesRole.ofTag(tag);
+    final role = TimeSeriesTag.parse(tag);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
@@ -331,36 +346,45 @@ class _TagChip extends StatelessWidget {
         border: Border.all(color: role == null ? Aityx.border : Aityx.orange),
       ),
       child: Text(
-        role == null ? tag : '${role.tag} · ${role.deepAr}',
+        role == null
+            ? tag
+            : '${role.group == defaultGroup ? '' : '${role.group}: '}${role.role.tag} · ${role.role.deepAr}',
         style: TextStyle(fontSize: 11, color: role == null ? Aityx.muted : Aityx.fg),
       ),
     );
   }
 }
 
+/// A table's time series at a glance: ready or needs work, one group; how
+/// many are ready, several.
 class _Badge extends StatelessWidget {
-  const _Badge({required this.ready});
-  final bool ready;
+  const _Badge({required this.series});
+  final List<TimeSeriesSpec> series;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: ready ? Aityx.green : Aityx.amber),
-    ),
-    child: Text(
-      ready ? 'time series: ready' : 'time series: needs work',
-      style: TextStyle(fontSize: 11, color: ready ? Aityx.green : Aityx.amber),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final ready = series.where((s) => s.ready).length;
+    final all = ready == series.length;
+    final text = series.length == 1
+        ? (all ? 'time series: ready' : 'time series: needs work')
+        : '${series.length} time series: ${all ? 'all' : '$ready'} ready';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: all ? Aityx.green : Aityx.amber),
+      ),
+      child: Text(text, style: TextStyle(fontSize: 11, color: all ? Aityx.green : Aityx.amber)),
+    );
+  }
 }
 
-/// The table as a time series, as the API reads it: the DeepAR inputs it
-/// gives, and its problems.
+/// One group of the table as a time series, as the API reads it: the
+/// DeepAR inputs it gives, and its problems; Edit opens it in the dialog.
 class _SeriesSummary extends StatelessWidget {
-  const _SeriesSummary({required this.spec});
+  const _SeriesSummary({required this.spec, required this.onEdit});
   final TimeSeriesSpec spec;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -382,8 +406,24 @@ class _SeriesSummary extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('DeepAR', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
+          Row(
+            children: [
+              Text('DeepAR · ${spec.group}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(width: 8),
+              Icon(
+                spec.ready ? Icons.check_circle_outline : Icons.error_outline,
+                size: 16,
+                color: spec.ready ? Aityx.green : Aityx.amber,
+              ),
+              const Spacer(),
+              TextButton.icon(
+                key: ValueKey('edit-group-${spec.table}-${spec.group}'),
+                onPressed: onEdit,
+                icon: const Icon(Icons.sell_outlined, size: 16),
+                label: const Text('Edit'),
+              ),
+            ],
+          ),
           for (final l in lines)
             Text(l, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
           for (final p in spec.problems)

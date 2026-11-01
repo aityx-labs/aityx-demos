@@ -337,6 +337,9 @@ class CatalogColumn {
   final List<String> tags;
 }
 
+/// The group of the TimeSeries roles tagged without one (`TimeSeries.Target`).
+const defaultGroup = 'default';
+
 /// The roles a column can have in a forecast, as the API names them: the
 /// tags of OpenMetadata's TimeSeries classification, the field each is in
 /// `PUT /api/datasources/{id}/timeseries`, and the DeepAR input it becomes.
@@ -360,20 +363,40 @@ enum TimeSeriesRole {
   /// One column at most: the others take several.
   bool get single => this == timestamp || this == target;
 
-  static TimeSeriesRole? ofTag(String fqn) {
+  static TimeSeriesRole? ofName(String tag) {
     for (final role in values) {
-      if (role.fqn == fqn) return role;
+      if (role.tag == tag) return role;
     }
     return null;
   }
 }
 
-/// A table read as a time series by the API: `GET .../timeseries`, and the
-/// answer of `PUT .../timeseries`. [ready] when there are no [problems].
+/// A column's TimeSeries tag, as a role in a group: `TimeSeries.Target` is
+/// the default group's Target, `TimeSeries.acute.Target` the acute group's.
+class TimeSeriesTag {
+  const TimeSeriesTag(this.group, this.role);
+
+  final String group;
+  final TimeSeriesRole role;
+
+  /// The tag an FQN names, or null for one that isn't a TimeSeries role.
+  static TimeSeriesTag? parse(String fqn) {
+    final parts = fqn.split('.');
+    if (parts.length < 2 || parts.length > 3 || parts.first != 'TimeSeries') return null;
+    final role = TimeSeriesRole.ofName(parts.last);
+    if (role == null) return null;
+    return TimeSeriesTag(parts.length == 2 ? defaultGroup : parts[1], role);
+  }
+}
+
+/// One group of a table read as a time series by the API:
+/// `GET .../timeseries`, and the answer of `PUT .../timeseries`. [ready]
+/// when there are no [problems].
 class TimeSeriesSpec {
   const TimeSeriesSpec({
     required this.table,
     required this.name,
+    this.group = defaultGroup,
     this.schema,
     this.columns = const {},
     this.frequency,
@@ -390,6 +413,7 @@ class TimeSeriesSpec {
     return TimeSeriesSpec(
       table: json['table'] as String? ?? '',
       name: json['name'] as String? ?? '',
+      group: json['group'] as String? ?? defaultGroup,
       schema: json['schema'] as String?,
       columns: {
         for (final role in TimeSeriesRole.values) role: list(json[role.field]),
@@ -403,6 +427,7 @@ class TimeSeriesSpec {
 
   final String table;
   final String name;
+  final String group;
   final String? schema;
   final Map<TimeSeriesRole, List<String>> columns;
   final String? frequency;
@@ -413,23 +438,27 @@ class TimeSeriesSpec {
   List<String> of(TimeSeriesRole role) => columns[role] ?? const [];
 }
 
-/// What `PUT /api/datasources/{id}/timeseries` takes: a table's roles, its
-/// frequency and what a missing row means.
+/// What `PUT /api/datasources/{id}/timeseries` takes: a group's roles in a
+/// table (no roles: the group is gone), and the table's frequency and what
+/// a missing row means, which its groups share.
 class TimeSeriesRoles {
   const TimeSeriesRoles({
     required this.table,
+    this.group = defaultGroup,
     this.columns = const {},
     this.frequency,
     this.missing,
   });
 
   final String table;
+  final String group;
   final Map<TimeSeriesRole, List<String>> columns;
   final String? frequency;
   final String? missing;
 
   Map<String, Object?> toJson() => {
     'table': table,
+    'group': group,
     for (final role in TimeSeriesRole.values)
       role.field: role.single
           ? (columns[role]?.isNotEmpty ?? false ? columns[role]!.first : null)

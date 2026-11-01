@@ -48,19 +48,29 @@ reload).
   it read. Each table is a tile that opens on its columns: name (a key
   icon for the primary key), OpenMetadata's type, and its tags, a
   TimeSeries tag shown as its role and DeepAR field (`Target ·
-  target`). A table with TimeSeries tags has a badge, *time series:
-  ready* or *needs work*, and a DeepAR box with the inputs the tags give
-  (`item_id = run_id + hospital_id`, `freq = 1h`, a missing row as 0 or
-  unknown) and the API's problems. **Tag for DeepAR** (or **Edit DeepAR
-  tags**) opens `TimeSeriesDialog`: one row per role (Timestamp, Target,
-  SeriesKey, StaticCategorical, StaticReal, KnownCovariate,
-  PastCovariate, with the DeepAR field and what it means as a tooltip),
-  each a chip per column, one column for Timestamp and Target and any
-  number for the others, starting from the tags the table has; the
-  frequency (typed, or 15min, 1h, 1D, 1W, 1MS); and whether a missing row
-  counts as 0 or is unknown. **Save tags** sends `PUT .../timeseries`:
-  a ready table closes the dialog and the card reloads; otherwise the
-  dialog stays with the API's problems. The tab only shows what the API
+  target`), with its group first when it isn't the default one
+  (`acute: Target · target`). A table can hold several time series, one
+  per group of tags, each read by the API on its own. A tagged table has
+  a badge, *time series: ready* or *needs work* for one group, *3 time
+  series: all ready* (or how many are) for several, and a DeepAR box per
+  group (`DeepAR · acute`, the default's first) with the inputs its tags
+  give (`item_id = run_id + hospital_id`, `freq = 1h`, a missing row as
+  0 or unknown), whether it is ready, the API's problems and **Edit**.
+  **Tag for DeepAR** on an untagged table, **Add a group** on a tagged
+  one, and **Edit** open `TimeSeriesDialog`: for a new group, its name
+  (`default` for a table's first, else empty to type; a name the table
+  has already is refused there, other names by the API), starting from
+  the first group's roles but its Target; for a group, the API's
+  reading of it. One row per role (Timestamp, Target, SeriesKey,
+  StaticCategorical, StaticReal, KnownCovariate, PastCovariate, with the
+  DeepAR field and what it means as a tooltip), each a chip per column,
+  one column for Timestamp and Target and any number for the others; the
+  table's frequency (typed, or 15min, 1h, 1D, 1W, 1MS) and whether a
+  missing row counts as 0 or is unknown, shared by its groups. **Save
+  tags** sends `PUT .../timeseries` with the group: a ready group closes
+  the dialog and the card reloads; otherwise the dialog stays with the
+  API's problems. **Remove group**, pressed twice, sends the group with
+  no roles, which takes it off the table. The tab only shows what the API
   answers: which columns fit a role, and whether the table is ready,
   are the API's to say. S3 and folder sources are listed as not read
   yet; with authentication on and nobody signed in, the tab says to sign
@@ -194,7 +204,9 @@ confirmation; the tabs stand in their order and the Catalog lists a
 folder source as not read yet; a database source's schema is read and
 its hourly table tagged for DeepAR, the dialog showing the API's problem
 until a target is picked, then sending the roles, frequency and missing
-rows; the tab the address names opens; and,
+rows in the default group; a tagged table gets a second group, named
+`acute`, from the default's roles but its target, a second group of the
+same name is refused, and removing it sends it with no roles; the tab the address names opens; and,
 with a session store in memory, the audit is read back after a reload
 (a waiting call as never answered), a fresh token signs in without
 Google, an expired, foreign or malformed one is dropped, a refused one

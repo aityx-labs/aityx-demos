@@ -25,6 +25,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -37,10 +38,13 @@ import org.jboss.logging.Logger;
  * OpenMetadata, answering what it wrote;
  * GET /api/datasources/{id}/catalog answers its tables as OpenMetadata
  * has them, each column with its type and tags;
- * GET /api/datasources/{id}/timeseries answers the tables with a column
- * tagged with a TimeSeries role, read as time series (TimeSeries.Spec);
- * PUT /api/datasources/{id}/timeseries sets one table's roles,
- * frequency and missing rows, and answers its spec.
+ * GET /api/datasources/{id}/timeseries answers each group of TimeSeries
+ * roles a table's columns are tagged with, read as a time series
+ * (TimeSeries.Spec), or with ?algorithm=XGBoost only the groups that
+ * algorithm trains: what a trainer looks for;
+ * PUT /api/datasources/{id}/timeseries sets one group's roles and
+ * algorithm in a table, and the table's frequency, missing rows and
+ * horizon, and answers the group's spec.
  * Only database sources (PostgreSQL so far) have a catalogue: another
  * type, or another engine, is a 400. A source or OpenMetadata that can't
  * be reached is a 502 naming which. No database transaction is held
@@ -111,16 +115,24 @@ public class CatalogResource {
 
     @GET
     @Path("/timeseries")
-    public Response timeSeries(@PathParam("id") long id) {
+    public Response timeSeries(@PathParam("id") long id, @QueryParam("algorithm") String algorithm) {
         Optional<Source> source = source(id);
         if (source.isEmpty()) {
             return notFound(id);
         }
+        TimeSeries.Algorithm only;
+        try {
+            only = TimeSeries.Algorithm.named(algorithm);
+        } catch (IllegalArgumentException e) {
+            return error(Response.Status.BAD_REQUEST, e.getMessage());
+        }
         try {
             List<TimeSeries.Spec> series = new ArrayList<>();
             for (JsonNode table : catalog.tables(id)) {
-                if (TimeSeries.tagged(table)) {
-                    series.add(TimeSeries.spec(table));
+                for (TimeSeries.Spec spec : TimeSeries.specs(table)) {
+                    if (only == null || only.tag.equals(spec.algorithm())) {
+                        series.add(spec);
+                    }
                 }
             }
             return Response.ok(Map.of("service", Catalog.serviceName(id), "series", series)).build();
@@ -166,7 +178,7 @@ public class CatalogResource {
         }
     }
 
-    /** A table for GET .../catalog: its names and type, and each column's type, constraint and tags. */
+    /** A table for GET .../catalog: its names, type and tags, and each column's type, constraint and tags. */
     private static Map<String, Object> view(JsonNode table) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("fqn", table.path("fullyQualifiedName").asText());
@@ -174,6 +186,9 @@ public class CatalogResource {
         map.put("name", table.path("name").asText());
         map.put("type", table.path("tableType").asText(null));
         map.put("description", table.path("description").asText(null));
+        List<String> tableTags = new ArrayList<>();
+        table.path("tags").forEach(tag -> tableTags.add(tag.path("tagFQN").asText()));
+        map.put("tags", tableTags);
         List<Map<String, Object>> columns = new ArrayList<>();
         for (JsonNode column : table.path("columns")) {
             Map<String, Object> c = new LinkedHashMap<>();

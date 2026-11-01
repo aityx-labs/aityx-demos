@@ -98,8 +98,12 @@ OpenAPI, and a REST client for OpenMetadata.
   and answered back as OpenMetadata has it (`GET`).
   `/api/datasources/{id}/timeseries`: the tables whose columns are tagged
   with the `TimeSeries` roles (`Timestamp`, `Target`, `SeriesKey`, the
-  static and dynamic features DeepAR takes), with what keeps one from
-  being trainable (`GET`), and the roles set on a table (`PUT`). Tag in
+  static and dynamic features DeepAR takes), one series per group of
+  roles in a table (`TimeSeries.acute.Target`), each with the algorithm
+  that trains it, a tag on the table (`TimeSeries.care.XGBoost`; DeepAR
+  without one), and what keeps one from being trainable (`GET`, or only
+  one algorithm's with `?algorithm=XGBoost`), and a group's roles,
+  algorithm and horizon set on a table (`PUT`). Tag in
   OpenMetadata's UI, or with the PUT. See [specs/catalog.md](specs/catalog.md).
 - `/api/profile`: the caller's profile, made the first time an identity
   signs in, which owns their data sources and holds a key of its own:

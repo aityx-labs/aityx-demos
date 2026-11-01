@@ -8,7 +8,7 @@ import 'package:healthhub_app/api/health_hub_api.dart';
 import 'package:healthhub_app/auth/auth_controller.dart';
 import 'package:healthhub_app/care_centers/care_center_screen.dart';
 import 'package:healthhub_app/events/stream_events.dart';
-import 'package:healthhub_app/care_centers/admissions_timeline.dart';
+import 'package:healthhub_app/care_centers/occupancy_timeline.dart';
 import 'package:healthhub_app/location/location_controller.dart';
 import 'package:healthhub_app/main.dart';
 import 'package:healthhub_app/people/person_screen.dart';
@@ -433,43 +433,44 @@ class FakeApi implements HealthHubApi {
     });
   }
 
-  /// The hospitals whose admissions per hour, and whose forecast, were asked for.
+  /// The care centers whose people in care per hour, and whose forecast, were asked for.
   final hourlyAsked = <(int, String?, int?)>[];
   final forecastAsked = <(int, String?)>[];
 
-  /// Hospitals 1 and 2 admitted at 09:00 and 11:00 of day 19, run 1349d576 (current); 7, nobody.
+  /// Care centers 1 and 2 had 0, 1, 3, 2, 2 and 1 people in care from 07:00 to 12:00 of day 19, run 1349d576
+  /// (current); 7, nobody.
   @override
-  Future<HourlyAdmissions> hospitalAdmissions(int id, {String? run, int? hours}) async {
+  Future<HourlyOccupancy> careCenterOccupancy(int id, {String? run, int? hours}) async {
     hourlyAsked.add((id, run, hours));
-    if (id != 1 && id != 2) return HourlyAdmissions(hospitalId: id);
-    return HourlyAdmissions.fromJson({
+    if (id != 1 && id != 2) return HourlyOccupancy(hospitalId: id);
+    const inCare = [0, 1, 3, 2, 2, 1];
+    return HourlyOccupancy.fromJson({
       'hospitalId': id,
       'run': '1349d576',
       'current': true,
       'end': '2026-01-19T12:00',
       'hours': [
-        for (var h = 7; h <= 12; h++)
-          {'hour': '2026-01-19T${'$h'.padLeft(2, '0')}:00', 'admissions': h == 9 ? 2 : (h == 11 ? 1 : 0),
-            'acute': h == 9 ? 1 : 0, 'chronic': h == 9 ? 1 : (h == 11 ? 1 : 0)},
+        for (var h = 7; h <= 12; h++) {'hour': '2026-01-19T${'$h'.padLeft(2, '0')}:00', 'occupancy': inCare[h - 7]},
       ],
     });
   }
 
-  /// DeepAR's forecast of the next four hours of hospital 2; none without a [model].
+  /// DeepAR's forecast of the next four hours of care center 2; none without a [model].
   @override
-  Future<AdmissionsForecast> admissionsForecast(int id, {String? run}) async {
+  Future<HourlyForecast> occupancyForecast(int id, {String? run}) async {
     forecastAsked.add((id, run));
-    if (!model) throw const ApiException(404, 'no model of the group default of public.admissions_hourly has been trained yet');
-    return AdmissionsForecast.fromJson({
-      'predicted': 1.4,
-      'last': 3.0,
-      'target': 'admissions',
+    if (!model) throw const ApiException(404, 'no model of the group default of public.occupancy_hourly has been trained yet');
+    const means = [1.0, 1.5, 2.0, 1.5];
+    return HourlyForecast.fromJson({
+      'predicted': 6.0,
+      'last': 9.0,
+      'target': 'occupancy',
       'horizon': '4h',
       'group': 'default',
       'trainingRunId': 5,
       'forecast': [
         for (var h = 13; h <= 16; h++)
-          {'at': '2026-01-19T$h:00', 'mean': 0.35, 'p10': 0, 'p50': 0, 'p90': 1},
+          {'at': '2026-01-19T$h:00', 'mean': means[h - 13], 'p10': 0, 'p50': 1, 'p90': 3},
       ],
     });
   }
@@ -1105,13 +1106,13 @@ void main() {
     expect(find.descendant(of: admission, matching: find.text('Inês Carvalho, 67')), findsOneWidget);
     expect(find.descendant(of: admission, matching: find.textContaining('Standard · 2 h')), findsOneWidget);
 
-    // Its admissions per hour up to now, and datyx's forecast of the next ones, under the map.
-    final timeline = find.byType(AdmissionsTimelineCard);
+    // Its people in care per hour up to now, and datyx's forecast of the next ones, under the map.
+    final timeline = find.byType(OccupancyTimelineCard);
     expect(timeline, findsOneWidget);
     expect(api.hourlyAsked.first, (1, null, 72));
     expect(api.forecastAsked.first, (1, null));
-    expect(find.descendant(of: timeline, matching: find.byType(AdmissionsTimelineChart)), findsOneWidget);
-    expect(find.textContaining("datyx's DeepAR expects 1.4 in the next 4 hours"), findsOneWidget);
+    expect(find.descendant(of: timeline, matching: find.byType(OccupancyTimelineChart)), findsOneWidget);
+    expect(find.textContaining("datyx's DeepAR expects 1.5 on average over the next 4 hours"), findsOneWidget);
     expect(tester.getTopLeft(timeline).dy, greaterThan(tester.getBottomLeft(usage).dy));
     expect(tester.getTopLeft(timeline).dy, lessThan(tester.getTopLeft(find.byKey(const Key('care-center-person-lisboa-2'))).dy));
 
@@ -1415,42 +1416,54 @@ void main() {
     expect(people.people.map((p) => p.id), ['reus-1']);
   });
 
-  group("a hospital's admissions per hour", () {
-    Widget card(FakeApi api, int id) => MaterialApp(
+  group("a care center's occupancy per hour", () {
+    Widget card(FakeApi api, int id, {int capacity = 8}) => MaterialApp(
       theme: aityxDarkTheme(),
       home: Scaffold(
-        body: SizedBox(width: 720, child: AdmissionsTimelineCard(
-          admissions: api.hospitalAdmissions,
-          forecast: api.admissionsForecast,
+        body: SizedBox(width: 720, child: OccupancyTimelineCard(
+          occupancy: api.careCenterOccupancy,
+          forecast: api.occupancyForecast,
           hospitalId: id,
+          capacity: capacity,
+          unit: 'beds',
           refresh: const Duration(days: 1))),
       ),
     );
 
-    testWidgets('the hours solid, then DeepAR\'s forecast dashed after them', (tester) async {
+    testWidgets('the hours solid with their points, then DeepAR\'s forecast dashed after them', (tester) async {
       final semantics = tester.ensureSemantics();
       final api = FakeApi();
       await tester.pumpWidget(card(api, 2));
       await tester.pumpAndSettle();
       expect(api.hourlyAsked, [(2, null, 72)]);
       expect(api.forecastAsked, [(2, null)]);
-      expect(find.text('Admissions per hour'), findsOneWidget);
+      expect(find.text('Occupancy per hour'), findsOneWidget);
       expect(find.text('run 1349d576, now'), findsOneWidget);
-      expect(find.textContaining('3 admitted in the last 6 hours, to Day 19, 12:00.'), findsOneWidget);
-      expect(find.textContaining("datyx's DeepAR expects 1.4 in the next 4 hours (model of training run 5)"), findsOneWidget);
-      expect(find.text('Admitted'), findsOneWidget);
+      expect(find.textContaining('1 in care at Day 19, 12:00; at most 3 of 8 beds in the last 6 hours.'), findsOneWidget);
+      expect(
+        find.textContaining("datyx's DeepAR expects 1.5 on average over the next 4 hours, 2.0 at most (model of training run 5)"),
+        findsOneWidget,
+      );
+      expect(find.text('In care'), findsOneWidget);
       expect(find.text('DeepAR forecast (mean; the band, 10th to 90th percentile)'), findsOneWidget);
-      expect(find.bySemanticsLabel('Admissions per hour: 3 in the last 6 hours; 1.4 forecast over the next 4'), findsOneWidget);
+      expect(find.text('Capacity, 8 beds'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          'Occupancy per hour: 1 in care now, at most 3 in the last 6 hours, of a capacity of 8; '
+          '1.5 on average forecast over the next 4',
+        ),
+        findsOneWidget,
+      );
 
-      // Touching an hour shows its numbers: one admitted, then a forecast hour.
-      final chart = tester.getRect(find.byType(AdmissionsTimelineChart));
+      // Touching an hour shows its numbers: three in care, then a forecast hour.
+      final chart = tester.getRect(find.byType(OccupancyTimelineChart));
       double xOf(int index) => chart.left + 28 + index / 9 * (chart.width - 36);
       await tester.tapAt(Offset(xOf(2), chart.center.dy));
       await tester.pump();
-      expect(find.text('Day 19, 09:00\n2 admitted (1 acute, 1 chronic)'), findsOneWidget);
+      expect(find.text('Day 19, 09:00\n3 in care of 8 beds'), findsOneWidget);
       await tester.tapAt(Offset(xOf(8), chart.center.dy));
       await tester.pump();
-      expect(find.text('Day 19, 15:00, forecast\n0.35 expected\n0 to 1 (80%)'), findsOneWidget);
+      expect(find.text('Day 19, 15:00, forecast\n2.0 expected of 8 beds\n0 to 3 (80%)'), findsOneWidget);
       semantics.dispose();
     });
 
@@ -1458,18 +1471,25 @@ void main() {
       final api = FakeApi()..model = false;
       await tester.pumpWidget(card(api, 2));
       await tester.pumpAndSettle();
-      expect(find.textContaining('No forecast: no model of the group default of public.admissions_hourly has been trained yet'),
+      expect(find.textContaining('No forecast: no model of the group default of public.occupancy_hourly has been trained yet'),
           findsOneWidget);
-      expect(find.byType(AdmissionsTimelineChart), findsOneWidget);
-      expect(find.text('Admitted'), findsOneWidget);
+      expect(find.byType(OccupancyTimelineChart), findsOneWidget);
+      expect(find.text('In care'), findsOneWidget);
       expect(find.textContaining('DeepAR forecast'), findsNothing);
     });
 
-    testWidgets('a hospital nobody was admitted to says so', (tester) async {
+    testWidgets('without a capacity there is no capacity line, nor its key', (tester) async {
+      await tester.pumpWidget(card(FakeApi(), 2, capacity: 0));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('at most 3 in the last 6 hours.'), findsOneWidget);
+      expect(find.textContaining('Capacity'), findsNothing);
+    });
+
+    testWidgets('a care center nobody was admitted to says so', (tester) async {
       await tester.pumpWidget(card(FakeApi(), 7));
       await tester.pumpAndSettle();
       expect(find.text('Nobody has been admitted here yet.'), findsOneWidget);
-      expect(find.byType(AdmissionsTimelineChart), findsNothing);
+      expect(find.byType(OccupancyTimelineChart), findsNothing);
     });
 
     test('a simulated hour is named by its day', () {

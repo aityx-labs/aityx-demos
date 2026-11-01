@@ -1264,41 +1264,36 @@ class Prediction {
   final int? millis;
 }
 
-/// One hour of a hospital's admissions: when it starts (simulated time,
-/// day 1 being 2026-01-01) and how many were admitted, acute and chronic.
-class HourCount {
-  const HourCount({required this.hour, this.admissions = 0, this.acute = 0, this.chronic = 0});
+/// One hour of a care center's occupancy: when it starts (simulated time,
+/// day 1 being 2026-01-01) and how many people were in care there at any
+/// minute of it.
+class HourOccupancy {
+  const HourOccupancy({required this.hour, this.occupancy = 0});
 
-  factory HourCount.fromJson(Map<String, Object?> json) => HourCount(
-    hour: _hour(json['hour']),
-    admissions: _int(json['admissions']) ?? 0,
-    acute: _int(json['acute']) ?? 0,
-    chronic: _int(json['chronic']) ?? 0,
-  );
+  factory HourOccupancy.fromJson(Map<String, Object?> json) =>
+      HourOccupancy(hour: _hour(json['hour']), occupancy: _int(json['occupancy']) ?? 0);
 
   final DateTime hour;
-  final int admissions;
-  final int acute;
-  final int chronic;
+  final int occupancy;
 }
 
 /// A simulated hour as the API writes it, `YYYY-MM-DDTHH:MM`, read as UTC.
 DateTime _hour(Object? value) => DateTime.parse('${value as String}Z');
 
-/// What `GET /api/care-centers/{id}/admissions` answers: a hospital's
-/// admissions in each hour up to its run's end, oldest first; no run and
-/// no hours when nobody has been admitted there.
-class HourlyAdmissions {
-  const HourlyAdmissions({required this.hospitalId, this.run, this.current = false, this.end, this.hours = const []});
+/// What `GET /api/care-centers/{id}/occupancy` answers: the people in
+/// care at a care center in each hour up to its run's end, oldest first;
+/// no run and no hours when nobody has been admitted there.
+class HourlyOccupancy {
+  const HourlyOccupancy({required this.hospitalId, this.run, this.current = false, this.end, this.hours = const []});
 
-  factory HourlyAdmissions.fromJson(Map<String, Object?> json) => HourlyAdmissions(
+  factory HourlyOccupancy.fromJson(Map<String, Object?> json) => HourlyOccupancy(
     hospitalId: _int(json['hospitalId']) ?? 0,
     run: _string(json['run']),
     current: json['current'] == true,
     end: json['end'] is String ? _hour(json['end']) : null,
     hours: [
       for (final hour in (json['hours'] as List? ?? const []))
-        HourCount.fromJson((hour as Map).cast()),
+        HourOccupancy.fromJson((hour as Map).cast()),
     ],
   );
 
@@ -1310,7 +1305,7 @@ class HourlyAdmissions {
 
   /// The run's latest hour, where its series end.
   final DateTime? end;
-  final List<HourCount> hours;
+  final List<HourOccupancy> hours;
 }
 
 /// One step of a forecast: the hour, the mean, and the 10th, 50th and
@@ -1333,14 +1328,14 @@ class ForecastStep {
   final double p90;
 }
 
-/// What `GET /api/care-centers/{id}/admissions/forecast` answers: datyx's
-/// DeepAR forecast of a hospital's admissions per hour from its series'
-/// end, step by step ([steps] empty with a [note] when it can't say), and
-/// which model said it.
-class AdmissionsForecast {
-  const AdmissionsForecast({this.steps = const [], this.prediction = const Prediction()});
+/// What `GET /api/care-centers/{id}/occupancy/forecast` answers: datyx's
+/// DeepAR forecast of a care center's people in care per hour from its
+/// series' end, step by step ([steps] empty with a [note] when it can't
+/// say), and which model said it.
+class HourlyForecast {
+  const HourlyForecast({this.steps = const [], this.prediction = const Prediction()});
 
-  factory AdmissionsForecast.fromJson(Map<String, Object?> json) => AdmissionsForecast(
+  factory HourlyForecast.fromJson(Map<String, Object?> json) => HourlyForecast(
     steps: [
       for (final step in (json['forecast'] as List? ?? const []))
         ForecastStep.fromJson((step as Map).cast()),
@@ -1409,13 +1404,13 @@ abstract class HealthHubApi {
   /// One care center, with who is there now: `GET /api/care-centers/{id}`.
   Future<CareCenterDetail> careCenter(int id);
 
-  /// A hospital's admissions per hour, the [hours] up to its run's end:
-  /// `GET /api/care-centers/{id}/admissions?run=&hours=`.
-  Future<HourlyAdmissions> hospitalAdmissions(int id, {String? run, int? hours});
+  /// A care center's people in care per hour, the [hours] up to its run's
+  /// end: `GET /api/care-centers/{id}/occupancy?run=&hours=`.
+  Future<HourlyOccupancy> careCenterOccupancy(int id, {String? run, int? hours});
 
-  /// datyx's forecast of a hospital's admissions per hour:
-  /// `GET /api/care-centers/{id}/admissions/forecast?run=`.
-  Future<AdmissionsForecast> admissionsForecast(int id, {String? run});
+  /// datyx's forecast of them:
+  /// `GET /api/care-centers/{id}/occupancy/forecast?run=`.
+  Future<HourlyForecast> occupancyForecast(int id, {String? run});
 
   /// Pauses the simulation, or resumes it: `POST /api/simulation/pause`
   /// or `/resume`. Whether it is paused now.
@@ -1509,17 +1504,17 @@ class HttpHealthHubApi implements HealthHubApi {
       CareCenterDetail.fromJson(await _getMap('/api/care-centers/$id'));
 
   @override
-  Future<HourlyAdmissions> hospitalAdmissions(int id, {String? run, int? hours}) async {
+  Future<HourlyOccupancy> careCenterOccupancy(int id, {String? run, int? hours}) async {
     final query = [
       if (run != null) 'run=${Uri.encodeQueryComponent(run)}',
       if (hours != null) 'hours=$hours',
     ].join('&');
-    return HourlyAdmissions.fromJson(await _getMap('/api/care-centers/$id/admissions${query.isEmpty ? '' : '?$query'}'));
+    return HourlyOccupancy.fromJson(await _getMap('/api/care-centers/$id/occupancy${query.isEmpty ? '' : '?$query'}'));
   }
 
   @override
-  Future<AdmissionsForecast> admissionsForecast(int id, {String? run}) async => AdmissionsForecast.fromJson(
-    await _getMap('/api/care-centers/$id/admissions/forecast${run == null ? '' : '?run=${Uri.encodeQueryComponent(run)}'}'),
+  Future<HourlyForecast> occupancyForecast(int id, {String? run}) async => HourlyForecast.fromJson(
+    await _getMap('/api/care-centers/$id/occupancy/forecast${run == null ? '' : '?run=${Uri.encodeQueryComponent(run)}'}'),
   );
 
   static String _personPath(String id, String suffix, String? run) =>

@@ -326,12 +326,42 @@ void main() {
 
   group("a hospital's admissions per hour", () {
     test('a path names the hospital, and whether it asks for the forecast', () {
-      expect(careCenterAdmissionsPath('/api/care-centers/42/admissions'), (42, false));
-      expect(careCenterAdmissionsPath('/api/care-centers/42/admissions/forecast'), (42, true));
-      expect(careCenterAdmissionsPath('/api/care-centers/42'), isNull);
-      expect(careCenterAdmissionsPath('/api/care-centers/x/admissions'), isNull);
-      expect(careCenterAdmissionsPath('/api/care-centers/42/admissions/other'), isNull);
-      expect(careCenterAdmissionsPath('/api/care-centers'), isNull);
+      expect(careCenterSeriesPath('/api/care-centers/42/admissions'), (42, CareCenterSeries.admissions, false));
+      expect(careCenterSeriesPath('/api/care-centers/42/admissions/forecast'), (42, CareCenterSeries.admissions, true));
+      expect(careCenterSeriesPath('/api/care-centers/42'), isNull);
+      expect(careCenterSeriesPath('/api/care-centers/x/admissions'), isNull);
+      expect(careCenterSeriesPath('/api/care-centers/42/admissions/other'), isNull);
+      expect(careCenterSeriesPath('/api/care-centers'), isNull);
+      expect(careCenterSeriesPath('/api/care-centers/42/occupancy'), (42, CareCenterSeries.occupancy, false));
+      expect(careCenterSeriesPath('/api/care-centers/42/occupancy/forecast'), (42, CareCenterSeries.occupancy, true));
+      expect(careCenterSeriesPath('/api/care-centers/42/beds'), isNull);
+    });
+
+    test('the people in care, every hour up to the run\'s end, an hour without a row a zero', () {
+      final hourly = HourlyLookup(
+        run: 'adf5309c',
+        end: DateTime.utc(2026, 1, 4, 10),
+        rows: [
+          {'hour': DateTime.utc(2026, 1, 4, 8), 'occupancy': 3},
+          {'hour': DateTime.utc(2026, 1, 4, 9), 'occupancy': 2},
+        ],
+      );
+      final answer = route('GET', '/api/care-centers/42/occupancy', query: {'hours': '3'}, hourly: hourly, auth: on);
+      expect(answer.status, 200);
+      expect(answer.body, {
+        'hospitalId': 42,
+        'run': 'adf5309c',
+        'current': false,
+        'end': '2026-01-04T10:00',
+        'hours': [
+          {'hour': '2026-01-04T08:00', 'occupancy': 3},
+          {'hour': '2026-01-04T09:00', 'occupancy': 2},
+          {'hour': '2026-01-04T10:00', 'occupancy': 0},
+        ],
+      });
+      expect(route('GET', '/api/care-centers/42/occupancy', query: {'hours': 'x'}, hourly: hourly).status, 400);
+      expect(route('GET', '/api/care-centers/42/occupancy').status, 503);
+      expect(CareCenterSeries.occupancy.table, 'public.occupancy_hourly');
     });
 
     test('every hour up to the run\'s end, an hour without a row a zero', () {

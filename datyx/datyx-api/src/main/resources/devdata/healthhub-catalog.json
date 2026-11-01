@@ -38,7 +38,8 @@
       {"name": "Hourly Admissions", "description": "The admissions at a hospital in a simulated hour of a run, in all and for acute and chronic conditions: the time series datyx forecasts with DeepAR. Sparse: an hour without admissions has no row, and means zero.", "synonyms": ["Admissions per hour"], "related": ["Admission", "Hospital"]},
       {"name": "Patient Day", "description": "A simulated person's visits and hours of hospital care on a simulated day, with their facts: the series datyx scores with XGBoost for each patient's care in the next 30 days.", "synonyms": ["Person day"], "related": ["Stay Hours", "Simulated Person"]},
       {"name": "Stay Hours", "description": "The hours of hospital care a visit takes: its condition's stay for a first visit, its follow-up stay after.", "synonyms": ["Length of stay", "Hours of care"], "related": ["Patient Day", "Visit"]},
-      {"name": "Move", "description": "A simulated person's position and state each turn: at home, on the way to the hospital, there, or on the way back.", "synonyms": ["Movement"], "related": ["Simulated Person"]}
+      {"name": "Move", "description": "A simulated person's position and state each turn: at home, on the way to the hospital, there, or on the way back.", "synonyms": ["Movement"], "related": ["Simulated Person"]},
+      {"name": "Hourly Occupancy", "description": "The people in care at a care center in a simulated hour of a run, each admission's stay counted in every hour it covers: the time series datyx forecasts with DeepAR for the care center view. Sparse: an hour nobody is in care has no row, and means zero.", "synonyms": ["Occupancy per hour", "People in care"], "related": ["Stay Hours", "Care Center"]}
     ]
   },
   "certification": "Certification.Gold",
@@ -47,7 +48,7 @@
     "description": "HealthHub's PostgreSQL database: the care centers and medical conditions it is seeded with, the admissions its feed records from Kafka with their triage at the desk, the hourly admissions its Flink job counts, and the patient days view. HealthHub's API makes and describes the schema at every start. The people in it are simulated.",
     "tier": "Tier.Tier1",
     "schemas": {
-      "public": "HealthHub's one schema: reference data (care_centers, medical_conditions, complaint_templates, greetings), events (admissions, admission_triage) and series (admissions_hourly, patient_days)."
+      "public": "HealthHub's one schema: reference data (care_centers, medical_conditions, complaint_templates, greetings), events (admissions, admission_triage) and series (admissions_hourly, patient_days, occupancy_hourly)."
     }
   },
   "tables": {
@@ -143,6 +144,21 @@
         {"test": "columnValuesToBeInSet", "column": "sex", "parameters": {"allowedValues": ["woman", "man"]}, "description": "Every person's sex is woman or man."},
         {"test": "columnValuesToBeNotNull", "column": "stay_hours", "description": "Every day's visits have their hours of care: no visit is of a condition the seed no longer has."},
         {"test": "columnValuesToBeBetween", "column": "stay_hours", "parameters": {"minValue": 1, "maxValue": 144}, "description": "A day's care is 1 to 144 hours: at most two visits of up to 72."}
+      ]
+    },
+    "public.occupancy_hourly": {
+      "tier": "Tier.Tier2",
+      "terms": ["Hourly Occupancy"],
+      "columns": {
+        "run_id": ["Run"],
+        "hospital_id": ["Care Center"],
+        "hospital_name": ["Care Center"],
+        "hour_start": ["Simulated Time"],
+        "occupancy": ["Hourly Occupancy"]
+      },
+      "checks": [
+        {"test": "columnValuesToMatchRegex", "column": "run_id", "parameters": {"regex": "^[0-9a-f]{8}$"}, "description": "Every run id is 8 hex digits."},
+        {"test": "columnValuesToBeBetween", "column": "occupancy", "parameters": {"minValue": 1}, "description": "Sparse: a row is an hour with someone in care."}
       ]
     },
     "public.care_centers": {
@@ -288,6 +304,7 @@
   },
   "timeSeries": [
     {"roles": {"table": "public.admissions_hourly", "group": "default", "timestamp": "hour_start", "target": "admissions", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}},
+    {"roles": {"table": "public.occupancy_hourly", "group": "default", "timestamp": "hour_start", "target": "occupancy", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}},
     {"roles": {"table": "public.admissions_hourly", "group": "acute", "timestamp": "hour_start", "target": "acute_admissions", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}},
     {"roles": {"table": "public.admissions_hourly", "group": "chronic", "timestamp": "hour_start", "target": "chronic_admissions", "seriesKey": ["run_id", "hospital_id"], "staticCategorical": ["hospital_id"], "frequency": "1h", "missing": "zero"}},
     {"roles": {"table": "public.patient_days", "group": "care", "timestamp": "day", "target": "stay_hours", "seriesKey": ["run_id", "person_id"], "staticCategorical": ["sex", "city", "hospital_id", "chronic_condition"], "staticReal": ["age"], "pastCovariates": ["visits", "acute_visits", "chronic_visits"], "frequency": "1D", "missing": "zero", "algorithm": "XGBoost", "horizon": "30D"}, "retrain": "1h"}
@@ -357,6 +374,8 @@
     {"from": "topic:healthhub.admissions", "to": "table:public.admissions_hourly", "pipeline": "healthhub-flink.admissions-hourly", "description": "The Flink job counts the admissions per run, hospital and hour."},
     {"from": "topic:healthhub.admissions", "to": "topic:healthhub.admissions.hourly", "pipeline": "healthhub-flink.admissions-hourly", "description": "The same counts, upserted to a topic."},
     {"from": "table:public.admissions", "to": "table:public.patient_days", "description": "The view groups each person's admissions by run and simulated day."},
-    {"from": "table:public.medical_conditions", "to": "table:public.patient_days", "description": "The view takes each visit's hours of care from its condition."}
+    {"from": "table:public.medical_conditions", "to": "table:public.patient_days", "description": "The view takes each visit's hours of care from its condition."},
+    {"from": "table:public.admissions", "to": "table:public.occupancy_hourly", "description": "The view counts each admission's stay in every simulated hour it covers."},
+    {"from": "table:public.medical_conditions", "to": "table:public.occupancy_hourly", "description": "The view takes each stay's hours from its condition."}
   ]
 }

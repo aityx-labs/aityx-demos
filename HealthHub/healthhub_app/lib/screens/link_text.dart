@@ -50,7 +50,7 @@ Widget withOpeners(BuildContext from, Widget child) {
   if (careCenter != null) {
     wrapped = CareCenterOpener(
       load: careCenter.load,
-      admissions: careCenter.admissions,
+      occupancy: careCenter.occupancy,
       forecast: careCenter.forecast,
       showTiles: careCenter.showTiles,
       child: wrapped,

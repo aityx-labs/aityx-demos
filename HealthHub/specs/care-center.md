@@ -3,7 +3,7 @@
 Every care center HealthHub names on home, of any kind (hospital, clinic,
 health station), is a link to its view: where it is on a map, with the
 people there and on their way; what it is; its capacity in the simulation
-and how much of it is in use now; its admissions per hour with datyx's
+and how much of it is in use now; its occupancy per hour with datyx's
 forecast of the next 24; who is there; its admissions. App in
 [care_center_screen.dart](../healthhub_app/lib/care_centers/care_center_screen.dart),
 API in [routes.dart](../healthhub_api/lib/routes.dart),
@@ -58,10 +58,11 @@ order:
      100%); how many are on the way and, for a hospital, how many people
      have it as their hospital; the simulated time; and that the capacity
      is the simulation's. In prod, that nobody is there.
-3. **Admissions per hour**: the care center's admissions in each of the
-   last 72 simulated hours up to now, a solid line, and datyx's DeepAR
-   forecast of the next 24, dashed, in its band
-   ([A care center's admissions per hour](admissions-timeline.md)).
+3. **Occupancy per hour**: the people in care at the care center in each
+   of the last 72 simulated hours up to now, a solid line with a point
+   per hour, and datyx's DeepAR forecast of the next 24, dashed and
+   lighter with hollow points, in its band, under a faint line at its
+   capacity ([A care center's occupancy per hour](occupancy-timeline.md)).
 4. **People here now**, then those on their way: a row each in their
    state's colour, the name and age (a link), the condition and what they
    do ("At the health station"). When nobody can come: the simulation
@@ -107,9 +108,10 @@ stream last saw at it (`at_hospital`, at a care center of any kind).
   `area`, `nurseCheck`, `error`), null before aityx triaged it. 404 for
   an id that is not a care center (or not a positive number), 503 without
   the database; open to everyone.
-- `GET /api/care-centers/{id}/admissions` and `.../admissions/forecast`:
-  its admissions per hour and datyx's forecast of them
-  ([A care center's admissions per hour](admissions-timeline.md#the-api)).
+- `GET /api/care-centers/{id}/occupancy` and `.../occupancy/forecast`:
+  its people in care per hour and datyx's forecast of them; the same for
+  its admissions, `.../admissions` and `.../admissions/forecast`
+  ([A care center's occupancy per hour](occupancy-timeline.md#the-api)).
 - The moves of `GET /api/people` and `GET /api/events`, a person's `now`
   and the rows of `GET /api/triage` carry `hospitalId`, for the links.
 - `admissions` has an index on `(hospital_id, id)`
@@ -123,7 +125,7 @@ answer with its capacity, who is there and on the way, how many have it
 as their hospital, the admissions; in prod nobody now; 404 and 503.
 `widget_test.dart`: a pin on home opens the view (its tooltip says so):
 the header, the map with the person on the way and the badge, the
-capacity in use, the admissions per hour with the forecast (under the
+capacity in use, the occupancy per hour with the forecast (under the
 capacity, above the people), the people, the admissions with who and
 their triage, a read every 5 seconds, a person opened from it and their hospital back to
 it; a hospital in the events opens it, and the person in a triage's

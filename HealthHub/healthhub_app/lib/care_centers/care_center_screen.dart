@@ -9,7 +9,7 @@ import '../location/user_location_map.dart' show CareCenterLook, CareCenterPin, 
 import '../people/person_screen.dart' show AdmissionRow, PersonLink;
 import '../screens/link_text.dart';
 import '../theme.dart';
-import 'admissions_timeline.dart';
+import 'occupancy_timeline.dart';
 
 /// How the care center view asks the API: `GET /api/care-centers/{id}`.
 typedef CareCenterLoader = Future<CareCenterDetail> Function(int id);
@@ -17,20 +17,20 @@ typedef CareCenterLoader = Future<CareCenterDetail> Function(int id);
 /// Makes the care centers named under it links to their view: home puts it
 /// over its tiles. Without one (the index), a [CareCenterLink] is plain
 /// text and a pin on the map shows its tooltip. With [admissions] and
-/// [forecast], the view plots its admissions per hour.
+/// [forecast], the view plots its people in care per hour.
 class CareCenterOpener extends InheritedWidget {
   const CareCenterOpener({
     super.key,
     required this.load,
-    this.admissions,
+    this.occupancy,
     this.forecast,
     this.showTiles = true,
     required super.child,
   });
 
   final CareCenterLoader load;
-  final HourlyAdmissionsLoader? admissions;
-  final AdmissionsForecastLoader? forecast;
+  final HourlyOccupancyLoader? occupancy;
+  final OccupancyForecastLoader? forecast;
 
   /// The view's map tiles; off in tests, which have no network.
   final bool showTiles;
@@ -43,7 +43,7 @@ class CareCenterOpener extends InheritedWidget {
     MaterialPageRoute<void>(
       builder: (_) => withOpeners(
         context,
-        CareCenterScreen(id: id, load: load, admissions: admissions, forecast: forecast, showTiles: showTiles),
+        CareCenterScreen(id: id, load: load, occupancy: occupancy, forecast: forecast, showTiles: showTiles),
       ),
     ),
   );
@@ -51,7 +51,7 @@ class CareCenterOpener extends InheritedWidget {
   @override
   bool updateShouldNotify(CareCenterOpener oldWidget) =>
       load != oldWidget.load ||
-      admissions != oldWidget.admissions ||
+      occupancy != oldWidget.occupancy ||
       forecast != oldWidget.forecast ||
       showTiles != oldWidget.showTiles;
 }
@@ -92,15 +92,15 @@ class CareCenterScreen extends StatefulWidget {
     super.key,
     required this.id,
     required this.load,
-    this.admissions,
+    this.occupancy,
     this.forecast,
     this.showTiles = true,
   });
 
   final int id;
   final CareCenterLoader load;
-  final HourlyAdmissionsLoader? admissions;
-  final AdmissionsForecastLoader? forecast;
+  final HourlyOccupancyLoader? occupancy;
+  final OccupancyForecastLoader? forecast;
   final bool showTiles;
 
   /// How often the view reads the care center again.
@@ -195,12 +195,14 @@ class _CareCenterScreenState extends State<CareCenterScreen> {
                         );
                       },
                     ),
-                    if (widget.admissions != null && widget.forecast != null) ...[
+                    if (widget.occupancy != null && widget.forecast != null) ...[
                       const SizedBox(height: 16),
-                      AdmissionsTimelineCard(
-                        admissions: widget.admissions!,
+                      OccupancyTimelineCard(
+                        occupancy: widget.occupancy!,
                         forecast: widget.forecast!,
                         hospitalId: widget.id,
+                        capacity: center.capacity,
+                        unit: center.unit,
                       ),
                     ],
                     const SizedBox(height: 16),

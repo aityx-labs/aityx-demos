@@ -80,6 +80,13 @@
 ///                       datyx's DeepAR forecast of the hospital's
 ///                       admissions per hour, step by step, asked with the
 ///                       user's own token; 502 when datyx is down
+///   GET  /api/care-centers/{id}/occupancy?run=&hours=72
+///                       the people in care there in each hour up to its
+///                       run's end, missing hours zero; open to all; 503
+///                       without the database
+///   GET  /api/care-centers/{id}/occupancy/forecast?run=
+///                       datyx's DeepAR forecast of them, step by step, as
+///                       the admissions' is asked
 ///   GET  /api/datyx/me, /api/datyx/datasources
 ///                       the datyx API's /api/me and /api/datasources, asked
 ///                       with the user's own token, so datyx sees the same
@@ -372,8 +379,8 @@ Future<void> _handle(
     final identity = await verifier.verify(token);
     // /api/people/{id} and /api/people/{id}/prediction: the id, and which.
     final personRoute = personPath(path);
-    // /api/care-centers/{id}/admissions and .../forecast: the hospital, and which.
-    final hourlyRoute = careCenterAdmissionsPath(path);
+    // /api/care-centers/{id}/admissions or .../occupancy, and .../forecast: the care center, the series, and which.
+    final hourlyRoute = careCenterSeriesPath(path);
     // Only the routes that need the database, or datyx, ask them.
     final answer = switch ((method, path)) {
       ('GET', '/api/health') => route(
@@ -468,13 +475,14 @@ Future<void> _handle(
         people: live.feed?.people ?? const [],
         careCenter: await _careCenter(db, careCenterIdOf(path)!, live.simulation?.run),
       ),
-      ('GET', _) when hourlyRoute != null && !hourlyRoute.$2 => route(
+      ('GET', _) when hourlyRoute != null && !hourlyRoute.$3 => route(
         method,
         path,
         query: request.uri.queryParameters,
         auth: auth,
         hourly: await _hourly(
           db,
+          hourlyRoute.$2,
           hourlyRoute.$1,
           request.uri.queryParameters,
           request.uri.queryParameters['run'] ?? live.simulation?.run,
@@ -488,8 +496,8 @@ Future<void> _handle(
         identity: identity,
         forecast: auth.enabled && identity == null
             ? null
-            : await _forecast(
-                datyx, token, db, hourlyRoute.$1, request.uri.queryParameters['run'] ?? live.simulation?.run),
+            : await _forecast(datyx, token, db, hourlyRoute.$2, hourlyRoute.$1,
+                request.uri.queryParameters['run'] ?? live.simulation?.run),
       ),
       ('GET', '/api/people') => route(
         method,
@@ -646,41 +654,54 @@ Future<CareCenterLookup?> _careCenter(Db db, int id, String? run) async {
   }
 }
 
-/// One hospital's admissions per hour in [run] (the newest run with its
+/// One care center's [series] per hour in [run] (the newest run with its
 /// admissions when null; none for hours that aren't a number, which the
 /// route answers 400); null when the database doesn't answer (logged).
-Future<HourlyLookup?> _hourly(Db db, int id, Map<String, String> query, String? run, String? currentRun) async {
+Future<HourlyLookup?> _hourly(
+  Db db,
+  CareCenterSeries series,
+  int id,
+  Map<String, String> query,
+  String? run,
+  String? currentRun,
+) async {
   final hours = hoursOf(query);
   if (hours == null) return const HourlyLookup();
   try {
-    final read = await db.hospitalHourly(id, run: run, hours: hours);
+    final read = await _read(db, series, id, run: run, hours: hours);
     return HourlyLookup(run: read.run, end: read.end, current: read.run != null && read.run == currentRun, rows: read.rows);
   } catch (error) {
-    stderr.writeln('admissions per hour: $error');
+    stderr.writeln('${series.path} per hour: $error');
     return null;
   }
 }
 
-/// The table and group of datyx's model of HealthHub's hospitals: their
-/// admissions per hour, forecast step by step by DeepAR.
-const _forecastTable = 'public.admissions_hourly';
-const _forecastGroup = 'default';
+Future<({String? run, DateTime? end, List<Map<String, Object?>> rows})> _read(
+  Db db,
+  CareCenterSeries series,
+  int id, {
+  String? run,
+  required int hours,
+}) => switch (series) {
+  CareCenterSeries.admissions => db.hospitalHourly(id, run: run, hours: hours),
+  CareCenterSeries.occupancy => db.hospitalOccupancy(id, run: run, hours: hours),
+};
 
-/// datyx's forecast of one hospital's admissions per hour in [run] (the
-/// newest run with its admissions when null), asked with the user's own
-/// [token], as [_prediction] asks: from the hospital's series of
-/// admissions_hourly's end.
-Future<Forwarded?> _forecast(Uri datyx, String? token, Db db, int id, String? run) async {
-  var series = run;
-  if (series == null) {
+/// datyx's DeepAR forecast of one care center's [series] per hour in [run]
+/// (the newest run with its admissions when null), asked with the user's
+/// own [token], as [_prediction] asks: from the end of the care center's
+/// series of the series' table, group default.
+Future<Forwarded?> _forecast(Uri datyx, String? token, Db db, CareCenterSeries series, int id, String? run) async {
+  var chosen = run;
+  if (chosen == null) {
     try {
-      series = (await db.hospitalHourly(id, hours: 1)).run;
+      chosen = (await _read(db, series, id, hours: 1)).run;
     } catch (error) {
-      stderr.writeln('admissions per hour: $error');
+      stderr.writeln('${series.path} per hour: $error');
     }
-    if (series == null) return const Forwarded(404, {'error': 'nobody has been admitted there'});
+    if (chosen == null) return const Forwarded(404, {'error': 'nobody has been admitted there'});
   }
-  return _inference(datyx, token, db, _forecastTable, _forecastGroup, {'run_id': series, 'hospital_id': '$id'});
+  return _inference(datyx, token, db, series.table, series.group, {'run_id': chosen, 'hospital_id': '$id'});
 }
 
 /// The table and group of datyx's model of HealthHub's patients: their

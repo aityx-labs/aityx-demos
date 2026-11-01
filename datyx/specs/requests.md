@@ -448,3 +448,18 @@ Maven), `process-compose.yaml`, `compose.yaml`, the scripts, the
 Dockerfiles, PostgreSQL's init script, the Quarkus project (`GET
 /api/hello`, the `Greeting` entity, health, OpenAPI, tests), the Makefile,
 the id and version files, README, AGENTS.md, CLAUDE.md and these specs.
+
+## 2026-11-01: HealthHub's occupancy per hour, a DeepAR series
+
+Asked (HealthHub's request): the care center view plots its occupancy
+and its DeepAR forecast.
+
+Changed: the development catalogue (`devdata/healthhub-catalog.json`)
+curates HealthHub's new view `occupancy_hourly`: tier 2, the glossary
+term *Hourly Occupancy*, its columns' terms, checks (the run id's shape,
+at least one person a row), the lineage from `admissions` and
+`medical_conditions`, and its TimeSeries roles, group `default`
+(Target `occupancy`, SeriesKey `run_id` and `hospital_id`, hourly,
+missing zero), trained by DeepAR. `catalog.md`, `training.md`,
+`curation.md`.
+

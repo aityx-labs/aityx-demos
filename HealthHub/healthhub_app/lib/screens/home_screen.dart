@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_version.dart';
 import '../auth/auth_controller.dart';
 import '../auth/user_menu.dart';
-import '../care_centers/admissions_timeline.dart';
+import '../care_centers/occupancy_timeline.dart';
 import '../care_centers/care_center_screen.dart';
 import '../events/stream_events.dart';
 import '../location/location_controller.dart';
@@ -22,8 +22,8 @@ import 'explainers.dart';
 /// the events and the triage) opens their view ([PersonOpener]); with
 /// [careCenter], every care center (a pin on the map, a hospital in the
 /// events and the triage) opens its view ([CareCenterOpener]), which plots
-/// its admissions per hour with [careCenterAdmissions] and
-/// [admissionsForecast].
+/// its people in care per hour with [careCenterOccupancy] and
+/// [occupancyForecast].
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
@@ -38,8 +38,8 @@ class HomeScreen extends StatelessWidget {
     this.person,
     this.prediction,
     this.careCenter,
-    this.careCenterAdmissions,
-    this.admissionsForecast,
+    this.careCenterOccupancy,
+    this.occupancyForecast,
     this.simulation,
     this.showTiles = true,
   });
@@ -75,8 +75,8 @@ class HomeScreen extends StatelessWidget {
   /// Where a care center's view comes from: the API, and its admissions
   /// per hour, with datyx's forecast of them through it.
   final CareCenterLoader? careCenter;
-  final HourlyAdmissionsLoader? careCenterAdmissions;
-  final AdmissionsForecastLoader? admissionsForecast;
+  final HourlyOccupancyLoader? careCenterOccupancy;
+  final OccupancyForecastLoader? occupancyForecast;
 
   /// Pauses or resumes the simulation, from the events.
   final SimulationControl? simulation;
@@ -88,8 +88,8 @@ class HomeScreen extends StatelessWidget {
     if (careCenter != null) {
       home = CareCenterOpener(
         load: careCenter!,
-        admissions: careCenterAdmissions,
-        forecast: admissionsForecast,
+        occupancy: careCenterOccupancy,
+        forecast: occupancyForecast,
         showTiles: showTiles,
         child: home,
       );

@@ -81,12 +81,12 @@ class Forwarded {
 /// [careCenter]: for GET /api/care-centers/{id}, what the server read of
 /// that care center in the database (null: it didn't answer, 503), with
 /// [people] for who is there now.
-/// [hourly]: for GET /api/care-centers/{id}/admissions, the hospital's
-/// admissions per hour the server read (null: the database didn't answer,
-/// 503).
-/// [forecast]: for GET /api/care-centers/{id}/admissions/forecast,
-/// datyx's answer to the inference the server asked for with the user's
-/// token (null: datyx didn't answer, 502).
+/// [hourly]: for GET /api/care-centers/{id}/admissions and .../occupancy,
+/// the care center's series per hour the server read (null: the database
+/// didn't answer, 503).
+/// [forecast]: for GET /api/care-centers/{id}/admissions/forecast and
+/// .../occupancy/forecast, datyx's answer to the inference the server
+/// asked for with the user's token (null: datyx didn't answer, 502).
 Answer route(
   String method,
   String path, {
@@ -157,17 +157,17 @@ Answer route(
           ? const Answer(404, body: {'error': 'no care center with that id'})
           : Answer(200, body: answer);
     }
-    switch (careCenterAdmissionsPath(path)) {
+    switch (careCenterSeriesPath(path)) {
       // Open to everyone, like the care centers: the counts are the simulation's.
-      case (final id, false):
+      case (final id, final series, false):
         if (hoursOf(query) == null) {
           return const Answer(400, body: {'error': 'hours is a positive number'});
         }
         if (hourly == null) {
           return const Answer(503, body: {'error': 'the database is not answering'});
         }
-        return Answer(200, body: hourlyAnswer(id, hourly, hours: hoursOf(query)!));
-      case (_, true):
+        return Answer(200, body: hourlyAnswer(id, hourly, series: series, hours: hoursOf(query)!));
+      case (_, _, true):
         if (auth.enabled && identity == null) return _signIn;
         if (forecast == null) {
           return const Answer(502, body: {'error': 'the datyx API is not answering'});
@@ -525,16 +525,35 @@ Answer predictionAnswer(Forwarded prediction) {
   });
 }
 
-/// The hospital id in /api/care-centers/{id}/admissions, and whether the
-/// path asks for datyx's forecast (/api/care-centers/{id}/admissions/forecast);
-/// null for any other path.
-(int, bool)? careCenterAdmissionsPath(String path) {
-  final match = RegExp(r'^/api/care-centers/(\d{1,9})/admissions(/forecast)?$').firstMatch(path);
-  return match == null ? null : (int.parse(match.group(1)!), match.group(2) != null);
+/// A care center's series per hour: its admissions (admissions_hourly, the
+/// Flink job's) or its people in care (occupancy_hourly), each with the
+/// [fields] an hour answers and the table and group of datyx's DeepAR
+/// model of it.
+enum CareCenterSeries {
+  admissions('admissions', ['admissions', 'acute', 'chronic'], 'public.admissions_hourly'),
+  occupancy('occupancy', ['occupancy'], 'public.occupancy_hourly');
+
+  const CareCenterSeries(this.path, this.fields, this.table);
+
+  /// Its part of the path: /api/care-centers/{id}/[path].
+  final String path;
+  final List<String> fields;
+  final String table;
+  String get group => 'default';
 }
 
-/// How many hours GET /api/care-centers/{id}/admissions answers unless
-/// asked (three simulated days), and at most (30).
+/// The care center id in /api/care-centers/{id}/admissions or
+/// .../occupancy, which series, and whether the path asks for datyx's
+/// forecast of it (.../forecast); null for any other path.
+(int, CareCenterSeries, bool)? careCenterSeriesPath(String path) {
+  final match = RegExp(r'^/api/care-centers/(\d{1,9})/(admissions|occupancy)(/forecast)?$').firstMatch(path);
+  if (match == null) return null;
+  final series = CareCenterSeries.values.firstWhere((s) => s.path == match.group(2));
+  return (int.parse(match.group(1)!), series, match.group(3) != null);
+}
+
+/// How many hours GET /api/care-centers/{id}/admissions (or .../occupancy)
+/// answers unless asked (three simulated days), and at most (30).
 const hourlyHours = 72;
 const hourlyMax = 720;
 
@@ -545,11 +564,12 @@ int? hoursOf(Map<String, String> query) {
   return hours == null || hours < 1 ? null : min(hours, hourlyMax);
 }
 
-/// What the server read of one hospital's admissions per hour, from
-/// admissions_hourly: the [run] (null when the hospital has none), the
-/// run's latest hour at any hospital ([end], where its series end, as
-/// datyx sees them), whether it is the [current] run, and the hospital's
-/// rows up to [end] (`hour`, `admissions`, `acute`, `chronic`).
+/// What the server read of one care center's series per hour, from
+/// admissions_hourly or occupancy_hourly: the [run] (null when the care
+/// center has none), the run's latest hour at any care center ([end],
+/// where its series end, as datyx sees them), whether it is the [current]
+/// run, and the care center's rows up to [end] (`hour` and the series'
+/// fields).
 class HourlyLookup {
   const HourlyLookup({this.run, this.end, this.current = false, this.rows = const []});
 
@@ -559,12 +579,17 @@ class HourlyLookup {
   final List<Map<String, Object?>> rows;
 }
 
-/// What GET /api/care-centers/{id}/admissions answers: the hospital's
-/// admissions in each of the [hours] hours up to its run's end, oldest
-/// first, an hour without a row a zero (the table has none for it), as
-/// `{"hour", "admissions", "acute", "chronic"}`, the hour as
-/// `YYYY-MM-DDTHH:MM`, simulated time.
-Map<String, Object?> hourlyAnswer(int id, HourlyLookup hourly, {int hours = hourlyHours}) {
+/// What GET /api/care-centers/{id}/admissions (or .../occupancy) answers:
+/// the care center's [series] in each of the [hours] hours up to its run's
+/// end, oldest first, an hour without a row a zero (the table has none for
+/// it), as `{"hour", "admissions", "acute", "chronic"}` (or `{"hour",
+/// "occupancy"}`), the hour as `YYYY-MM-DDTHH:MM`, simulated time.
+Map<String, Object?> hourlyAnswer(
+  int id,
+  HourlyLookup hourly, {
+  CareCenterSeries series = CareCenterSeries.admissions,
+  int hours = hourlyHours,
+}) {
   final end = hourly.end;
   final byHour = {for (final row in hourly.rows) _hourKey(row['hour'] as DateTime): row};
   return {
@@ -580,9 +605,7 @@ Map<String, Object?> hourlyAnswer(int id, HourlyLookup hourly, {int hours = hour
             final row = byHour[hour];
             return {
               'hour': hour,
-              'admissions': row?['admissions'] ?? 0,
-              'acute': row?['acute'] ?? 0,
-              'chronic': row?['chronic'] ?? 0,
+              for (final field in series.fields) field: row?[field] ?? 0,
             };
           }(),
     ],
@@ -591,9 +614,9 @@ Map<String, Object?> hourlyAnswer(int id, HourlyLookup hourly, {int hours = hour
 
 String _hourKey(DateTime hour) => hour.toUtc().toIso8601String().substring(0, 16);
 
-/// What GET /api/care-centers/{id}/admissions/forecast answers from
-/// datyx's inference of the hospital's series of admissions_hourly
-/// ([forecast]): as [predictionAnswer], with the `forecast`, step by step
+/// What GET /api/care-centers/{id}/admissions/forecast (or
+/// .../occupancy/forecast) answers from datyx's inference of the care
+/// center's series ([forecast]): as [predictionAnswer], with the `forecast`, step by step
 /// from the series' end (`at`, `mean`, `p10`, `p50`, `p90`), empty when
 /// datyx can't say.
 Answer forecastAnswer(Forwarded forecast) {

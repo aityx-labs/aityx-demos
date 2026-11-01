@@ -4,6 +4,21 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-01: tooltips on the Catalog
+
+Asked: on the Catalog, add tooltips to the elements, so the user knows
+what each thing is and what it's about, such as whether it is a table.
+
+Changed: every icon, name, count, chip, badge and button of the Catalog
+tab has a tooltip ([dashboard.md](dashboard.md)): the kind of a source,
+a table (table, view, materialized view, partitioned) or a topic, with
+its description and OpenMetadata FQN; what a column's key, constraint
+and type are; what a TimeSeries role means and the DeepAR field it
+becomes; which classification a tag is from; what a cleanup policy
+does; what Read schema and Read topics read. `tableKind`, `tagHelp` and
+`cleanupHelp` name them; tests. Column descriptions aren't in the API's
+catalogue answer yet, so a column's tooltip can't show one.
+
 ## 2026-11-01: Kafka sources, a Streams section, and cards apart
 
 Asked: add Kafka to the data sources, with HealthHub's Kafka in the dev

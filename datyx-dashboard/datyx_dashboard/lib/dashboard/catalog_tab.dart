@@ -78,15 +78,34 @@ class CatalogTab extends StatelessWidget {
           ),
         ),
         if (!locked && databases.isNotEmpty) ...[
-          const _SectionTitle(Icons.storage, 'Databases', 'tables, columns and the time series in them'),
+          const _SectionTitle(
+            Icons.storage,
+            'Databases',
+            'tables, columns and the time series in them',
+            help:
+                'Database sources: the tables and views their schema has, as OpenMetadata '
+                'keeps them, and the columns tagged for a forecast',
+          ),
           for (final s in databases) _Spaced(SourceCatalog(key: ValueKey('catalog-${s.id}'), api: api, source: s)),
         ],
         if (!locked && streams.isNotEmpty) ...[
-          const _SectionTitle(Icons.stream, 'Streams', 'Kafka topics and the fields of their records'),
+          const _SectionTitle(
+            Icons.stream,
+            'Streams',
+            'Kafka topics and the fields of their records',
+            help:
+                'Kafka sources: their topics, as OpenMetadata keeps them, with the fields '
+                'learnt from each topic\'s latest records',
+          ),
           for (final s in streams) _Spaced(StreamCatalog(key: ValueKey('catalog-${s.id}'), api: api, source: s)),
         ],
         if (!locked && others.isNotEmpty) ...[
-          const _SectionTitle(Icons.hourglass_empty, 'Not read yet', 'S3 buckets and folders'),
+          const _SectionTitle(
+            Icons.hourglass_empty,
+            'Not read yet',
+            'S3 buckets and folders',
+            help: 'Sources datyx can\'t read into the catalogue yet: only databases and Kafka so far',
+          ),
           for (final s in others) _Spaced(_Row(source: s)),
         ],
       ],
@@ -95,22 +114,27 @@ class CatalogTab extends StatelessWidget {
 }
 
 /// A section of the tab: its icon, name and what its cards show, with room
-/// above it to set it apart from the section before.
+/// above it to set it apart from the section before; [help], on hover, says
+/// which sources it holds.
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.icon, this.title, this.subtitle);
+  const _SectionTitle(this.icon, this.title, this.subtitle, {required this.help});
   final IconData icon;
   final String title;
   final String subtitle;
+  final String help;
 
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(top: 28, bottom: 12, left: 4),
-    child: Row(
-      children: [
-        Icon(icon, size: 18, color: Aityx.orange),
-        const SizedBox(width: 8),
-        Expanded(child: CardTitle(title, subtitle)),
-      ],
+    child: Tooltip(
+      message: help,
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Aityx.orange),
+          const SizedBox(width: 8),
+          Expanded(child: CardTitle(title, subtitle)),
+        ],
+      ),
     ),
   );
 }
@@ -125,35 +149,57 @@ class _Spaced extends StatelessWidget {
 }
 
 /// The top of a source's card: its icon, name and where it points, and the
-/// button that has the API read it into the catalogue.
+/// button that has the API read it into the catalogue ([readHelp] says
+/// what that reads).
 class _SourceHeader extends StatelessWidget {
-  const _SourceHeader({required this.source, required this.busy, required this.label, required this.onRead});
+  const _SourceHeader({
+    required this.source,
+    required this.busy,
+    required this.label,
+    required this.readHelp,
+    required this.onRead,
+  });
   final DataSource source;
   final bool busy;
   final String label;
+  final String readHelp;
   final VoidCallback onRead;
 
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      Icon(iconForType(source.type), size: 20, color: Aityx.orangeLight),
+      Tooltip(
+        message: '${source.type.label} source',
+        child: Icon(iconForType(source.type), size: 20, color: Aityx.orangeLight),
+      ),
       const SizedBox(width: 10),
-      Text(source.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+      Tooltip(
+        message: source.description == null || source.description!.isEmpty
+            ? 'The data source\'s name, as added on the Data sources tab'
+            : source.description!,
+        child: Text(source.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+      ),
       const SizedBox(width: 8),
       Expanded(
-        child: Text(
-          source.summary,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
+        child: Tooltip(
+          message: 'Where datyx connects: ${source.summary}',
+          child: Text(
+            source.summary,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
+          ),
         ),
       ),
       const SizedBox(width: 8),
-      FilledButton.tonalIcon(
-        onPressed: busy ? null : onRead,
-        icon: busy
-            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-            : const Icon(Icons.sync, size: 18),
-        label: Text(label),
+      Tooltip(
+        message: readHelp,
+        child: FilledButton.tonalIcon(
+          onPressed: busy ? null : onRead,
+          icon: busy
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.sync, size: 18),
+          label: Text(label),
+        ),
       ),
     ],
   );
@@ -249,6 +295,9 @@ class _SourceCatalogState extends State<SourceCatalog> {
               source: widget.source,
               busy: _busy,
               label: tables == null || tables.isEmpty ? 'Read schema' : 'Read again',
+              readHelp:
+                  'Reads every table and view, with its columns, types and keys, into '
+                  'OpenMetadata. No rows are read; tags added there stay',
               onRead: _sync,
             ),
             if (_note != null) ...[
@@ -318,25 +367,38 @@ class _TableTile extends StatelessWidget {
       for (final c in table.columns)
         for (final t in c.tags) ?TimeSeriesTag.parse(t)?.group,
     ]);
+    final description = table.description == null || table.description!.isEmpty ? null : table.description!;
     return ExpansionTile(
       key: PageStorageKey(table.fqn),
       tilePadding: EdgeInsets.zero,
-      leading: Icon(
-        table.type == 'View' ? Icons.visibility_outlined : Icons.table_chart_outlined,
-        size: 20,
-        color: Aityx.muted,
+      leading: Tooltip(
+        message: tableKind(table.type),
+        child: Icon(
+          table.type == 'View' ? Icons.visibility_outlined : Icons.table_chart_outlined,
+          size: 20,
+          color: Aityx.muted,
+        ),
       ),
       title: Row(
         children: [
           Flexible(
-            child: Text(
-              table.qualifiedName,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontFamily: 'monospace'),
+            child: Tooltip(
+              message:
+                  '${tableKind(table.type)} ${table.qualifiedName}'
+                  '${description == null ? ', with no description in the source' : ': $description'}\n'
+                  'In OpenMetadata: ${table.fqn}',
+              child: Text(
+                table.qualifiedName,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontFamily: 'monospace'),
+              ),
             ),
           ),
           const SizedBox(width: 8),
-          Text('${table.columns.length} columns', style: const TextStyle(color: Aityx.muted, fontSize: 12)),
+          Tooltip(
+            message: 'Its columns, in the source\'s order; open the row to see them',
+            child: Text('${table.columns.length} columns', style: const TextStyle(color: Aityx.muted, fontSize: 12)),
+          ),
           const SizedBox(width: 8),
           if (series.isNotEmpty) _Badge(series: series),
         ],
@@ -344,27 +406,42 @@ class _TableTile extends StatelessWidget {
       childrenPadding: const EdgeInsets.only(left: 40, bottom: 12),
       expandedCrossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (table.description != null && table.description!.isNotEmpty)
+        if (description != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(table.description!, style: const TextStyle(color: Aityx.muted)),
+            child: Text(description, style: const TextStyle(color: Aityx.muted)),
           ),
         for (final c in table.columns) _ColumnRow(column: c, inKey: table.primaryKey.contains(c.name), colors: colors),
         const SizedBox(height: 8),
         for (final s in series) _SeriesSummary(spec: s, color: colors[s.group]!, onEdit: () => onEdit(s)),
         Align(
           alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
-            key: ValueKey('add-group-${table.fqn}'),
-            onPressed: () => onAdd(series.isEmpty ? null : series.first),
-            icon: Icon(series.isEmpty ? Icons.sell_outlined : Icons.add, size: 18),
-            label: Text(series.isEmpty ? 'Tag for DeepAR' : 'Add a group'),
+          child: Tooltip(
+            message: series.isEmpty
+                ? 'Tag the columns with their roles in a forecast: the time index, the '
+                      'value to forecast, what tells series apart, the features'
+                : 'Another dataset in this table: a group with its own value to '
+                      'forecast, sharing the columns, frequency and missing rows',
+            child: OutlinedButton.icon(
+              key: ValueKey('add-group-${table.fqn}'),
+              onPressed: () => onAdd(series.isEmpty ? null : series.first),
+              icon: Icon(series.isEmpty ? Icons.sell_outlined : Icons.add, size: 18),
+              label: Text(series.isEmpty ? 'Tag for DeepAR' : 'Add a group'),
+            ),
           ),
         ),
       ],
     );
   }
 }
+
+/// What a table of the catalogue is, by its OpenMetadata table type.
+String tableKind(String? type) => switch (type) {
+  'View' => 'View',
+  'MaterializedView' => 'Materialized view',
+  'Partitioned' => 'Partitioned table',
+  _ => 'Table',
+};
 
 class _ColumnRow extends StatelessWidget {
   const _ColumnRow({required this.column, required this.inKey, required this.colors});
@@ -378,6 +455,11 @@ class _ColumnRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final key = inKey || column.constraint == 'PRIMARY_KEY';
+    final rules = [
+      if (key) 'part of the primary key',
+      if (!key && column.constraint == 'NOT_NULL') 'never empty (NOT NULL)',
+      if (column.tags.isEmpty) 'not tagged',
+    ];
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Wrap(
@@ -389,13 +471,20 @@ class _ColumnRow extends StatelessWidget {
             width: 180,
             child: Row(
               children: [
-                if (key) const Icon(Icons.key, size: 14, color: Aityx.amber),
+                if (key)
+                  const Tooltip(
+                    message: 'Primary key: with the table\'s other key columns, it names one row',
+                    child: Icon(Icons.key, size: 14, color: Aityx.amber),
+                  ),
                 if (key) const SizedBox(width: 4),
                 Flexible(
-                  child: Text(
-                    column.name,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                  child: Tooltip(
+                    message: 'Column ${column.name}${rules.isEmpty ? '' : ': ${rules.join(', ')}'}',
+                    child: Text(
+                      column.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                    ),
                   ),
                 ),
               ],
@@ -403,9 +492,14 @@ class _ColumnRow extends StatelessWidget {
           ),
           SizedBox(
             width: 100,
-            child: Text(
-              column.dataType ?? '?',
-              style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
+            child: Tooltip(
+              message: column.dataType == null
+                  ? 'Its data type isn\'t known'
+                  : 'Its data type, as OpenMetadata names it: ${column.dataType}',
+              child: Text(
+                column.dataType ?? '?',
+                style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
+              ),
             ),
           ),
           for (final tag in column.tags) _TagChip(tag, colors: colors),
@@ -426,22 +520,37 @@ class _TagChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final role = TimeSeriesTag.parse(tag);
     final color = role == null ? null : colors[role.group] ?? otherGroupColor;
-    return Container(
-      key: role == null ? null : ValueKey('tag-${role.group}-${role.role.tag}'),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color == null ? Aityx.bg2 : color.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color ?? Aityx.border),
-      ),
-      child: Text(
-        role == null
-            ? tag
-            : '${role.group == defaultGroup ? '' : '${role.group}: '}${role.role.tag} · ${role.role.deepAr}',
-        style: TextStyle(fontSize: 11, color: role == null ? Aityx.muted : Aityx.fg),
+    return Tooltip(
+      message: role == null
+          ? tagHelp(tag)
+          : '${role.role.help}, in the ${role.group} group.\n'
+                'DeepAR takes it as ${role.role.deepAr}. Tag $tag in OpenMetadata',
+      child: Container(
+        key: role == null ? null : ValueKey('tag-${role.group}-${role.role.tag}'),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: color == null ? Aityx.bg2 : color.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color ?? Aityx.border),
+        ),
+        child: Text(
+          role == null
+              ? tag
+              : '${role.group == defaultGroup ? '' : '${role.group}: '}${role.role.tag} · ${role.role.deepAr}',
+          style: TextStyle(fontSize: 11, color: role == null ? Aityx.muted : Aityx.fg),
+        ),
       ),
     );
   }
+}
+
+/// What a tag that isn't a TimeSeries role says: its classification, the
+/// part before the first dot, and the tag.
+String tagHelp(String tag) {
+  final dot = tag.indexOf('.');
+  if (dot <= 0) return 'Tag $tag in OpenMetadata';
+  return 'Tag ${tag.substring(dot + 1)} of the ${tag.substring(0, dot)} classification, '
+      'added in OpenMetadata';
 }
 
 /// A table's time series at a glance: ready or needs work, one group; how
@@ -457,13 +566,20 @@ class _Badge extends StatelessWidget {
     final text = series.length == 1
         ? (all ? 'time series: ready' : 'time series: needs work')
         : '${series.length} time series: ${all ? 'all' : '$ready'} ready';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: all ? Aityx.green : Aityx.amber),
+    return Tooltip(
+      message: all
+          ? 'Its columns are tagged for a forecast, and DeepAR can train on '
+                '${series.length == 1 ? 'it' : 'each group'} as tagged'
+          : 'Tagged for a forecast, but ${series.length - ready} of ${series.length} '
+                '${series.length == 1 ? 'group needs' : 'groups need'} work: open the row to see what to fix',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: all ? Aityx.green : Aityx.amber),
+        ),
+        child: Text(text, style: TextStyle(fontSize: 11, color: all ? Aityx.green : Aityx.amber)),
       ),
-      child: Text(text, style: TextStyle(fontSize: 11, color: all ? Aityx.green : Aityx.amber)),
     );
   }
 }
@@ -500,30 +616,48 @@ class _SeriesSummary extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                key: ValueKey('group-color-${spec.group}'),
-                width: 10,
-                height: 10,
-                margin: const EdgeInsets.only(right: 8),
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              Tooltip(
+                message: 'The ${spec.group} group\'s color, on its tags in the columns above',
+                child: Container(
+                  key: ValueKey('group-color-${spec.group}'),
+                  width: 10,
+                  height: 10,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                ),
               ),
-              Text('DeepAR · ${spec.group}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              Tooltip(
+                message:
+                    'The ${spec.group} group: one dataset DeepAR can train on, '
+                    'forecasting ${spec.of(TimeSeriesRole.target).isEmpty ? 'no value yet' : spec.of(TimeSeriesRole.target).join(', ')}',
+                child: Text('DeepAR · ${spec.group}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              ),
               const SizedBox(width: 8),
-              Icon(
-                spec.ready ? Icons.check_circle_outline : Icons.error_outline,
-                size: 16,
-                color: spec.ready ? Aityx.green : Aityx.amber,
+              Tooltip(
+                message: spec.ready ? 'Ready to train' : 'Not ready to train: the problems below say what to fix',
+                child: Icon(
+                  spec.ready ? Icons.check_circle_outline : Icons.error_outline,
+                  size: 16,
+                  color: spec.ready ? Aityx.green : Aityx.amber,
+                ),
               ),
               const Spacer(),
-              TextButton.icon(
-                key: ValueKey('edit-group-${spec.table}-${spec.group}'),
-                onPressed: onEdit,
-                icon: const Icon(Icons.sell_outlined, size: 16),
-                label: const Text('Edit'),
+              Tooltip(
+                message: 'Change this group\'s roles, its frequency and what a missing row means',
+                child: TextButton.icon(
+                  key: ValueKey('edit-group-${spec.table}-${spec.group}'),
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.sell_outlined, size: 16),
+                  label: const Text('Edit'),
+                ),
               ),
             ],
           ),
-          for (final l in lines) Text(l, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+          for (final l in lines)
+            Tooltip(
+              message: 'What DeepAR is given: its input = the column or setting it comes from',
+              child: Text(l, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+            ),
           for (final p in spec.problems)
             Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -603,6 +737,9 @@ class _StreamCatalogState extends State<StreamCatalog> {
               source: widget.source,
               busy: _busy,
               label: topics == null || topics.isEmpty ? 'Read topics' : 'Read again',
+              readHelp:
+                  'Reads every topic, its settings and the fields of its latest records '
+                  'into OpenMetadata. Only names and types are kept, never a value',
               onRead: _sync,
             ),
             if (_note != null) ...[
@@ -645,19 +782,36 @@ class _TopicTile extends StatelessWidget {
     return ExpansionTile(
       key: PageStorageKey(topic.fqn),
       tilePadding: EdgeInsets.zero,
-      leading: const Icon(Icons.topic_outlined, size: 20, color: Aityx.muted),
+      leading: const Tooltip(
+        message: 'Kafka topic',
+        child: Icon(Icons.topic_outlined, size: 20, color: Aityx.muted),
+      ),
       expandedAlignment: Alignment.centerLeft,
       title: Row(
         children: [
           Flexible(
-            child: Text(topic.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'monospace')),
+            child: Tooltip(
+              message:
+                  'Kafka topic ${topic.name}'
+                  '${topic.description == null || topic.description!.isEmpty ? '' : ': ${topic.description}'}\n'
+                  'In OpenMetadata: ${topic.fqn}',
+              child: Text(topic.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontFamily: 'monospace')),
+            ),
           ),
           const SizedBox(width: 8),
-          Text(
-            topic.fields.isEmpty ? 'no fields read' : '${topic.fields.length} fields',
-            style: const TextStyle(color: Aityx.muted, fontSize: 12),
+          Tooltip(
+            message: topic.fields.isEmpty
+                ? 'No fields: the topic had no record to learn them from, or none was a JSON object'
+                : 'The top-level fields of its records, learnt from the latest ones; open the row to see them',
+            child: Text(
+              topic.fields.isEmpty ? 'no fields read' : '${topic.fields.length} fields',
+              style: const TextStyle(color: Aityx.muted, fontSize: 12),
+            ),
           ),
-          for (final p in topic.cleanupPolicies) ...[const SizedBox(width: 8), _PlainChip(p)],
+          for (final p in topic.cleanupPolicies) ...[
+            const SizedBox(width: 8),
+            _PlainChip(p, help: cleanupHelp(p)),
+          ],
         ],
       ),
       childrenPadding: const EdgeInsets.only(left: 40, bottom: 12),
@@ -665,7 +819,12 @@ class _TopicTile extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: Text(settings.join(' · '), style: const TextStyle(color: Aityx.muted, fontSize: 12)),
+          child: Tooltip(
+            message:
+                'Its Kafka settings: partitions (records spread over them), replication '
+                '(copies of each kept on brokers), and how long or how much it keeps',
+            child: Text(settings.join(' · '), style: const TextStyle(color: Aityx.muted, fontSize: 12)),
+          ),
         ),
         if (topic.description != null && topic.description!.isNotEmpty)
           Padding(
@@ -675,7 +834,11 @@ class _TopicTile extends StatelessWidget {
         if (topic.tags.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Wrap(spacing: 8, runSpacing: 4, children: [for (final t in topic.tags) _PlainChip(t)]),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [for (final t in topic.tags) _PlainChip(t, help: tagHelp(t))],
+            ),
           ),
         if (topic.fields.isEmpty)
           const Text(
@@ -717,20 +880,30 @@ class _FieldRow extends StatelessWidget {
           children: [
             SizedBox(
               width: 180 - 16.0 * depth.clamp(0, 5),
-              child: Text(
-                field.name,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+              child: Tooltip(
+                message: field.children.isEmpty
+                    ? 'Field ${field.name} of the records'
+                    : 'Field ${field.name} of the records, holding the fields under it',
+                child: Text(
+                  field.name,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                ),
               ),
             ),
             SizedBox(
               width: 100,
-              child: Text(
-                field.dataType ?? '?',
-                style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
+              child: Tooltip(
+                message: field.dataType == null
+                    ? 'Its type isn\'t known'
+                    : 'Its type, as the sampled records\' values fit it: ${field.dataType}',
+                child: Text(
+                  field.dataType ?? '?',
+                  style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
+                ),
               ),
             ),
-            for (final t in field.tags) _PlainChip(t),
+            for (final t in field.tags) _PlainChip(t, help: tagHelp(t)),
           ],
         ),
       ),
@@ -739,22 +912,33 @@ class _FieldRow extends StatelessWidget {
   );
 }
 
-/// A tag or setting in gray.
+/// A tag or setting in gray, [help] saying what it is on hover.
 class _PlainChip extends StatelessWidget {
-  const _PlainChip(this.text);
+  const _PlainChip(this.text, {required this.help});
   final String text;
+  final String help;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-    decoration: BoxDecoration(
-      color: Aityx.bg2,
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: Aityx.border),
+  Widget build(BuildContext context) => Tooltip(
+    message: help,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: Aityx.bg2,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Aityx.border),
+      ),
+      child: Text(text, style: const TextStyle(fontSize: 11, color: Aityx.muted)),
     ),
-    child: Text(text, style: const TextStyle(fontSize: 11, color: Aityx.muted)),
   );
 }
+
+/// What a topic's cleanup policy does with its old records.
+String cleanupHelp(String policy) => switch (policy.toLowerCase()) {
+  'delete' => 'Cleanup policy delete: records older than the retention, or past its size, are removed',
+  'compact' => 'Cleanup policy compact: only the latest record of each key is kept',
+  _ => 'Cleanup policy $policy: what Kafka does with the topic\'s old records',
+};
 
 /// A retention in ms, as people say it: `1 day`, `12 hours`, `90 minutes`.
 String duration(int ms) {
@@ -789,18 +973,30 @@ class _Row extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Icon(iconForType(source.type), size: 20, color: Aityx.orangeLight),
+          Tooltip(
+            message: '${source.type.label} source',
+            child: Icon(iconForType(source.type), size: 20, color: Aityx.orangeLight),
+          ),
           const SizedBox(width: 10),
           Text(source.name, style: const TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              source.summary,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
+            child: Tooltip(
+              message: 'Where it points: ${source.summary}',
+              child: Text(
+                source.summary,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Aityx.muted, fontFamily: 'monospace', fontSize: 12),
+              ),
             ),
           ),
-          const Text('not read yet: only databases and Kafka so far', style: TextStyle(color: Aityx.amber, fontSize: 12)),
+          Tooltip(
+            message: 'datyx reads only database and Kafka sources into the catalogue so far',
+            child: const Text(
+              'not read yet: only databases and Kafka so far',
+              style: TextStyle(color: Aityx.amber, fontSize: 12),
+            ),
+          ),
         ],
       ),
     ),

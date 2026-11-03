@@ -82,7 +82,6 @@
     .btn svg { width: 15px; height: 15px; }
     .btn:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--orange-light); outline-offset: 2px; }
     h3.section { margin: 36px 0 12px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-    footer { max-width: 1100px; margin: 40px auto 0; color: var(--muted); font-size: 13.5px; border-top: 1px solid var(--border); padding-top: 18px; }
     .aityx-status { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; color: var(--muted); }
     .aityx-status:focus-visible { outline: 2px solid var(--orange-light); outline-offset: 3px; border-radius: 4px; }
     .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--dim); flex: none; }
@@ -191,13 +190,6 @@
     <h3 class="section" id="apps-title">Apps</h3>
     <div class="grid" id="apps" aria-labelledby="apps-title"></div>
   </main>
-
-  <footer>
-    The six demos run beside this page, each under its own path (/demos/riverrace/, ...): start them with
-    <code>./start-aityx.sh</code> at the root of the repository, stop them with <code>./stop-aityx.sh</code>.
-    Each uses the key above. Or open them in a GitHub codespace from a card, or
-    <a href="https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Faityx%2Fdevcontainer.json&amp;machine=standardLinux32gb" target="_blank" rel="noopener">all six at once</a>.
-  </footer>
 
   <script src="index.js"></script>
 </body>

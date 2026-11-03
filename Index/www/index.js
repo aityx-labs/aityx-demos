@@ -20,7 +20,7 @@ const demos = [
     kind: 'game', folder: 'RiverRace', name: 'RiverRace',
     what: 'The Atari river raid, three planes at once, two flown by aityx',
     desc: 'The 1982 Atari river shooter, remade: banks and islands, bridges, tankers, helicopters, jets and fuel depots, with three planes up one river at once. Two are flown by aityx, each by its own rules (a decision table you can edit while they fly); the yellow one is yours. Who scores more? Every aityx call, sent and received, in a side panel.',
-    chips: ['aityx', 'simulation', 'game', 'multiplayer', 'user playable'],
+    chips: ['aityx', 'simulation', 'multiplayer', 'user playable'],
     icon: 'plane', codespace: 'aityx',
   },
   {
@@ -84,7 +84,10 @@ function card(d) {
   const el = document.createElement('article');
   el.className = 'card';
   el.id = 'demo-' + d.folder;
-  const chips = d.chips.map(c => '<span class="chip' + (c.includes('aityx') ? ' aityx' : '') + '">' + c + '</span>').join('');
+  // Its pills: aityx first, then its group (game or app), then its own.
+  const tags = [...d.chips.filter(c => c !== d.kind)];
+  tags.splice(tags[0] === 'aityx' ? 1 : 0, 0, d.kind);
+  const chips = tags.map(c => '<span class="chip' + (c.includes('aityx') ? ' aityx' : '') + '">' + c + '</span>').join('');
   // Its animation, www/<slug>.gif (a recording of the app, 720 px wide),
   // opens the app too.
   el.innerHTML =

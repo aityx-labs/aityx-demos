@@ -4,8 +4,17 @@
 with every call to aityx, newest first (the last 100), under the header
 **aityx calls** with their count and a button that clears them. Under
 the header, where the board stands: `Generation N · M cells · aityx
-answered in T ms` (see [Board](board.md#controls)). Before any call, it
-explains that every generation is one call to aityx.
+answered in T ms` (see [Board](board.md#controls)). Before any call,
+the panel says what the demo is and what aityx does in it, as two
+paragraphs of muted, centered text (scrolling when the panel is short):
+Conway's Game of Life on an infinite board, with the rules of birth and
+death and a catalogue of its patterns as an aityx decision model, the
+cells taking a picture of themselves every generation and aityx saying
+who's in it; then that each generation is one aityx call, the board
+going in and what lives, what dies and which clusters are blocks,
+gliders or pulsars coming back, and that the calls show here as they
+happen, on play or step. The first call replaces it with the cards
+below.
 
 ## Patterns noticed
 

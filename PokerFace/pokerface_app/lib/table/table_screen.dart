@@ -68,16 +68,6 @@ class _TableScreenState extends State<TableScreen> {
             Icon(Icons.style, color: scheme.primary),
             const SizedBox(width: 10),
             const Text(AppVersion.title),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Text(
-                'every player is a set of rules, run on aityx',
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            ),
           ],
         ),
         actions: [

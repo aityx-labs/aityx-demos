@@ -210,18 +210,9 @@ class _CallsPanelState extends State<CallsPanel> {
           ),
         Expanded(
           child: calls.isEmpty && notes.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      'Every generation is one call to aityx: the board\'s '
-                      'situations go in, and the rules decide what lives. '
-                      'The calls show here as they happen.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
+              ? _Intro(
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
                   ),
                 )
               : ListView.builder(
@@ -249,6 +240,42 @@ class _CallsPanelState extends State<CallsPanel> {
       ],
     );
   }
+}
+
+/// What the panel says before the first call: what the demo is, and what
+/// aityx does in it. Centered when there is room; scrolls when there
+/// isn't.
+class _Intro extends StatelessWidget {
+  const _Intro({this.style});
+
+  static const whatItIs =
+      'Conway\'s Game of Life on an infinite board, with the rules of '
+      'birth and death (Conway\'s, HighLife\'s and Life without death, as '
+      'switches) and a catalogue of its patterns, as an aityx decision '
+      'model. The cells take a picture of themselves every generation, '
+      'and aityx says who\'s in it.';
+
+  static const whatAityxDoes =
+      'Each generation is one aityx call: the board goes in, and what '
+      'lives, what dies and which clusters are blocks, gliders or pulsars '
+      'come back. Play, or step: the calls show here as they happen.';
+
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(whatItIs, textAlign: TextAlign.center, style: style),
+          const SizedBox(height: 12),
+          Text(whatAityxDoes, textAlign: TextAlign.center, style: style),
+        ],
+      ),
+    ),
+  );
 }
 
 class _NotesCard extends StatelessWidget {

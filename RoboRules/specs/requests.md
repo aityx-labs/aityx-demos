@@ -247,4 +247,16 @@ The requests that shaped RoboRules, oldest first, each with what changed.
     locally and on the website keeps one build, which also works copied
     to a static host's `/demos/` (see
     [Development environment](dev-environment.md)).
-
+25. **Remove the counter beside the title in the top bar, as in the other
+    demos, and before play show in the events panel what the demo is and
+    what aityx is doing; after play, show the events as they are.**
+    RoboRules' title bar already showed only the title ("Round n of m ·
+    turn t" is the robots list's header, which stays), so nothing moved
+    there. The events panel's empty state, "What happens in the battle,
+    turn by turn.", became two paragraphs that describe the demo and
+    aityx's part in it ("Robocode on the web: tanks fight until one is
+    left. …" and "The whole battle is played by aityx, turn by turn: …
+    Start a battle: the events show here as they happen, each with the
+    aityx call behind it."), in the same muted text, scrolling when the
+    panel is short; the lines show as before once events arrive (see
+    [The window](window.md)).

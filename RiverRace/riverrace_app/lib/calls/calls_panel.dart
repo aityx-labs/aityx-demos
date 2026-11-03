@@ -113,21 +113,7 @@ class _CallsPanelState extends State<CallsPanel> {
         ),
         Expanded(
           child: calls.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      'Every few frames the race asks aityx what the two '
-                      'aityx pilots do: what each plane senses and its '
-                      'rules go in, and the rule that fires comes back. '
-                      'The calls show here as they happen.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                )
+              ? _empty(theme)
               : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
                   itemCount: calls.length,
@@ -145,6 +131,41 @@ class _CallsPanelState extends State<CallsPanel> {
                 ),
         ),
       ],
+    );
+  }
+
+  /// Before the first call: what the demo is, and what aityx does in it.
+  Widget _empty(ThemeData theme) {
+    final style = theme.textTheme.bodyMedium?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'The 1982 Atari river shooter, remade: banks and islands, '
+              'bridges, tankers, helicopters, jets and fuel depots, with '
+              'three planes up one river at once. Two are flown by aityx, '
+              'each by its own rules (a decision table you can edit while '
+              'they fly); the yellow one is yours. Who scores more?',
+              textAlign: TextAlign.center,
+              style: style,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Every few frames the race asks aityx what the two aityx '
+              'pilots do: what each plane senses and its rules go in, and '
+              'the rule that fires comes back. Press Start: the calls show '
+              'here as they happen.',
+              textAlign: TextAlign.center,
+              style: style,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -94,7 +94,14 @@ Robocode-style battles, every turn played by aityx".
   starting, rule changes, failed calls) open the same dialog, which says no
   aityx call is behind them. Each line's tooltip says which call it opens.
   The last ten calls keep what was sent and answered; an older call opens
-  saying only the last ten are kept.
+  saying only the last ten are kept. Before the first event the panel
+  says, in muted text that scrolls when the panel is short, what the
+  demo is and what aityx does: "Robocode on the web: tanks fight until
+  one is left. Every robot's behavior is an aityx decision model, its
+  rules a table you can edit." and "The whole battle is played by aityx,
+  turn by turn: sensors, moves, bullets, hits, damage and scores come
+  back from each call, and the app only draws it. Start a battle: the
+  events show here as they happen, each with the aityx call behind it."
 - **Last aityx call**, always at the bottom, below the events: the latest
   call ("Call 9: turns 161–180 of round 1, in 406 ms"; a score call also
   lists the round's scores), a link that opens it in the viewer; "None

@@ -176,3 +176,20 @@ The feature files hold the current specification; see the
     proxy URL. The same prefix locally and on the website keeps one
     build. See [Deciding on aityx](aityx.md) and [Development
     environment](dev-environment.md).
+
+13. **Remove what sits beside the title in the app bar, so the title
+    stands alone, and before play show in the calls panel what the demo
+    is and what aityx does in it; after play, show the calls as they
+    are.** PokerFace had no counter beside its title, only the tagline
+    "every player is a set of rules, run on aityx": the tagline went,
+    and the app bar says **PokerFace** alone beside its icon (the
+    version and the sidebar button stay on the right). The calls panel's
+    empty state, one sentence before, became two paragraphs, in the same
+    muted centered style, that scroll when the panel is short: the demo
+    (no-limit hold'em at a table of up to nine, every player a set of
+    rules run by aityx, five strategies or your own, the pace in your
+    hands) and what aityx does (at each turn one call runs the player's
+    strategy on their situation and answers the action, the amount and
+    the rule; the calls show here as they happen). The entries, once
+    calls arrive, are as they were. See [The table](table.md) and [The
+    aityx calls](calls.md).

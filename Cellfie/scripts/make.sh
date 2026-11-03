@@ -7,7 +7,7 @@
 #   MODE          release (default), profile or debug
 #   IOS_CODESIGN  1 to sign the iOS build (needs a signing team in Xcode);
 #                 unsigned by default
-#   WEB_BASE_HREF the web build's base href: /cellfie/ by default, where
+#   WEB_BASE_HREF the web build's base href: /demos/cellfie/ by default, where
 #                 the index server serves it
 #
 # The app calls aityx itself (packages/aityx_web). The web build is made
@@ -54,7 +54,7 @@ build() {
   echo "==> $target ($MODE, version $VERSION, build $BUILD_NUMBER)"
   case "$target" in
     web)
-      flutter build web "--$MODE" --base-href "${WEB_BASE_HREF:-/cellfie/}" \
+      flutter build web "--$MODE" --base-href "${WEB_BASE_HREF:-/demos/cellfie/}" \
         --no-web-resources-cdn "${BUILD_ARGS[@]}"
       echo "==> web: cellfie_app/build/web/"
       ;;

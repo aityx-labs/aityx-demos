@@ -1,17 +1,51 @@
-// The index page: a card per demo, "Your aityx key", and the status light.
+// The index page, at /demos/: a card per demo, "Your aityx key", and the
+// status light. Every path here is relative to the page, so the same
+// files serve from the index server (Index/bin/server.dart) and from a
+// static host's /demos/ (the aityx website).
 // The key is kept the way every demo reads it (packages/aityx_web), on this
 // origin: localStorage or, for this session only, sessionStorage, under
 // aityx.key, with aityx.url beside it. Never in a URL, in a log, or on the
 // page once saved (only its last four characters).
 'use strict';
 
-// The demos, in the order shown. "folder" matches the repository's folders;
-// each is served from this origin at /<folder in lower case>/ (bin/server.dart);
+// The demos, in the order shown, in two groups: "kind" is 'game' (under
+// "Games") or 'app' (the business apps, under "Apps").
+// "folder" matches the repository's folders;
+// each is served beside this page, at /demos/<folder in lower case>/
+// (bin/server.dart);
 // "codespace" is the group whose dev container (.devcontainer/<group>/) opens
 // it, or false.
 const demos = [
   {
-    folder: 'MortgageHub', name: 'Mortgage Hub',
+    kind: 'game', folder: 'RiverRace', name: 'RiverRace',
+    what: 'The Atari river raid, three planes at once, two flown by aityx',
+    desc: 'The 1982 Atari river shooter, remade: banks and islands, bridges, tankers, helicopters, jets and fuel depots, with three planes up one river at once. Two are flown by aityx, each by its own rules (a decision table you can edit while they fly); the yellow one is yours. Who scores more? Every aityx call, sent and received, in a side panel.',
+    chips: ['aityx', 'simulation', 'game', 'multiplayer', 'user playable'],
+    icon: 'plane', codespace: 'aityx',
+  },
+  {
+    kind: 'game', folder: 'PokerFace', name: 'PokerFace',
+    what: 'A poker simulator where every player is a set of rules',
+    desc: 'No-limit hold’em at a table of up to nine. At each turn the app works out the player’s situation and one aityx call runs their strategy on it: the action, the amount, and the rule that decided it. Five strategies to read, or write your own; every call in a sidebar; the pace in your hands.',
+    chips: ['aityx', 'simulation', 'multiplayer'],
+    icon: 'cards', codespace: 'aityx',
+  },
+  {
+    kind: 'game', folder: 'Cellfie', name: 'Cellfie',
+    what: 'The cells take a picture of themselves, and aityx says who’s in it',
+    desc: 'Conway’s Game of Life on an infinite board, with the rules of birth and death (Conway’s, HighLife’s and Life without death, as switches) and a catalogue of its patterns, as an aityx decision model: one aityx call per generation names what lives, what dies and which clusters are blocks, gliders or pulsars, with the request and the response in a side panel.',
+    chips: ['aityx', 'simulation'],
+    icon: 'grid', codespace: 'aityx',
+  },
+  {
+    kind: 'game', folder: 'RoboRules', name: 'RoboRules',
+    what: 'Robocode on the web, every turn played by aityx',
+    desc: 'Tanks fight until one is left. Every robot’s behavior is an aityx decision model, its rules a table you can edit, and the whole battle (sensors, moves, bullets, hits, damage, scores) is played by aityx; the app only draws it.',
+    chips: ['aityx', 'simulation', 'multiplayer'],
+    icon: 'robot', codespace: 'aityx',
+  },
+  {
+    kind: 'app', folder: 'MortgageHub', name: 'Mortgage Hub',
     what: 'A mortgage application, from request to verdict',
     desc: 'A buyer fills in a proposal request, and a regulatory check says whether a lender can process it under current US rules: Fannie Mae’s eligibility matrix, the 2026 FHFA and FHA limits, FHA, VA and USDA rules and DTI limits, executed as a decision model on aityx.',
     chips: ['aityx', 'form processing', 'accountable results'],
@@ -19,39 +53,11 @@ const demos = [
     icon: 'home', codespace: 'aityx',
   },
   {
-    folder: 'ContactHub', name: 'Contact Hub',
+    kind: 'app', folder: 'ContactHub', name: 'Contact Hub',
     what: 'Ask anything, and it reaches the right person',
     desc: 'A request, typed or dictated on the device, is classified and checked by aityx and routed by a decision model to the department, the person and the priority; for an order, the store’s policy says what is refunded and by when. The app shows why, and the aityx call itself.',
     chips: ['aityx', 'natural language processing'],
     icon: 'chat', codespace: 'aityx',
-  },
-  {
-    folder: 'Cellfie', name: 'Cellfie',
-    what: 'The cells take a picture of themselves, and aityx says who’s in it',
-    desc: 'Conway’s Game of Life on an infinite board, with the rules of birth and death (Conway’s, HighLife’s and Life without death, as switches) and a catalogue of its patterns, as an aityx decision model: one aityx call per generation names what lives, what dies and which clusters are blocks, gliders or pulsars, with the request and the response in a side panel.',
-    chips: ['aityx', 'simulation'],
-    icon: 'grid', codespace: 'aityx',
-  },
-  {
-    folder: 'RoboRules', name: 'RoboRules',
-    what: 'Robocode on the web, every turn played by aityx',
-    desc: 'Tanks fight until one is left. Every robot’s behavior is an aityx decision model, its rules a table you can edit, and the whole battle (sensors, moves, bullets, hits, damage, scores) is played by aityx; the app only draws it.',
-    chips: ['aityx', 'simulation', 'multiplayer'],
-    icon: 'robot', codespace: 'aityx',
-  },
-  {
-    folder: 'PokerFace', name: 'PokerFace',
-    what: 'A poker simulator where every player is a set of rules',
-    desc: 'No-limit hold’em at a table of up to nine. At each turn the app works out the player’s situation and one aityx call runs their strategy on it: the action, the amount, and the rule that decided it. Five strategies to read, or write your own; every call in a sidebar; the pace in your hands.',
-    chips: ['aityx', 'simulation', 'multiplayer'],
-    icon: 'cards', codespace: 'aityx',
-  },
-  {
-    folder: 'RiverRace', name: 'RiverRace',
-    what: 'The Atari river raid, three planes at once, two flown by aityx',
-    desc: 'The 1982 Atari river shooter, remade: banks and islands, bridges, tankers, helicopters, jets and fuel depots, with three planes up one river at once. Two are flown by aityx, each by its own rules (a decision table you can edit while they fly); the yellow one is yours. Who scores more? Every aityx call, sent and received, in a side panel.',
-    chips: ['aityx', 'simulation', 'game', 'multiplayer', 'user playable'],
-    icon: 'plane', codespace: 'aityx',
   },
 ];
 const icons = {
@@ -67,8 +73,9 @@ const codespaces = (d) =>
   'https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=' +
   encodeURIComponent('.devcontainer/' + d.codespace + '/devcontainer.json') +
   '&machine=standardLinux32gb';
-// A demo's app: on this origin, so it reads the key saved here.
-const appPath = (d) => '/' + d.folder.toLowerCase() + '/';
+// A demo's app: beside this page (/demos/<slug>/), on this origin, so it
+// reads the key saved here.
+const appPath = (d) => d.folder.toLowerCase() + '/';
 const ext = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M19 14v6H4V5h6"/></svg>';
 
 function card(d) {
@@ -94,15 +101,18 @@ function card(d) {
   return el;
 }
 
-document.getElementById('apps').replaceChildren(...demos.map(card));
+// Each group's cards into its grid: #games, #apps.
+for (const kind of ['game', 'app']) {
+  document.getElementById(kind + 's').replaceChildren(...demos.filter(d => d.kind === kind).map(card));
+}
 
-// Which builds the index server has (/api/demos): a card whose app isn't
-// built, or was built for another path, says so. On a static host there's
-// no /api/demos, and the cards stay as they are.
+// Which builds the index server has (api/demos, beside the page): a card
+// whose app isn't built, or was built for another path, says so. On a
+// static host there's no api/demos, and the cards stay as they are.
 async function markBuilds() {
   let list;
   try {
-    const r = await fetch('/api/demos', { cache: 'no-store' });
+    const r = await fetch('api/demos', { cache: 'no-store' });
     if (!r.ok) return;
     list = (await r.json()).demos;
   } catch (_) {
@@ -187,11 +197,12 @@ function cleanUrl(text) {
   return (u.origin + u.pathname).replace(/\/+$/, '');
 }
 
-// The dev key: the index server's /aityx/config, which says whether it
-// holds a key (never the key). Absent on a static host: not available.
+// The dev key: the index server's aityx/config (beside the page), which
+// says whether it holds a key (never the key). Absent on a static host:
+// not available.
 async function devConfig() {
   try {
-    const r = await fetch('/aityx/config', { cache: 'no-store' });
+    const r = await fetch('aityx/config', { cache: 'no-store' });
     if (!r.ok || !(r.headers.get('content-type') || '').includes('json')) return null;
     const c = await r.json();
     return c && c.available === true ? c : null;
@@ -368,7 +379,7 @@ async function checkAityx(force = false) {
     const dev = user ? null : await devConfig();
     if (user || dev) {
       const url = user ? user.url : dev.url;
-      const a = user ? await check(user.url, user.key) : await check('/aityx', null);
+      const a = user ? await check(user.url, user.key) : await check('aityx', null);
       state = { ok: a.ok, label: a.ok ? 'aityx: ready' : 'aityx: ' + a.reason,
         tip: a.ok ? 'aityx: ready — the key works with ' + url : 'aityx: ' + a.detail };
       lastCheckResult = a.ok
@@ -396,8 +407,57 @@ async function checkAityx(force = false) {
   }
 }
 
-describeKey();
-checkAityx(true);
+// A key in the request ----------------------------------------------------
+
+// AITYX_API_KEY in the page's URL, as a query parameter
+// (/demos/?AITYX_API_KEY=...) or in the fragment (/demos/#AITYX_API_KEY=...,
+// which never reaches a server or its logs: prefer it), optionally with
+// AITYX_URL beside it, on any host, static or not:
+// checked with aityx like a pasted key, then saved on this device for
+// every demo, replacing any key set before. The key is taken out of the
+// address bar first, so it isn't kept in the history or shared with the
+// page's address. A key aityx rejects is not saved, and the form says so.
+async function keyFromRequest() {
+  const url = new URL(window.location.href);
+  const query = url.searchParams;
+  const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
+  const key = (query.get('AITYX_API_KEY') || hash.get('AITYX_API_KEY') || '').trim();
+  const urlGiven = query.get('AITYX_URL') || hash.get('AITYX_URL');
+  if (!query.has('AITYX_API_KEY') && !hash.has('AITYX_API_KEY')) return false;
+  for (const params of [query, hash]) {
+    params.delete('AITYX_API_KEY');
+    params.delete('AITYX_URL');
+  }
+  url.search = query.toString();
+  url.hash = hash.toString() ? '#' + hash.toString() : '#aityx-key';
+  window.history.replaceState(null, '', url.toString());
+  if (!key) return result('The link carries an empty AITYX_API_KEY: nothing saved.', false), false;
+  if (/\s/.test(key)) return result('The link’s AITYX_API_KEY doesn’t look like a key: it has spaces in it.', false), false;
+  const aityxUrl = cleanUrl(urlGiven || (userKey() || {}).url || defaultUrl);
+  if (!aityxUrl) return result('The link’s AITYX_URL must be an https URL on aityx.ai, like ' + defaultUrl + '.', false), false;
+  result('Checking the key from the link with aityx…');
+  const answer = await check(aityxUrl, key);
+  if (!answer.ok) {
+    result('The key in the link: ' + answer.detail + '. Not saved.', false);
+    return false;
+  }
+  try {
+    saveKey(key, aityxUrl, false);
+  } catch (error) {
+    result('aityx accepts the key in the link, but it could not be saved: ' + error.message + '.', false);
+    return false;
+  }
+  wantOwn = false;
+  lastCheckResult = null;
+  document.getElementById('url-input').value = aityxUrl;
+  result('aityx accepts the key ' + last4(key) + ' from the link: saved on this device, for every demo here.', true);
+  return true;
+}
+
+keyFromRequest().finally(() => {
+  describeKey();
+  checkAityx(true);
+});
 window.addEventListener('focus', () => checkAityx());
 window.addEventListener('storage', (event) => {
   if (event.key === null || (event.key || '').startsWith('aityx.')) {

@@ -9,8 +9,8 @@ every commit and push:
   code path, not just a syntax check. For this project that means
   `flutter analyze` and `flutter test` pass in `roborules_app/`, and
   `bash scripts/build.sh` builds the web app the index serves at
-  `/roborules/`. After changing `assets/models/world.json` or the world
-  builder (`roborules_app/tool/build_world.py`), also run
+  `/demos/roborules/`. After changing `assets/models/world.json` or the
+  world builder (`roborules_app/tool/build_world.py`), also run
   `bash scripts/model-test.sh`, which plays turns on aityx and checks the
   physics.
 - **Secrets**, such as the aityx key (`AITYX_API_KEY`), live only in the
@@ -30,8 +30,8 @@ Do not commit or push code that has not passed both checks.
 
 - RoboRules runs entirely in the browser: the app calls aityx itself
   through the shared [aityx_web](../packages/aityx_web) package, and the
-  index server (`Index/bin/server.dart`) serves its build at `/roborules/`.
-  There is no API and no service of its own.
+  index server (`Index/bin/server.dart`) serves its build at
+  `/demos/roborules/`. There is no API and no service of its own.
 - Toolchain is managed by [devbox.json](devbox.json); enter it with
   `devbox shell` and keep [devbox.lock](devbox.lock) committed.
 - The devcontainer build is documented in the [README](README.md).

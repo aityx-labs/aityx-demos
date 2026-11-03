@@ -12,7 +12,7 @@ process it under current US rules, run by [aityx.ai](https://aityx.ai).
 | App ([mortgagehub_app/](mortgagehub_app)) | [Flutter](https://flutter.dev) (Dart): web, Android, iOS and Linux from one codebase. On the web it runs the regulatory check itself, calling [aityx](https://aityx.ai) from the browser with your key |
 | Rules | An [aityx.ai](https://aityx.ai) decision model ([proposal-check.json](mortgagehub_app/assets/models/proposal-check.json)), an asset of the app, sent with every check |
 | aityx from the browser | [packages/aityx_web](../packages/aityx_web), shared by the aityx demos: finds the key, calls aityx, draws the status light |
-| Serving | The repository's [index](../Index/), which serves the app's release web build at `/mortgagehub/`, beside the other aityx demos, on one origin |
+| Serving | The repository's [index](../Index/), which serves the app's release web build at `/demos/mortgagehub/`, beside the other aityx demos, on one origin |
 | Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) on a laptop, or a [Dev Container](https://containers.dev/) from the [published image](../image/) |
 
 The toolchain is pinned in [devbox.json](devbox.json) and locked in
@@ -29,11 +29,11 @@ The regulatory check runs on [aityx.ai](https://aityx.ai) and needs an API
 key, always **yours**: none ships with this repository and none is built
 into the app. Sign up at [aityx.ai](https://aityx.ai), create a key on
 the **API keys** page of [console.aityx.ai](https://console.aityx.ai), then
-open the index page (http://localhost:8800/, or port 8800 in a codespace),
-paste it in **Your aityx key** and choose **Check and save**. Mortgage Hub
-and every other demo on that address use it from then on: it stays in your
-browser ("Remember on this device" or "Only this session"), and the app
-sends it only to aityx.
+open the index page (http://localhost:8800/demos/, or `/demos/` on port
+8800 in a codespace), paste it in **Your aityx key** and choose **Check
+and save**. Mortgage Hub and every other demo on that address use it from
+then on: it stays in your browser ("Remember on this device" or "Only
+this session"), and the app sends it only to aityx.
 
 Without a key of yours, the app uses the index server's **dev key**, when
 it has one (`AITYX_API_KEY` in its environment or in the repository's
@@ -54,8 +54,8 @@ From the root of the repository, with
 That builds the app's release web build if it's missing or out of date
 ([scripts/build.sh](scripts/build.sh): about 20 s on a laptop, a minute or
 two on a 4-core codespace; up to date, a second) and starts the index,
-which serves it at http://localhost:8800/mortgagehub/. Set your key on the
-index page (above), then open the Mortgage Hub card. Stop it with
+which serves it at http://localhost:8800/demos/mortgagehub/. Set your key
+on the index page (above), then open the Mortgage Hub card. Stop it with
 `./stop-aityx.sh`.
 
 To build ahead without starting anything: `bash scripts/build.sh` (or
@@ -80,11 +80,11 @@ make clean
 ```
 
 Pass `MODE=profile` or `MODE=debug` for other build modes,
-`WEB_BASE_HREF=/mortgagehub/` for a web build the index can serve, and
-`IOS_CODESIGN=1` to sign the iOS build (this needs a signing team in Xcode).
-The native builds open and fill the form, but their regulatory check says
-aityx is not set up: they have no index page to set a key on (their key
-store is in memory only) and no dev proxy.
+`WEB_BASE_HREF=/demos/mortgagehub/` for a web build the index can serve,
+and `IOS_CODESIGN=1` to sign the iOS build (this needs a signing team in
+Xcode). The native builds open and fill the form, but their regulatory
+check says aityx is not set up: they have no index page to set a key on
+(their key store is in memory only) and no dev proxy.
 The version is `X.Y.Z`: X and Y from [version.X.txt](version.X.txt) and
 [version.Y.txt](version.Y.txt), Z the build time (see
 [scripts/version.sh](scripts/version.sh)).
@@ -105,12 +105,13 @@ Hub. Mortgage Hub's own dev container, the one the group's were copied
 from, is kept in
 [.devcontainer/archive/MortgageHub/](../.devcontainer/archive/MortgageHub).
 
-When the index page opens (port **8800**, the only port), paste your key
-in **Your aityx key** (see [Your aityx key](#your-aityx-key)), then open
-the Mortgage Hub card, at `/mortgagehub/` on the same address. The
-codespace copies the group's release web builds from the [published
-image](../image/); a demo that changed since the image was made builds
-itself, a minute or two, while the others are already up.
+When the index page opens (port **8800**, the only port, at `/demos/`),
+paste your key in **Your aityx key** (see [Your aityx
+key](#your-aityx-key)), then open the Mortgage Hub card, at
+`/demos/mortgagehub/` on the same address. The codespace copies the
+group's release web builds from the [published image](../image/); a demo
+that changed since the image was made builds itself, a minute or two,
+while the others are already up.
 
 **Optional: a dev key for the codespace.** An `AITYX_API_KEY` Codespaces
 secret (at
@@ -146,8 +147,9 @@ then **aityx demos**. The dev containers live at the root of the
 repository, in [.devcontainer/](../.devcontainer), because that is where
 GitHub looks for them: one per demo group, Mortgage Hub's in
 [.devcontainer/aityx/](../.devcontainer/aityx). It starts the index, which
-serves this demo among the aityx group, on port 8800. Set your key on the
-index page; for a dev key, put `AITYX_API_KEY` in the repository's `.env`.
+serves this demo among the aityx group, on port 8800, under `/demos/`. Set
+your key on the index page; for a dev key, put `AITYX_API_KEY` in the
+repository's `.env`.
 
 ## Contributing
 

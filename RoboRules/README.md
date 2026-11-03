@@ -48,22 +48,23 @@ the key and draws the aityx light.
 |---|---|
 | App ([roborules_app/](roborules_app)) | [Flutter](https://flutter.dev) for the web, styled like Robocode's Swing window; calls aityx itself |
 | Rules and physics | [aityx.ai](https://aityx.ai) decision models, the app's assets |
-| Serving | The repository's index server ([Index/](../Index)), at `/roborules/` beside the other aityx demos |
+| Serving | The repository's index server ([Index/](../Index)), at `/demos/roborules/` beside the other aityx demos |
 | Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) on a laptop, or a [Dev Container](https://containers.dev/) from the [published image](../image/) |
 
 ## Your aityx key
 
 Every battle runs on aityx, on your key: open the index page
-(http://localhost:8800/), paste it in **Your aityx key** and choose **Check
-and save**. Every demo on that origin uses it, RoboRules among them; the
-app sends it straight to aityx and nowhere else. To get one, sign up at
-[aityx.ai](https://aityx.ai), then create a key on the API keys page of
-[console.aityx.ai](https://console.aityx.ai).
+(http://localhost:8800/demos/), paste it in **Your aityx key** and choose
+**Check and save**. Every demo on that origin uses it, RoboRules among
+them; the app sends it straight to aityx and nowhere else. To get one,
+sign up at [aityx.ai](https://aityx.ai), then create a key on the API
+keys page of [console.aityx.ai](https://console.aityx.ai).
 
 Without one, the index server's **dev key** works too: an `AITYX_API_KEY`
 in the repository's `.env` (copy [../.env.example](../.env.example)), or
 in its environment. The app then calls aityx through the index server's
-`/aityx/` proxy, which adds the key, so it never reaches the browser.
+`/demos/aityx/` proxy, which adds the key, so it never reaches the
+browser.
 
 The light at the top right of the window says which it is: green when
 aityx accepts the key (yours, or the dev key), red with why otherwise, and
@@ -78,19 +79,20 @@ a tap on it opens the index page's key section.
    ./start-aityx.sh RoboRules   # or ./start-aityx.sh for all six aityx demos
    ```
 
-and open http://localhost:8800/roborules/ (set your key on
-http://localhost:8800/ first, unless `.env` has a dev key). That builds
-the app's release web build if it changed ([scripts/build.sh](scripts/build.sh),
+and open http://localhost:8800/demos/roborules/ (set your key on
+http://localhost:8800/demos/ first, unless `.env` has a dev key). That
+builds the app's release web build if it changed ([scripts/build.sh](scripts/build.sh),
 about 25 s on a laptop, a minute or two on a 4-core codespace; nothing when
 it's up to date) and starts the index server, which serves it. Stop it
 with `./stop-aityx.sh`.
 
 `bash scripts/build.sh` (or `devbox run build`) builds it ahead of time,
-only when it changed: `flutter build web --release --base-href /roborules/
---no-web-resources-cdn`, which keeps CanvasKit on our own origin. `make`
-builds it too ([scripts/make.sh](scripts/make.sh)); served anywhere but the
-index server (a static host, or `flutter run`), there's no dev proxy, and
-no key until one is saved on that origin.
+only when it changed: `flutter build web --release --base-href
+/demos/roborules/ --no-web-resources-cdn`, which keeps CanvasKit on our
+own origin. `make` builds it too ([scripts/make.sh](scripts/make.sh));
+served anywhere but the index server (a static host's `/demos/roborules/`,
+or `flutter run`), there's no dev proxy, and no key until one is saved on
+that origin.
 
 `bash scripts/model-test.sh` plays scripted battles on aityx and checks
 the physics against Robocode's rules, with the dev key from the root
@@ -110,11 +112,11 @@ group's release web builds, so the codespace is available about three
 minutes after you ask for it (a demo that changed since the image was made
 builds itself, a minute or two). Once it has started, open port **8800**
 from the **Ports** panel, paste your key in **Your aityx key**, and open
-RoboRules' card (`/roborules/`). An `AITYX_API_KEY` Codespaces secret is
-optional: it becomes the dev key every visitor of your codespace uses.
-Stop the group with `./stop-all.sh` from the repository root and start it
-again with `./start-all.sh`. If it doesn't start, send `startup.log` from
-the root of the repository.
+RoboRules' card (`/demos/roborules/`). An `AITYX_API_KEY` Codespaces
+secret is optional: it becomes the dev key every visitor of your
+codespace uses. Stop the group with `./stop-all.sh` from the repository
+root and start it again with `./start-all.sh`. If it doesn't start, send
+`startup.log` from the root of the repository.
 
 ## Playing
 

@@ -42,8 +42,8 @@ fired. Which strategy wins?
 **Project**
 
 - [Development environment](dev-environment.md): devbox, the web build
-  the index server serves at `/riverrace/`, the native builds, the model
-  tests and the dev container.
+  the index server serves at `/demos/riverrace/`, the native builds, the
+  model tests and the dev container.
 
 ## Workflow
 

@@ -74,7 +74,7 @@ class AityxPokerApi implements PokerApi {
     try {
       connection = await _aityx.connection();
       // No key: said now, rather than asking the index server's
-      // /aityx/config a second time inside systemone.
+      // /demos/aityx/config a second time inside systemone.
       if (connection.source == AityxSource.none) throw const AityxNoKey();
       answer = await _aityx.systemone(sent, timeout: timeout);
     } on AityxNoKey {

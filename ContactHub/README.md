@@ -18,7 +18,7 @@ with links that jump to exactly the JSON behind each item.
 | Part | Technology |
 |---|---|
 | App ([contacthub_app/](contacthub_app)) | [Flutter](https://flutter.dev) (Dart): web, Android, iOS and Linux from one codebase. It calls [aityx](https://aityx.ai) itself, from the browser, through the aityx demos' shared package, [packages/aityx_web](../packages/aityx_web/README.md) |
-| Serving | The repository's index server ([Index/](../Index)) serves the release web build at `/contacthub/`, on one origin with the index page and the other aityx demos. There's no Contact Hub API |
+| Serving | The repository's index server ([Index/](../Index)) serves the release web build at `/demos/contacthub/`, on one origin with the index page (`/demos/`) and the other aityx demos. There's no Contact Hub API |
 | Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) on a laptop, or a [Dev Container](https://containers.dev/) from the [published image](../image/) |
 
 The toolchain is pinned in [devbox.json](devbox.json) and locked in
@@ -34,12 +34,12 @@ From the repository root:
 ```
 
 That builds the web app if it changed ([scripts/build.sh](scripts/build.sh):
-`flutter build web --release --base-href /contacthub/ --no-web-resources-cdn`,
+`flutter build web --release --base-href /demos/contacthub/ --no-web-resources-cdn`,
 about 20 to 40 s on a laptop, nothing when it's up to date) and starts the
-index server. Open the index page, http://localhost:8800/, paste your
+index server. Open the index page, http://localhost:8800/demos/, paste your
 [aityx](https://aityx.ai) key in **Your aityx key** (sign up at aityx.ai,
 then **API keys** in console.aityx.ai), and open Contact Hub's card, or
-http://localhost:8800/contacthub/. The key stays in your browser, and
+http://localhost:8800/demos/contacthub/. The key stays in your browser, and
 every demo on that page uses it. With no key of yours, the index server
 lends its dev key, `AITYX_API_KEY` in the repository's `.env` (see
 [../.env.example](../.env.example)), through its own proxy: the key never
@@ -95,11 +95,12 @@ that links them. To choose for yourself instead, use *Code → Codespaces
 configuration — the repository holds two groups of demos, each with its
 own, so the configuration matters.
 
-Once it's up, open the index page (port 8800, which Codespaces opens in
-a browser tab for you), paste your [aityx](https://aityx.ai) key in **Your
-aityx key**, and open Contact Hub's card: the app is at `/contacthub/` on
-the same port. The `AITYX_API_KEY` Codespaces secret is optional: when set
-(at [github.com/settings/codespaces](https://github.com/settings/codespaces),
+Once it's up, open the index page (`/demos/` on port 8800, which
+Codespaces opens in a browser tab for you), paste your
+[aityx](https://aityx.ai) key in **Your aityx key**, and open Contact
+Hub's card: the app is at `/demos/contacthub/` on the same port. The
+`AITYX_API_KEY` Codespaces secret is optional: when set (at
+[github.com/settings/codespaces](https://github.com/settings/codespaces),
 with access to `aityx-labs/aityx-demos`), it's a dev key every visitor of
 your codespace uses, with no key of their own.
 

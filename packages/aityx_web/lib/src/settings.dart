@@ -8,13 +8,15 @@ import 'package:http/http.dart' as http;
 import 'body.dart';
 import 'connection.dart';
 import 'key_store.dart';
+import 'paths.dart';
 
 /// Reads the key the way the index page and every demo agree on:
 ///
 /// 1. the user's key from the [AityxKeyStore] (sessionStorage, then
 ///    localStorage), sent straight to its URL;
-/// 2. else the dev key, when the origin's `/aityx/config` says the index
-///    server has one: calls go to `<origin>/aityx/`, which adds it;
+/// 2. else the dev key, when the origin's `/demos/aityx/config` says the
+///    index server has one: calls go to `<origin>/demos/aityx/`, which
+///    adds it;
 /// 3. else none.
 class AityxSettings {
   AityxSettings._();
@@ -28,9 +30,9 @@ class AityxSettings {
 
   /// The connection to use now. [origin] is the page's (Uri.base unless a
   /// test says); off http(s) there's no dev proxy to ask. [client] asks
-  /// `/aityx/config` (a new one unless given). Never throws: a missing,
-  /// failing or non-JSON `/aityx/config` (a static host's 404 or its
-  /// index.html) means no dev key.
+  /// `/demos/aityx/config` (a new one unless given). Never throws: a
+  /// missing, failing or non-JSON `/demos/aityx/config` (a static host's
+  /// 404 or its index.html) means no dev key.
   static Future<AityxConnection> resolve({
     http.Client? client,
     Uri? origin,
@@ -49,7 +51,7 @@ class AityxSettings {
     try {
       final answer = await asker
           .get(
-            page.resolve('/aityx/config'),
+            page.resolve(demosPath('aityx/config')),
             headers: {'Accept': 'application/json'},
           )
           .timeout(timeout);

@@ -1,6 +1,8 @@
 /// Where aityx calls go, and on whose key.
 library;
 
+import 'paths.dart';
+
 /// The production aityx: where a user's key goes unless they set a URL.
 const aityxDefaultUrl = 'https://api.aityx.ai';
 
@@ -15,8 +17,8 @@ enum AityxSource {
   /// directly, with an Authorization header.
   user,
 
-  /// The dev key: the index server's proxy (`<origin>/aityx/`) adds it, so
-  /// the key never reaches the browser.
+  /// The dev key: the index server's proxy (`<origin>/demos/aityx/`) adds
+  /// it, so the key never reaches the browser.
   dev,
 
   /// No key at all.
@@ -46,15 +48,15 @@ class AityxConnection {
     );
   }
 
-  /// The index server's dev proxy at [origin]'s `/aityx/`, which forwards
-  /// to [url] (as its `/aityx/config` says) with the key from [devKeyFrom]
-  /// (".env" or "environment").
+  /// The index server's dev proxy at [origin]'s `/demos/aityx/`, which
+  /// forwards to [url] (as its `/demos/aityx/config` says) with the key
+  /// from [devKeyFrom] (".env" or "environment").
   factory AityxConnection.dev(
     Uri origin, {
     String url = '',
     String? devKeyFrom,
   }) => AityxConnection(
-    endpoint: origin.resolve('/aityx/'),
+    endpoint: origin.resolve(demosPath('aityx/')),
     source: AityxSource.dev,
     url: url,
     devKeyFrom: devKeyFrom,
@@ -67,7 +69,8 @@ class AityxConnection {
     url: '',
   );
 
-  /// The base: https://api.aityx.ai, or `<origin>/aityx/` in dev mode.
+  /// The base: https://api.aityx.ai, or `<origin>/demos/aityx/` in dev
+  /// mode.
   final Uri endpoint;
 
   /// The user's key; null in dev mode (the server adds it) and with none.
@@ -79,11 +82,11 @@ class AityxConnection {
   final String url;
 
   /// In dev mode, where the index server found the key: ".env" or
-  /// "environment" (from /aityx/config); null otherwise.
+  /// "environment" (from /demos/aityx/config); null otherwise.
   final String? devKeyFrom;
 
   /// `<endpoint>/v1/systemone`, whether or not [endpoint]'s path ends in a
-  /// slash (`https://api.aityx.ai`, `http://localhost:8800/aityx`).
+  /// slash (`https://api.aityx.ai`, `http://localhost:8800/demos/aityx`).
   Uri get systemone {
     final base = endpoint.path.endsWith('/')
         ? endpoint

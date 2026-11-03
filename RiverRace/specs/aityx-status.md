@@ -17,7 +17,7 @@ aityx can decide: an 8 px dot, slightly transparent, with no label.
 | Red | aityx answers something else | `aityx: not working — <why>` |
 
 The tooltip is also the dot's screen-reader label. A tap opens the index
-page's key section (`/#aityx-key`) in the same tab.
+page's key section (`/demos/#aityx-key`) in the same tab.
 
 The check uses the key the decisions use ([aityx calls](api.md)): it posts
 an empty request, `{}`, to aityx's `/v1/systemone`, which checks the key

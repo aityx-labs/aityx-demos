@@ -19,7 +19,7 @@ so every screen has it; no screen has a control in that corner.
 | Red | another answer | `aityx: not working — <detail>` |
 
 The tooltip is also the dot's screen reader label. A tap opens the index
-page's key section, `/#aityx-key` at the origin's root, in the same tab.
+page's key section, `/demos/#aityx-key` on the origin, in the same tab.
 
 The key is found as routing finds it (see
 [Routing](routing.md#calling-aityx)): yours, set on the index page and

@@ -31,7 +31,7 @@ the response received.
 |---|---|
 | App ([riverrace_app/](riverrace_app)) | [Flutter](https://flutter.dev) (Dart), on the web: it asks [aityx](https://aityx.ai) what the pilots do itself, from the browser, through the shared package [aityx_web](../packages/aityx_web/README.md). No API of its own |
 | Rules | Each aityx pilot's strategy, a FIRST decision table built by [lib/aityx/decision_request.dart](riverrace_app/lib/aityx/decision_request.dart) on the types in [assets/models/river.json](riverrace_app/assets/models/river.json) |
-| Served by | The [index server](../Index/), with the index page and the other aityx demos, at `/riverrace/` on one origin |
+| Served by | The [index server](../Index/), with the index page and the other aityx demos, at `/demos/riverrace/` on one origin |
 | Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) on a laptop, or a [Dev Container](https://containers.dev/) from the [published image](../image/) |
 
 The toolchain is pinned in [devbox.json](devbox.json) and locked in
@@ -50,16 +50,17 @@ lock as the other aityx demos', so they share one Nix store.
 
    It builds RiverRace's web app when it changed
    ([scripts/build.sh](scripts/build.sh): `flutter build web --release
-   --base-href /riverrace/ --no-web-resources-cdn`, about 20 s on a
-   laptop) and starts the index server, which serves it at
-   **http://localhost:8800/riverrace/**, with the index page and the other
-   aityx demos on the same origin.
+   --base-href /demos/riverrace/ --no-web-resources-cdn`, about 20 s on
+   a laptop) and starts the index server, which serves it at
+   **http://localhost:8800/demos/riverrace/**, with the index page
+   (http://localhost:8800/demos/) and the other aityx demos on the same
+   origin.
 3. Set your [aityx](https://aityx.ai) key once, in **Your aityx key** on
-   the index page (http://localhost:8800/#aityx-key): sign up at aityx.ai,
-   then create a key under API keys in console.aityx.ai. Every aityx demo
-   uses it. Or put `AITYX_API_KEY` in the repository's `.env` (see
-   [../.env.example](../.env.example)) for a dev key: the index server
-   adds it to the app's calls, and it never reaches the browser.
+   the index page (http://localhost:8800/demos/#aityx-key): sign up at
+   aityx.ai, then create a key under API keys in console.aityx.ai. Every
+   aityx demo uses it. Or put `AITYX_API_KEY` in the repository's `.env`
+   (see [../.env.example](../.env.example)) for a dev key: the index
+   server adds it to the app's calls, and it never reaches the browser.
    Without a key the game runs, but the aityx pilots fly straight on and
    the light in the top right corner is red.
 
@@ -136,9 +137,10 @@ release web builds from the [published image](../image/) into the
 workspace (a demo that changed since the image was made builds itself
 instead, a minute or two). Then, on that and every later start,
 [post-start.sh](../.devcontainer/post-start.sh) starts the index server,
-which serves RiverRace at `/riverrace/` on port **8800**; Codespaces
-opens it in a browser tab for you, or open it from the **Ports** panel and
-add `/riverrace/`, or use RiverRace's card on the index page.
+which serves RiverRace at `/demos/riverrace/` on port **8800**;
+Codespaces opens it in a browser tab for you, or open it from the
+**Ports** panel and add `/demos/riverrace/`, or use RiverRace's card on
+the index page (`/demos/`).
 
 **If the app doesn't start, send us `startup.log` from the root of the
 repository.** Every step of the codespace's start goes there,

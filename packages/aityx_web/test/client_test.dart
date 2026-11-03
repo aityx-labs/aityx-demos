@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
-final origin = Uri.parse('http://localhost:8800/riverrace/');
+final origin = Uri.parse('http://localhost:8800/demos/riverrace/');
 
 void main() {
   group('systemone', () {
@@ -56,7 +56,10 @@ void main() {
         connection: AityxConnection.dev(origin),
       );
       await client.systemone({});
-      expect(sent.url, Uri.parse('http://localhost:8800/aityx/v1/systemone'));
+      expect(
+        sent.url,
+        Uri.parse('http://localhost:8800/demos/aityx/v1/systemone'),
+      );
       expect(sent.headers.containsKey('Authorization'), isFalse);
     });
 
@@ -170,12 +173,12 @@ void main() {
   });
 
   group('the connection, resolved lazily', () {
-    /// A client that counts /aityx/config asks and answers systemone.
+    /// A client that counts /demos/aityx/config asks and answers systemone.
     MockClient server(List<String> log, {bool dev = true}) => MockClient((
       request,
     ) async {
       log.add('${request.method} ${request.url}');
-      if (request.url.path == '/aityx/config') {
+      if (request.url.path == '/demos/aityx/config') {
         return http.Response(
           jsonEncode(
             dev
@@ -188,7 +191,7 @@ void main() {
       return http.Response('{}', 200);
     });
 
-    test('asks /aityx/config once, then keeps the dev connection', () async {
+    test('asks /demos/aityx/config once, then keeps the dev connection', () async {
       final log = <String>[];
       final client = AityxClient(
         client: server(log),
@@ -198,9 +201,9 @@ void main() {
       await client.systemone({});
       await client.systemone({});
       expect(log, [
-        'GET http://localhost:8800/aityx/config',
-        'POST http://localhost:8800/aityx/v1/systemone',
-        'POST http://localhost:8800/aityx/v1/systemone',
+        'GET http://localhost:8800/demos/aityx/config',
+        'POST http://localhost:8800/demos/aityx/v1/systemone',
+        'POST http://localhost:8800/demos/aityx/v1/systemone',
       ]);
       expect((await client.connection()).source, AityxSource.dev);
     });
@@ -213,7 +216,7 @@ void main() {
         origin: origin,
       );
       await Future.wait([client.connection(), client.connection()]);
-      expect(log, ['GET http://localhost:8800/aityx/config']);
+      expect(log, ['GET http://localhost:8800/demos/aityx/config']);
     });
 
     test('switches to the user key once it is saved, and back', () async {
@@ -244,8 +247,8 @@ void main() {
       await expectLater(client.systemone({}), throwsA(isA<AityxNoKey>()));
       await expectLater(client.systemone({}), throwsA(isA<AityxNoKey>()));
       expect(log, [
-        'GET http://localhost:8800/aityx/config',
-        'GET http://localhost:8800/aityx/config',
+        'GET http://localhost:8800/demos/aityx/config',
+        'GET http://localhost:8800/demos/aityx/config',
       ]);
     });
 

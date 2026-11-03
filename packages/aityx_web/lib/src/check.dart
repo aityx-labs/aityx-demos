@@ -74,9 +74,10 @@ class AityxState {
 
   /// The light's tooltip, also its Semantics label.
   String get tooltip => switch (kind) {
-    AityxStateKind.ready => url == null || url!.isEmpty
-        ? 'aityx: ready — the key works'
-        : 'aityx: ready — the key works with $url',
+    AityxStateKind.ready =>
+      url == null || url!.isEmpty
+          ? 'aityx: ready — the key works'
+          : 'aityx: ready — the key works with $url',
     AityxStateKind.noKey => 'aityx: no key — set yours on the index page',
     AityxStateKind.rejected => 'aityx: key rejected — $detail',
     AityxStateKind.unreachable => 'aityx: not reachable — $detail',

@@ -10,7 +10,7 @@ routes the request on aityx from the app itself
 light from [packages/aityx_web](../../packages/aityx_web/README.md)).
 
 Build it with `bash ../scripts/build.sh` and open it at
-http://localhost:8800/contacthub/ once the index server runs (see the
-[project README](../README.md)). Test it here with `flutter analyze` and
-`flutter test`; `bash ../scripts/model-test.sh` runs the model's rules on
-aityx.
+http://localhost:8800/demos/contacthub/ once the index server runs (see
+the [project README](../README.md)). Test it here with `flutter analyze`
+and `flutter test`; `bash ../scripts/model-test.sh` runs the model's
+rules on aityx.

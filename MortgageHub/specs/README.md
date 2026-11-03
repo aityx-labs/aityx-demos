@@ -42,7 +42,7 @@ mortgage proposal.
   top right on every screen, that says whether there's a key and aityx
   accepts it, and `scripts/aityx-check.sh`, which runs the docs' example
   with the repository's `.env` key. There is no backend: the
-  repository's index serves the app at `/mortgagehub/`.
+  repository's index serves the app at `/demos/mortgagehub/`.
 
 **Project**
 

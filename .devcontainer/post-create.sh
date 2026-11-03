@@ -25,7 +25,7 @@ if [[ -n "${AITYX_API_KEY:-}" ]]; then
   echo "post-create: to every visitor of this codespace without a key of their own"
 else
   echo "post-create: AITYX_API_KEY is not set: each user sets their own aityx key"
-  echo "post-create: in \"Your aityx key\" on the index page (port 8800). A"
+  echo "post-create: in \"Your aityx key\" on the index page (port 8800, at /demos/). A"
   echo "post-create: Codespaces secret at https://github.com/settings/codespaces,"
   echo "post-create: or the root .env (see .env.example), sets a dev key instead."
 fi

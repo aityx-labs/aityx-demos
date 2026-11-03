@@ -12,7 +12,7 @@ rules as a decision model.
 app (summary, in the browser)  ──POST <url>/v1/systemone {decision, state}──▶  aityx.ai
   AityxProposalChecker          Authorization: Bearer <the user's key>
                                ◀── answers, receipt, usage ─────────────────
-or, with no key of the user's:  ──POST /aityx/v1/systemone──▶  index server  ──▶  aityx.ai
+or, with no key of the user's:  ──POST /demos/aityx/v1/systemone──▶  index server  ──▶  aityx.ai
                                                                (adds the dev key from .env)
 ```
 

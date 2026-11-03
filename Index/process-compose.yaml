@@ -3,8 +3,8 @@ version: "0.5"
 processes:
   1-index:
     # The index page's server (bin/server.dart); see scripts/serve.sh. It
-    # serves the six aityx demos' web builds too, at /<slug>/, and the
-    # dev proxy to aityx: one port for all. The variables are named as
+    # serves the page at /demos/, the six aityx demos' web builds at
+    # /demos/<slug>/, and the dev proxy to aityx: one port for all. The variables are named as
     # the datyx group's services' are, so start-all.sh reads the port the
     # same way. The server reads the root .env itself.
     command: bash scripts/serve.sh
@@ -15,7 +15,7 @@ processes:
       http_get:
         host: localhost
         port: ${FLUTTER_WEB_PORT:-8800}
-        path: /api/health
+        path: /demos/api/health
       initial_delay_seconds: 1
       period_seconds: 2
       timeout_seconds: 5

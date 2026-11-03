@@ -3,8 +3,9 @@
 # PokerFace, RoboRules, Cellfie and RiverRace: every folder whose group.id.txt says
 # `aityx`, through start-all.sh, which builds each one's web app if it is
 # stale and starts the index (Index/), which serves them all on one
-# origin: http://localhost:8800/ and http://localhost:8800/<slug>/
-# (/mortgagehub/, /pokerface/, ...). The demos start and stop by group; use
+# origin: http://localhost:8800/demos/ and
+# http://localhost:8800/demos/<slug>/ (/demos/mortgagehub/,
+# /demos/pokerface/, ...). The demos start and stop by group; use
 # ./start-all.sh for every demo (the other group and the index page too)
 # and ./stop-aityx.sh for the reverse.
 #

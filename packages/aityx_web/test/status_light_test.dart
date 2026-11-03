@@ -96,7 +96,10 @@ void main() {
     answer.complete(ready);
     await settle(tester);
     expect(dotColor(tester), shown(AityxStatusLight.green));
-    expect(tip(tester), 'aityx: ready — the key works with https://api.aityx.ai');
+    expect(
+      tip(tester),
+      'aityx: ready — the key works with https://api.aityx.ai',
+    );
   });
 
   testWidgets('red, with why', (tester) async {
@@ -133,7 +136,9 @@ void main() {
       ),
     );
     expect(
-      find.bySemanticsLabel('aityx: ready — the key works with https://api.aityx.ai'),
+      find.bySemanticsLabel(
+        'aityx: ready — the key works with https://api.aityx.ai',
+      ),
       findsOneWidget,
     );
     final node = tester.getSemantics(find.byType(AityxStatusLight));
@@ -281,7 +286,7 @@ void main() {
   });
 
   // Off the web only: in a browser, Uri.base is the test server, and the
-  // light would really ask its /aityx/config.
+  // light would really ask its /demos/aityx/config.
   testWidgets('the default light, with no key anywhere', skip: kIsWeb, (
     tester,
   ) async {
@@ -319,10 +324,10 @@ void main() {
     await gesture.removePointer();
   });
 
-  test('the key page is /#aityx-key at the root of the origin', () {
+  test('the key page is /demos/#aityx-key on the origin', () {
     expect(
-      aityxKeyPage(origin: Uri.parse('http://localhost:8800/pokerface/')),
-      Uri.parse('http://localhost:8800/#aityx-key'),
+      aityxKeyPage(origin: Uri.parse('http://localhost:8800/demos/pokerface/')),
+      Uri.parse('http://localhost:8800/demos/#aityx-key'),
     );
   });
 }

@@ -3,7 +3,7 @@
 # Codespaces refreshes a prebuild (updateContentCommand): builds what each
 # demo of the container's group (DEMOS_GROUP) serves with ./build-all.sh
 # (each demo's scripts/build.sh: the app's release web build, which, for
-# the aityx demos, the index serves at /<slug>/; for the datyx group's,
+# the aityx demos, the index serves at /demos/<slug>/; for the datyx group's,
 # also the API and web server compiled to native executables), only what
 # is missing or older than its sources. A prebuild's
 # snapshot keeps the builds, so a codespace created from one starts every

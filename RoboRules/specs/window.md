@@ -19,7 +19,7 @@ Robocode-style battles, every turn played by aityx".
   start, when the key is saved or forgotten on the index page, and when the
   window regains focus, at most once every 30 s there; no timer polling,
   since each check spends a request of the user's quota. A tap opens the
-  index page's key section (`/#aityx-key`) in the same tab.
+  index page's key section (`/demos/#aityx-key`) in the same tab.
 - **Menu bar**: **Battle** (New…, Start, Pause/Resume, Stop, Results…),
   **Robot** (Add a robot…, Upload robots…, Download all robots; adding and
   uploading only between battles; see [Robot files](robots.md#robot-files);

@@ -269,11 +269,11 @@ void main() {
     });
 
     test('without a key of the user\'s, uses the index server\'s dev proxy, '
-        'at the origin\'s root and without Authorization', () async {
+        'under /demos/ on its origin and without Authorization', () async {
       final asked = <http.Request>[];
       final client = MockClient((call) async {
         asked.add(call);
-        return call.url.path == '/aityx/config'
+        return call.url.path == '/demos/aityx/config'
             ? http.Response(
                 '{"available":true,"url":"https://api.aityx.ai",'
                 '"source":".env"}',
@@ -285,14 +285,14 @@ void main() {
         aityx: AityxClient(
           client: client,
           store: AityxKeyStore.memory(),
-          origin: Uri.parse('http://localhost:8800/mortgagehub/proposal'),
+          origin: Uri.parse('http://localhost:8800/demos/mortgagehub/proposal'),
         ),
         model: () async => model,
       );
       final check = await checker.check(request);
       expect(asked.map((call) => call.url.toString()), [
-        'http://localhost:8800/aityx/config',
-        'http://localhost:8800/aityx/v1/systemone',
+        'http://localhost:8800/demos/aityx/config',
+        'http://localhost:8800/demos/aityx/v1/systemone',
       ]);
       expect(asked.last.headers.containsKey('Authorization'), isFalse);
       expect(check.status, CheckStatus.needsReview);

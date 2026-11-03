@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Builds what the index serves at /mortgagehub/: the app's release web
+# Builds what the index serves at /demos/mortgagehub/: the app's release web
 # build, mortgagehub_app/build/web/, through scripts/make.sh web, with the
-# base href /mortgagehub/ and no CDN (`--no-web-resources-cdn`: CanvasKit
+# base href /demos/mortgagehub/ and no CDN (`--no-web-resources-cdn`: CanvasKit
 # comes from the build itself, so no third-party script runs on the origin
 # that holds the user's aityx key). There's no API: the app calls aityx
 # from the browser. Only when something changed since the last build.
@@ -81,7 +81,7 @@ with_lock() {
 # must also be newer than the build itself: `flutter build web` keeps
 # other files in build/web, so a later build by hand, with other
 # settings, would otherwise keep the record.
-web_settings='base_href=/mortgagehub/ web_resources_cdn=no'
+web_settings='base_href=/demos/mortgagehub/ web_resources_cdn=no'
 
 # Inside the web lock: build the web app if its build is missing, was made
 # with other settings (or by hand since), or is older than its sources.
@@ -94,7 +94,7 @@ build_web_if_stale() {
       "$shared/lib" "$shared/pubspec.yaml" \
       "$root/version.X.txt" "$root/version.Y.txt"; then
     echo "build: web (mortgagehub_app/build/web is missing, has other settings, or is older than the app)"
-    env MODE=release WEB_BASE_HREF=/mortgagehub/ bash "$root/scripts/make.sh" web
+    env MODE=release WEB_BASE_HREF=/demos/mortgagehub/ bash "$root/scripts/make.sh" web
     echo "$web_settings" >"$stamp"
   else
     echo "build: web is up to date"

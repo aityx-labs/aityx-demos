@@ -11,7 +11,7 @@ once the API's, is in
 
 ## Whose key
 
-The app is served by the index server at `/pokerface/`, on the same
+The app is served by the index server at `/demos/pokerface/`, on the same
 origin as the index page and the other aityx demos, and aityx_web finds
 the key in this order:
 
@@ -20,10 +20,10 @@ the key in this order:
    the app calls `<url>/v1/systemone` (by default
    `https://api.aityx.ai`) with `Authorization: Bearer <key>`.
 2. **The dev key**: with no user key, when the index server has one
-   (`AITYX_API_KEY` or the repository's `.env`; its `/aityx/config` says
-   so, never the key), the app posts to `/aityx/v1/systemone` on its own
-   origin, and the server adds the key. The key never reaches the
-   browser.
+   (`AITYX_API_KEY` or the repository's `.env`; its `/demos/aityx/config`
+   says so, never the key), the app posts to `/demos/aityx/v1/systemone`
+   on its own origin, and the server adds the key. The key never reaches
+   the browser.
 3. **None**: every decision fails with "aityx is not set up: set your key
    on the index page", and [the aityx light](aityx-status.md) is red.
 

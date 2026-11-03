@@ -258,7 +258,7 @@ void main() {
             return http.Response(tablet, 200);
           }),
           connection: AityxConnection.dev(
-            Uri.parse('http://localhost:8800/contacthub/'),
+            Uri.parse('http://localhost:8800/demos/contacthub/'),
             url: 'https://api.aityx.ai',
             devKeyFrom: '.env',
           ),
@@ -267,7 +267,10 @@ void main() {
         today: () => DateTime.utc(2026, 10, 21),
       ).route(message);
 
-      expect(sent.url, Uri.parse('http://localhost:8800/aityx/v1/systemone'));
+      expect(
+        sent.url,
+        Uri.parse('http://localhost:8800/demos/aityx/v1/systemone'),
+      );
       expect(
         sent.headers.keys.map((h) => h.toLowerCase()),
         isNot(contains('authorization')),

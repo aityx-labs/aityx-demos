@@ -158,3 +158,21 @@ The feature files hold the current specification; see the
     dev key aityx refuses reads `aityx answered HTTP n`; neither names
     `.env` or the environment any more. The index page's key section does
     the same.
+
+## 2026-11-03
+
+12. **Separate the demos in games and apps on the index page, then serve
+    the index page under /demos and each demo under its own path, such
+    as /demos/riverrace, so the demos can be embedded, hidden, in the
+    aityx website.** The index page moved from `/` to `/demos/` and
+    lists PokerFace under "Games"; the app moved from `/pokerface/` to
+    `/demos/pokerface/`: `scripts/build.sh`, `scripts/make.sh` and the
+    Makefile build it with `--base-href /demos/pokerface/`, and the
+    index server serves it there (http://localhost:8800/demos/pokerface/
+    locally). The aityx light's tap opens the index page's key section
+    at `/demos/#aityx-key`, and the dev proxy moved to
+    `/demos/aityx/config` and `/demos/aityx/v1/systemone`, both through
+    `packages/aityx_web`. The dev-proxy test expects the new origin and
+    proxy URL. The same prefix locally and on the website keeps one
+    build. See [Deciding on aityx](aityx.md) and [Development
+    environment](dev-environment.md).

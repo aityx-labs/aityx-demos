@@ -7,5 +7,6 @@ export 'src/client.dart';
 export 'src/connection.dart';
 export 'src/key_page.dart';
 export 'src/key_store.dart';
+export 'src/paths.dart';
 export 'src/settings.dart';
 export 'src/status_light.dart';

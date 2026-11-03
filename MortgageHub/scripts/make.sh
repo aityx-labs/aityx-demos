@@ -7,7 +7,7 @@
 #   MODE          release (default), profile or debug
 #   IOS_CODESIGN  1 to sign the iOS build (needs a signing team in Xcode);
 #                 unsigned by default
-#   WEB_BASE_HREF the web build's base href, e.g. /mortgagehub/ to serve it
+#   WEB_BASE_HREF the web build's base href, e.g. /demos/mortgagehub/ to serve it
 #                 where the index does (scripts/build.sh); / by default
 #
 # The web build has no CDN (`--no-web-resources-cdn`): CanvasKit is served

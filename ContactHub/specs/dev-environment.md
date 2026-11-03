@@ -5,8 +5,9 @@ calls aityx itself, from the browser (see
 [Routing](routing.md#calling-aityx)). There's no Contact Hub API, web
 server, Docker Compose or process-compose of its own: the repository's
 index server ([Index/](../../Index)) serves the release web build at
-`/contacthub/`, on one origin with the index page and the other aityx
-demos, so a key set once on the index page reaches every demo.
+`/demos/contacthub/`, on one origin with the index page (`/demos/`) and
+the other aityx demos, so a key set once on the index page reaches every
+demo.
 
 - [devbox.json](../devbox.json) manages the toolchain: Flutter,
   GNU Make and curl. [devbox.lock](../devbox.lock) is committed, and is
@@ -18,20 +19,21 @@ demos, so a key set once on the index page reaches every demo.
   and the [status light](aityx-status.md).
 - **Running it**: from the repository root, `./start-all.sh ContactHub`
   (or `./start-all.sh` for every demo) builds what's stale and starts the
-  index server; the app is at http://localhost:8800/contacthub/. Set your
-  aityx key on the index page (http://localhost:8800/#aityx-key), or put
+  index server; the app is at http://localhost:8800/demos/contacthub/.
+  Set your aityx key on the index page
+  (http://localhost:8800/demos/#aityx-key), or put
   one in the repository's `.env` for the dev key (see
   [../.env.example](../.env.example)).
 - **The web build** ([scripts/build.sh](../scripts/build.sh), `devbox run
   build`, also run by the repository's `build-all.sh`):
-  `flutter build web --release --base-href /contacthub/ --no-web-resources-cdn`,
+  `flutter build web --release --base-href /demos/contacthub/ --no-web-resources-cdn`,
   through `scripts/make.sh web`, which adds the version. No dart-define
   points it at an API any more. `--no-web-resources-cdn` keeps CanvasKit
   on our origin rather than gstatic's. It builds only when the build is
   missing or older than `lib/`, `web/`, `assets/`, the pubspecs, the
   shared package (`packages/aityx_web/lib` and its pubspec) or the version
   files, or when the build doesn't record its settings
-  (`build/web/.aityx-services`, `base_href=/contacthub/
+  (`build/web/.aityx-services`, `base_href=/demos/contacthub/
   web_resources_cdn=no`, written once a build succeeds and required to be
   newer than the build, so a `make web` by hand with other settings isn't
   reused). One Flutter web build runs at a time across the repository's
@@ -45,7 +47,7 @@ demos, so a key set once on the index page reaches every demo.
   app on a port of its own, an origin without the index page or the dev
   proxy, so it has no key: routing says to set one. Work on the screens
   with the tests' fakes, or rebuild and reload the index server's
-  `/contacthub/`.
+  `/demos/contacthub/`.
 - `bash scripts/model-test.sh` runs the routing model's rules on aityx at
   the policy's limits (see [Order policy](order-policy.md#verified)): it
   runs `flutter test --run-skipped --tags aityx` in `contacthub_app/`,
@@ -77,8 +79,8 @@ demos, so a key set once on the index page reaches every demo.
   image/build-image.sh aityx`) with the scripts in
   [.devcontainer/](../../.devcontainer), which restore the release web
   builds from the image, build what changed and start the index server,
-  where Contact Hub is at `/contacthub/` on port 8800 (see the image's
-  and the dev container's READMEs). The `AITYX_API_KEY` Codespaces secret
+  where Contact Hub is at `/demos/contacthub/` on port 8800 (see the
+  image's and the dev container's READMEs). The `AITYX_API_KEY` Codespaces secret
   is optional: it's the dev key, which every visitor of the codespace
   uses; without it, each visitor sets their own key on the index page.
 - **Launch link**: the [README](../README.md#run-it-in-a-codespace) and
@@ -89,6 +91,7 @@ demos, so a key set once on the index page reaches every demo.
 ## Known limitations
 
 - No release, deploy or CI workflows.
-- The app needs the index server: served elsewhere (any static host), it
-  works only with a key set on that origin's index page, and has no dev
-  key.
+- The app needs the index server: served elsewhere (any static host, at
+  the same `/demos/contacthub/`, as the aityx website does), it works
+  only with a key set on that origin's index page, `/demos/`, and has no
+  dev key.

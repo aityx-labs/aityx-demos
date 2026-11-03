@@ -18,7 +18,7 @@ esac
 demos_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # index_serves <dir>: whether the folder is a demo the index (Index/)
-# serves itself, at /<slug>/ on its port, from the app's release web
+# serves itself, at /demos/<slug>/ on its port, from the app's release web
 # build: a folder of the index's group (Index/group.id.txt: aityx), other
 # than Index/, with a scripts/build.sh. Such a demo runs in the browser
 # and has no services of its own: start-all.sh builds it and starts the
@@ -30,8 +30,9 @@ index_serves() {
   [[ -n "$group" && "$(tr -d '[:space:]' <"$dir/group.id.txt" 2>/dev/null)" == "$group" ]]
 }
 
-# index_slug <dir>: the demo's path on the index, its folder's name in
-# lower case (MortgageHub: /mortgagehub/), as Index/bin/server.dart names it.
+# index_slug <dir>: the demo's path on the index, under /demos/, its
+# folder's name in lower case (MortgageHub: /demos/mortgagehub/), as
+# Index/bin/server.dart names it.
 index_slug() {
   basename "${1%/}" | tr '[:upper:]' '[:lower:]'
 }

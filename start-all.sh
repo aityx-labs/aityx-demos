@@ -13,9 +13,10 @@
 # from the browser: it has no services. Its scripts/build.sh builds its
 # release web build, only when it is missing or older than its sources (a
 # minute or two, one demo at a time), and the index serves it at
-# http://localhost:8800/<slug>/ (/mortgagehub/, ...), so starting one is
-# building what's stale, then starting the index; it is up when its
-# /<slug>/ answers on the index's port. ./build-all.sh builds them ahead.
+# http://localhost:8800/demos/<slug>/ (/demos/riverrace/, ...), so starting
+# one is building what's stale, then starting the index; it is up when its
+# /demos/<slug>/ answers on the index's port. ./build-all.sh builds them
+# ahead.
 #
 # A service demo whose web port already answers (started by hand, or with
 # Docker Compose) is left as it is. A folder without a web app (datyx, API
@@ -118,6 +119,17 @@ answers() {
   curl -fs -o /dev/null --max-time 3 "$1"
 }
 
+# web_path <demo>: the path of a service demo's web app on its web port:
+# the aityx index's page is at /demos/ (and its API under /demos/api/,
+# see Index/bin/server.dart); the datyx group's apps are at /app/, with
+# their API at /api/.
+web_path() {
+  [[ "$1" == Index ]] && echo /demos/ || echo /app/
+}
+api_path() {
+  [[ "$1" == Index ]] && echo /demos/api/ || echo /api/
+}
+
 selected="$(demos "$@")" || exit 1
 # The demos the index serves, and the service folders; the index is one of
 # the services whenever it serves a demo here.
@@ -182,8 +194,8 @@ for demo in "${services[@]+"${services[@]}"}"; do
   fi
   web="$(port "$demo" FLUTTER_WEB_PORT)"
   api="$(port "$demo" API_PORT)"
-  if [[ -n "$web" ]] && answers "http://localhost:$web/app/"; then
-    echo "· $demo already answers at http://localhost:$web/app/: left as it is"
+  if [[ -n "$web" ]] && answers "http://localhost:$web$(web_path "$demo")"; then
+    echo "· $demo already answers at http://localhost:$web$(web_path "$demo"): left as it is"
     continue
   elif [[ -z "$web" && -n "$api" ]] && answers "http://localhost:$api/api/health"; then
     echo "· $demo already answers at http://localhost:$api/api/health: left as it is"
@@ -226,7 +238,7 @@ while [[ ${#pending[@]} -gt 0 && $SECONDS -lt $deadline ]]; do
   for demo in "${pending[@]}"; do
     if index_serves "$root/$demo"; then
       # Served by the index, at its own path.
-      url="http://localhost:$index_port/$(index_slug "$demo")/"
+      url="http://localhost:$index_port/demos/$(index_slug "$demo")/"
       if answers "$url"; then
         echo "✅ $demo is up: $url"
       else
@@ -244,8 +256,8 @@ while [[ ${#pending[@]} -gt 0 && $SECONDS -lt $deadline ]]; do
         still+=("$demo")
       fi
     # The API through the app's origin: the dev server proxies /api/ to it.
-    elif answers "http://localhost:$web/app/" && answers "http://localhost:$web/api/health"; then
-      echo "✅ $demo is up: http://localhost:$web/app/ (API: http://localhost:$api/api/health)"
+    elif answers "http://localhost:$web$(web_path "$demo")" && answers "http://localhost:$web$(api_path "$demo")health"; then
+      echo "✅ $demo is up: http://localhost:$web$(web_path "$demo") (API: http://localhost:$api$(api_path "$demo")health)"
     else
       still+=("$demo")
     fi
@@ -255,14 +267,14 @@ done
 
 for demo in "${pending[@]+"${pending[@]}"}"; do
   if index_serves "$root/$demo"; then
-    echo "✗ $demo did not answer at http://localhost:$index_port/$(index_slug "$demo")/ within $WAIT s;" \
+    echo "✗ $demo did not answer at http://localhost:$index_port/demos/$(index_slug "$demo")/ within $WAIT s;" \
       "is its build there (./build-all.sh $demo)? see $(services_attach_hint "$root/Index")" >&2
     failed=1
     continue
   fi
   web="$(port "$demo" FLUTTER_WEB_PORT)"
   if [[ -n "$web" ]]; then
-    where="http://localhost:$web/app/"
+    where="http://localhost:$web$(web_path "$demo")"
   else
     where="http://localhost:$(port "$demo" API_PORT)/api/health"
   fi
@@ -271,12 +283,15 @@ for demo in "${pending[@]+"${pending[@]}"}"; do
 done
 
 # Each group's index page, with a card per demo: Index/ for the aityx
-# demos, datyx-index/ for the datyx group; printed when it answers.
+# demos (at /demos/), datyx-index/ for the datyx group; printed when it
+# answers.
 for pair in "Index:The six aityx demos" "datyx-index:The datyx group"; do
   folder="${pair%%:*}"
   index="$(port "$folder" FLUTTER_WEB_PORT 2>/dev/null)"
-  if [[ -n "$index" ]] && answers "http://localhost:$index/"; then
-    echo "🏠 ${pair#*:}, on one page: http://localhost:$index/"
+  page="http://localhost:$index$(web_path "$folder")"
+  [[ "$folder" == datyx-index ]] && page="http://localhost:$index/"
+  if [[ -n "$index" ]] && answers "$page"; then
+    echo "🏠 ${pair#*:}, on one page: $page"
   fi
 done
 exit $failed

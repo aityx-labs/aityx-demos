@@ -47,8 +47,8 @@ by Jev and aityx.
 **Project**
 
 - [Development environment](dev-environment.md): the index server that
-  serves the app at `/contacthub/`, the shared aityx_web package, devbox,
-  the builds and the dev container. There's no backend of its own.
+  serves the app at `/demos/contacthub/`, the shared aityx_web package,
+  devbox, the builds and the dev container. There's no backend of its own.
 
 ## Workflow
 

@@ -161,7 +161,7 @@ void main() {
             return http.Response(jsonEncode(answerFixture), 200);
           }),
           connection: AityxConnection.dev(
-            Uri.parse('http://localhost:8800/cellfie/'),
+            Uri.parse('http://localhost:8800/demos/cellfie/'),
             url: 'https://api.aityx.ai',
             devKeyFrom: '.env',
           ),
@@ -169,7 +169,10 @@ void main() {
         model: fixtureModel,
       );
       final outcome = await stepFixture(stepper);
-      expect(asked.url.toString(), 'http://localhost:8800/aityx/v1/systemone');
+      expect(
+        asked.url.toString(),
+        'http://localhost:8800/demos/aityx/v1/systemone',
+      );
       expect(asked.headers.containsKey('Authorization'), isFalse);
       expect(outcome.aityxRequest, sentForBoard());
     },

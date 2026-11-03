@@ -1,35 +1,42 @@
-/// The aityx demos on one origin: the index page (www/), each demo's
-/// release web build under its own path, and, in dev mode, a proxy to
-/// aityx that adds the key this server holds. One origin, so a key the
-/// user sets once on the index page (the browser's storage) is reused by
-/// every demo. Plain Dart, no packages, so `dart bin/server.dart` runs
-/// it. The datyx group has an index of its own (datyx-index/).
+/// The aityx demos on one origin, all under /demos/: the index page
+/// (www/), each demo's release web build under its own path, and, in dev
+/// mode, a proxy to aityx that adds the key this server holds. One
+/// origin, so a key the user sets once on the index page (the browser's
+/// storage) is reused by every demo. Everything under one prefix, so the
+/// same files, copied as they are, serve from a static host's /demos/
+/// (the aityx website). Plain Dart, no packages, so `dart bin/server.dart`
+/// runs it. The datyx group has an index of its own (datyx-index/).
 ///
-///   GET /, /app/          www/index.html (the page; /app/ so start-all.sh
-///                         checks it like a demo)
-///   GET /<file>           a file in www/
-///   GET /<slug>/...       a demo's release web build: every folder beside
+///   GET /, /demos         301 to /demos/
+///   GET /app/, /<slug>/... 301 to /demos/ and /demos/<slug>/...: the paths
+///                         before everything moved under /demos/, so old
+///                         links and bookmarks still open (the fragment,
+///                         /#aityx-key, survives a redirect)
+///   GET /demos/           www/index.html (the page)
+///   GET /demos/<file>     a file in www/
+///   GET /demos/<slug>/... a demo's release web build: every folder beside
 ///                         this one in this index's group (its group.id.txt
 ///                         says INDEX_GROUP, aityx) with a <slug>_app/
 ///                         package, the slug being the folder's name in
-///                         lower case: /mortgagehub/ is
+///                         lower case: /demos/mortgagehub/ is
 ///                         MortgageHub/mortgagehub_app/build/web. A path
 ///                         that isn't a file gets the build's index.html
 ///                         (the app routes it); a missing build, 503
-///   GET /aityx/config     dev mode: {"available": true, "url": ...,
+///   GET /demos/aityx/config
+///                         dev mode: {"available": true, "url": ...,
 ///                         "source": "environment" | ".env"} when this
 ///                         server has an aityx key (AITYX_API_KEY in its
 ///                         environment, else in the repo's .env), else
 ///                         {"available": false}; never the key
-///   POST /aityx/v1/systemone
+///   POST /demos/aityx/v1/systemone
 ///                         dev mode: the request's body, forwarded to
 ///                         <AITYX_URL>/v1/systemone with that key; only
 ///                         from this origin, never logged
-///   GET /api/health       {"ok": true}
-///   GET /api/demos        each demo served here: its folder, its path,
+///   GET /demos/api/health {"ok": true}
+///   GET /demos/api/demos  each demo served here: its folder, its path,
 ///                         whether its build is there and made for that
 ///                         path; for scripts and the page's cards
-///   GET /api/group        {"group": "aityx"}: this index's group
+///   GET /demos/api/group  {"group": "aityx"}: this index's group
 ///
 /// Settings: INDEX_PORT (default 8800), INDEX_BIND_HOST (127.0.0.1),
 /// INDEX_GROUP (aityx), and for dev mode AITYX_API_KEY and AITYX_URL
@@ -46,6 +53,12 @@ final _here = Directory.fromUri(Platform.script.resolve('..'));
 final _www = Directory('${_here.path}/www');
 final _root = Directory.fromUri(_here.uri.resolve('..'));
 
+/// Where everything is served: the page at /demos/, each demo at
+/// /demos/<slug>/, the dev proxy at /demos/aityx/, the API at /demos/api/.
+/// The apps' base hrefs (each demo's scripts/build.sh) and the aityx_web
+/// package's paths say the same.
+const _prefix = '/demos/';
+
 Future<void> main() async {
   final env = Platform.environment;
   final port = int.parse(env['INDEX_PORT'] ?? '8800');
@@ -54,7 +67,7 @@ Future<void> main() async {
   // main.dart.js and CanvasKit are several MB: gzip them for a browser
   // that asks (a codespace's forwarded port is a long way off).
   server.autoCompress = true;
-  stdout.writeln('index on http://$host:$port/');
+  stdout.writeln('index on http://$host:$port$_prefix');
   await for (final request in server) {
     unawaited(_handle(request));
   }
@@ -67,40 +80,42 @@ Future<void> _handle(HttpRequest request) async {
     ..set('Referrer-Policy', 'same-origin');
   try {
     final path = request.uri.path;
-    final segments = request.uri.pathSegments;
-    if (path == '/aityx/v1/systemone') {
+    if (path == '${_prefix}aityx/v1/systemone') {
       await _proxy(request);
     } else if (request.method != 'GET' && request.method != 'HEAD') {
       response.headers.set(HttpHeaders.allowHeader, 'GET, HEAD');
       _json(response, 405, {'error': 'method not allowed'});
-    } else if (path == '/aityx/config') {
+    } else if (path == '/' ||
+        path == _prefix.substring(0, _prefix.length - 1)) {
+      // The root, and /demos without its slash: the page. Relative, so a
+      // forwarded port's host is kept, and the query too.
+      _redirect(request, _prefix);
+    } else if (!path.startsWith(_prefix)) {
+      await _old(request, path);
+    } else if (path == '${_prefix}aityx/config') {
       _json(response, 200, await _config(), cache: 'no-store');
-    } else if (path == '/api/health') {
+    } else if (path == '${_prefix}api/health') {
       _json(response, 200, {'ok': true});
-    } else if (path == '/api/demos') {
+    } else if (path == '${_prefix}api/demos') {
       final demos = await _demos();
       _json(response, 200, {
         'demos': [for (final demo in demos.values) await demo.describe()],
       });
-    } else if (path == '/api/group') {
+    } else if (path == '${_prefix}api/group') {
       _json(response, 200, {'group': _group});
-    } else if (segments.isNotEmpty &&
-        (await _demos())[segments.first] != null) {
-      final demo = (await _demos())[segments.first]!;
-      if (path == '/${demo.slug}') {
-        // The app's base href ends with a slash: relative, so a forwarded
-        // port's host is kept, and the query too.
-        response
-          ..statusCode = HttpStatus.movedPermanently
-          ..headers.set(
-            HttpHeaders.locationHeader,
-            '/${demo.slug}/${request.uri.hasQuery ? '?${request.uri.query}' : ''}',
-          );
+    } else {
+      // Under the prefix: a demo's path, else a file of the page's.
+      final under = path.substring(_prefix.length);
+      final segments = Uri(path: under).pathSegments;
+      final demo = segments.isEmpty ? null : (await _demos())[segments.first];
+      if (demo == null) {
+        await _page(request, under);
+      } else if (under == demo.slug) {
+        // The app's base href ends with a slash.
+        _redirect(request, '$_prefix${demo.slug}/');
       } else {
         await _demoFile(request, demo, segments.skip(1).toList());
       }
-    } else {
-      await _page(request, path);
     }
   } catch (error) {
     stderr.writeln('error: ${request.method} ${request.uri.path}: $error');
@@ -112,6 +127,31 @@ Future<void> _handle(HttpRequest request) async {
   } finally {
     await response.close();
   }
+}
+
+/// A path from before everything moved under /demos/: /app/ (the page)
+/// and /<slug>/... (a demo) redirect to their place under the prefix;
+/// anything else outside the prefix is 404.
+Future<void> _old(HttpRequest request, String path) async {
+  if (path == '/app' || path == '/app/') return _redirect(request, _prefix);
+  final segments = request.uri.pathSegments;
+  if (segments.isNotEmpty && (await _demos())[segments.first] != null) {
+    // The rest of the path as sent (encoded), so a deep route is kept;
+    // /<slug> gets its slash here, in one hop.
+    final rest = path.substring(1);
+    return _redirect(request, '$_prefix$rest${rest.contains('/') ? '' : '/'}');
+  }
+  _json(request.response, 404, {'error': 'not found'});
+}
+
+/// 301 to [to] (an absolute path), with the request's query.
+void _redirect(HttpRequest request, String to) {
+  request.response
+    ..statusCode = HttpStatus.movedPermanently
+    ..headers.set(
+      HttpHeaders.locationHeader,
+      '$to${request.uri.hasQuery ? '?${request.uri.query}' : ''}',
+    );
 }
 
 /// Content types by extension; anything else is served as bytes.
@@ -143,14 +183,11 @@ const _pageCsp =
     "img-src 'self' data:; connect-src 'self' https://*.aityx.ai; "
     "base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
-/// A file right in www/: / and /app/ are index.html.
-Future<void> _page(HttpRequest request, String path) async {
+/// A file right in www/, by its [name] after the prefix, as sent (still
+/// percent-encoded, so an encoded separator is just a name that doesn't
+/// exist): /demos/ is index.html.
+Future<void> _page(HttpRequest request, String name) async {
   final response = request.response;
-  var name = path == '/' || path == '/app' || path == '/app/'
-      ? 'index.html'
-      : path.startsWith('/app/')
-      ? path.substring('/app/'.length)
-      : path.substring(1);
   if (name.isEmpty) name = 'index.html';
   // Only files right in www/, and none hidden.
   if (name.contains('/') || name.contains(r'\') || name.startsWith('.')) {
@@ -214,14 +251,17 @@ final _group = Platform.environment['INDEX_GROUP'] ?? 'aityx';
 class _Demo {
   _Demo(this.folder, this.slug, this.web);
 
-  /// The folder's name (MortgageHub), its path here (mortgagehub) and its
-  /// app's release web build.
+  /// The folder's name (MortgageHub), its slug (mortgagehub: its path
+  /// here is /demos/mortgagehub/) and its app's release web build.
   final String folder;
   final String slug;
   final Directory web;
 
-  /// The base href of the build's index.html (/mortgagehub/), or null
-  /// when there's no build.
+  /// Where it is served: /demos/mortgagehub/.
+  String get path => '$_prefix$slug/';
+
+  /// The base href of the build's index.html (/demos/mortgagehub/), or
+  /// null when there's no build.
   Future<String?> baseHref() async {
     final index = File('${web.path}/index.html');
     if (!await index.exists()) return null;
@@ -234,12 +274,13 @@ class _Demo {
     final base = await baseHref();
     return {
       'folder': folder,
-      'path': '/$slug/',
+      'path': path,
       'built': base != null,
       'baseHref': base,
       // Built for this path: a build made for another base href (an old
-      // one, under /app/) loads its files from the wrong place.
-      'served': base == '/$slug/',
+      // one, /mortgagehub/ at the root) loads its files from the wrong
+      // place.
+      'served': base == path,
     };
   }
 }
@@ -263,8 +304,8 @@ Future<Map<String, _Demo>> _demos() async {
     if (!await File('${entry.path}/${slug}_app/pubspec.yaml').exists()) {
       continue;
     }
-    // Never one of this server's own paths.
-    if (const {'api', 'app', 'aityx'}.contains(slug)) continue;
+    // Never one of this server's own paths under the prefix.
+    if (const {'api', 'aityx', 'demos'}.contains(slug)) continue;
     demos[slug] = _Demo(
       folder,
       slug,
@@ -342,8 +383,8 @@ void _notBuilt(HttpResponse response, _Demo demo) {
       '<p>${demo.folder} is not built yet: run <code>./build-all.sh '
       '${demo.folder}</code> at the root of the repository (or '
       '<code>./start-aityx.sh</code>, which builds what is missing), then '
-      'reload.</p><p><a style="color:#EB7B58" href="/">The aityx demos'
-      '</a></p>',
+      'reload.</p><p><a style="color:#EB7B58" href="$_prefix">The aityx '
+      'demos</a></p>',
     );
 }
 
@@ -456,7 +497,7 @@ Future<_Settings> _settings() async {
   );
 }
 
-/// GET /aityx/config: whether the dev proxy has a key; never the key.
+/// GET /demos/aityx/config: whether the dev proxy has a key; never the key.
 Future<Map<String, Object?>> _config() async {
   final settings = await _settings();
   if (settings.key.isEmpty) return {'available': false};
@@ -523,7 +564,7 @@ bool _loopbackHost(HttpRequest request) {
       (InternetAddress.tryParse(host)?.isLoopback ?? false);
 }
 
-/// POST /aityx/v1/systemone: the body, forwarded to aityx with this
+/// POST /demos/aityx/v1/systemone: the body, forwarded to aityx with this
 /// server's key; aityx's status and body back unchanged. Redirects are not
 /// followed (502: AITYX_URL is likely behind a login), and an aityx that
 /// doesn't answer is a 502 too. Neither the key nor the bodies are logged.

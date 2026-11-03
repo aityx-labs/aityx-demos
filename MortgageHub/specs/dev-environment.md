@@ -7,24 +7,25 @@
 - **No services of its own.** The app is a static web build that calls
   aityx from the browser (see [aityx.ai integration](aityx.md)); the
   repository's index server ([Index/](../../Index)) serves it at
-  `/mortgagehub/` on its port (8800), beside the index page and the other
-  aityx demos, with `Cache-Control: no-cache`, `index.html` for the app's
-  own routes, and the dev key's `/aityx/` proxy. From the repository's
-  root, `./start-aityx.sh MortgageHub` (or `./start-aityx.sh`,
+  `/demos/mortgagehub/` on its port (8800), beside the index page
+  (`/demos/`) and the other aityx demos, with `Cache-Control: no-cache`,
+  `index.html` for the app's own routes, and the dev key's
+  `/demos/aityx/` proxy. From the repository's root,
+  `./start-aityx.sh MortgageHub` (or `./start-aityx.sh`,
   `./start-all.sh`) builds what's stale and starts the index;
   `./stop-aityx.sh` stops it. There is no API, no web server, no
   process-compose file and no health monitor in this folder any more.
 - **The build the index serves**: [scripts/build.sh](../scripts/build.sh)
   (`devbox run build`; no target, or `web`) runs `scripts/make.sh web`
-  with `MODE=release` and `WEB_BASE_HREF=/mortgagehub/`, so the build is
-  `flutter build web --release --base-href /mortgagehub/
+  with `MODE=release` and `WEB_BASE_HREF=/demos/mortgagehub/`, so the
+  build is `flutter build web --release --base-href /demos/mortgagehub/
   --no-web-resources-cdn` (CanvasKit from the build, no script from
   gstatic: no third-party script runs on the origin that holds the key).
   It builds only when `build/web` is missing or older than its sources:
   the app's `lib/`, `web/`, `assets/` and pubspecs, the shared package
   (`../packages/aityx_web`: `lib/` and its pubspec) and the version files;
   and when the build doesn't record its settings
-  (`build/web/.aityx-services`: `base_href=/mortgagehub/
+  (`build/web/.aityx-services`: `base_href=/demos/mortgagehub/
   web_resources_cdn=no`, written once a build succeeds, so a `make web` by
   hand with other settings isn't reused). A build after no change does
   nothing and takes a second; one after a change about 20 s on a laptop,
@@ -87,7 +88,7 @@
   Microsoft's `ubuntu-24.04` base with Flutter 3.47.0, process-compose
   and the GitHub CLI, pinned and checked against their published
   SHA-256, and the six aityx demos' release web builds (this one built
-  for `/mortgagehub/`). No Docker feature: no aityx demo has a database. The demos run on the image's
+  for `/demos/mortgagehub/`). No Docker feature: no aityx demo has a database. The demos run on the image's
   own Flutter and process-compose (`DEMOS_TOOLCHAIN=image`, see
   [demos-toolchain.sh](../../demos-toolchain.sh)): no devbox or Nix in
   a codespace. `hostRequirements` asks for 4 cores and 16 GB.
@@ -104,7 +105,7 @@
   container that started every demo: the codespace was available about
   three minutes after the request and the demos answered within a minute
   after that. The container forwards only the index's port, 8800, which serves
-  this app at `/mortgagehub/`, and adds the Dart and Flutter extensions.
+  this app at `/demos/mortgagehub/`, and adds the Dart and Flutter extensions.
 - **The editor's Flutter SDK**: the image carries Flutter 3.47.0, the
   version `devbox.lock` pins, in `/opt/flutter`: on x64 the release
   archive, checked against the SHA-256 in `releases_linux.json`; on arm64,
@@ -120,9 +121,10 @@
   [post-start.sh](../../.devcontainer/post-start.sh) on every start
   (after `on-create.sh`, `update-content.sh` and `post-create.sh` on the
   first), which starts the index, and with it this app at
-  `/mortgagehub/`, then `public-port.sh`. Port 8800 has `onAutoForward:
-  openBrowserOnce`, so the index page opens in a browser tab; the
-  Mortgage Hub card links the app on the same address.
+  `/demos/mortgagehub/`, then `public-port.sh`. Port 8800 has
+  `onAutoForward: openBrowserOnce`, so the index page (`/demos/`) opens
+  in a browser tab; the Mortgage Hub card links the app on the same
+  address.
 - **Start-up log**: `startup.log` at the root of the repository
   (git-ignored, as every `*.log`), written through
   [startup-log.sh](../../.devcontainer/startup-log.sh), which the

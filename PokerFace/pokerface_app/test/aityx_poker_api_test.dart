@@ -131,12 +131,12 @@ void main() {
         await api(
           answers(200, _calls),
           connection: AityxConnection.dev(
-            Uri.parse('http://localhost:8800/pokerface/'),
+            Uri.parse('http://localhost:8800/demos/pokerface/'),
           ),
         ).act(_rock, situation());
         expect(
           asked.single.url,
-          Uri.parse('http://localhost:8800/aityx/v1/systemone'),
+          Uri.parse('http://localhost:8800/demos/aityx/v1/systemone'),
         );
         expect(asked.single.headers.containsKey('Authorization'), isFalse);
       },

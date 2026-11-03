@@ -11,8 +11,9 @@
 # image's process-compose: see demos-toolchain.sh). The aityx group: the
 # index (Index/, 8800), which serves the release web builds of Mortgage
 # Hub, Contact Hub, PokerFace, RoboRules, Cellfie and RiverRace itself, at
-# /mortgagehub/, /contacthub/, ... on its port; each app calls aityx from
-# the browser. The datyx group: the datyx API (9900, with PostgreSQL,
+# /demos/mortgagehub/, /demos/contacthub/, ... on its port (its page at
+# /demos/); each app calls aityx from the browser. The datyx group: the
+# datyx API (9900, with PostgreSQL,
 # Elasticsearch and OpenMetadata in containers), the datyx dashboard
 # (9906), HealthHub (9801, with its PostgreSQL container on 9803 and
 # Kafka on 9804, its REST proxy on 9805) and

@@ -108,7 +108,6 @@ class _RaceScreenState extends State<RaceScreen>
   String? _error;
   final _calls = <CallRecord>[];
   int _callCount = 0;
-  int? _lastTookMs;
 
   static const _ids = ['p1', 'p2'];
 
@@ -239,7 +238,6 @@ class _RaceScreenState extends State<RaceScreen>
         if (plane.flying && plane.lost == lostAt[id]) plane.action = action;
       }
       _error = null;
-      _lastTookMs = decision.tookMs;
       record = CallRecord(
         ++_callCount,
         frame,
@@ -390,7 +388,7 @@ class _RaceScreenState extends State<RaceScreen>
               spacing: 8,
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
-              children: [..._controls(), _status(theme)],
+              children: _controls(),
             ),
           ),
         if (_error case final error?)
@@ -445,17 +443,7 @@ class _RaceScreenState extends State<RaceScreen>
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
-        title: Row(
-          children: [
-            const Flexible(
-              child: Text(AppVersion.title, overflow: TextOverflow.ellipsis),
-            ),
-            if (inBar) ...[
-              const SizedBox(width: 16),
-              Flexible(child: _status(theme)),
-            ],
-          ],
-        ),
+        title: const Text(AppVersion.title, overflow: TextOverflow.ellipsis),
         actions: [
           if (inBar)
             for (final control in _controls())
@@ -500,25 +488,6 @@ class _RaceScreenState extends State<RaceScreen>
                 ],
               )
             : main,
-      ),
-    );
-  }
-
-  /// The race's frame and aityx's last answer time.
-  Widget _status(ThemeData theme) {
-    final status = [
-      'Frame ${_race.frame}',
-      if (_asking)
-        'asking aityx…'
-      else if (_lastTookMs case final ms?)
-        'aityx answered in $ms ms',
-    ];
-    return Text(
-      status.join(' · '),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: theme.textTheme.bodySmall?.copyWith(
-        color: theme.colorScheme.onSurfaceVariant,
       ),
     );
   }

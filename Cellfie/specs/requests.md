@@ -207,3 +207,19 @@ The feature files hold the current specification; see the
     say the new paths. See [aityx calls](aityx-calls.md), [aityx status
     light](aityx-status.md) and [Development
     environment](dev-environment.md).
+18. **Remove the running counter from the top bar beside the title, as
+    in the other demos: leave the title clear, and in the calls panel,
+    before play, show what the demo is and what aityx is doing in it;
+    after play, show the calls as they are.** Cellfie's title bar had no
+    counter beside the title (the status, `Generation N · M cells ·
+    aityx answered in T ms`, sits under the calls panel's header and
+    over the board on narrow windows, and stays there), so only the
+    panel changed: before the first call it now shows two paragraphs,
+    what the demo is (Conway's Game of Life on an infinite board, its
+    rules and pattern catalogue as an aityx decision model, the cells
+    taking a picture of themselves every generation) and what aityx
+    does (one call per generation, with what lives, what dies and the
+    patterns coming back, the calls showing as they happen), in the
+    same muted centered style, scrolling when the panel is short. Once
+    calls arrive the panel shows them as before. See [Calls
+    panel](calls-panel.md).

@@ -518,11 +518,21 @@ void main() {
 
     expect(find.byType(CallsPanel), findsNothing);
     expect(find.byTooltip('Random start'), findsOneWidget);
-    expect(find.textContaining(RegExp(r'Generation 0 · \d+ cells')), findsOneWidget);
+    expect(
+      find.textContaining(RegExp(r'Generation 0 · \d+ cells')),
+      findsOneWidget,
+    );
     await tester.tap(find.byTooltip('Calls (0)'));
     await tester.pumpAndSettle();
     expect(find.byType(CallsPanel), findsOneWidget);
-    expect(find.textContaining('Every generation is one call'), findsOneWidget);
+    expect(
+      find.textContaining('Conway\'s Game of Life on an infinite board'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Each generation is one aityx call'),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 }

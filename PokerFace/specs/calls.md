@@ -2,8 +2,16 @@
 
 Every decision at the table is one call to aityx, and the sidebar shows
 them all, newest first, under the **aityx calls (n)** tab
-([CallsPanel](../pokerface_app/lib/sidebar/calls_panel.dart)). Each
-entry says:
+([CallsPanel](../pokerface_app/lib/sidebar/calls_panel.dart)). Before
+the first call the panel describes the demo instead, in two paragraphs
+of muted, centered text that scroll when the panel is short: what it is
+("No-limit hold'em at a table of up to nine, where every player is a
+set of rules run by aityx: five strategies to read, or write your own.
+The pace is in your hands.") and what aityx does in it ("At each turn
+the app works out the player's situation and one aityx call runs their
+strategy on it: the action, the amount, and the rule that decided it.
+Deal a hand: the calls show here as they happen."). Once calls arrive,
+each entry says:
 
 - its number, the player and their strategy, the hand and the street;
 - the situation in a line, in monospace: the hole cards, the board, the

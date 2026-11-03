@@ -62,14 +62,16 @@ removes it. Once saved, the key is not shown again, only its last four
 characters. Every app reads it from there
 ([packages/aityx_web](../packages/aityx_web/)) and calls aityx itself.
 
-A link can carry the key: `/demos/#AITYX_API_KEY=<key>` (the fragment,
-which the browser never sends to a server; `/demos/?AITYX_API_KEY=<key>`
-works too, but a query string lands in server logs), with `AITYX_URL`
-beside it if the key is for another aityx. The page takes them off the
-address bar at once, checks the key with aityx like a pasted one and saves
-it on the device, replacing any key set before, for every demo; a key
-aityx rejects is not saved, and the section says so. This is the page's
-own script, so it works on a static host too.
+A link can carry the key, in the fragment only:
+`/demos/#AITYX_API_KEY=<key>`, with `AITYX_URL` beside it if the key is
+for another aityx. The browser never sends a fragment to a server, so the
+key reaches no access log. The page takes them off the address bar at
+once, checks the key with aityx like a pasted one and saves it on the
+device, replacing any key set before, for every demo; a key aityx rejects
+is not saved, and the section says so. A key in the query string
+(`/demos/?AITYX_API_KEY=<key>`) has already reached the server's logs: the
+page takes it off the address bar, refuses it and says so. This is the
+page's own script, so it works on a static host too.
 
 Without a user key, an app asks this server's `GET /demos/aityx/config`.
 When the server has a key, `AITYX_API_KEY` in its environment (a

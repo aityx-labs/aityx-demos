@@ -74,7 +74,9 @@ const codespaces = (d) =>
   encodeURIComponent('.devcontainer/' + d.codespace + '/devcontainer.json') +
   '&machine=standardLinux32gb';
 // A demo's app: beside this page (/demos/<slug>/), on this origin, so it
-// reads the key saved here.
+// reads the key saved here. Opened in this tab: a key kept "only this
+// session" lives in this tab's sessionStorage, and a new tab (noopener)
+// starts with an empty one, so it would open without the key.
 const appPath = (d) => d.folder.toLowerCase() + '/';
 const ext = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M19 14v6H4V5h6"/></svg>';
 
@@ -86,7 +88,7 @@ function card(d) {
   // Its animation, www/<slug>.gif (a recording of the app, 720 px wide),
   // opens the app too.
   el.innerHTML =
-    '<a class="shot" href="' + appPath(d) + '" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">' +
+    '<a class="shot" href="' + appPath(d) + '" tabindex="-1" aria-hidden="true">' +
     '<img src="' + d.folder.toLowerCase() + '.gif" alt="" width="720" height="362" loading="lazy" decoding="async"></a>' +
     '<div class="head"><div class="icon"><svg viewBox="0 0 24 24" fill="currentColor">' + icons[d.icon] + '</svg></div>' +
     '<div><h2>' + d.name + '</h2><p class="what">' + d.what + '</p></div></div>' +
@@ -94,7 +96,7 @@ function card(d) {
     '<div class="chips">' + chips + '</div>' +
     '<div class="status" hidden></div>' +
     '<div class="actions">' +
-    '<a class="btn primary" href="' + appPath(d) + '" target="_blank" rel="noopener">Open' + ext + '</a>' +
+    '<a class="btn primary" href="' + appPath(d) + '">Open</a>' +
     '<a class="btn" href="' + github + d.folder + '" target="_blank" rel="noopener">Source ' + ext + '</a>' +
     (d.codespace ? '<a class="btn" href="' + codespaces(d) + '" target="_blank" rel="noopener">Codespace ' + ext + '</a>' : '') +
     '</div>';
@@ -409,21 +411,24 @@ async function checkAityx(force = false) {
 
 // A key in the request ----------------------------------------------------
 
-// AITYX_API_KEY in the page's URL, as a query parameter
-// (/demos/?AITYX_API_KEY=...) or in the fragment (/demos/#AITYX_API_KEY=...,
-// which never reaches a server or its logs: prefer it), optionally with
-// AITYX_URL beside it, on any host, static or not:
-// checked with aityx like a pasted key, then saved on this device for
-// every demo, replacing any key set before. The key is taken out of the
+// AITYX_API_KEY in the page's URL fragment (/demos/#AITYX_API_KEY=...),
+// optionally with AITYX_URL beside it, on any host, static or not: checked
+// with aityx like a pasted key, then saved on this device for every demo,
+// replacing any key set before. Only the fragment: the browser never sends
+// it to a server, so it reaches no access log. A key in the query string
+// (/demos/?AITYX_API_KEY=...) has already reached the server's logs, so it
+// is refused, and the page says so. Either way the key is taken out of the
 // address bar first, so it isn't kept in the history or shared with the
 // page's address. A key aityx rejects is not saved, and the form says so.
 async function keyFromRequest() {
   const url = new URL(window.location.href);
   const query = url.searchParams;
   const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
-  const key = (query.get('AITYX_API_KEY') || hash.get('AITYX_API_KEY') || '').trim();
-  const urlGiven = query.get('AITYX_URL') || hash.get('AITYX_URL');
-  if (!query.has('AITYX_API_KEY') && !hash.has('AITYX_API_KEY')) return false;
+  const inQuery = query.has('AITYX_API_KEY') || query.has('AITYX_URL');
+  const inHash = hash.has('AITYX_API_KEY');
+  if (!inQuery && !inHash) return false;
+  const key = (hash.get('AITYX_API_KEY') || '').trim();
+  const urlGiven = hash.get('AITYX_URL');
   for (const params of [query, hash]) {
     params.delete('AITYX_API_KEY');
     params.delete('AITYX_URL');
@@ -431,6 +436,11 @@ async function keyFromRequest() {
   url.search = query.toString();
   url.hash = hash.toString() ? '#' + hash.toString() : '#aityx-key';
   window.history.replaceState(null, '', url.toString());
+  if (inQuery) {
+    result('A key in the link’s query string (?AITYX_API_KEY=) reaches the server and its logs: not used. ' +
+      'Put it in the fragment instead (#AITYX_API_KEY=), and consider replacing that key in the aityx console.', false);
+    return false;
+  }
   if (!key) return result('The link carries an empty AITYX_API_KEY: nothing saved.', false), false;
   if (/\s/.test(key)) return result('The link’s AITYX_API_KEY doesn’t look like a key: it has spaces in it.', false), false;
   const aityxUrl = cleanUrl(urlGiven || (userKey() || {}).url || defaultUrl);

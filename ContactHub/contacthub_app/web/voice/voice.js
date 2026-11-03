@@ -168,11 +168,21 @@
         ? "Microphone access was denied."
         : "No microphone was found.");
     }
-    const recorder = new MediaRecorder(stream);
+    // The microphone is released when the recording stops (onstop), or
+    // right here when the recorder can't be made or started: otherwise the
+    // browser's "recording" indicator would stay on with nothing recording.
+    const release = () => stream.getTracks().forEach((track) => track.stop());
+    let recorder;
     const chunks = [];
+    try {
+      recorder = new MediaRecorder(stream);
+    } catch (error) {
+      release();
+      throw new Error(`This browser can't record audio: ${error.message}`);
+    }
     recorder.ondataavailable = (event) => event.data.size && chunks.push(event.data);
     recorder.onstop = async () => {
-      stream.getTracks().forEach((track) => track.stop());
+      release();
       session = null;
       try {
         cb.onState("transcribing", -1);
@@ -185,7 +195,12 @@
         cb.onState("idle", -1);
       }
     };
-    recorder.start();
+    try {
+      recorder.start();
+    } catch (error) {
+      release();
+      throw new Error(`Recording could not start: ${error.message}`);
+    }
     cb.onState("listening", -1);
     return { stop: () => recorder.state !== "inactive" && recorder.stop() };
   }

@@ -229,3 +229,22 @@ The requests that shaped RoboRules, oldest first, each with what changed.
     round's scores, and opens the call. Each call keeps how long it took
     and its scores (see [The window](window.md)).
 
+## 2026-11-03
+
+24. **Separate the demos in games and apps on the index page, then serve
+    the index page under /demos and each demo under its own path, such
+    as /demos/riverrace, so the demos can be embedded, hidden, in the
+    aityx website.** RoboRules moved from `/roborules/` to
+    `/demos/roborules/`: its release web build is now made with
+    `--base-href /demos/roborules/` (`scripts/make.sh`'s default, which
+    `scripts/build.sh` sets), and the index server serves it there,
+    beside the index page at `/demos/` (the root redirects to it),
+    where the page lists RoboRules under **Games**. The light's tap opens
+    the key section at `/demos/#aityx-key`, and the dev proxy the app
+    asks for the dev key moved to `/demos/aityx/config` and
+    `/demos/aityx/v1/systemone` (both in the shared aityx_web package).
+    The API test expects the new origin and proxy path. The same prefix
+    locally and on the website keeps one build, which also works copied
+    to a static host's `/demos/` (see
+    [Development environment](dev-environment.md)).
+

@@ -5,7 +5,7 @@
 # Targets: web (the only platform: RoboRules is a web app), all (the
 # same), clean. Settings, from the environment or `make VAR=value`:
 #   MODE          release (default), profile or debug
-#   WEB_BASE_HREF the web build's base href; /roborules/ by default, where
+#   WEB_BASE_HREF the web build's base href; /demos/roborules/ by default, where
 #                 the index server (Index/bin/server.dart) serves it
 #
 # The web build keeps CanvasKit on our own origin (--no-web-resources-cdn):
@@ -34,7 +34,7 @@ BUILD_ARGS=(--build-name "$VERSION" --build-number "$BUILD_NUMBER"
   --dart-define="ROBORULES_VERSION=$VERSION")
 
 build_web() {
-  local base="${WEB_BASE_HREF:-/roborules/}"
+  local base="${WEB_BASE_HREF:-/demos/roborules/}"
   echo "==> web ($MODE, version $VERSION, build $BUILD_NUMBER, under $base)"
   flutter build web "--$MODE" --base-href "$base" --no-web-resources-cdn \
     "${BUILD_ARGS[@]}"

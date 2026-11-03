@@ -11,6 +11,7 @@ and each robot's rules, and the models are the app's assets
 [tool/build_world.py](tool/build_world.py)).
 
 Run it from the repository's root with `./start-aityx.sh RoboRules`, at
-http://localhost:8800/roborules/. Test it here with `flutter analyze` and
-`flutter test`; `bash ../scripts/model-test.sh` runs the tests tagged
-`aityx`, which play battles on aityx with the root `.env`'s key.
+http://localhost:8800/demos/roborules/. Test it here with `flutter
+analyze` and `flutter test`; `bash ../scripts/model-test.sh` runs the
+tests tagged `aityx`, which play battles on aityx with the root `.env`'s
+key.

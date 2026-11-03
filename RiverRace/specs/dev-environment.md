@@ -2,9 +2,10 @@
 
 RiverRace is a Flutter web app with no services of its own: the index
 server ([Index/bin/server.dart](../../Index/bin/server.dart), port 8800)
-serves its release build at `/riverrace/`, with the index page and the
-other aityx demos, on one origin, and the app calls aityx itself (see
-[aityx calls](api.md)). [Mortgage Hub's spec](../../MortgageHub/specs/dev-environment.md)
+serves its release build at `/demos/riverrace/`, with the index page
+(`/demos/`) and the other aityx demos, on one origin, and the app calls
+aityx itself (see [aityx calls](api.md)).
+[Mortgage Hub's spec](../../MortgageHub/specs/dev-environment.md)
 explains the reasons behind the shared pieces.
 
 - [devbox.json](../devbox.json) manages the toolchain: Flutter,
@@ -16,7 +17,7 @@ explains the reasons behind the shared pieces.
   (`../../packages/aityx_web`): the key, the systemone call and the status
   light.
 - **The web build** ([scripts/build.sh](../scripts/build.sh), `devbox run
-  build`): `flutter build web --release --base-href /riverrace/
+  build`): `flutter build web --release --base-href /demos/riverrace/
   --no-web-resources-cdn`, through `scripts/make.sh web` (which adds the
   version), into `riverrace_app/build/web/`. `--no-web-resources-cdn`
   keeps CanvasKit on the origin, so no third-party script runs on the
@@ -24,7 +25,7 @@ explains the reasons behind the shared pieces.
   missing or older than the app's `lib/`, `web/`, `assets/`, its pubspecs,
   the shared package's `lib/` and pubspec, or the version files, and when
   the build doesn't record its settings (`build/web/.aityx-services`:
-  `base_href=/riverrace/ web_resources_cdn=no`, written once a build
+  `base_href=/demos/riverrace/ web_resources_cdn=no`, written once a build
   succeeds and required to be newer than the build, so a `make web` by
   hand with other settings isn't reused). The repository's `build-all.sh`
   and `start-all.sh` run it, so a start after no change builds nothing; a
@@ -37,9 +38,9 @@ explains the reasons behind the shared pieces.
   build once. `build/` is git-ignored.
 - **Running it**: `./start-all.sh` (or `./start-aityx.sh`) at the
   repository root builds what's stale and starts the index server; open
-  http://localhost:8800/riverrace/. Set your aityx key on the index page
-  (http://localhost:8800/#aityx-key), or put `AITYX_API_KEY` in the
-  repository's `.env` for the index server's dev key (see
+  http://localhost:8800/demos/riverrace/. Set your aityx key on the index
+  page (http://localhost:8800/demos/#aityx-key), or put `AITYX_API_KEY` in
+  the repository's `.env` for the index server's dev key (see
   [aityx calls](api.md)). Without either, the game runs but the aityx
   pilots fly straight on, and the light is red.
 - `bash scripts/model-test.sh` runs strategies on aityx (see
@@ -58,9 +59,9 @@ explains the reasons behind the shared pieces.
   [scripts/make.sh](../scripts/make.sh): `web`, `android`, `ios` (macOS),
   `linux` (Linux), `all` (what the host can build) and `clean`, with
   `MODE`, `IOS_CODESIGN` and `WEB_BASE_HREF` (`/` by default;
-  `scripts/build.sh` passes `/riverrace/`). A native build has no index
-  page and no dev proxy, and keeps a key only in memory, which nothing
-  sets: its aityx pilots fly straight on.
+  `scripts/build.sh` passes `/demos/riverrace/`). A native build has no
+  index page and no dev proxy, and keeps a key only in memory, which
+  nothing sets: its aityx pilots fly straight on.
 - **Dev container**: the aityx group's
   ([.devcontainer/aityx/](../../.devcontainer/aityx)), named **aityx
   demos**, which RiverRace shares with Mortgage Hub, Contact Hub, Cellfie,
@@ -72,9 +73,9 @@ explains the reasons behind the shared pieces.
   ([image/restore-builds.sh](../../image/restore-builds.sh), skipped for a
   demo that changed since the image was made: that app then builds
   itself), and `post-start.sh` builds what's stale and starts the index
-  server, which serves RiverRace at `/riverrace/` on the forwarded port
-  8800. The `AITYX_API_KEY` Codespaces secret is optional: it gives the
-  index server a dev key that every visitor of the codespace uses.
+  server, which serves RiverRace at `/demos/riverrace/` on the forwarded
+  port 8800. The `AITYX_API_KEY` Codespaces secret is optional: it gives
+  the index server a dev key that every visitor of the codespace uses.
   Everything goes to `startup.log` at the root of the repository (see
   [startup-log.sh](../../.devcontainer/startup-log.sh)), which holds no
   secrets.

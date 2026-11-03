@@ -11,6 +11,6 @@ the shared [aityx_web](../../packages/aityx_web) package.
 
 Build it for the index with `bash ../scripts/build.sh` and run it from the
 repository with `./start-aityx.sh MortgageHub`, then open
-http://localhost:8800/mortgagehub/ (see the [project README](../README.md)).
-Test it here with `flutter analyze` and `flutter test`; the tests that call
-aityx run with `bash ../scripts/model-test.sh`.
+http://localhost:8800/demos/mortgagehub/ (see the [project
+README](../README.md)). Test it here with `flutter analyze` and `flutter
+test`; the tests that call aityx run with `bash ../scripts/model-test.sh`.

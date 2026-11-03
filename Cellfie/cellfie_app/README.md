@@ -9,8 +9,8 @@ the Life model in [assets/models/life.json](assets/models/life.json).
 
 Build it with `bash ../scripts/build.sh` (or `make`, see the [project
 README](../README.md)); the index server serves it at
-http://localhost:8800/cellfie/. Test it here with `flutter analyze` and
-`flutter test`; `bash ../scripts/model-test.sh` runs the tests tagged
-`aityx` on aityx itself. `dart run tool/catalogue.dart` rewrites the
-pattern catalogue in the model from the seeds in
+http://localhost:8800/demos/cellfie/. Test it here with `flutter analyze`
+and `flutter test`; `bash ../scripts/model-test.sh` runs the tests
+tagged `aityx` on aityx itself. `dart run tool/catalogue.dart` rewrites
+the pattern catalogue in the model from the seeds in
 [lib/life/seeds.dart](lib/life/seeds.dart).

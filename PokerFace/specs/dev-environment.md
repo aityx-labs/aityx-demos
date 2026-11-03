@@ -4,9 +4,9 @@ PokerFace is one Flutter app, [pokerface_app](../pokerface_app), that runs
 in the browser and calls aityx itself ([Deciding on aityx](aityx.md)).
 There is no API, no web server of its own and no services: the
 repository's index server ([Index/bin/server.dart](../../Index/bin/server.dart),
-port 8800) serves the release web build at `/pokerface/`, on the same
-origin as the index page and the other aityx demos, so a key the user
-sets once on the index page works here too.
+port 8800) serves the release web build at `/demos/pokerface/`, on the
+same origin as the index page and the other aityx demos, so a key the
+user sets once on the index page works here too.
 
 - [devbox.json](../devbox.json) manages the toolchain: Flutter, GNU Make
   and curl. [devbox.lock](../devbox.lock) is committed, and is the same as
@@ -20,13 +20,14 @@ sets once on the index page works here too.
   light, the same in every aityx demo.
 - **The web build** ([scripts/build.sh](../scripts/build.sh), run by the
   repository's `build-all.sh` and `start-all.sh`, or by hand): `flutter
-  build web --release --base-href /pokerface/ --no-web-resources-cdn`,
-  through `scripts/make.sh web`, into `pokerface_app/build/web/`. CanvasKit
-  comes from the build itself, not Google's CDN, so no third-party script
-  runs on the origin that holds the user's key. It builds only when the
-  build is missing or older than its sources (`lib/`, `web/`, `assets/`,
-  the pubspecs, `packages/aityx_web`'s `lib/` and pubspec, the version
-  files), or doesn't record the settings it needs
+  build web --release --base-href /demos/pokerface/
+  --no-web-resources-cdn`, through `scripts/make.sh web`, into
+  `pokerface_app/build/web/`. CanvasKit comes from the build itself, not
+  Google's CDN, so no third-party script runs on the origin that holds
+  the user's key. It builds only when the build is missing or older than
+  its sources (`lib/`, `web/`, `assets/`, the pubspecs,
+  `packages/aityx_web`'s `lib/` and pubspec, the version files), or
+  doesn't record the settings it needs
   (`build/web/.aityx-build`: the base href and the no-CDN flag, written
   once a build succeeds and required to be newer than the build, so a
   `make web` by hand with other settings isn't reused). A start after no
@@ -39,10 +40,10 @@ sets once on the index page works here too.
   overlap build once. `build/` is git-ignored.
 - **Running it**: `./start-aityx.sh PokerFace` (or `./start-all.sh`) at
   the repository root builds what's stale and starts the index server;
-  open http://localhost:8800/pokerface/. With a key in the root `.env` the
-  index server's dev proxy (`/aityx/v1/systemone`) adds it to the app's
-  calls, and the key never reaches the browser; without one, users set
-  theirs on the index page.
+  open http://localhost:8800/demos/pokerface/. With a key in the root
+  `.env` the index server's dev proxy (`/demos/aityx/v1/systemone`) adds
+  it to the app's calls, and the key never reaches the browser; without
+  one, users set theirs on the index page.
 - **Tests**: `flutter analyze` and `flutter test` in `pokerface_app/`: the
   engine, the screens, the table logic ported from the API, and every
   decision path against a MockClient. `bash scripts/model-test.sh` runs
@@ -59,7 +60,7 @@ sets once on the index page works here too.
 - **Coordinates**: the group ID `aityx` from `group.id.txt` and the artifact
   ID `pokerface` from `artifact.id.txt`; with the version, `aityx:pokerface:X.Y.Z`.
 - **Builds**: the [Makefile](../Makefile) runs
-  [scripts/make.sh](../scripts/make.sh): `web` (base href `/pokerface/`
+  [scripts/make.sh](../scripts/make.sh): `web` (base href `/demos/pokerface/`
   unless `WEB_BASE_HREF` says otherwise, always without the CDN),
   `android`, `ios` (macOS), `linux` (Linux), `all` (what the host can
   build) and `clean`, with `MODE` and `IOS_CODESIGN`. The native builds
@@ -77,8 +78,8 @@ sets once on the index page works here too.
   ([image/restore-builds.sh](../../image/restore-builds.sh)) unless the
   app or `packages/` changed since the image was made, and then it
   builds itself. The codespace serves it on the index's port, 8800, at
-  `/pokerface/`. The `AITYX_API_KEY` Codespaces secret is optional: it
-  becomes the dev key every visitor of the codespace uses. See the
+  `/demos/pokerface/`. The `AITYX_API_KEY` Codespaces secret is optional:
+  it becomes the dev key every visitor of the codespace uses. See the
   [repository README](../../README.md).
 - **Launch link**: the [README](../README.md#run-it-in-a-codespace) and
   the repository README have an **Open in GitHub Codespaces** badge with
@@ -88,5 +89,5 @@ sets once on the index page works here too.
 ## Known limitations
 
 - No release, deploy or CI workflows.
-- `pokerface_app/build/web` only works under `/pokerface/`; served
+- `pokerface_app/build/web` only works under `/demos/pokerface/`; served
   elsewhere, rebuild it with another `WEB_BASE_HREF`.

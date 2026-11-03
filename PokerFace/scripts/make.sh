@@ -7,7 +7,7 @@
 #   MODE          release (default), profile or debug
 #   IOS_CODESIGN  1 to sign the iOS build (needs a signing team in Xcode);
 #                 unsigned by default
-#   WEB_BASE_HREF the web build's base href; /pokerface/ by default, where
+#   WEB_BASE_HREF the web build's base href; /demos/pokerface/ by default, where
 #                 the index server (Index/bin/server.dart) serves it
 #
 # The web build takes CanvasKit from our own origin (--no-web-resources-cdn),
@@ -54,7 +54,7 @@ build() {
   echo "==> $target ($MODE, version $VERSION, build $BUILD_NUMBER)"
   case "$target" in
     web)
-      flutter build web "--$MODE" --base-href "${WEB_BASE_HREF:-/pokerface/}" \
+      flutter build web "--$MODE" --base-href "${WEB_BASE_HREF:-/demos/pokerface/}" \
         --no-web-resources-cdn "${BUILD_ARGS[@]}"
       echo "==> web: pokerface_app/build/web/"
       ;;

@@ -11,9 +11,10 @@ its web server, Docker images and process-compose services.
 ## Whose key
 
 The app is served by the index server with every aityx demo and the index
-page, on one origin, at `/riverrace/`
-(http://localhost:8800/riverrace/), so the key a user sets once on the
-index page reaches every demo. `AityxClient` looks, in this order:
+page, on one origin, under `/demos/`: RiverRace at `/demos/riverrace/`
+(http://localhost:8800/demos/riverrace/), the index page at `/demos/`,
+so the key a user sets once on the index page reaches every demo.
+`AityxClient` looks, in this order:
 
 1. **The user's key**, set on the index page ("Your aityx key"):
    `sessionStorage['aityx.key']` ("only this session"), else
@@ -22,11 +23,11 @@ index page reaches every demo. `AityxClient` looks, in this order:
    `<url>/v1/systemone` directly, with `Authorization: Bearer <key>`;
    aityx allows it from any origin (CORS).
 2. **The dev key**: with no user key, the app asks the origin's
-   `/aityx/config`; when the index server has a key (`AITYX_API_KEY` in
-   its environment or the repository's `.env`), calls go to
-   `/aityx/v1/systemone` on the same origin, with no `Authorization`
-   header, and the index server adds the key. That key never reaches the
-   browser.
+   `/demos/aityx/config`; when the index server has a key
+   (`AITYX_API_KEY` in its environment or the repository's `.env`), calls
+   go to `/demos/aityx/v1/systemone` on the same origin, with no
+   `Authorization` header, and the index server adds the key. That key
+   never reaches the browser.
 3. **None**: decisions fail with *aityx is not set up: set your key on the
    index page*, and the [status light](aityx-status.md) is red.
 

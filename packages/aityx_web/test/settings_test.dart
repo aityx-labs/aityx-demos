@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
-final origin = Uri.parse('http://localhost:8800/mortgagehub/');
+final origin = Uri.parse('http://localhost:8800/demos/mortgagehub/');
 
-/// A client whose /aityx/config answers [answer]; [asked] records calls.
+/// A client whose /demos/aityx/config answers [answer]; [asked] records calls.
 MockClient config(http.Response answer, List<Uri> asked) =>
     MockClient((request) async {
       asked.add(request.url);
@@ -58,7 +58,7 @@ void main() {
       origin: origin,
       store: AityxKeyStore.memory(),
     );
-    expect(asked, [Uri.parse('http://localhost:8800/aityx/config')]);
+    expect(asked, [Uri.parse('http://localhost:8800/demos/aityx/config')]);
     expect(connection.source, AityxSource.dev);
     expect(connection.key, isNull);
     expect(connection.url, 'https://api.aityx.ai');
@@ -66,7 +66,7 @@ void main() {
     expect(connection.whose, 'dev key from .env');
     expect(
       connection.systemone,
-      Uri.parse('http://localhost:8800/aityx/v1/systemone'),
+      Uri.parse('http://localhost:8800/demos/aityx/v1/systemone'),
     );
   });
 
@@ -85,14 +85,14 @@ void main() {
       );
     });
 
-    test("on a static host: /aityx/config is a 404", () async {
+    test("on a static host: /demos/aityx/config is a 404", () async {
       expect(
         (await resolveWith(http.Response('Not found', 404))).source,
         AityxSource.none,
       );
     });
 
-    test("on a static host: /aityx/config is the app's index.html", () async {
+    test("on a static host: /demos/aityx/config is the app's index.html", () async {
       expect(
         (await resolveWith(http.Response('<!DOCTYPE html><html></html>', 200)))
             .source,

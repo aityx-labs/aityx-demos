@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Builds the app's release web build, riverrace_app/build/web/, the way the
-# index server serves it, at http://localhost:8800/riverrace/ (see
+# index server serves it, at http://localhost:8800/demos/riverrace/ (see
 # Index/bin/server.dart), and only when it changed since the last build:
-#   flutter build web --release --base-href /riverrace/ --no-web-resources-cdn
+#   flutter build web --release --base-href /demos/riverrace/ --no-web-resources-cdn
 # through scripts/make.sh web, which adds the version. There is no API: the
 # app calls aityx itself, on the key the index page set, or through the
 # index server's dev proxy (see specs/api.md).
@@ -27,7 +27,7 @@ app="$root/riverrace_app"
 shared="$root/../packages/aityx_web"
 
 # Where the index server serves the app.
-base_href=/riverrace/
+base_href=/demos/riverrace/
 
 # stale <target> <source>...: whether the target is missing or older than a
 # source (a file, or any file under a folder). Missing sources are skipped.

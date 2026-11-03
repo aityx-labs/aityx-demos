@@ -9,8 +9,8 @@ every commit and push:
   code path (build, script, or the app in a browser), not just a syntax
   check. For this project that means `flutter analyze` and `flutter test`
   pass in `mortgagehub_app/`, and `bash scripts/build.sh` builds the web
-  app (its `build/web/index.html` has `<base href="/mortgagehub/">` and
-  loads no script from `gstatic`). After changing the model, run
+  app (its `build/web/index.html` has `<base href="/demos/mortgagehub/">`
+  and loads no script from `gstatic`). After changing the model, run
   `bash scripts/model-test.sh`, which calls aityx.
 - **The aityx key**: the user's key lives in their browser (set on the
   index page) and goes only to their aityx URL, as a header: never in a
@@ -31,6 +31,6 @@ Do not commit or push code that has not passed both checks.
 - Toolchain is managed by [devbox.json](devbox.json); enter it with
   `devbox shell` and keep [devbox.lock](devbox.lock) committed.
 - There are no services of its own: the repository's index (`Index/`)
-  serves the web build at `/mortgagehub/`. Start it from the root with
-  `./start-aityx.sh MortgageHub`; stop it with `./stop-aityx.sh`.
+  serves the web build at `/demos/mortgagehub/`. Start it from the root
+  with `./start-aityx.sh MortgageHub`; stop it with `./stop-aityx.sh`.
 - The devcontainer build is documented in the [README](README.md).

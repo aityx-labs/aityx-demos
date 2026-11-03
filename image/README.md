@@ -6,7 +6,7 @@ built from one [Containerfile](Containerfile):
 
 | Group | Image | What it carries |
 |---|---|---|
-| aityx | `docker.io/aletyxcode/samples-and-demos-aityx` | Flutter, the GitHub CLI, process-compose, the packages the six aityx demos depend on (`packages/aityx_web` among them) and **their release web builds**, which the index serves at `/<slug>/` |
+| aityx | `docker.io/aletyxcode/samples-and-demos-aityx` | Flutter, the GitHub CLI, process-compose, the packages the six aityx demos depend on (`packages/aityx_web` among them) and **their release web builds**, which the index serves at `/demos/<slug>/` |
 | datyx | `docker.io/aletyxcode/samples-and-demos-datyx` | the same tools, GraalVM (the datyx API's JDK), the API's Maven dependencies, the packages and **release web builds** of the datyx dashboard and HealthHub |
 
 A group is the folders whose `group.id.txt` names it. A codespace

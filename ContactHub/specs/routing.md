@@ -157,14 +157,14 @@ finds in this order:
 
 1. **Your key**, set on the index page ("Your aityx key"), which the app
    shares because the index and every demo are served from one origin
-   (the index server, `Index/`, at `/contacthub/`). The app calls
+   (the index server, `Index/`, at `/demos/contacthub/`). The app calls
    `<url>/v1/systemone` (by default `https://api.aityx.ai`) directly, with
    `Authorization: Bearer <key>`.
 2. **The dev key**: with no key of yours, the index server's
-   `/aityx/config` says whether it has one (`AITYX_API_KEY`, or the
-   repository's `.env`); the app then POSTs to `/aityx/v1/systemone` on
-   its own origin and the server adds the key, which never reaches the
-   browser.
+   `/demos/aityx/config` says whether it has one (`AITYX_API_KEY`, or
+   the repository's `.env`); the app then POSTs to
+   `/demos/aityx/v1/systemone` on its own origin and the server adds the
+   key, which never reaches the browser.
 3. **None**: nothing is sent.
 
 The model is loaded once, with `rootBundle`. The message is trimmed;
@@ -174,7 +174,7 @@ screen says when it fails:
 | When | It says |
 |---|---|
 | The message is empty or over 2000 characters | `Could not route it: message is empty.` (or `... is longer than 2000 characters.`), without calling aityx |
-| No key | `aityx is not set up: set your key on the index page.`, with **Set your key** (the index page's key section, `/#aityx-key`, in the same tab) beside **Try again** |
+| No key | `aityx is not set up: set your key on the index page.`, with **Set your key** (the index page's key section, `/demos/#aityx-key`, in the same tab) beside **Try again** |
 | aityx refuses the key (401, 403) | `Could not route it: aityx rejected the key.` |
 | Another HTTP status | `Could not route it: aityx answered HTTP n: <aityx's detail>.` (in dev mode, also the index server's 502 when aityx redirects it, as to a login) |
 | No answer (network, CORS, a blocker, or in dev mode the index server's 502 `proxy_unreachable`), or none in 100 s | `aityx did not answer.`, or `aityx did not answer in time.` |

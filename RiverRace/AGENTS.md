@@ -9,8 +9,8 @@ every commit and push:
   code path, not just a syntax check. For this project that means
   `flutter analyze` and `flutter test` pass in `riverrace_app/`, and
   `bash scripts/build.sh` builds the web app (its `build/web/index.html`
-  has `<base href="/riverrace/">` and no `gstatic` script URL). After
-  changing `riverrace_app/assets/models/river.json` or
+  has `<base href="/demos/riverrace/">` and no `gstatic` script URL).
+  After changing `riverrace_app/assets/models/river.json` or
   `riverrace_app/lib/aityx/decision_request.dart`, also run
   `bash scripts/model-test.sh`, which runs strategies on aityx.
 - **Secrets**, such as the aityx key (`AITYX_API_KEY`), live only in the
@@ -32,7 +32,7 @@ Do not commit or push code that has not passed both checks.
 - Toolchain is managed by [devbox.json](devbox.json); enter it with
   `devbox shell` and keep [devbox.lock](devbox.lock) committed.
 - There is no API and there are no services here: the index server
-  (`Index/bin/server.dart`) serves the web build at `/riverrace/`, started
-  with `./start-all.sh` from the repository root. The app calls aityx
-  itself through `packages/aityx_web`.
+  (`Index/bin/server.dart`) serves the web build at `/demos/riverrace/`,
+  started with `./start-all.sh` from the repository root. The app calls
+  aityx itself through `packages/aityx_web`.
 - The devcontainer build is documented in the [README](README.md).

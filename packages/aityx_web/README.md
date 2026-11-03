@@ -18,11 +18,11 @@ page works in every demo.
    `localStorage['aityx.key']` ("remember on this device"). The URL comes from
    `aityx.url` in the same storage, defaulting to `https://api.aityx.ai`. The app
    calls `<url>/v1/systemone` directly, with `Authorization: Bearer <key>`.
-2. **The dev key**: with no user key, the app GETs `/aityx/config` at the root of
-   the origin (not under the app's base href). When the index server has a key
+2. **The dev key**: with no user key, the app GETs `/demos/aityx/config` on the
+   origin (beside the index page, not under the app's base href). When the index server has a key
    (`AITYX_API_KEY` or the repo's `.env`), it answers
    `{"available": true, "url": ..., "source": ".env" | "environment"}`, never the
-   key. Calls then go to `<origin>/aityx/v1/systemone`, with no Authorization
+   key. Calls then go to `<origin>/demos/aityx/v1/systemone`, with no Authorization
    header: the server adds the key, so it never reaches the browser.
 3. **None**: `{"available": false}`, a 404, an HTML page (a static host), or no
    answer. The light is red ("aityx: no key — set yours on the index page") and
@@ -84,7 +84,7 @@ working key gets 400 `invalid_request` without running a model, and a bad one 40
 It checks on start, right away when the key store changes (the index page, in
 another tab, saves or forgets the key), and when the window regains focus at most
 once every 30 s. There's no polling timer: each check spends a request of the
-user's quota. A tap opens the index page's key section (`/#aityx-key`) in the same
+user's quota. A tap opens the index page's key section (`/demos/#aityx-key`) in the same
 tab.
 
 ## Tests in the apps

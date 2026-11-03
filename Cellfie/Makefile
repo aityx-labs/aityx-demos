@@ -2,7 +2,7 @@
 # documents the settings, e.g. `make android MODE=debug`.
 #
 #   make           every platform this host can build
-#   make web       cellfie_app/build/web/ (under /cellfie/, see scripts/make.sh)
+#   make web       cellfie_app/build/web/ (under /demos/cellfie/, see scripts/make.sh)
 #   make android   release APK
 #   make ios       Runner.app (macOS only; unsigned unless IOS_CODESIGN=1)
 #   make linux     Linux bundle (Linux only)

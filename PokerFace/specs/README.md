@@ -52,8 +52,8 @@ app, can be added at any time.
 **Project**
 
 - [Development environment](dev-environment.md): devbox, the web build
-  the index server serves at `/pokerface/`, the tests, the native builds
-  and the dev container.
+  the index server serves at `/demos/pokerface/`, the tests, the native
+  builds and the dev container.
 
 ## Workflow
 

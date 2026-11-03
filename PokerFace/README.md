@@ -47,10 +47,10 @@ lock as Mortgage Hub's and Contact Hub's, so they share one Nix store.
    That builds the app's release web build if it's missing or stale
    ([scripts/build.sh](scripts/build.sh): about 30 s on a laptop, a
    minute or two on a 4-core codespace) and starts the index server,
-   which serves it at **http://localhost:8800/pokerface/**, with the index
-   page and the other aityx demos on the same origin.
+   which serves it at **http://localhost:8800/demos/pokerface/**, with
+   the index page and the other aityx demos on the same origin.
 3. Set your [aityx](https://aityx.ai) key once, in **Your aityx key** on
-   the index page (http://localhost:8800/#aityx-key): sign up at
+   the index page (http://localhost:8800/demos/#aityx-key): sign up at
    aityx.ai, then create a key under API keys in console.aityx.ai. Every
    aityx demo on that origin uses it. Or, for development, put
    `AITYX_API_KEY` in the repository's root `.env` (see
@@ -98,7 +98,7 @@ The [Makefile](Makefile) builds release binaries through
 
 ```bash
 make            # every platform this host can build
-make web        # pokerface_app/build/web/ (base href /pokerface/)
+make web        # pokerface_app/build/web/ (base href /demos/pokerface/)
 make android    # pokerface_app/build/app/outputs/flutter-apk/app-release.apk
 make ios        # pokerface_app/build/ios/iphoneos/Runner.app (macOS, unsigned)
 make linux      # pokerface_app/build/linux/<arch>/release/bundle/ (Linux only)
@@ -136,7 +136,7 @@ minute or two). Then, on that and every later start,
 [post-start.sh](../.devcontainer/post-start.sh) starts the index server
 with `./start-all.sh`. Open port 8800 (Codespaces opens it in a browser
 tab for you), set your aityx key in **Your aityx key**, and open
-PokerFace's card, `/pokerface/`.
+PokerFace's card, `/demos/pokerface/`.
 
 An `AITYX_API_KEY` Codespaces secret is optional: it becomes a dev key
 that every visitor of your codespace uses, through the index server's

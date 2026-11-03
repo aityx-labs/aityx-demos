@@ -4,7 +4,7 @@
 # `build`): Flutter, the GitHub CLI, process-compose, for datyx a JDK
 # (GraalVM) and its API's Maven dependencies, and the group's release web
 # builds already made (for aityx, the six apps the index serves at
-# /<slug>/), so a codespace starts the demos in seconds instead of
+# /demos/<slug>/), so a codespace starts the demos in seconds instead of
 # building for ten minutes. The organization has GitHub's prebuilds and
 # Actions switched off, so the image is built on a laptop and pushed (see
 # README.md here). Everything is pinned and checked against its published

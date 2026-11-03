@@ -129,7 +129,7 @@ void main() {
               );
             }),
             connection: AityxConnection.dev(
-              Uri.parse('http://localhost:8800/roborules/'),
+              Uri.parse('http://localhost:8800/demos/roborules/'),
               url: 'https://api.aityx.ai',
               devKeyFrom: '.env',
             ),
@@ -141,7 +141,7 @@ void main() {
         final request = sent.single;
         expect(
           request.url.toString(),
-          'http://localhost:8800/aityx/v1/systemone',
+          'http://localhost:8800/demos/aityx/v1/systemone',
         );
         expect(
           request.headers.keys.map((h) => h.toLowerCase()),

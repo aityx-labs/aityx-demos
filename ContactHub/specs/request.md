@@ -112,7 +112,7 @@ typed text, the download, start-up and transcription states, and errors.
   download. transformers.js runs as a module in a Web Worker on the app's
   origin, the one that holds the aityx key: a worker can't read
   `localStorage` or `sessionStorage`, where your key is, but it can call
-  the index server's dev proxy (`/aityx/v1/systemone`) like the app. It is
-  pinned to 4.3.1, and only loads in a browser without on-device Web
-  Speech, once the microphone is pressed.
+  the index server's dev proxy (`/demos/aityx/v1/systemone`) like the
+  app. It is pinned to 4.3.1, and only loads in a browser without
+  on-device Web Speech, once the microphone is pressed.
 - No voice input in the Android, iOS and Linux apps yet.

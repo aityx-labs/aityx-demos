@@ -3,9 +3,11 @@
 RoboRules runs entirely in the browser: the app calls aityx itself, and
 there is no API, web server or service of its own. The repository's index
 server ([Index/bin/server.dart](../../Index/bin/server.dart), port 8800)
-serves its release web build at **`/roborules/`**, beside the index page
-and the other five aityx demos, all on one origin, so a key set once on
-the index page works in every demo.
+serves its release web build at **`/demos/roborules/`**, beside the index
+page (`/demos/`) and the other five aityx demos, all under one prefix on
+one origin, so a key set once on the index page works in every demo, and
+the same build works copied to a static host's `/demos/` (the aityx
+website).
 
 ## The aityx key
 
@@ -17,12 +19,12 @@ order:
    `aityx.key`, with `aityx.url`, by default `https://api.aityx.ai`). The
    app calls `<url>/v1/systemone` directly, with `Authorization: Bearer
    <key>`.
-2. **The dev key**: with no user key, the app asks `/aityx/config` at the
-   origin's root. When the index server has a key (`AITYX_API_KEY` in its
+2. **The dev key**: with no user key, the app asks `/demos/aityx/config`
+   on the origin. When the index server has a key (`AITYX_API_KEY` in its
    environment or the repository's `.env`), the app POSTs to
-   `/aityx/v1/systemone` on the same origin, with no key, and the index
-   server forwards it to aityx with its key, which never reaches the
-   browser.
+   `/demos/aityx/v1/systemone` on the same origin, with no key, and the
+   index server forwards it to aityx with its key, which never reaches
+   the browser.
 3. **None**: the [light](window.md) is red and a battle says "aityx is not
    set up: set your key on the index page".
 
@@ -33,19 +35,19 @@ carry the key.
 
 - `./start-aityx.sh RoboRules` from the repository's root (or
   `./start-aityx.sh` for the whole aityx group) builds the app if it's
-  stale and starts the index server: http://localhost:8800/roborules/.
-  `./stop-aityx.sh` stops it.
+  stale and starts the index server:
+  http://localhost:8800/demos/roborules/. `./stop-aityx.sh` stops it.
 - **The build** ([scripts/build.sh](../scripts/build.sh), `devbox run
   build`, also run by the repository's `build-all.sh` and `start-all.sh`):
-  `scripts/make.sh web` with `WEB_BASE_HREF=/roborules/`, which runs
-  `flutter build web --release --base-href /roborules/
+  `scripts/make.sh web` with `WEB_BASE_HREF=/demos/roborules/`, which runs
+  `flutter build web --release --base-href /demos/roborules/
   --no-web-resources-cdn` (CanvasKit from our own origin, so no
   third-party script runs on the origin that holds the key) with the
   version's dart-defines. It builds only when `roborules_app/build/web` is
   missing or older than the app's `lib/`, `web/`, `assets/`, pubspecs, the
   shared package's `lib/` and pubspec, or the version files, and also when
   the build doesn't record its settings (`build/web/.aityx-services`:
-  `base_href=/roborules/ web_resources_cdn=no`, written once a build
+  `base_href=/demos/roborules/ web_resources_cdn=no`, written once a build
   succeeds and required to be newer than the build, so a `make web` by
   hand with other settings isn't reused). A start after no change builds
   nothing; a first start, or one after a change, takes the build (about
@@ -60,8 +62,9 @@ carry the key.
 - `make` (or `make web`) builds the app through
   [scripts/make.sh](../scripts/make.sh) (`MODE`, `WEB_BASE_HREF`); `make
   clean`. The app is web only. Served anywhere but the index server (a
-  static host, or `flutter run`), it has no dev proxy, and no key until one
-  is saved on that origin's index page.
+  static host's `/demos/roborules/`, such as the aityx website, or
+  `flutter run`), it has no dev proxy, and no key until one is saved on
+  that origin's index page.
 - Toolchain: [devbox.json](../devbox.json) (Flutter, make, curl).
 
 ## Tests

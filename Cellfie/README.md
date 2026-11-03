@@ -23,7 +23,7 @@ as aityx answers.
 |---|---|
 | App ([cellfie_app/](cellfie_app)) | [Flutter](https://flutter.dev) (Dart): web, Android, iOS and Linux from one codebase. It calls [aityx](https://aityx.ai) itself, from the browser, through the repository's shared package [aityx_web](../packages/aityx_web/README.md): there's no Cellfie API |
 | Rules | The Life model, [cellfie_app/assets/models/life.json](cellfie_app/assets/models/life.json): a decision table with a why on every row, and the pattern catalogue |
-| Serving | The repository's index server ([Index/](../Index)) serves the release web build at `/cellfie/`, beside the index page and the other aityx demos, on one origin |
+| Serving | The repository's index server ([Index/](../Index)) serves the release web build at `/demos/cellfie/`, beside the index page and the other aityx demos, on one origin |
 | Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) on a laptop, or a [Dev Container](https://containers.dev/) from the [published image](../image/) |
 
 The toolchain is pinned in [devbox.json](devbox.json) and locked in
@@ -34,11 +34,12 @@ lock as Mortgage Hub's and Contact Hub's, so they share one Nix store.
 
 Every generation is a call to aityx on a key:
 
-1. **Yours**: open the index page, http://localhost:8800/, and paste your
-   key in **Your aityx key** (sign up at [aityx.ai](https://aityx.ai),
-   then **API keys** in [console.aityx.ai](https://console.aityx.ai)). It
-   stays in your browser, and every aityx demo uses it: the app calls
-   aityx directly with it.
+1. **Yours**: open the index page, http://localhost:8800/demos/, and
+   paste your key in **Your aityx key** (sign up at
+   [aityx.ai](https://aityx.ai), then **API keys** in
+   [console.aityx.ai](https://console.aityx.ai)). It stays in your
+   browser, and every aityx demo uses it: the app calls aityx directly
+   with it.
 2. **A dev key**: with none of yours, if the repository's `.env` (see
    [../.env.example](../.env.example)) or the index server's environment
    has `AITYX_API_KEY`, the index server adds it to the calls through its
@@ -59,12 +60,12 @@ open the index page's key section.
    ./start-aityx.sh Cellfie     # builds the app if it changed, starts the index server
    ```
 
-3. Open http://localhost:8800/cellfie/ (and set your key on
-   http://localhost:8800/ if you haven't).
+3. Open http://localhost:8800/demos/cellfie/ (and set your key on
+   http://localhost:8800/demos/ if you haven't).
 
 `bash scripts/build.sh` (or `devbox run build`) builds the app's release
 web build, `cellfie_app/build/web/`, only when it changed:
-`flutter build web --release --base-href /cellfie/ --no-web-resources-cdn`
+`flutter build web --release --base-href /demos/cellfie/ --no-web-resources-cdn`
 (CanvasKit from the app's own origin, so no third-party script runs where
 your key is kept). The first build takes about 25 s on a laptop, a minute
 or two on a 4-core codespace; the index server serves a new build on the
@@ -103,7 +104,7 @@ The [Makefile](Makefile) builds release binaries through
 
 ```bash
 make            # every platform this host can build
-make web        # cellfie_app/build/web/, under /cellfie/
+make web        # cellfie_app/build/web/, under /demos/cellfie/
 make android    # cellfie_app/build/app/outputs/flutter-apk/app-release.apk
 make ios        # cellfie_app/build/ios/iphoneos/Runner.app (macOS, unsigned)
 make linux      # cellfie_app/build/linux/<arch>/release/bundle/ (Linux only)
@@ -139,11 +140,11 @@ release web builds from the [published image](../image/) into the
 workspace (a demo that changed since the image was made builds itself
 instead, a minute or two). Then, on that and every later start,
 [post-start.sh](../.devcontainer/post-start.sh) starts the index server,
-which serves the index page and every aityx demo on port **8800**, the
-only port, made public so the link can be shared. When the index page
-opens, paste your [aityx](https://aityx.ai) key in **Your aityx key**,
-then open Cellfie from its card, at `/cellfie/` on the same address.
-Anyone you share the link with sets their own key.
+which serves the index page (at `/demos/`) and every aityx demo on port
+**8800**, the only port, made public so the link can be shared. When the
+index page opens, paste your [aityx](https://aityx.ai) key in **Your
+aityx key**, then open Cellfie from its card, at `/demos/cellfie/` on
+the same address. Anyone you share the link with sets their own key.
 
 Optionally, an `AITYX_API_KEY` Codespaces secret (at
 [github.com/settings/codespaces](https://github.com/settings/codespaces),

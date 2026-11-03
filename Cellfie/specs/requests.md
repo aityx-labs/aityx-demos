@@ -186,3 +186,24 @@ The feature files hold the current specification; see the
     label (and its icon) are no longer shown; on narrow windows the calls
     button is an icon with the count as a badge. See [Board](board.md)
     and [Calls panel](calls-panel.md).
+
+## 2026-11-03
+
+17. **Separate the demos in games and apps on the index page, then serve
+    the index page under /demos and each demo under its own path, such
+    as /demos/riverrace, so the demos can be embedded, hidden, in the
+    aityx website.** The index page now lists Cellfie under **Games**
+    (with RiverRace, PokerFace and RoboRules; Mortgage Hub and Contact
+    Hub are **Apps**) and moved from `/` to `/demos/`, and the index
+    server serves the release build at `/demos/cellfie/` instead of
+    `/cellfie/`: `scripts/build.sh`, `scripts/make.sh` and the Makefile
+    build it with `--base-href /demos/cellfie/`, and the dev container
+    serves it there too. aityx_web's key page is now `/demos/#aityx-key`
+    (the status light and **Set your key** open it), and the dev proxy
+    moved from `/aityx/config` and `/aityx/v1/systemone` to
+    `/demos/aityx/config` and `/demos/aityx/v1/systemone`. The stepper's
+    test now runs on the origin `http://localhost:8800/demos/cellfie/`
+    and expects the dev call at `/demos/aityx/v1/systemone`. The docs
+    say the new paths. See [aityx calls](aityx-calls.md), [aityx status
+    light](aityx-status.md) and [Development
+    environment](dev-environment.md).

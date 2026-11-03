@@ -3,7 +3,7 @@
 #
 #   make           every platform this host can build
 #   make web       riverrace_app/build/web/ (for the index server:
-#                  scripts/build.sh, base href /riverrace/)
+#                  scripts/build.sh, base href /demos/riverrace/)
 #   make android   release APK
 #   make ios       Runner.app (macOS only; unsigned unless IOS_CODESIGN=1)
 #   make linux     Linux bundle (Linux only)

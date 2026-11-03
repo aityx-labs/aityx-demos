@@ -50,8 +50,8 @@ and response, in a side panel.
 **Project**
 
 - [Development environment](dev-environment.md): devbox, the web build
-  the index server serves at `/cellfie/`, the model tests, the native
-  builds and the dev container.
+  the index server serves at `/demos/cellfie/`, the model tests, the
+  native builds and the dev container.
 
 ## Workflow
 

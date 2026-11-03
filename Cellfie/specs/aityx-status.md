@@ -20,7 +20,7 @@ long press, says why, and screen readers read the same. It sits in an
 `Overlay` of its own so its tooltip works above the app's navigator, 6 px
 from the corner inside the safe area. The app bar keeps its last action
 16 px clear of it. A tap opens the index page's key section
-(`/#aityx-key`) in the same tab.
+(`/demos/#aityx-key`) in the same tab.
 
 The check uses the key the generations use (see [aityx calls](aityx-calls.md)):
 it POSTs `{}` to `/v1/systemone`, which aityx answers with 400

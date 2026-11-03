@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Builds the app's release web build, cellfie_app/build/web/, the way the
-# index server serves it (Index/bin/server.dart, at /cellfie/ on port
+# index server serves it (Index/bin/server.dart, at /demos/cellfie/ on port
 # 8800), and only when it changed since the last build:
-#   flutter build web --release --base-href /cellfie/ --no-web-resources-cdn
+#   flutter build web --release --base-href /demos/cellfie/ --no-web-resources-cdn
 # through scripts/make.sh web. There's no API or web server any more: the
 # app calls aityx from the browser (packages/aityx_web), and
 # --no-web-resources-cdn keeps CanvasKit on the index's origin, so no
@@ -74,7 +74,7 @@ with_lock() {
 # The record must also be newer than the build itself: `flutter build web`
 # keeps other files in build/web, so a later build by hand, with other
 # settings, would otherwise keep the record.
-base_href=/cellfie/
+base_href=/demos/cellfie/
 web_settings="base_href=$base_href web_resources_cdn=off"
 
 # Inside the web lock: build the web app if its build is missing, was made

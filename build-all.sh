@@ -5,8 +5,8 @@
 # under devbox (or the dev container image's Flutter: see
 # demos-toolchain.sh), only what is missing or older than its sources. For
 # the six aityx demos that is the app's release web build, which the index
-# (Index/) serves at /<slug>/; for the datyx group's, the release web build
-# and the API and web server compiled to native executables.
+# (Index/) serves at /demos/<slug>/; for the datyx group's, the release
+# web build and the API and web server compiled to native executables.
 # One demo after another: a Flutter web build uses every core, and five at
 # once thrash a small machine. A demo whose builds are up to date takes a
 # second or two. A folder without a scripts/build.sh is skipped.

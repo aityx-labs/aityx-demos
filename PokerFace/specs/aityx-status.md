@@ -6,7 +6,7 @@ server's dev key) and whether aityx accepts it. It is 8 px, a little
 transparent and has no label, so it stays out of the way; it sits in the
 corner's padding, clear of the app bar's buttons, and taps elsewhere pass
 through to the app. A tap on the dot opens the index page's key section
-(`/#aityx-key`) in the same tab.
+(`/demos/#aityx-key`) in the same tab.
 
 | Dot | Means | Tooltip (and screen-reader label) |
 |---|---|---|

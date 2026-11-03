@@ -4,7 +4,7 @@
 # does not always stick: makes the index page's and each web app's
 # forwarded port public, so their URLs open without a GitHub sign-in and
 # can be shared for a demo. The aityx group has one port, the index's
-# (8800), which serves its six apps too.
+# (8800), which serves its page and its six apps under /demos/.
 #
 # devcontainer.json cannot declare a port public; Codespaces only accept it
 # through the API, so this asks `gh`, authenticated by the codespace's own

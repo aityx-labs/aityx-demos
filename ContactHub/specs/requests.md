@@ -257,3 +257,24 @@ The feature files hold the current specification; see the
     dev key aityx refuses reads `aityx answered HTTP n`; neither names
     `.env` or the environment any more. The index page's key section does
     the same.
+
+## 2026-11-03
+
+21. **Separate the demos in games and apps on the index page, then serve
+    the index page under /demos and each demo under its own path, such as
+    /demos/riverrace, so the demos can be embedded, hidden, in the aityx
+    website.** The index page moved from `/` to `/demos/`, where it lists
+    Contact Hub under **Apps** (with Mortgage Hub; the games are the other
+    group), and the app moved from `/contacthub/` to `/demos/contacthub/`:
+    `scripts/build.sh` and `scripts/make.sh` now build with `--base-href
+    /demos/contacthub/`, and `AGENTS.md` checks that base in the build.
+    The key page the status light and **Set your key** open is
+    `/demos/#aityx-key`, and the dev proxy the app uses without a key of
+    yours is `/demos/aityx/config` and `/demos/aityx/v1/systemone` (all
+    through the shared package, aityx_web). The routing test's dev mode
+    runs on the origin `http://localhost:8800/demos/contacthub/` and
+    expects the POST at `/demos/aityx/v1/systemone`. The same prefix on a
+    static host, such as the aityx website at `https://aityx.ai/demos/`,
+    serves the same build. See [Routing](routing.md#calling-aityx),
+    [aityx status light](aityx-status.md) and
+    [Development environment](dev-environment.md).

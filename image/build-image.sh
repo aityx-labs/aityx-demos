@@ -7,7 +7,7 @@
 # container (.devcontainer/<group>/):
 #   aityx  docker.io/aletyxcode/samples-and-demos-aityx: Flutter and the
 #          six aityx demos' release web builds, which the index serves
-#          at /<slug>/ (the demos have no APIs)
+#          at /demos/<slug>/ (the demos have no APIs)
 #   datyx  docker.io/aletyxcode/samples-and-demos-datyx: Flutter, GraalVM
 #          and the datyx API's Maven dependencies, and the builds of the
 #          datyx dashboard and HealthHub
@@ -85,8 +85,8 @@ for demo in "${demos[@]}"; do
   if index_serves "$demo"; then
     # A demo the index serves: built for its own path there.
     slug="$(index_slug "$demo")"
-    if ! grep -q "<base href=\"/$slug/\">" "$app/build/web/index.html" 2>/dev/null; then
-      echo "error: $app/build/web isn't built for /$slug/ (its index.html's base href)" >&2
+    if ! grep -q "<base href=\"/demos/$slug/\">" "$app/build/web/index.html" 2>/dev/null; then
+      echo "error: $app/build/web isn't built for /demos/$slug/ (its index.html's base href)" >&2
       exit 1
     fi
   # The record of the settings scripts/build.sh made the build with

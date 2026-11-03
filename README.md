@@ -23,17 +23,19 @@ session"), and each app calls aityx with it directly.
 
 Six demos whose decisions run on [aityx.ai](https://aityx.ai), each a
 Flutter web app that calls aityx from the browser, all served by the
-[index](Index/) on one port. Dev container
+[index](Index/) on one port, under `/demos/`. Its page shows the games
+(RiverRace, PokerFace, Cellfie, RoboRules) and the apps (Mortgage Hub,
+Contact Hub) apart. Dev container
 [.devcontainer/aityx/](.devcontainer/aityx/devcontainer.json).
 
 | Demo | Path | What it shows |
 |---|---|---|
-| [Mortgage Hub](MortgageHub/) | `/mortgagehub/` | A mortgage application from request to verdict: an app and a decision model run by [aityx.ai](https://aityx.ai) |
-| [Contact Hub](ContactHub/) | `/contacthub/` | Ask anything and have it routed to the right department or person. A request, typed or dictated on the device, routed by an aityx decision model |
-| [Cellfie](Cellfie/) | `/cellfie/` | The cells take a picture of themselves every generation, and aityx says who's in it: Conway's Game of Life on an infinite board, with the rules and pattern catalogue as an aityx decision model; one call per generation, with the board and every request and response shown in the app |
-| [RiverRace](RiverRace/) | `/riverrace/` | The 1982 Atari river shooter, remade with three planes up one river at once: two flown by aityx, each by its own editable rules, and one flown by you; every aityx call, sent and received, in a sidebar |
-| [RoboRules](RoboRules/) | `/roborules/` | A web take on the old Robocode: robots whose behavior is an aityx decision model, fighting battles played turn by turn by aityx |
-| [PokerFace](PokerFace/) | `/pokerface/` | A poker simulator where every player is a set of rules run by [aityx.ai](https://aityx.ai): no-limit hold'em at a table of nine, every aityx call in a sidebar, the pace in your hands, and strategies you can read or write |
+| [Mortgage Hub](MortgageHub/) | `/demos/mortgagehub/` | A mortgage application from request to verdict: an app and a decision model run by [aityx.ai](https://aityx.ai) |
+| [Contact Hub](ContactHub/) | `/demos/contacthub/` | Ask anything and have it routed to the right department or person. A request, typed or dictated on the device, routed by an aityx decision model |
+| [Cellfie](Cellfie/) | `/demos/cellfie/` | The cells take a picture of themselves every generation, and aityx says who's in it: Conway's Game of Life on an infinite board, with the rules and pattern catalogue as an aityx decision model; one call per generation, with the board and every request and response shown in the app |
+| [RiverRace](RiverRace/) | `/demos/riverrace/` | The 1982 Atari river shooter, remade with three planes up one river at once: two flown by aityx, each by its own editable rules, and one flown by you; every aityx call, sent and received, in a sidebar |
+| [RoboRules](RoboRules/) | `/demos/roborules/` | A web take on the old Robocode: robots whose behavior is an aityx decision model, fighting battles played turn by turn by aityx |
+| [PokerFace](PokerFace/) | `/demos/pokerface/` | A poker simulator where every player is a set of rules run by [aityx.ai](https://aityx.ai): no-limit hold'em at a table of nine, every aityx call in a sidebar, the pace in your hands, and strategies you can read or write |
 
 ## Mortgage Hub
 
@@ -63,12 +65,12 @@ the top. That opens its dev container, **aityx demos**, on a 4-core
 machine (16 GB RAM): it starts the index, which serves Mortgage Hub with
 the other aityx demos. If you create the codespace yourself through
 *Code → Codespaces → New with options*, choose **aityx demos** as the dev
-container configuration. When the index page opens (port **8800**), paste
-your key in **Your aityx key**, then open Mortgage Hub from its card, at
-`/mortgagehub/` on the same address. Check that port 8800's visibility
-says **Public**, so the link can be shared; if it says Private,
-right-click it in the **Ports** panel and choose **Port Visibility →
-Public**. Anyone you share it with sets their own key.
+container configuration. When the index page opens (port **8800**, at
+`/demos/`), paste your key in **Your aityx key**, then open Mortgage Hub
+from its card, at `/demos/mortgagehub/` on the same address. Check that
+port 8800's visibility says **Public**, so the link can be shared; if it
+says Private, right-click it in the **Ports** panel and choose **Port
+Visibility → Public**. Anyone you share it with sets their own key.
 
 Optionally, before launching, add a dev key: at
 [github.com/settings/codespaces](https://github.com/settings/codespaces),
@@ -89,9 +91,9 @@ From the root of this repository:
 ```
 
 builds the app if it is stale and serves it, with the index, at
-http://localhost:8800/mortgagehub/. Set your key on the index page,
-http://localhost:8800/, or put a dev key in the root `.env` (copy
-[.env.example](.env.example)). Stop it with `./stop-aityx.sh`.
+http://localhost:8800/demos/mortgagehub/. Set your key on the index
+page, http://localhost:8800/demos/, or put a dev key in the root `.env`
+(copy [.env.example](.env.example)). Stop it with `./stop-aityx.sh`.
 
 ## Contact Hub
 
@@ -110,9 +112,9 @@ the JSON behind each item. From the root of this repository:
 ./start-aityx.sh ContactHub
 ```
 
-serves it at http://localhost:8800/contacthub/, beside the others, with
-the key you set on the index page. The badge above opens it in a
-codespace. See the [Contact Hub README](ContactHub/README.md).
+serves it at http://localhost:8800/demos/contacthub/, beside the
+others, with the key you set on the index page. The badge above opens it
+in a codespace. See the [Contact Hub README](ContactHub/README.md).
 
 ## Cellfie
 
@@ -133,8 +135,8 @@ To start it locally from the repository root:
 ./start-aityx.sh Cellfie
 ```
 
-and open http://localhost:8800/cellfie/, with the key you set on the
-index page. See the [Cellfie README](Cellfie/README.md).
+and open http://localhost:8800/demos/cellfie/, with the key you set on
+the index page. See the [Cellfie README](Cellfie/README.md).
 
 ## RiverRace
 
@@ -155,7 +157,7 @@ To start it locally from the repository root:
 ./start-aityx.sh RiverRace
 ```
 
-and open http://localhost:8800/riverrace/. See the
+and open http://localhost:8800/demos/riverrace/. See the
 [RiverRace README](RiverRace/README.md).
 
 ## RoboRules
@@ -175,8 +177,8 @@ another scores each round. From the root of this repository:
 ./start-aityx.sh RoboRules
 ```
 
-and open http://localhost:8800/roborules/, beside the other demos. See
-the [RoboRules README](RoboRules/README.md).
+and open http://localhost:8800/demos/roborules/, beside the other
+demos. See the [RoboRules README](RoboRules/README.md).
 
 ## PokerFace
 
@@ -197,26 +199,27 @@ slider sets the pace. From the root of this repository:
 ./start-aityx.sh PokerFace
 ```
 
-serves it at http://localhost:8800/pokerface/, alongside the other
-demos, with the key you set on the index page. The badge above opens it
-in a codespace. See the [PokerFace README](PokerFace/README.md).
+serves it at http://localhost:8800/demos/pokerface/, alongside the
+other demos, with the key you set on the index page. The badge above
+opens it in a codespace. See the [PokerFace README](PokerFace/README.md).
 
 ## Run all the demos
 
 From the root of this repository, with [Devbox](https://www.jetify.com/devbox):
 
 ```bash
-./start-aityx.sh            # the six aityx demos, on http://localhost:8800/
+./start-aityx.sh            # the six aityx demos, on http://localhost:8800/demos/
 ./start-all.sh              # every demo, the datyx group too
 ./start-aityx.sh ContactHub # only the ones named (and the index)
 ./stop-aityx.sh             # stops them; ./stop-all.sh stops everything
 ./restart-all.sh            # syncs git (fast-forwards only), then restarts every demo
 ```
 
-Then open http://localhost:8800/, set your key in **Your aityx key**,
-and open a demo from its card, or at its path:
-http://localhost:8800/mortgagehub/, /contacthub/, /pokerface/,
-/roborules/, /cellfie/, /riverrace/.
+Then open http://localhost:8800/demos/, set your key in **Your aityx
+key**, and open a demo from its card, or at its path:
+http://localhost:8800/demos/mortgagehub/, /demos/contacthub/,
+/demos/pokerface/, /demos/roborules/, /demos/cellfie/,
+/demos/riverrace/.
 
 [start-all.sh](start-all.sh) builds each aityx demo's release web build
 whose build is missing or older than its sources (its `scripts/build.sh`,
@@ -248,9 +251,10 @@ the index, which serves the six demos, on each start, as
 | [aityx demos](.devcontainer/aityx/devcontainer.json) | Mortgage Hub, Contact Hub, Cellfie, RoboRules, RiverRace, PokerFace | `docker.io/aletyxcode/samples-and-demos-aityx` | 4-core, 16 GB |
 
 Once it starts, the index page opens on port **8800**, the only port,
-made public so the link can be shared: each visitor sets their own key on
-it. Optionally, an `AITYX_API_KEY` Codespaces secret is a dev key every
-visitor of your codespace uses unless they set their own (see
+at `/demos/`, made public so the link can be shared: each visitor sets
+their own key on it. Optionally, an `AITYX_API_KEY` Codespaces secret is
+a dev key every visitor of your codespace uses unless they set their own
+(see
 [Launching it](#launching-it), under Mortgage Hub). In the codespace, `./start-all.sh`,
 `./stop-all.sh` and `./build-all.sh` act on the aityx demos only
 (`DEMOS_GROUP`, set by its `devcontainer.json`). Every step of the start

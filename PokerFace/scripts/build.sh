@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds what the index server (Index/bin/server.dart) serves at
-# /pokerface/: the app's release web build, pokerface_app/build/web/,
-# through scripts/make.sh web, with the base href /pokerface/ and
+# /demos/pokerface/: the app's release web build, pokerface_app/build/web/,
+# through scripts/make.sh web, with the base href /demos/pokerface/ and
 # CanvasKit from our own origin (--no-web-resources-cdn), and only when it
 # changed since the last build. There is no API: the app calls aityx from
 # the browser. Run by the repository's build-all.sh and start-all.sh, or
@@ -69,7 +69,7 @@ with_lock() {
 # must also be newer than the build itself: `flutter build web` keeps
 # other files in build/web, so a later build by hand, with other
 # settings, would otherwise keep the record.
-base_href=/pokerface/
+base_href=/demos/pokerface/
 web_settings="base_href=$base_href web_resources_cdn=no"
 
 # Inside the web lock: build the web app if its build is missing, was made

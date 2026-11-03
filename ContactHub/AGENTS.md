@@ -9,7 +9,7 @@ every commit and push:
   code path (build, script, or service), not just a syntax check. For this
   project that means `flutter analyze` and `flutter test` pass in
   `contacthub_app/`, and `bash scripts/build.sh` builds the web app (with
-  `<base href="/contacthub/">` in `contacthub_app/build/web/index.html`).
+  `<base href="/demos/contacthub/">` in `contacthub_app/build/web/index.html`).
   After changing `contacthub_app/assets/models/routing.json`, also run
   `bash scripts/model-test.sh`, which runs its rules on aityx.
 - **Secrets**, such as the aityx key: users set theirs on the index page,
@@ -30,6 +30,6 @@ Do not commit or push code that has not passed both checks.
   `devbox shell` and keep [devbox.lock](devbox.lock) committed.
 - There's no API or service of its own: the app calls aityx itself
   (package `aityx_web`, `../packages/aityx_web`), and the repository's
-  index server (`Index/`) serves the web build at `/contacthub/`. Start it
-  with `./start-all.sh ContactHub` from the repository root.
+  index server (`Index/`) serves the web build at `/demos/contacthub/`.
+  Start it with `./start-all.sh ContactHub` from the repository root.
 - The devcontainer build is documented in the [README](README.md).

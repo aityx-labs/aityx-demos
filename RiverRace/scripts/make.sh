@@ -7,7 +7,7 @@
 #   MODE          release (default), profile or debug
 #   IOS_CODESIGN  1 to sign the iOS build (needs a signing team in Xcode);
 #                 unsigned by default
-#   WEB_BASE_HREF the web build's base href: /riverrace/ to serve it where
+#   WEB_BASE_HREF the web build's base href: /demos/riverrace/ to serve it where
 #                 the index server does (scripts/build.sh); / by default
 #
 # The app calls aityx itself. The web build keeps CanvasKit on its own

@@ -165,3 +165,24 @@ The feature files hold the current specification; see the
     (see [Strategies](strategies.md#the-strategies-to-pick)). Rules that
     steer `left` or `right` near a bank were tried and dropped: with
     aityx's latency they flew the planes into it.
+
+## 2026-11-03
+
+20. **Separate the demos in games and apps on the index page, then serve
+    the index page under /demos and each demo under its own path, such as
+    /demos/riverrace, so the demos can be embedded, hidden, in the aityx
+    website.** The index page now lists the demos in two groups, Games
+    (RiverRace, PokerFace, Cellfie and RoboRules) and Apps (Mortgage Hub
+    and Contact Hub), and moved from `/` to `/demos/`
+    (http://localhost:8800/demos/; `/` redirects there). RiverRace moved
+    from `/riverrace/` to `/demos/riverrace/`: `scripts/build.sh` builds
+    the web app with `--base-href /demos/riverrace/`, which the build
+    records as its settings, and the index server serves it at
+    http://localhost:8800/demos/riverrace/. The index page's key section,
+    which the status light opens, moved to `/demos/#aityx-key`, and the
+    dev proxy from `/aityx/config` and `/aityx/v1/systemone` to
+    `/demos/aityx/config` and `/demos/aityx/v1/systemone`, all in the
+    shared package `packages/aityx_web`. The decider's test of the dev key
+    expects the new origin and proxy paths (see
+    [Development environment](dev-environment.md) and
+    [aityx calls](api.md)).

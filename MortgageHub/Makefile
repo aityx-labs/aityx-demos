@@ -2,7 +2,7 @@
 # documents the settings, e.g. `make android MODE=debug`.
 #
 #   make           every platform this host can build
-#   make web       mortgagehub_app/build/web/ (no CDN; WEB_BASE_HREF=/mortgagehub/
+#   make web       mortgagehub_app/build/web/ (no CDN; WEB_BASE_HREF=/demos/mortgagehub/
 #                  for the index's path, as scripts/build.sh builds it)
 #   make android   release APK
 #   make ios       Runner.app (macOS only; unsigned unless IOS_CODESIGN=1)

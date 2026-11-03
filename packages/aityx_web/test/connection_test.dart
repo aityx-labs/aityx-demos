@@ -23,24 +23,24 @@ void main() {
 
     test('through the dev proxy, at the origin root whatever the page', () {
       final dev = AityxConnection.dev(
-        Uri.parse('http://localhost:8800/mortgagehub/index.html'),
+        Uri.parse('http://localhost:8800/demos/mortgagehub/index.html'),
       );
-      expect(dev.endpoint, Uri.parse('http://localhost:8800/aityx/'));
+      expect(dev.endpoint, Uri.parse('http://localhost:8800/demos/aityx/'));
       expect(
         dev.systemone,
-        Uri.parse('http://localhost:8800/aityx/v1/systemone'),
+        Uri.parse('http://localhost:8800/demos/aityx/v1/systemone'),
       );
     });
 
     test('with an endpoint without the trailing slash', () {
       final connection = AityxConnection(
-        endpoint: Uri.parse('http://localhost:8800/aityx'),
+        endpoint: Uri.parse('http://localhost:8800/demos/aityx'),
         source: AityxSource.dev,
         url: '',
       );
       expect(
         connection.systemone,
-        Uri.parse('http://localhost:8800/aityx/v1/systemone'),
+        Uri.parse('http://localhost:8800/demos/aityx/v1/systemone'),
       );
     });
   });

@@ -108,13 +108,13 @@ void main() {
   });
 
   test('with the dev key, asks the index server, which adds the key', () async {
-    final origin = Uri.parse('http://localhost:8800/riverrace/');
+    final origin = Uri.parse('http://localhost:8800/demos/riverrace/');
     final asked = <String>[];
     final decision = await AityxDecider(
       client: AityxClient(
         client: MockClient((request) async {
           asked.add('${request.method} ${request.url}');
-          if (request.url.path == '/aityx/config') {
+          if (request.url.path == '/demos/aityx/config') {
             return http.Response(
               '{"available": true, "url": "https://api.aityx.ai", '
               '"source": ".env"}',
@@ -129,8 +129,8 @@ void main() {
       ),
     ).decide(7, pilots);
     expect(asked, [
-      'GET http://localhost:8800/aityx/config',
-      'POST http://localhost:8800/aityx/v1/systemone',
+      'GET http://localhost:8800/demos/aityx/config',
+      'POST http://localhost:8800/demos/aityx/v1/systemone',
     ]);
     expect(decision.actions['p1']!.rule, 2);
   });

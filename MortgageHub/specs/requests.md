@@ -385,3 +385,27 @@ spec.
     dev key aityx refuses reads `aityx answered HTTP n`; neither names
     `.env` or the environment any more. The index page's key section does
     the same.
+
+## 2026-11-03
+
+45. **Separate the demos in games and apps on the index page, then serve
+    the index page under /demos and each demo under its own path, such
+    as /demos/riverrace, so the demos can be embedded, hidden, in the
+    aityx website.** The index page now lists Mortgage Hub under
+    **Apps** (with Contact Hub; the games are RiverRace, PokerFace,
+    Cellfie and RoboRules) and is served at `/demos/` (`/` redirects
+    there), with its key section at `/demos/#aityx-key`. This app moved
+    from `/mortgagehub/` to `/demos/mortgagehub/`
+    (http://localhost:8800/demos/mortgagehub/): `scripts/build.sh`,
+    `scripts/make.sh` and the Makefile build the web app with
+    `--base-href /demos/mortgagehub/` (`WEB_BASE_HREF=/demos/mortgagehub/`,
+    recorded in `build/web/.aityx-services`), so the same build also
+    works copied to a static host's `/demos/`. The dev proxy moved with
+    the index: the app asks `/demos/aityx/config` and posts to
+    `/demos/aityx/v1/systemone` on its origin, and the status light
+    opens `/demos/#aityx-key` (both through the shared `aityx_web`
+    package). The dev proxy test in `test/regulatory_check_test.dart`
+    now runs with the origin `http://localhost:8800/demos/mortgagehub/`
+    and expects the `/demos/aityx/` URLs. See [aityx.ai
+    integration](aityx.md), [Regulatory check](regulatory-check.md) and
+    [Development environment](dev-environment.md).

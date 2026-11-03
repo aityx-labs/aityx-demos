@@ -13,13 +13,15 @@ aityx_web's order, in the browser:
 
 1. **The user's key**, set once on the index page ("Your aityx key"),
    which every demo shares, since the index server serves them all on one
-   origin (Cellfie at `/cellfie/`): the app calls `<url>/v1/systemone`
-   directly (`https://api.aityx.ai` unless the user set another URL), with
-   `Authorization: Bearer <key>`. aityx allows CORS from any origin.
+   origin (the index page at `/demos/`, Cellfie at `/demos/cellfie/`):
+   the app calls `<url>/v1/systemone` directly (`https://api.aityx.ai`
+   unless the user set another URL), with `Authorization: Bearer <key>`.
+   aityx allows CORS from any origin.
 2. **The dev key**: with no user key, when the index server has a key in
-   its environment or the repository's `.env` (its `/aityx/config` says
-   so), the app POSTs to `/aityx/v1/systemone` on its own origin and the
-   index server adds the key. The key never reaches the browser.
+   its environment or the repository's `.env` (its `/demos/aityx/config`
+   says so), the app POSTs to `/demos/aityx/v1/systemone` on its own
+   origin and the index server adds the key. The key never reaches the
+   browser.
 3. **None**: no call is made, and the generation says
    `aityx is not set up: set your key on the index page.`, with a
    **Set your key** button that opens the index page's key section in

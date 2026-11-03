@@ -174,7 +174,7 @@ void main() {
         client: MockClient((request) async {
           log.add('${request.method} ${request.url.path}');
           expect(request.headers.containsKey('Authorization'), isFalse);
-          if (request.url.path == '/aityx/config') {
+          if (request.url.path == '/demos/aityx/config') {
             return http.Response(
               jsonEncode({
                 'available': true,
@@ -187,9 +187,12 @@ void main() {
           return http.Response(jsonEncode({'code': 'invalid_request'}), 400);
         }),
         store: AityxKeyStore.memory(),
-        origin: Uri.parse('http://localhost:8800/cellfie/'),
+        origin: Uri.parse('http://localhost:8800/demos/cellfie/'),
       );
-      expect(log, ['GET /aityx/config', 'POST /aityx/v1/systemone']);
+      expect(log, [
+        'GET /demos/aityx/config',
+        'POST /demos/aityx/v1/systemone',
+      ]);
       expect(state.ok, isTrue);
       expect(state.source, AityxSource.dev);
       expect(
@@ -206,9 +209,9 @@ void main() {
           return http.Response('Not found', 404);
         }),
         store: AityxKeyStore.memory(),
-        origin: Uri.parse('http://localhost:8800/cellfie/'),
+        origin: Uri.parse('http://localhost:8800/demos/cellfie/'),
       );
-      expect(calls, 1); // only /aityx/config
+      expect(calls, 1); // only /demos/aityx/config
       expect(state.kind, AityxStateKind.noKey);
       expect(state.key, isFalse);
       expect(state.url, isNull);
@@ -239,7 +242,7 @@ void main() {
       );
       expect(
         state.detail,
-        contains('the dev proxy (http://localhost:8800/aityx/)'),
+        contains('the dev proxy (http://localhost:8800/demos/aityx/)'),
       );
     });
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Builds the app's release web build, contacthub_app/build/web/, the one the
-# index server (Index/bin/server.dart) serves at /contacthub/, only if
+# index server (Index/bin/server.dart) serves at /demos/contacthub/, only if
 # something changed since the last build:
 #
-#   flutter build web --release --base-href /contacthub/ --no-web-resources-cdn
+#   flutter build web --release --base-href /demos/contacthub/ --no-web-resources-cdn
 #
 # through scripts/make.sh web, which adds the version. There's no API any
 # more: the app calls aityx itself, on the key set on the index page (or the
@@ -74,7 +74,7 @@ with_lock() {
 # record must also be newer than the build itself: `flutter build web`
 # keeps other files in build/web, so a later build by hand, with other
 # settings, would otherwise keep the record.
-base_href=/contacthub/
+base_href=/demos/contacthub/
 web_settings="base_href=$base_href web_resources_cdn=no"
 
 # Inside the web lock: build the web app if its build is missing, was made

@@ -39,7 +39,9 @@
 ///   GET /demos/api/group  {"group": "aityx"}: this index's group
 ///
 /// Settings: INDEX_PORT (default 8800), INDEX_BIND_HOST (127.0.0.1),
-/// INDEX_GROUP (aityx), and for dev mode AITYX_API_KEY and AITYX_URL
+/// INDEX_GROUP (aityx), INDEX_EMBED_ANCESTORS (the pages that may frame
+/// key.html and the demos: the aityx website's dev server, port 4330, by
+/// default), and for dev mode AITYX_API_KEY and AITYX_URL
 /// (default https://api.aityx.ai), each from the environment, else from
 /// the repo's .env, which is read again at most every 10 s.
 library;
@@ -168,6 +170,8 @@ const _types = {
   '.jpg': 'image/jpeg',
   '.gif': 'image/gif',
   '.webp': 'image/webp',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
   '.ico': 'image/x-icon',
   '.otf': 'font/otf',
   '.ttf': 'font/ttf',
@@ -183,6 +187,24 @@ const _pageCsp =
     "img-src 'self' data:; connect-src 'self' https://*.aityx.ai; "
     "base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
+/// The pages allowed to frame key.html (the key form alone) and the
+/// demos: the aityx website's dev server by default, INDEX_EMBED_ANCESTORS
+/// (space-separated origins) when set. The index page itself is never
+/// framed.
+final _embedAncestors =
+    (Platform.environment['INDEX_EMBED_ANCESTORS'] ?? '').trim().isNotEmpty
+    ? Platform.environment['INDEX_EMBED_ANCESTORS']!.trim()
+    : 'http://localhost:4330 http://127.0.0.1:4330';
+
+/// key.html's policy: the page's, framed by [_embedAncestors] only.
+final _keyCsp = _pageCsp.replaceFirst(
+  "frame-ancestors 'none'",
+  "frame-ancestors 'self' $_embedAncestors",
+);
+
+/// A demo's: only who may frame it (the app sets nothing else here).
+final _demoCsp = "frame-ancestors 'self' $_embedAncestors";
+
 /// A file right in www/, by its [name] after the prefix, as sent (still
 /// percent-encoded, so an encoded separator is just a name that doesn't
 /// exist): /demos/ is index.html.
@@ -196,7 +218,10 @@ Future<void> _page(HttpRequest request, String name) async {
   final file = File('${_www.path}/$name');
   if (!await file.exists()) return _json(response, 404, {'error': 'not found'});
   if (name.endsWith('.html')) {
-    response.headers.set('Content-Security-Policy', _pageCsp);
+    response.headers.set(
+      'Content-Security-Policy',
+      name == 'key.html' ? _keyCsp : _pageCsp,
+    );
   }
   await _send(request, file);
 }
@@ -207,9 +232,16 @@ Future<void> _send(HttpRequest request, File file) async {
   final response = request.response;
   final stat = await file.stat();
   final modified = stat.modified.toUtc();
+  final dot = file.path.lastIndexOf('.');
+  final type = dot < 0 ? null : _types[file.path.substring(dot)];
+  // The type on a 304 too: with nosniff and no type, Chrome's opaque
+  // response blocking refuses the revalidated file to a page of another
+  // origin (an image of the aityx website's blueprint pages), every other
+  // load.
   response.headers
     ..set(HttpHeaders.cacheControlHeader, 'no-cache')
-    ..set(HttpHeaders.lastModifiedHeader, HttpDate.format(modified));
+    ..set(HttpHeaders.lastModifiedHeader, HttpDate.format(modified))
+    ..set(HttpHeaders.contentTypeHeader, type ?? 'application/octet-stream');
   final since = request.headers.ifModifiedSince;
   // The header has whole seconds; the file's time, milliseconds.
   if (since != null &&
@@ -218,16 +250,49 @@ Future<void> _send(HttpRequest request, File file) async {
     response.statusCode = HttpStatus.notModified;
     return;
   }
-  final dot = file.path.lastIndexOf('.');
-  final type = dot < 0 ? null : _types[file.path.substring(dot)];
-  response
-    ..statusCode = 200
-    ..headers.set(
-      HttpHeaders.contentTypeHeader,
-      type ?? 'application/octet-stream',
-    );
+  response.statusCode = 200;
+  if (type != null && type.startsWith('video/')) {
+    return _sendRange(request, file, stat.size);
+  }
   if (request.method == 'HEAD') return;
   await response.addStream(file.openRead());
+}
+
+/// A video, whole or the one byte range asked for (`Range: bytes=a-b`,
+/// `a-` or `-n`): Safari plays a video only from ranges. Its length is
+/// set, which also keeps it out of autoCompress (gzip would break ranges,
+/// and saves nothing on a video).
+Future<void> _sendRange(HttpRequest request, File file, int length) async {
+  final response = request.response;
+  response.headers.set(HttpHeaders.acceptRangesHeader, 'bytes');
+  var start = 0;
+  var end = length - 1;
+  final range = RegExp(r'^bytes=(\d*)-(\d*)$')
+      .firstMatch(request.headers.value(HttpHeaders.rangeHeader) ?? '');
+  if (range != null && '${range[1]}${range[2]}'.isNotEmpty) {
+    final from = int.tryParse(range[1]!);
+    final to = int.tryParse(range[2]!);
+    if (from == null) {
+      // The last n bytes.
+      start = to == null ? length : (to >= length ? 0 : length - to);
+    } else {
+      start = from;
+      if (to != null && to < end) end = to;
+    }
+    if (length == 0 || start > end || start >= length) {
+      response
+        ..statusCode = HttpStatus.requestedRangeNotSatisfiable
+        ..headers.set(HttpHeaders.contentRangeHeader, 'bytes */$length')
+        ..contentLength = 0;
+      return;
+    }
+    response
+      ..statusCode = HttpStatus.partialContent
+      ..headers.set(HttpHeaders.contentRangeHeader, 'bytes $start-$end/$length');
+  }
+  response.contentLength = length == 0 ? 0 : end - start + 1;
+  if (request.method == 'HEAD' || length == 0) return;
+  await response.addStream(file.openRead(start, end + 1));
 }
 
 void _json(
@@ -361,6 +426,9 @@ Future<void> _demoFile(
   final real = await file.resolveSymbolicLinks();
   if (!real.startsWith('$base${Platform.pathSeparator}')) {
     return _json(response, 404, {'error': 'not found'});
+  }
+  if (file.path.endsWith('.html')) {
+    response.headers.set('Content-Security-Policy', _demoCsp);
   }
   await _send(request, file);
 }

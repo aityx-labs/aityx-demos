@@ -87,6 +87,16 @@ once every 30 s. There's no polling timer: each check spends a request of the
 user's quota. A tap opens the index page's key section (`/demos/#aityx-key`) in the same
 tab.
 
+## Embedded
+
+The aityx website's blueprint pages open an app in a frame, at
+`/demos/<slug>/?embed=1`, beside a key form of their own (the index's
+`/demos/key.html`). With `embed=1` (read once, from the URL the app loaded with)
+`aityxEmbedded` is true and a tap on the light posts `aityxKeyMessage`
+(`"aityx:key"`) to the page around the app instead of leaving for the index page;
+the page shows its key form. An app with links of its own to the index page
+hides them when `aityxEmbedded`, so the user stays on the blueprint page.
+
 ## Tests in the apps
 
 Nothing in the package touches the network or the browser unless asked:

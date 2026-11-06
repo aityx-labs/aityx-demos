@@ -8,6 +8,9 @@ logs/
 # The dev container image build context (see image/build-image.sh)
 image/context/
 
+# What Index/scripts/stage-static.sh stages for demos.aityx.ai
+Index/static/
+
 # Local settings (the aityx key): one .env here, read by the index server
 # and the model tests. Any other .env.* too, but the examples.
 .env

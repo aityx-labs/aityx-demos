@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- "Your aityx key" alone, for the Try it modal of the aityx website's
+       blueprint pages: the same form, script and storage as the index page,
+       on this origin, so the demo beside it reads the key saved here. The
+       modal around it has the title and says whether the key works, so this
+       has neither: just the form, and how to get a key. The policy is the
+       index page's; bin/server.dart and the static host's _headers send it
+       as a header too, with the pages allowed to frame it. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.aityx.ai; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="same-origin">
+  <meta name="robots" content="noindex">
+  <title>Your aityx key</title>
+  <style>
+    :root {
+      --bg: #201E24; --field: #17161A; --border: #37333C; --dim: #4A4550;
+      --fg0: #FFFFFF; --fg: #EFF2F4; --muted: #A9ACB6;
+      --orange: #E36742; --orange-light: #EB7B58;
+      --green: #4CC38A; --red: #F0506E;
+      --warn: #E1B676; --warn-bg: #342B1F; --warn-border: #534229;
+      color-scheme: dark;
+    }
+    :root[data-theme=light] {
+      --bg: #FFFFFF; --field: #FFFFFF; --border: #D8DCE2; --dim: #BCC2CA;
+      --fg0: #17161A; --fg: #17161A; --muted: #5F626B;
+      --orange-light: #A6452A;
+      --green: #35734A; --red: #B42318;
+      --warn: #865B1B; --warn-bg: #FFF7E8; --warn-border: #F0DFBD;
+      color-scheme: light;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--fg); }
+    /* No padding: the modal's own lines up with these edges. 3px for the focus rings. */
+    body { font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 3px; }
+    a { color: var(--orange-light); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    [hidden] { display: none !important; }
+    .key { display: flex; flex-direction: column; gap: 14px; }
+    p { margin: 0; font-size: 14px; }
+    .now { padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; }
+    .now strong { color: var(--fg0); }
+    form { display: flex; flex-direction: column; gap: 14px; }
+    label.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--fg); }
+    input[type=password], input[type=url] {
+      font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg);
+      background: var(--field); border: 1px solid var(--border); border-radius: 8px;
+      height: 44px; padding: 0 12px; width: 100%;
+    }
+    input[type=password]:focus, input[type=url]:focus { border-color: var(--orange); outline: none; }
+    /* The key is kept in localStorage: a key made for these demos only, so a lost one costs little. */
+    .notice { padding: 10px 12px; border: 1px solid var(--warn-border); border-radius: 8px; background: var(--warn-bg); color: var(--fg); font-size: 13px; }
+    .notice strong { color: var(--warn); }
+    details { font-size: 13px; }
+    summary { cursor: pointer; color: var(--muted); width: fit-content; }
+    summary:hover { color: var(--fg); }
+    details[open] > summary { margin-bottom: 8px; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+      height: 40px; border-radius: 6px; padding: 0 16px; font: inherit; font-size: 14px; font-weight: 600;
+      border: 1px solid var(--border); color: var(--fg); background: transparent;
+    }
+    .btn:hover { border-color: var(--dim); }
+    .btn:disabled { opacity: .6; cursor: progress; }
+    .btn.primary { background: var(--orange); border-color: var(--orange); color: #EFF2F4; }
+    .btn.primary:hover { background: #EB7B58; }
+    .btn:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visible, .option:has(input:focus-visible) { outline: 2px solid var(--orange); outline-offset: 2px; }
+    .result { min-height: 0; }
+    .result:empty { display: none; }
+    .result.ok, #key-check.ok { color: var(--green); }
+    .result.bad, #key-check.bad { color: var(--red); }
+    .help { padding-top: 14px; border-top: 1px solid var(--border); }
+    .help ol { margin: 0 0 8px; padding-left: 20px; font-size: 13px; color: var(--fg); }
+    .help li { margin-bottom: 4px; }
+    .note { color: var(--muted); font-size: 12px; }
+    /* The modal says whether the key works; the light stays for index.js and screen readers. */
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    /* Check and save is the modal's, in its footer (it submits this form); this one stays for
+       index.js, which disables it while a key is checked, and for Enter. */
+    #key-save { display: none; }
+    .buttons:not(:has(> :not([hidden]):not(#key-save))) { display: none; }
+  </style>
+</head>
+<body data-embed>
+  <section class="key" id="aityx-key" aria-label="Your aityx key">
+    <span class="aityx-status sr-only" id="aityx-status" role="status" title="Checking aityx…"><span class="dot" aria-hidden="true"></span><span class="label">aityx: checking…</span></span>
+    <p class="now" id="key-now" hidden></p>
+    <div class="buttons" id="key-actions" hidden>
+      <button class="btn" type="button" id="key-forget" hidden>Forget key</button>
+      <button class="btn" type="button" id="key-own" hidden>Use my own key</button>
+    </div>
+    <form id="key-form" autocomplete="off" novalidate hidden>
+      <label class="field">API key
+        <input type="password" id="key-input" name="key" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="aityx_sk_…" required>
+      </label>
+      <p class="notice"><strong>Use a key made for testing.</strong> Create one in the console just for these demos and revoke it when you're done. It's kept in this browser until you forget it.</p>
+      <details id="key-advanced">
+        <summary>Advanced</summary>
+        <label class="field">aityx URL
+          <input type="url" id="url-input" name="url" spellcheck="false" autocapitalize="off" placeholder="https://api.aityx.ai">
+        </label>
+      </details>
+      <div class="buttons">
+        <button class="btn primary" type="submit" id="key-save">Check and save</button>
+        <button class="btn" type="button" id="key-cancel" hidden>Cancel</button>
+      </div>
+    </form>
+    <p class="result" id="key-result" role="status" aria-live="polite"></p>
+    <details class="help" id="key-help">
+      <summary>Don’t have a key yet?</summary>
+      <ol>
+        <li>Sign up at <a href="https://aityx.ai" target="_blank" rel="noopener">aityx.ai</a>.</li>
+        <li>In the <a href="https://console.aityx.ai" target="_blank" rel="noopener">aityx console</a>, open <strong>API keys</strong> and create one.</li>
+        <li>Paste it above and choose <strong>Check and save</strong>.</li>
+      </ol>
+      <p class="note"><strong>Check and save</strong> makes one empty call to aityx, which runs no model.</p>
+    </details>
+  </section>
+  <script src="index.js"></script>
+</body>
+</html>

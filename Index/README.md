@@ -19,6 +19,7 @@ origin, so they share the browser's storage.
 | `/` and `/demos` | 301 to `/demos/` |
 | `/demos/` | the page, [www/](www/), with `/demos/index.js` beside it |
 | `/demos/<slug>.gif` | a card's animation, `www/<slug>.gif`: a recording of the app, 720 px wide |
+| `/demos/<slug>.mp4` | the same recording as a video, `www/<slug>.mp4`, made by [scripts/make-videos.sh](scripts/make-videos.sh), for the website's blueprint pages; served in byte ranges, as Safari needs |
 | `/demos/mortgagehub/` | `MortgageHub/mortgagehub_app/build/web` |
 | `/demos/contacthub/` | `ContactHub/contacthub_app/build/web` |
 | `/demos/pokerface/` | `PokerFace/pokerface_app/build/web` |
@@ -103,6 +104,43 @@ is red until the user sets a key on this page.
 The page has a strict content security policy (its script is
 [www/index.js](www/index.js), and it may connect only to this origin and
 `https://*.aityx.ai`), sent as a header too, so it can't be framed.
+
+## On the aityx website
+
+The demos are live at **aityx.ai/demos/**: a static copy of what this
+server serves, staged by [scripts/stage-static.sh](scripts/stage-static.sh)
+(`Index/static/`, with a `_headers` file for the policies and a
+`_redirects` file for `/`). The website's blueprint pages
+(aityx.ai/blueprints/<slug>/) show each demo's recording from there and,
+with their Try it turned on, run the app in a frame on the page.
+
+The next step is an origin of their own, **demos.aityx.ai** (a Pages
+project with that domain; the website then reads it through its
+`PUBLIC_DEMOS_ORIGIN`). It should come before Try it is turned on: the key
+lives in the demos origin's storage, and on aityx.ai that origin also runs
+the website's third-party tags. demos.aityx.ai is the same site as aityx.ai,
+so a frame there gets the same storage as a visit.
+
+Two pages may be framed, by the origins in `EMBED_ANCESTORS` (staging; on
+aityx.ai itself `'self'` already covers the website) or
+`INDEX_EMBED_ANCESTORS` (this server; the website's dev server,
+`http://localhost:4330`, by default):
+
+- [www/key.html](www/key.html): "Your aityx key" alone, with this page's
+  script. It has no "Only this session": the key is kept in `localStorage`,
+  and the form asks for a key made for testing. Framed, it posts its height to the page around it
+  (`{type: "aityx:key-height"}`) and, after each check, whether a working
+  key is set (`{type: "aityx:key-state", ready: true|false}`, never the
+  key), and takes `?theme=light|dark`.
+- each app, opened at `/demos/<slug>/?embed=1`: its status light asks the
+  page around it for the key (`"aityx:key"`) instead of leaving for this page.
+
+The index page itself is never framed.
+
+What the website lists about each demo (its blueprint: name, summary, steps,
+highlights, links, recording file names) is written in the aityx
+marketplace's back office, not here. This repository only builds and hosts
+the demos and their recordings (`www/<slug>.gif`, `www/<slug>.mp4`).
 
 ## Run it
 

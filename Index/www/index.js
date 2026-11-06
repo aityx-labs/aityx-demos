@@ -103,9 +103,11 @@ function card(d) {
   return el;
 }
 
-// Each group's cards into its grid: #games, #apps.
+// Each group's cards into its grid: #games, #apps. The key page alone
+// (key.html, embedded in the aityx website) has neither.
 for (const kind of ['game', 'app']) {
-  document.getElementById(kind + 's').replaceChildren(...demos.filter(d => d.kind === kind).map(card));
+  const grid = document.getElementById(kind + 's');
+  if (grid) grid.replaceChildren(...demos.filter(d => d.kind === kind).map(card));
 }
 
 // Which builds the index server has (api/demos, beside the page): a card
@@ -137,6 +139,9 @@ markBuilds();
 // The key ---------------------------------------------------------------
 
 const defaultUrl = 'https://api.aityx.ai';
+
+// key.html in a frame of the aityx website's blueprint page (see the end).
+const embedded = document.body.hasAttribute('data-embed') && window.parent !== window;
 
 // Each storage, or null where the browser refuses it (some private modes).
 function storage(name) {
@@ -269,6 +274,9 @@ async function describeKey() {
     now.append(strong('No key yet.'), ' The demos open, but they can’t call aityx until you set one.');
   }
   if (user || dev) now.append(' ', keyCheck());
+  // Framed (key.html), the modal around the form already says there's no
+  // key: the line shows only once one is set.
+  now.hidden = embedded && !user && !dev;
   const form = !user && (!dev || wantOwn);
   document.getElementById('key-form').hidden = !form;
   document.getElementById('key-help').hidden = !form;
@@ -277,6 +285,19 @@ async function describeKey() {
   document.getElementById('key-own').hidden = !!user || !dev;
   document.getElementById('key-cancel').hidden = !dev;
   if (form && wantOwn) document.getElementById('key-input').focus();
+  postForm();
+}
+
+// Framed: whether the form shows and is checking a key, for the modal's
+// own Check and save button, which submits it (see the end). Never what's
+// typed in it.
+function postForm() {
+  if (!embedded) return;
+  window.parent.postMessage({
+    type: 'aityx:key-form',
+    open: !document.getElementById('key-form').hidden,
+    busy: document.getElementById('key-save').disabled,
+  }, '*');
 }
 
 // The key in use, checked against its URL by checkAityx: whether it
@@ -309,7 +330,10 @@ document.getElementById('key-form').addEventListener('submit', async (event) => 
   const input = document.getElementById('key-input');
   const key = input.value.trim();
   const url = cleanUrl(document.getElementById('url-input').value);
-  const sessionOnly = document.querySelector('input[name=keep]:checked').value === 'session';
+  // The index page offers "Only this session"; key.html (the website's
+  // modal) has no choice and keeps the key on the device, in localStorage.
+  const keep = document.querySelector('input[name=keep]:checked');
+  const sessionOnly = !!keep && keep.value === 'session';
   if (!key) return result('Paste your key first.', false);
   if (/\s/.test(key)) return result('That doesn’t look like a key: it has spaces in it.', false);
   if (!url) {
@@ -318,6 +342,7 @@ document.getElementById('key-form').addEventListener('submit', async (event) => 
   }
   const button = document.getElementById('key-save');
   button.disabled = true;
+  postForm();
   result('Checking the key with aityx…');
   try {
     const answer = await check(url, key);
@@ -336,6 +361,7 @@ document.getElementById('key-form').addEventListener('submit', async (event) => 
     checkAityx(true);
   } finally {
     button.disabled = false;
+    postForm();
   }
 });
 
@@ -396,6 +422,8 @@ async function checkAityx(force = false) {
       shown.textContent = lastCheckResult || '';
       shown.className = state.ok ? 'ok' : 'bad';
     }
+    // Framed, the page around it learns only whether a working key is set.
+    if (embedded) window.parent.postMessage({ type: 'aityx:key-state', ready: state.ok }, '*');
     dot.className = 'dot ' + (state.ok ? 'ok' : 'bad');
     status.querySelector('.label').textContent = state.label;
     // The reason, on hover and for screen readers.
@@ -469,6 +497,28 @@ keyFromRequest().finally(() => {
   checkAityx(true);
 });
 window.addEventListener('focus', () => checkAityx());
+
+// Embedded: key.html in a frame of the aityx website's blueprint page,
+// which sizes the frame to the page's height as this posts it, and enables
+// its Run button once checkAityx posts that the key works. Only the height
+// and that yes or no: never the key, nor anything typed.
+// The page around it also says its theme (?theme=light or dark).
+if (embedded) {
+  const theme = new URLSearchParams(window.location.search).get('theme');
+  if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+  const postHeight = () => window.parent.postMessage(
+    { type: 'aityx:key-height', height: document.documentElement.scrollHeight }, '*');
+  new ResizeObserver(postHeight).observe(document.body);
+  postHeight();
+  // The modal's Check and save: submits the form as it is, the same as
+  // Enter in it. Only from the page around this one (which frame-ancestors
+  // limits to the website), and it carries nothing.
+  window.addEventListener('message', (event) => {
+    if (event.source !== window.parent || !event.data || event.data.type !== 'aityx:key-save') return;
+    const form = document.getElementById('key-form');
+    if (!form.hidden && !document.getElementById('key-save').disabled) form.requestSubmit();
+  });
+}
 window.addEventListener('storage', (event) => {
   if (event.key === null || (event.key || '').startsWith('aityx.')) {
     lastCheckResult = null;

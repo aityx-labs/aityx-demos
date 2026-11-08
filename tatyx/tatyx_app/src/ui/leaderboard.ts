@@ -6,6 +6,7 @@
 // from GET /api/leaderboard while the tab shows.
 
 import { BadStrategy, parseStrategy } from '../game/lineup';
+import { TEAMS } from '../game/teams';
 import { auth } from './auth';
 import { enterInTour, onEntriesChange, tourEntries, withdraw, type Entry } from './tour';
 
@@ -43,7 +44,8 @@ interface View {
   latest: { number: number; startedAt: string; finishedAt: string; calls: number; names?: Record<string, string>; results: Result[] } | null;
 }
 
-const COLORS: Record<string, string> = { cyan: '#00E5FF', magenta: '#FF2BD6', green: '#39FF7A' };
+// Each seat in its team's colour, from the teams' own list.
+const COLORS: Record<string, string> = Object.fromEntries(TEAMS.map((t) => [t.id, t.css]));
 const NAMES: Record<string, string> = { farmer: 'Farmer', sprinter: 'Sprinter', swarm: 'Swarm', doubler: 'Doubler', fortress: 'Fortress' };
 
 const ASKERS: Record<string, string> = { schedule: 'the schedule’s', admin: 'an admin’s', strategy: 'a new strategy’s' };

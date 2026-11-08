@@ -1,5 +1,5 @@
 [
-  { "id": "cyan", "name": "Cyan", "color": "#00E5FF" },
-  { "id": "magenta", "name": "Magenta", "color": "#FF2BD6" },
-  { "id": "green", "name": "Green", "color": "#22D468" }
+  { "id": "cyan", "name": "Vice Cyan", "color": "#00F0FF" },
+  { "id": "magenta", "name": "Neon Purple", "color": "#BC6CFF" },
+  { "id": "green", "name": "Sunset Pink", "color": "#FF5CA8" }
 ]

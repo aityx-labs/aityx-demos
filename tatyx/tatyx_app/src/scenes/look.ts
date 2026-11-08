@@ -16,12 +16,12 @@ export const PALETTE = {
   orange: '#E36742',
   orangeLight: '#EB7B58',
   ivory: '#F2E9DC',
-  neon: '#00E5FF',
-  sun: '#FF2BD6',
+  neon: '#00F0FF',
+  sun: '#BC6CFF',
 } as const;
 
-export const NEON = 0x00e5ff;
-export const SUN = 0xff2bd6;
+export const NEON = 0x00f0ff;
+export const SUN = 0xbc6cff;
 export const ORANGE = 0xe36742;
 
 /** A rounded orange button with a label; `onClick` on a pointer up. */

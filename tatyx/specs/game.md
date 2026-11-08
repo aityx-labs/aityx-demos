@@ -141,8 +141,8 @@ everything, the synthwave sun on the title. In stage pixels (1280 ×
 - **The sectors**: three wedges of 120°, one per team, tinted with the
   team's colour, their edges drawn from the centre. The team's origin
   sits on an ellipse around the centre (540 by 296), at the middle of
-  its sector: Cyan up (−90°), Magenta lower right (30°), Green lower
-  left (150°); the three make a triangle with one vertex up, drawn in
+  its sector: Vice Cyan up (−90°), Neon Purple lower right (30°),
+  Sunset Pink lower left (150°); the three make a triangle with one vertex up, drawn in
   neon.
 - **An origin** per team: a hexagon in the team's colour with a smaller
   one inside, with its name (to the right of the top one, under the

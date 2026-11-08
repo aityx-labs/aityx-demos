@@ -36,14 +36,14 @@ answering `anchor`, `builder`, `tester`, `combinator`, `explorer`,
 `hack` (send a bot to the mainframe) or `save`, each row with a `why`;
 in the shape of PokerFace's strategies. Five presets:
 
-- **The Farmer** (Cyan to begin with): two Builders, two Anchors to hold
+- **The Farmer** (Vice Cyan to begin with): two Builders, two Anchors to hold
   their sites, two Testers to double them, a first bot into the hack as
   soon as the mainframe is in reach, then a third Builder, an Explorer
   when the mainframe is still out of reach, and the rest into the hack.
-- **The Sprinter** (Magenta): a second Explorer until the way to the
+- **The Sprinter** (Neon Purple): a second Explorer until the way to the
   mainframe is open, a second Builder to pay for it, a second Tester to
   hold the way, then every bot it can into the hack.
-- **The Swarm** (Green): three Combinators, three Builders, an Anchor or
+- **The Swarm** (Sunset Pink): three Combinators, three Builders, an Anchor or
   two, more Builders up to twelve bots, and the hack once it is well in
   or someone else gets close.
 - **The Doubler**: a Tester beside every Builder, three pairs, then the
@@ -116,7 +116,7 @@ user's quota.
 
 The sidebar's second tab, **aityx calls (n)**: every decision as it is
 made, newest first, one line each: the team's colour, the match's clock,
-the team and its strategy and what it bought (`Cyan · Farmer →
+the team and its strategy and what it bought (`Vice Cyan · Farmer →
 builder`), how long it took, and, on hover, the rule that fired and its
 why; a failed one in red. A click opens the whole call: the request's
 body and the answer, pretty-printed, with **Copy request** and **Copy

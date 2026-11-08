@@ -35,6 +35,10 @@ id_ed25519*
 .dockercfg
 credentials.json
 service-account*.json
+# OAuth client files as Google Cloud downloads them, and the folder the
+# demos keep such files in (PokerTour/.secrets/).
+client_secret*.json
+.secrets/
 .aws/
 .gcloud/
 *.tfvars

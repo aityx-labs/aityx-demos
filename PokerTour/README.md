@@ -10,8 +10,8 @@ around it:
   from the browser as PokerFace does, and **Play** waits until aityx
   accepts it. Players never get the host's key: the leaderboard plays on
   a key of its own, on the server.
-- **Sign in to play.** The tour is for the people of aletyx: accounts in
-  `aletyx.com` or `aletyx.ai` (the domains are a setting). Anyone else
+- **Sign in to play.** Any Google account may play (the domains are a
+  setting, `POKERTOUR_ALLOWED_DOMAINS`, to narrow it). Signed out, one
   sees the leaderboard and nothing more.
 - **A leaderboard.** Besides the five presets (the Rock, the Maniac, the
   Calling Station, the Mathematician and the Shark), players download
@@ -54,7 +54,7 @@ Two things, both the host's, neither in the repository:
 
 1. **A Google OAuth client.** Poker Tour has its own Google Cloud
    project, `aletyxcode-pokertour` in the aletyx.com organization, with
-   an *Internal* consent screen ("Poker Tour") and a *Web application*
+   an *External* consent screen ("Poker Tour", in production) and a *Web application*
    client, `pokertour-web`, whose authorized JavaScript origins are
    `http://localhost:9810` and the CloudFront address; add any other
    address it is served from (*Google Auth Platform > Clients*). Its id
@@ -65,9 +65,9 @@ Two things, both the host's, neither in the repository:
    kept in `.secrets/google-oauth-client.json`, mode 600: `.secrets/`
    and `client_secret*.json` are in the root `.gitignore`, and
    `sync-dockerignore.sh` copies them into every `.dockerignore`. The
-   *Internal* consent screen is what keeps other domains out at
-   Google's side; the app and the server check the account's domain in
-   any case.
+   *External* consent screen lets any Google account sign in; the
+   app and the server check the account's domain against
+   `POKERTOUR_ALLOWED_DOMAINS` (`*`, any, by default).
 2. **The leaderboard's keys**: `POKERTOUR_LEADERBOARD_KEY` in `.env`,
    aityx staging's, for a laptop's server (else `AITYX_API_KEY`; the
    repository's root `.env`, linked by `start-all.sh`, or this

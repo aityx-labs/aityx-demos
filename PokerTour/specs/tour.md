@@ -30,8 +30,9 @@ then:
   ([google_sign_in](https://pub.dev/packages/google_sign_in), as in
   HealthHub). The ID token is kept in the tab's session storage, so a
   reload stays signed in until it expires.
-- **Not allowed**: an account outside the tour's domains (`aletyx.com`,
-  `aletyx.ai`; the server's `POKERTOUR_ALLOWED_DOMAINS`) is told so,
+- **Not allowed**: an account outside the tour's domains (the server's
+  `POKERTOUR_ALLOWED_DOMAINS`; `*`, any Google account, by default, so
+  only a narrowed setting turns anyone away) is told so,
   with a sign-out button. The app checks the email's domain; the server
   checks it again on every call that needs a player.
 - Signed in and allowed: the table, at once, with the sidebar of

@@ -1,6 +1,6 @@
 /// Serves the app's release web build under /pokertour/, as HealthHub's web
-/// server does: a file inside the build, else index.html for the app's
-/// own routes; only files inside the root.
+/// server does: a file inside the build (a folder's index.html), else
+/// index.html for the app's own routes; only files inside the root.
 library;
 
 import 'dart:io';
@@ -33,6 +33,8 @@ class StaticFiles {
   Future<void> serve(HttpRequest request, String relative) async {
     final response = request.response;
     var file = resolve(relative);
+    // A folder (the privacy policy, the terms): its index.html.
+    if (file != null && await FileSystemEntity.isDirectory(file.path)) file = File('${file.path}/index.html');
     if (file == null || !await file.exists()) file = resolve('index.html');
     if (file == null || !await file.exists()) {
       response

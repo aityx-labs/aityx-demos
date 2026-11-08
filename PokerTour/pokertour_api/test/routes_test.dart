@@ -37,8 +37,18 @@ void main() {
     final config = await route('GET', '/api/config', auth: on, boards: boards);
     final body = config.body as Map;
     expect((body['auth'] as Map)['clientId'], 'client-1');
-    expect(body['domains'], ['aletyx.com', 'aletyx.ai']);
+    expect(body['domains'], ['*']);
     expect(body.containsKey('key'), isFalse);
+  });
+
+  test('any Google account plays by default; a list narrows it; admins stay aletyx', () {
+    final any = AuthSettings.fromEnvironment(const {'OIDC_CLIENT_ID': 'client-1'});
+    expect(any.allows('someone@gmail.com'), isTrue);
+    expect(any.isAdmin('someone@gmail.com'), isFalse);
+    expect(any.isAdmin('julio@aletyx.com'), isTrue);
+    final narrow = AuthSettings.fromEnvironment(const {'OIDC_CLIENT_ID': 'client-1', 'POKERTOUR_ALLOWED_DOMAINS': 'aletyx.com, aletyx.ai'});
+    expect(narrow.allows('someone@gmail.com'), isFalse);
+    expect(narrow.allows('julio@aletyx.ai'), isTrue);
   });
 
   test('the leaderboard is open and holds no emails', () async {

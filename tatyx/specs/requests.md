@@ -449,3 +449,9 @@ The feature files hold the current specification; see the
 44. **The default zoom a little closer, centred on the mainframe.** The
     map starts at 1.35 times the whole board's zoom, on the mainframe;
     **Fit** still shows it all.
+45. **"Access blocked: tatyx can only be used within its organization":
+    make it available to external accounts as well.** The Google
+    project's consent screen is *External* now, in production, and
+    `TATYX_ALLOWED_DOMAINS` defaults to `*`, any Google account (a list
+    of domains still narrows it). The admins are still the aletyx.com
+    and aletyx.ai players alone ([Players](players.md)).

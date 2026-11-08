@@ -47,7 +47,7 @@
 // here, production's TATYX_PROD_LEADERBOARD_KEY is a deployment's only),
 // TATYX_OIDC_CLIENT_ID (the
 // Google client; none: nobody can sign in), TATYX_ALLOWED_DOMAINS
-// (aletyx.com,aletyx.ai; the admins are always aletyx.com's and
+// (comma separated; * is any Google account, the default; the admins are always aletyx.com's and
 // aletyx.ai's alone), TATYX_SESSION_SECRET (else the store's
 // session-secret, made on the first start), TATYX_LEADERBOARD
 // (on|off), TATYX_LEADERBOARD_EVERY_HOURS (6; 0: only when asked),
@@ -83,7 +83,7 @@ const DEFAULT_URL = 'https://api.aityx.ai';
 const MAX_BODY = 2 * 1024 * 1024;
 /** How long the relay waits for aityx: under the function's and CloudFront's 60 s, deployed. */
 const PROXY_TIMEOUT_MS = env.AWS_LAMBDA_FUNCTION_NAME ? 55_000 : 120_000;
-const DEFAULT_DOMAINS = 'aletyx.com,aletyx.ai';
+const DEFAULT_DOMAINS = '*';
 /** The tour's admins, who may start a tournament now: these domains' players, whatever TATYX_ALLOWED_DOMAINS says. */
 const ADMIN_DOMAINS = ['aletyx.com', 'aletyx.ai'];
 const dataDir = resolve(env.TATYX_DATA_DIR || join(here, '..', 'data'));
@@ -187,7 +187,7 @@ async function handle(request, response) {
   return json(response, 404, { error: 'not found' });
 }
 
-/** A file of the build, by its path under /tatyx/; the app's index.html for anything that isn't one. */
+/** A file of the build, by its path under /tatyx/ (a folder's index.html); the app's index.html for anything that isn't one. */
 async function file(response, path) {
   let name = decodeURIComponent(path).replace(/^\/+/, '');
   if (name === '' || name.endsWith('/')) name = `${name}index.html`;
@@ -196,6 +196,12 @@ async function file(response, path) {
   if (target !== webRoot && !target.startsWith(webRoot + sep)) return json(response, 404, { error: 'not found' });
   let chosen = target;
   let info = await stat(chosen).catch(() => null);
+  // A folder (the privacy policy, the terms): its index.html.
+  if (info !== null && info.isDirectory()) {
+    chosen = join(target, 'index.html');
+    name = `${name}/index.html`;
+    info = await stat(chosen).catch(() => null);
+  }
   if (info === null || !info.isFile()) {
     chosen = join(webRoot, 'index.html');
     info = await stat(chosen).catch(() => null);
@@ -316,13 +322,16 @@ async function settings() {
   });
 }
 
+/** Whether a player of [domain] may play: it is among the domains, or they are *. */
+const allowed = (s, domain) => s.domains.includes('*') || s.domains.includes(domain);
+
 /** The signed-in player of a request, with whether they are an admin; null when signed out. */
 async function playerOf(request) {
   const user = session.read(cookieOf(request, SESSION_COOKIE));
   if (user === null) return null;
   const s = await settings();
   const domain = domainOf(user.email);
-  if (!s.domains.includes(domain)) return null;
+  if (!allowed(s, domain)) return null;
   return { email: user.email, name: user.name ?? null, picture: user.picture ?? null, alias: (await aliases())[user.email] ?? null, admin: ADMIN_DOMAINS.includes(domain) };
 }
 
@@ -409,7 +418,7 @@ async function sessionRoute(request, response) {
     throw error;
   }
   const domain = domainOf(claims.email);
-  if (!s.domains.includes(domain)) {
+  if (!allowed(s, domain)) {
     return json(response, 403, { error: `${claims.email} is not in the tour's domains (${s.domains.join(', ')})` }, 'no-store');
   }
   const user = { email: claims.email, name: claims.name ?? null, picture: claims.picture ?? null };

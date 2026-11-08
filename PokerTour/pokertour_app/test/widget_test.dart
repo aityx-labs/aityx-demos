@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:aityx_web/aityx_web.dart';
@@ -66,6 +67,21 @@ class FakeApi implements PokerApi {
       },
       tookMs: 3,
     );
+  }
+}
+
+/// [FakeApi], holding the next answer back until [gate] completes.
+class SlowApi extends FakeApi {
+  Completer<void>? gate;
+
+  @override
+  Future<ActResult> act(Strategy strategy, Map<String, Object?> situation) async {
+    final held = gate;
+    if (held != null) {
+      gate = null;
+      await held.future;
+    }
+    return super.act(strategy, situation);
   }
 }
 
@@ -155,6 +171,27 @@ void main() {
     expect(find.text('Rocky'), findsOneWidget);
     expect(find.text('Max'), findsOneWidget);
     expect(find.text('Press play to deal.'), findsOneWidget);
+  });
+
+  test('a new tournament while aityx thinks drops the late answer and plays on', () async {
+    final api = SlowApi();
+    final c = GameController(api: api, random: Random(2))..pace = 0;
+    await c.load();
+    final gate = api.gate = Completer<void>();
+    c.play();
+    while (c.thinking == null) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    c.randomTournament();
+    c.play();
+    gate.complete(); // the old table's answer comes back: dropped
+    for (var i = 0; i < 100 && c.game.handNumber < 2; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(c.game.handNumber, greaterThanOrEqualTo(2), reason: 'the new tournament is played');
+    expect(c.error, isNull);
+    c.pause();
+    c.dispose();
   });
 
   test('a random tournament seats three to nine strategies, none twice', () async {

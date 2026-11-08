@@ -6,6 +6,19 @@ The feature files hold the current specification; see the
 
 ## 2026-11-08
 
+18. **Fixes from a review of the above before deploying.** A new
+    tournament (the title, or **New tournament**) while aityx is deciding
+    for the old table no longer throws when the answer comes back or
+    leaves **Play** stuck: the late answer is dropped and a **Play**
+    pressed meanwhile waits for it ([The table](table.md)). The music
+    stops on sign-out, and starts at its defaults when the browser blocks
+    storage instead of breaking the table ([Music](music.md)). The Rock
+    keeps premium cards with a pair only when the pair is likely best
+    (50% equity), so ace-king on a paired board is no longer bet and
+    called at any price; the Shark's short-table rule says what it does,
+    re-raise a loose opener ([Strategies](strategies.md)). `make.sh
+    android` prints the APK's real path again.
+
 17. **In the index view of the poker app (before login), show a table
     and controls like the game, with an overlay on top so nothing is
     clickable until login.** The welcome page shows the game's table,

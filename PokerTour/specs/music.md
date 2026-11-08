@@ -16,7 +16,8 @@ the bundle.
 ## Playing
 
 [Soundtrack](../pokertour_app/lib/music/soundtrack.dart) starts when the
-table opens and plays the five in a random order, round and round: every
+table opens, stops when it closes (a sign-out: the sign-in page has no
+controls), and plays the five in a random order, round and round: every
 round has each track once, in a new order, and a round never starts
 with the track that ended the last, so none plays twice in a row. On the
 web the player is the browser's audio element
@@ -37,4 +38,6 @@ On the app bar's right, before the version
 
 The volume and the mute are kept in the browser's localStorage
 (`pokertour.music.volume`, `pokertour.music.muted`), so they last from
-one visit to the next; a muted player stays silent until unmuted.
+one visit to the next; a muted player stays silent until unmuted. When
+the browser blocks storage the music starts at the defaults and the
+settings last the visit.

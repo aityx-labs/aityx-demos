@@ -59,7 +59,7 @@ build() {
       ;;
     android)
       flutter build apk "--$MODE" "${BUILD_ARGS[@]}"
-      echo "==> android: pokertour_app/build/pokertour/outputs/flutter-apk/app-$MODE.apk"
+      echo "==> android: pokertour_app/build/app/outputs/flutter-apk/app-$MODE.apk"
       ;;
     ios)
       local sign=--no-codesign

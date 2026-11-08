@@ -31,9 +31,9 @@ class Soundtrack extends ChangeNotifier {
   Soundtrack({required this.storage, TrackPlayer? player, Random? random})
     : _player = player ?? defaultTrackPlayer(),
       _random = random ?? Random() {
-    final v = double.tryParse(storage.read(_volumeKey) ?? '');
+    final v = double.tryParse(_read(_volumeKey) ?? '');
     if (v != null) volume = v.clamp(0.0, 1.0);
-    muted = storage.read(_mutedKey) == 'true';
+    muted = _read(_mutedKey) == 'true';
   }
 
   static const tracks = [
@@ -62,6 +62,15 @@ class Soundtrack extends ChangeNotifier {
 
   /// The tracks still to play this round, in their order.
   final List<String> _bag = [];
+
+  /// Stops the music (the table closed: a sign-out); [start] begins again
+  /// with the next track.
+  void stop() {
+    if (current == null) return;
+    _player.pause();
+    current = null;
+    notifyListeners();
+  }
 
   /// Starts the music, unless muted or started already.
   void start() {
@@ -98,6 +107,15 @@ class Soundtrack extends ChangeNotifier {
     }
     _write(_mutedKey, '$muted');
     notifyListeners();
+  }
+
+  String? _read(String name) {
+    try {
+      return storage.read(name);
+    } catch (_) {
+      // Storage blocked: nothing stored.
+      return null;
+    }
   }
 
   void _write(String name, String value) {

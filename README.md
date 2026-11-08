@@ -241,6 +241,8 @@ Two games, each with its own server and port, and the group's
 
 ### Poker Tour
 
+![Poker Tour: hands of hold'em at the tour's table, each move decided by aityx, every call and the rule behind it in the sidebar](multyx-index/www/pokertour.gif)
+
 [PokerTour/](PokerTour/) is PokerFace for a team: the same table, where every player is a set of rules run on
 [aityx.ai](https://aityx.ai), but with the host's key for everyone, a
 Google sign-in for the people of aletyx (`aletyx.com` and `aletyx.ai`),
@@ -264,6 +266,8 @@ settings, none in the repository: see the [Poker Tour
 README](PokerTour/README.md).
 
 ### tatyx
+
+![tatyx: three teams race for the mainframe, every megabyte one aityx decision, every call beside the map](multyx-index/www/tatyx.gif)
 
 [tatyx/](tatyx/) is a web game in the making: three teams race to hack into the mainframe in the middle of a Tron-like
 map, each from its own sector, finding the map's sites and the links
@@ -318,6 +322,8 @@ Three systems, each with its own servers and ports, and the group's
 
 ### datyx dashboard
 
+![The datyx dashboard: HealthHub's tables in the catalogue, tagged for DeepAR, then training, inference and health](datyx-index/www/datyx-dashboard.gif)
+
 [datyx-dashboard/](datyx-dashboard/) is the views of datyx: a web app,
 like every demo's, that invokes the datyx API and shows what it
 answers, with every call in a side panel. It lists the data sources on
@@ -337,6 +343,8 @@ starts the group, and the dashboard on http://localhost:9906/app/ (its
 the [datyx dashboard README](datyx-dashboard/README.md).
 
 ### datyx API
+
+![The datyx API: its endpoints in Swagger UI, and GET /api/training answering with the models it trains](datyx-index/www/datyx-api.gif)
 
 [datyx/](datyx/) is the datyx system's API: REST on Quarkus and GraalVM,
 with Hibernate and Panache over PostgreSQL. It holds the data sources
@@ -358,6 +366,8 @@ OpenMetadata. A first start takes a few minutes, while OpenMetadata
 migrates its schema. See the [datyx README](datyx/README.md).
 
 ### HealthHub
+
+![HealthHub: the map of simulated people, the triage at the desk by aityx, and why one patient got their level](datyx-index/www/healthhub.gif)
 
 [HealthHub/](HealthHub/) is the app of the datyx group, and the first
 demo with a database: a Flutter app, a Dart API and PostgreSQL, laid

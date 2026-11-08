@@ -58,6 +58,9 @@ strategy editor are marked as **next** in each file.
   and the players' entries on the server, on the leaderboard key; the
   entries, the field, the schedule, an admin's and a new strategy's
   tournaments, the queue, the standings, the tab.
+- [Deployment](deploy.md): the serverless stack on AWS (CloudFront, the
+  API and runner functions, the data bucket, the schedule), the
+  strategies kept in the repository, and the sign-in's origin.
 
 **Project**
 

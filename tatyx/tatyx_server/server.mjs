@@ -48,20 +48,30 @@
 // TATYX_OIDC_CLIENT_ID (the
 // Google client; none: nobody can sign in), TATYX_ALLOWED_DOMAINS
 // (aletyx.com,aletyx.ai; the admins are always aletyx.com's and
-// aletyx.ai's alone), TATYX_SESSION_SECRET (else the one in
-// <data>/session-secret, made on the first start), TATYX_LEADERBOARD
+// aletyx.ai's alone), TATYX_SESSION_SECRET (else the store's
+// session-secret, made on the first start), TATYX_LEADERBOARD
 // (on|off), TATYX_LEADERBOARD_EVERY_HOURS (6; 0: only when asked),
 // TATYX_MAX_ENTRIES (3 strategies a player may have in the tour),
-// TATYX_DATA_DIR (../data).
+// TATYX_DATA_DIR (../data), TATYX_STRATEGIES_DIR (the strategies kept in
+// the repository, which start an empty tour: ../strategies).
+//
+// Deployed on AWS Lambda (deploy/), lambda.mjs runs `serve` for the
+// function URL behind CloudFront, and the runner function plays the
+// tournaments: the files are in a bucket (TATYX_DATA_BUCKET, under
+// TATYX_DATA_PREFIX), the leaderboard's key in an object of it only the
+// functions read (TATYX_LEADERBOARD_KEY_OBJECT), a tournament asked for is
+// handed to TATYX_RUNNER_FUNCTION, and the page's host comes in
+// x-tatyx-host (TATYX_VIEWER_HOST_HEADER=on), which CloudFront sets.
 // The keys, the tokens, the cookies and the bodies are never logged.
 
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { AuthError, SESSION_COOKIE, cookieOf, domainOf, sessionHeader, sessions, storedSecret, verifyGoogleIdToken } from './auth.mjs';
 import { EntryError, createLeaderboard } from './leaderboard.mjs';
+import { fileStore, s3Store } from './store.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const env = process.env;
@@ -71,13 +81,17 @@ const webRoot = resolve(env.WEB_ROOT || join(here, '..', 'tatyx_app', 'dist'));
 const envFiles = [join(here, '..', '.env'), join(here, '..', '..', '.env')];
 const DEFAULT_URL = 'https://api.aityx.ai';
 const MAX_BODY = 2 * 1024 * 1024;
-const PROXY_TIMEOUT_MS = 120_000;
+/** How long the relay waits for aityx: under the function's and CloudFront's 60 s, deployed. */
+const PROXY_TIMEOUT_MS = env.AWS_LAMBDA_FUNCTION_NAME ? 55_000 : 120_000;
 const DEFAULT_DOMAINS = 'aletyx.com,aletyx.ai';
 /** The tour's admins, who may start a tournament now: these domains' players, whatever TATYX_ALLOWED_DOMAINS says. */
 const ADMIN_DOMAINS = ['aletyx.com', 'aletyx.ai'];
 const dataDir = resolve(env.TATYX_DATA_DIR || join(here, '..', 'data'));
 const runnerPath = resolve(env.TATYX_RUNNER || join(here, '..', 'tatyx_app', 'dist-runner', 'runner.mjs'));
-const session = sessions(env.TATYX_SESSION_SECRET || (await storedSecret(join(dataDir, 'session-secret'))));
+/** On AWS Lambda: no listening, the function's handler calls `serve`. */
+const onLambda = Boolean(env.AWS_LAMBDA_FUNCTION_NAME);
+const store = env.TATYX_DATA_BUCKET ? await s3Store(env.TATYX_DATA_BUCKET, env.TATYX_DATA_PREFIX ?? 'tour/') : fileStore(dataDir);
+const session = sessions(env.TATYX_SESSION_SECRET || (await storedSecret(store)));
 const MAX_ALIAS = 32;
 
 const TYPES = {
@@ -99,15 +113,39 @@ const TYPES = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
-const server = createServer((request, response) => {
-  handle(request, response).catch((error) => {
+/** The strategies kept in the repository (tatyx/strategies/*.json): what an empty tour starts with. */
+async function seeds() {
+  const dir = resolve(env.TATYX_STRATEGIES_DIR || join(here, '..', 'strategies'));
+  const names = (await readdir(dir).catch(() => [])).filter((n) => n.endsWith('.json')).sort();
+  return Promise.all(names.map(async (n) => JSON.parse(await readFile(join(dir, n), 'utf8'))));
+}
+
+/** Deployed: a tournament asked for goes to the runner function, which plays them one at a time. */
+async function dispatcher() {
+  const name = env.TATYX_RUNNER_FUNCTION;
+  if (!name) return null;
+  const { LambdaClient, InvokeCommand } = await import('@aws-sdk/client-lambda');
+  const lambda = new LambdaClient({});
+  return async (source) => {
+    await lambda.send(new InvokeCommand({ FunctionName: name, InvocationType: 'Event', Payload: Buffer.from(JSON.stringify({ source })) }));
+  };
+}
+
+/** Answers one request; never throws (a failure is a 500). */
+export async function serve(request, response) {
+  try {
+    await handle(request, response);
+  } catch (error) {
     console.error(`error: ${request.method} ${request.url}: ${error?.name ?? error}`);
     if (!response.headersSent) json(response, 500, { error: 'internal error' });
     else response.end();
-  });
-});
-const leaderboard = createLeaderboard({
-  dataDir,
+  }
+}
+
+export const leaderboard = createLeaderboard({
+  store,
+  seeds: await seeds(),
+  dispatch: await dispatcher(),
   runnerPath,
   settings: () => settings(),
   ownerName: (email) => ownerName(email),
@@ -116,9 +154,11 @@ const leaderboard = createLeaderboard({
   log: (line) => console.log(line),
 });
 
-server.listen(port, host, () => {
-  console.log(`tatyx on http://${host}:${port}/tatyx/ (build: ${webRoot})`);
-});
+if (!onLambda) {
+  createServer((request, response) => void serve(request, response)).listen(port, host, () => {
+    console.log(`tatyx on http://${host}:${port}/tatyx/ (build: ${webRoot})`);
+  });
+}
 
 async function handle(request, response) {
   const url = new URL(request.url ?? '/', 'http://localhost');
@@ -229,6 +269,16 @@ async function dotEnv() {
   return {};
 }
 
+/** The leaderboard's key from its object; none (the leaderboard is off) when it can't be read, never a failed request. */
+async function keyFrom(object) {
+  try {
+    return ((await store.secret(object)) ?? '').trim();
+  } catch (error) {
+    console.error(`settings: the leaderboard's key object could not be read (${error?.name ?? 'error'})`);
+    return '';
+  }
+}
+
 /**
  * The key and URL: each from the environment (a Codespaces secret, also
  * read from the codespace's secrets file), else from .env, read again at
@@ -240,8 +290,9 @@ async function settings() {
   const fromFile = await dotEnv();
   // A setting: the environment (or a Codespaces secret), else the .env file.
   const read = (name) => env[name] || secrets[name] || fromFile[name] || '';
-  // The leaderboard's key alone: the players bring their own.
-  const leaderboardKey = read('TATYX_LEADERBOARD_KEY') || read('AITYX_API_KEY');
+  // The leaderboard's key alone: the players bring their own. Deployed, it is an object only the functions read.
+  const keyObject = env.TATYX_LEADERBOARD_KEY_OBJECT;
+  const leaderboardKey = keyObject && store.secret ? await keyFrom(keyObject) : read('TATYX_LEADERBOARD_KEY') || read('AITYX_API_KEY');
   const list = (value) => value.split(',').map((d) => d.trim().toLowerCase()).filter(Boolean);
   const domains = list(read('TATYX_ALLOWED_DOMAINS') || DEFAULT_DOMAINS);
   const envUrl = env.AITYX_URL || secrets.AITYX_URL || '';
@@ -274,15 +325,14 @@ async function playerOf(request) {
   return { email: user.email, name: user.name ?? null, picture: user.picture ?? null, alias: (await aliases())[user.email] ?? null, admin: ADMIN_DOMAINS.includes(domain) };
 }
 
-// ---- The players' aliases: what the leaderboard calls them, in <data>/players.json.
-const playersFile = join(dataDir, 'players.json');
+// ---- The players' aliases: what the leaderboard calls them, in the store's players.json.
 let aliasCache = null;
 
-/** Every alias, by email. */
+/** Every alias, by email: read once from a folder, every time from a shared bucket. */
 async function aliases() {
-  if (aliasCache === null) {
+  if (aliasCache === null || store.shared) {
     try {
-      const parsed = JSON.parse(await readFile(playersFile, 'utf8'));
+      const parsed = JSON.parse((await store.read('players.json')) ?? '{}');
       aliasCache = parsed && typeof parsed.aliases === 'object' ? parsed.aliases : {};
     } catch {
       aliasCache = {};
@@ -296,10 +346,7 @@ async function saveAlias(email, alias) {
   const all = { ...(await aliases()) };
   if (alias === '') delete all[email];
   else all[email] = alias;
-  await mkdir(dataDir, { recursive: true });
-  const temp = `${playersFile}.tmp`;
-  await writeFile(temp, JSON.stringify({ aliases: all }, null, 2), { mode: 0o600 });
-  await rename(temp, playersFile);
+  await store.write('players.json', JSON.stringify({ aliases: all }, null, 2));
   aliasCache = all;
 }
 
@@ -461,7 +508,9 @@ function sameOrigin(request) {
   } catch {
     return false;
   }
-  const ownHost = (request.headers.host ?? '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
+  // Behind CloudFront, the Host is the function URL's: the page's own comes in x-tatyx-host, which CloudFront sets.
+  const viewerHost = env.TATYX_VIEWER_HOST_HEADER === 'on' ? request.headers['x-tatyx-host'] : undefined;
+  const ownHost = (viewerHost ?? request.headers.host ?? '').replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
   return (
     fromHost === ownHost ||
     fromHost === 'localhost' ||

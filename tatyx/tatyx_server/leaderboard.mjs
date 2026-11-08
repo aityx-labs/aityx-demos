@@ -9,16 +9,21 @@
 // few hours, on the hour in UTC), by an admin, and by every strategy a
 // player enters; never two at once: a tournament asked for while one is
 // played is queued (one waiting per source, kept in the file) and played
-// when it ends. The entries are in their own file, strategies.json.
+// when it ends. The entries are in their own file, strategies.json; with
+// none yet, the ones kept in the repository (tatyx/strategies/) start it.
+// The files are in a store (store.mjs): a folder, or a bucket deployed.
+// Deployed, a tournament is played by the runner function, one at a time
+// (`dispatch` hands it there; `runNow` is what it runs), and its progress
+// is in live.json for every instance of the API to show.
 
 import { randomBytes } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 /** How many tournaments the file keeps, and the standings count. */
 const KEEP = 20;
 const CALL_TIMEOUT_MS = 30_000;
+/** How long a tournament asked for waits, deployed, before another from the same source is asked for: Lambda's queue keeps it six hours. */
+const WAITING_MS = 6 * 3_600_000;
 /** Who asks for a tournament. */
 export const SOURCES = ['schedule', 'admin', 'strategy'];
 
@@ -30,17 +35,19 @@ export class EntryError extends Error {
   }
 }
 
-/** Writes `data` as `file`, through a temporary file, mode 600. */
-async function writeJson(file, data) {
-  await mkdir(dirname(file), { recursive: true });
-  const temp = `${file}.tmp`;
-  await writeFile(temp, JSON.stringify(data, null, 2), { mode: 0o600 });
-  await rename(temp, file);
+const json = (value) => JSON.stringify(value, null, 2);
+
+/** `text` as JSON, or null. */
+function parsed(text) {
+  if (text === null) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
-export function createLeaderboard({ dataDir, runnerPath, settings, ownerName, everyHours, maxEntries = 3, log }) {
-  const file = join(dataDir, 'leaderboard.json');
-  const entriesFile = join(dataDir, 'strategies.json');
+export function createLeaderboard({ store, seeds = [], runnerPath, settings, ownerName, everyHours, maxEntries = 3, log, dispatch = null }) {
   let data = { tournaments: [], queue: [] };
   let entries = [];
   let loading = null;
@@ -50,29 +57,30 @@ export function createLeaderboard({ dataDir, runnerPath, settings, ownerName, ev
   let timer = null;
   let nextAt = null;
 
-  /** Reads the files once; every caller waits for the same read. */
+  /** Reads the files: once from a folder (every caller waits for the same read), every time from a shared bucket. */
   function load() {
+    if (store.shared) return readFiles();
     loading ??= readFiles();
     return loading;
   }
 
   async function readFiles() {
-    try {
-      const parsed = JSON.parse(await readFile(file, 'utf8'));
-      if (Array.isArray(parsed.tournaments)) data = { ...parsed, queue: Array.isArray(parsed.queue) ? parsed.queue : [] };
-    } catch {
-      // No file yet: no tournaments.
-    }
-    try {
-      const parsed = JSON.parse(await readFile(entriesFile, 'utf8'));
-      if (Array.isArray(parsed.entries)) entries = parsed.entries;
-    } catch {
-      // No entries yet.
+    const board = parsed(await store.read('leaderboard.json'));
+    if (Array.isArray(board?.tournaments)) data = { ...board, queue: Array.isArray(board.queue) ? board.queue : [] };
+    // The entries; before strategies.json, they were in entries.json; with neither, the repository's start them.
+    const kept = parsed(await store.read('strategies.json')) ?? parsed(await store.read('entries.json'));
+    if (Array.isArray(kept?.entries)) entries = kept.entries;
+    else if (kept === null && seeds.length > 0) {
+      entries = [...seeds];
+      await saveEntries();
+      log(`leaderboard: ${seeds.length} strategies from the repository entered the tour`);
     }
   }
 
-  const save = () => writeJson(file, data);
-  const saveEntries = () => writeJson(entriesFile, { entries });
+  const save = () => store.write('leaderboard.json', json(data));
+  const saveEntries = () => store.write('strategies.json', json({ entries }));
+  /** What the runner is doing, for the API's instances (deployed). */
+  const saveLive = () => (dispatch !== null || store.shared ? store.write('live.json', json({ ...live, at: new Date().toISOString() })) : Promise.resolve());
 
   async function game() {
     runner ??= await import(pathToFileURL(runnerPath).href);
@@ -138,8 +146,10 @@ export function createLeaderboard({ dataDir, runnerPath, settings, ownerName, ev
     Object.assign(live, { running: true, match: 0, of: g.MATCHES, calls: 0, startedAt: new Date().toISOString(), source, error: null });
     log(`leaderboard: tournament ${number} started (asked for by the ${source}): ${field.map((f) => f.name).join(', ')}`);
     try {
+      await saveLive();
       const { results, standings } = await g.run(callerOn(s), (done) => {
         live.match = done;
+        void saveLive().catch(() => {});
       }, field);
       const owners = new Map(entries.map((e) => [e.id, e.owner]));
       data.tournaments.push({
@@ -159,6 +169,38 @@ export function createLeaderboard({ dataDir, runnerPath, settings, ownerName, ev
       live.error = error instanceof Error ? error.message : String(error);
       log(`leaderboard: tournament ${number} failed: ${live.error}`);
     }
+  }
+
+  /** One tournament now, from `source`, to its end: the runner function's work, deployed. */
+  async function runNow(source) {
+    const ready = await readiness();
+    if (!ready.enabled) {
+      log(`leaderboard: no tournament: ${ready.reason}`);
+      return;
+    }
+    await load();
+    live.running = true;
+    // Its run starts: the next ask from the same source asks for another.
+    const asked = parsed(await store.read('asked.json')) ?? {};
+    if (asked[source] !== undefined) {
+      delete asked[source];
+      await store.write('asked.json', json(asked));
+    }
+    try {
+      await playOne(source, ready.settings);
+    } finally {
+      live.running = false;
+      await saveLive().catch(() => {});
+    }
+  }
+
+  /** What the runner is doing: this process's own, or, deployed, the runner function's (live.json; a run older than its 15 minutes is over). */
+  async function liveNow() {
+    if (dispatch === null) return live;
+    const kept = parsed(await store.read('live.json'));
+    if (kept === null) return { ...live, running: false };
+    const stale = kept.running && Date.now() - Date.parse(kept.at ?? 0) > 15 * 60_000;
+    return stale ? { ...kept, running: false } : kept;
   }
 
   /** Plays the queue, the oldest first, one at a time, until it is empty; one drain at a time. */
@@ -190,6 +232,17 @@ export function createLeaderboard({ dataDir, runnerPath, settings, ownerName, ev
   async function ask(source) {
     const ready = await readiness();
     if (!ready.enabled) return { off: ready.reason };
+    // Deployed: the runner function plays it, one at a time; the others wait their turn there.
+    // One waiting per source, as here: asked.json says when each was asked for, until its run starts.
+    if (dispatch !== null) {
+      const asked = parsed(await store.read('asked.json')) ?? {};
+      const at = Date.parse(asked[source] ?? '');
+      if (Number.isFinite(at) && Date.now() - at < WAITING_MS) return { asked: 'waiting' };
+      await store.write('asked.json', json({ ...asked, [source]: new Date().toISOString() }));
+      const running = (await liveNow()).running;
+      await dispatch(source);
+      return { asked: running ? 'queued' : 'started' };
+    }
     await load();
     let asked;
     if (data.queue.some((q) => q.source === source)) asked = 'waiting';
@@ -206,6 +259,8 @@ export function createLeaderboard({ dataDir, runnerPath, settings, ownerName, ev
   async function view() {
     await load();
     const ready = await readiness();
+    const live = await liveNow();
+    if (dispatch !== null) scheduleNext();
     const tournaments = data.tournaments;
     const g = tournaments.length > 0 || entries.length > 0 ? await game().catch(() => null) : null;
     // The presets and the entries in the tour: a withdrawn entry leaves the standings.
@@ -290,11 +345,12 @@ export function createLeaderboard({ dataDir, runnerPath, settings, ownerName, ev
     return true;
   }
 
-  /** The next start on the schedule: the next whole multiple of `everyHours` hours, UTC. */
+  /** The next start on the schedule: the next whole multiple of `everyHours` hours, UTC (deployed, the schedule's own; only shown here). */
   function scheduleNext() {
     if (!(everyHours > 0)) return;
     const step = everyHours * 3_600_000;
     nextAt = Math.floor(Date.now() / step) * step + step;
+    if (dispatch !== null) return;
     timer = setTimeout(async () => {
       try {
         await ask('schedule');
@@ -308,9 +364,19 @@ export function createLeaderboard({ dataDir, runnerPath, settings, ownerName, ev
   }
 
   scheduleNext();
-  // What the last process left in the queue.
-  load()
-    .then(() => (data.queue.length > 0 ? drain() : undefined))
-    .catch((error) => log(`leaderboard: the queue could not be read: ${error?.message ?? error}`));
-  return { view, ask, enter, withdraw, entries: listEntries, stop: () => timer && clearTimeout(timer) };
+  // What the last process left in the queue (a folder's; deployed, the runner function keeps none).
+  if (dispatch === null) {
+    load()
+      .then(() => (data.queue.length > 0 ? drain() : undefined))
+      .catch((error) => log(`leaderboard: the queue could not be read: ${error?.message ?? error}`));
+  }
+  return {
+    view,
+    ask,
+    enter,
+    withdraw,
+    entries: listEntries,
+    runNow,
+    stop: () => timer && clearTimeout(timer),
+  };
 }

@@ -21,7 +21,8 @@ load_env() {
   return 0
 }
 load_env AITYX_API_KEY AITYX_URL FLUTTER_WEB_PORT TATYX_BIND_HOST
-unset _root _env_file
+# _env_file stays: deploy/deploy.sh calls load_env for its own settings.
+unset _root
 # One port: the app, its API and the aityx relay share it. FLUTTER_WEB_PORT
 # is the name every demo's start-all.sh reads, Flutter or not.
 export FLUTTER_WEB_PORT="${FLUTTER_WEB_PORT:-9710}"

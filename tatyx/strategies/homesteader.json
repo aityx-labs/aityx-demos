@@ -1,0 +1,98 @@
+{
+  "id": "e-66d107d3e34a",
+  "name": "The Homesteader",
+  "tagline": "The Farmer's steady farm with the Sprinter's road: Builders, Anchors and Testers in pairs, two Explorers to open the way, then everything into the hack.",
+  "decisions": {
+    "build": {
+      "type": "Build",
+      "desc": "What the team's next megabyte buys",
+      "table": [
+        [
+          "hack_pct",
+          "leader_pct",
+          "builders",
+          "anchors",
+          "testers",
+          "explorers",
+          "hackers",
+          "links_rotting",
+          "mainframe_connected",
+          "=>",
+          "# why"
+        ],
+        {
+          "when": {
+            "hack_pct": ">= 45"
+          },
+          "then": "hack",
+          "why": "Nearly halfway in: every bot goes in now."
+        },
+        {
+          "when": {
+            "leader_pct": ">= 60"
+          },
+          "then": "hack",
+          "why": "Someone is close to the end: race them."
+        },
+        {
+          "when": {
+            "builders": "< 2"
+          },
+          "then": "builder",
+          "why": "A second Builder: twice the bytes."
+        },
+        {
+          "when": {
+            "anchors": "< 2"
+          },
+          "then": "anchor",
+          "why": "A second Anchor: the Builders' sites, the team's alone."
+        },
+        {
+          "when": {
+            "testers": "< 2"
+          },
+          "then": "tester",
+          "why": "A second Tester: each one doubles a Builder and keeps the links alive."
+        },
+        {
+          "when": {
+            "mainframe_connected": "false",
+            "explorers": "< 2"
+          },
+          "then": "explorer",
+          "why": "No way to the mainframe yet: a second Explorer to find it sooner."
+        },
+        {
+          "when": {
+            "mainframe_connected": "true",
+            "hackers": "< 2"
+          },
+          "then": "hack",
+          "why": "The way is open: the first hackers in."
+        },
+        {
+          "when": {
+            "links_rotting": ">= 2",
+            "testers": "< 3"
+          },
+          "then": "tester",
+          "why": "The road is rotting: a third Tester to hold it."
+        },
+        {
+          "when": {
+            "builders": "< 3"
+          },
+          "then": "builder",
+          "why": "A third Builder, on a third site."
+        },
+        {
+          "then": "hack",
+          "why": "The homestead pays its way: another bot into the hack."
+        }
+      ]
+    }
+  },
+  "owner": "julio.faerman@aletyx.com",
+  "enteredAt": "2026-11-08T00:48:26.754Z"
+}

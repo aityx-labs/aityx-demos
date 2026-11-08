@@ -6,3 +6,4 @@ tatyx_app/dist-runner/
 data/
 # Local settings (the key): see .env.example.
 .env
+deploy/out/

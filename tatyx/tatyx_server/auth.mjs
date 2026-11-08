@@ -6,8 +6,6 @@
 // packages. Never logs a token or a cookie.
 
 import { createHmac, createPublicKey, randomBytes, timingSafeEqual, verify } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
 
 const GOOGLE_KEYS = 'https://www.googleapis.com/oauth2/v3/certs';
 const ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com']);
@@ -116,19 +114,19 @@ export function sessions(secret = randomBytes(32)) {
 
 /**
  * The secret that signs the sessions when TATYX_SESSION_SECRET is unset:
- * the one in `file`, else a new random one written there (mode 600), so a
- * restart keeps everyone signed in.
+ * the one in `store` (session-secret), else a new random one written there
+ * once, so a restart keeps everyone signed in; two starting at once agree
+ * on the first one written.
  */
-export async function storedSecret(file) {
-  try {
-    const kept = (await readFile(file, 'utf8')).trim();
-    if (kept.length >= 32) return kept;
-  } catch (error) {
-    if (error?.code !== 'ENOENT') throw error;
-  }
+export async function storedSecret(store, name = 'session-secret') {
+  const kept = (await store.read(name))?.trim() ?? '';
+  if (kept.length >= 32) return kept;
   const secret = randomBytes(32).toString('hex');
-  await mkdir(dirname(file), { recursive: true });
-  await writeFile(file, `${secret}\n`, { mode: 0o600 });
+  if (kept === '' && (await store.create(name, `${secret}\n`))) return secret;
+  // Another start wrote one meanwhile: that one, if it is whole; a short one is never a key.
+  const other = (await store.read(name))?.trim() ?? '';
+  if (other.length >= 32) return other;
+  await store.write(name, `${secret}\n`);
   return secret;
 }
 

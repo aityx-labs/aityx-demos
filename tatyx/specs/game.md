@@ -208,7 +208,7 @@ and a key to play on ([Sign-in and keys](players.md)): without a key,
 **Start** (in the bar and in the middle) is greyed out and takes no
 clicks; signed out with a key, it opens Profile and says so.
 
-`/app/#map` opens on the map, skipping the title: for development and
+`/tatyx/#map` opens on the map, skipping the title: for development and
 screenshots.
 
 ## Headless

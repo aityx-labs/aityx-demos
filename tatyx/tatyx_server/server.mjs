@@ -1,13 +1,13 @@
 // The tatyx server: one process on one port, serving the app's build
-// under /app/, its API under /api/ (the sign-in, the leaderboard), and a
+// under /tatyx/, its API under /api/ (the sign-in, the leaderboard), and a
 // relay to its aityx for the app's calls on the player's own key (aityx
 // staging takes no calls from browsers). Every player brings their own
 // key; the leaderboard plays on a key of its own, which never leaves
 // this server. Plain Node (node:http), no packages, so `node server.mjs`
 // runs it.
 //
-//   GET    /                        302 to /app/
-//   GET    /app/, /app/<file>       the app's build (WEB_ROOT): a path that
+//   GET    /, /tatyx, /app...       302 to /tatyx/
+//   GET    /tatyx/, /tatyx/<file>   the app's build (WEB_ROOT): a path that
 //                                   isn't a file gets index.html
 //   GET    /api/health              {"ok": true}
 //   GET    /api/config              how to sign in (the Google client id,
@@ -117,7 +117,7 @@ const leaderboard = createLeaderboard({
 });
 
 server.listen(port, host, () => {
-  console.log(`tatyx on http://${host}:${port}/app/ (build: ${webRoot})`);
+  console.log(`tatyx on http://${host}:${port}/tatyx/ (build: ${webRoot})`);
 });
 
 async function handle(request, response) {
@@ -132,21 +132,21 @@ async function handle(request, response) {
     response.setHeader('Allow', 'GET, HEAD');
     return json(response, 405, { error: 'method not allowed' });
   }
-  // /app without its slash too: the page's relative paths (the bots'
-  // portraits) resolve only under /app/.
-  if (path === '/' || path === '/app') {
+  // /tatyx without its slash too: the page's relative paths (the bots'
+  // portraits) resolve only under /tatyx/. And /app, where it used to be.
+  if (path === '/' || path === '/tatyx' || path === '/app' || path.startsWith('/app/')) {
     response.statusCode = 302;
-    response.setHeader('Location', `/app/${url.search}`);
+    response.setHeader('Location', `/tatyx/${url.search}`);
     return response.end();
   }
   if (path === '/api/health') return json(response, 200, { ok: true });
   if (path === '/api/config') return json(response, 200, await apiConfig(), 'no-store');
   if (path === '/api/leaderboard') return json(response, 200, await leaderboard.view(), 'no-store');
-  if (path.startsWith('/app/')) return file(response, path.slice('/app'.length));
+  if (path.startsWith('/tatyx/')) return file(response, path.slice('/tatyx'.length));
   return json(response, 404, { error: 'not found' });
 }
 
-/** A file of the build, by its path under /app/; the app's index.html for anything that isn't one. */
+/** A file of the build, by its path under /tatyx/; the app's index.html for anything that isn't one. */
 async function file(response, path) {
   let name = decodeURIComponent(path).replace(/^\/+/, '');
   if (name === '' || name.endsWith('/')) name = `${name}index.html`;

@@ -20,9 +20,9 @@ tatyx is one folder with the app, the server and the scripts, in the
   type check.
 - [tatyx_server/server.mjs](../tatyx_server/server.mjs): plain Node,
   no packages. One process on one port, **9710** (the multyx group's
-  range: 9700 is the index): the build under `/app/` (`/` and `/app`
+  range: 9700 is the index): the build under `/tatyx/`, to share a server with other apps (`/`, `/tatyx` and `/app...`
   redirect there, keeping the query, since the page's relative paths,
-  the bots' portraits among them, resolve only under `/app/`; a path
+  the bots' portraits among them, resolve only under `/tatyx/`; a path
   that isn't a file gets `index.html`; Vite's hashed `assets/` are cached for a year,
   the page never), `/api/health`, `/api/config`, `/api/session`
   ([auth.mjs](../tatyx_server/auth.mjs), [Sign-in and keys](players.md)),
@@ -38,7 +38,7 @@ tatyx is one folder with the app, the server and the scripts, in the
 - [devbox.json](../devbox.json) manages the toolchain: Node 22 and curl;
   [devbox.lock](../devbox.lock) is committed. `devbox run serve` builds
   and serves; `devbox run dev` runs Vite's dev server on **9711** at
-  `/app/`, with `/api/` and `/aityx/` proxied to the server on 9710;
+  `/tatyx/`, with `/api/` and `/aityx/` proxied to the server on 9710;
   `devbox run test` runs the tests and the type check.
 - **The group**: `group.id.txt` says `multyx`, the group of the
   multiplayer games on aityx, shared with [Poker Tour](../../PokerTour/),

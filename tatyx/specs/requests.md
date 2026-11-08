@@ -414,3 +414,7 @@ The feature files hold the current specification; see the
     (the ring 340 px, was 296), the cores and relays farther out, and
     the fonts and bots bigger, for the zoomed-out view. Balance measured
     again: the Sprinter leads (56%), noted in [The game](game.md#balance).
+38. **tatyx at `/tatyx` instead of `/app`, to share a server with other
+    apps.** The build's base, the server's routes (`/`, `/tatyx` and the
+    old `/app` paths redirect to `/tatyx/`), the scripts, the docs,
+    `start-all.sh` and the multyx index.

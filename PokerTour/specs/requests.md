@@ -422,3 +422,13 @@ The feature files hold the current specification; see the
     the queue and the lock in memory and on Floci's DynamoDB, the routes,
     the app's reading. See [The tour](tour.md#the-runner) and [On
     AWS](aws.md).
+
+16. **Make sure all cloud resources are tagged according to their
+    project, with the same tags standard as the account's other
+    resources.** The account tags every resource `project=<name>` and
+    `tenancy=GA|RC|shared`; Poker Tour's had none. `deploy.sh` now
+    deploys the stack with `--tags project=pokertour
+    tenancy=$POKERTOUR_TENANCY` (default `GA`), which CloudFormation
+    passes to the stack's resources, and tags the code bucket on every
+    run. The live stack and code bucket were tagged the same way. See
+    [On AWS](aws.md#tags).

@@ -150,8 +150,9 @@ Tron's look: a neon hexagonal grid on black (pointy-top cells, as the
 sites, every fifth cell of every other row brighter), glowing lines, scanlines over
 everything, the synthwave sun on the title. The board is drawn in world
 pixels, the mainframe at (640, 404), and reaches past the 1280 × 720
-stage, beyond the origins (`MAP.world`). Its camera shows all of it at
-first, between the HUD's bars, and zooms: **−**, **Fit** and **+** in
+stage, beyond the origins (`MAP.world`). Its camera starts a little
+closer than the whole board (1.35 times), centred on the mainframe,
+and zooms: **−**, **Fit** and **+** in
 the bottom right corner, the mouse wheel (around the pointer), and the
 keys +, − and 0 (fit); a drag pans, never off the board. The HUD, the
 cards and the scanlines are drawn by a second camera, never zoomed
@@ -193,7 +194,16 @@ cards and the scanlines are drawn by a second camera, never zoomed
   sector's name in its far corner; "PAUSED" under the HUD while paused.
   At the end, a card across the map: the winner's name on one line and
   "HACKED THE MAINFRAME" on the next, its strategy, the time and the
-  number of decisions, and **Play again**.
+  number of decisions; then a row per team, the winner's in bold: its
+  progress, the bytes it collected (kept, and spent on bots and on
+  sending them in: `teamStats`), and its robots of each kind (A, I, T,
+  Y, X) with how many it sent in; and **Play again**.
+- **The effects**: a robot bought during the match pops in at its
+  origin with a ring bursting out in its team's colour; a robot
+  reaching the mainframe sends shockwaves out of it in its team's colour
+  and the core flares; at the end the board flashes in the winner's
+  colour and shakes, with bursts from the mainframe and the winner's
+  origin. Each has its sound ([Sound](sound.md#the-effects)).
 
 ## Playing a match
 

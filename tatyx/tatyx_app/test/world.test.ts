@@ -32,6 +32,7 @@ import {
   spent,
   step,
   teamState,
+  teamStats,
   type BotState,
   type World,
 } from '../src/game/world';
@@ -390,6 +391,13 @@ describe('the Combinator', () => {
 });
 
 describe('buying and hacking', () => {
+  it('counts a team match for the end: the bytes collected (kept and spent), its bots of each kind, those sent in', () => {
+    const start = newWorld(SEED);
+    expect(teamStats(start, 'cyan')).toEqual({ pct: 0, collected: 0, bots: { anchor: 1, builder: 1, tester: 1, combinator: 1, explorer: 1 }, hackers: 0 });
+    const rich = { ...start, teams: start.teams.map((t) => (t.id === 'cyan' ? { ...t, bytes: 3 * MB } : t)) };
+    const later = sendHacker(buy(rich, 'cyan', 'builder'), 'cyan');
+    expect(teamStats(later, 'cyan')).toMatchObject({ collected: 3 * MB, bots: { builder: 2 }, hackers: 1 });
+  });
   it('buys a bot for a megabyte, at the origin; sends the nearest bot to the mainframe for a megabyte, an Explorer last', () => {
     const start = newWorld(SEED);
     expect(() => buy(start, 'cyan', 'anchor')).toThrow();

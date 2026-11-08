@@ -10,6 +10,7 @@ import Phaser from 'phaser';
 
 import { AityxClient } from 'aityx-js';
 
+import * as sfx from '../audio/sfx';
 import { aityxDecider } from '../game/aityx';
 import { bot, textureOf, type BotId } from '../game/bots';
 import { lineup } from '../game/lineup';
@@ -29,6 +30,7 @@ import {
   onRing,
   originAt,
   spent,
+  teamStats,
   type BotState,
   type Node,
   type Point,
@@ -57,6 +59,8 @@ const BARS = { top: 47, bottom: 40 };
 /** The closest zoom, and each step of the zoom's buttons and the wheel. */
 const MAX_ZOOM = 1.8;
 const ZOOM_STEP = 1.2;
+/** The view to begin with: this much closer than the whole board, on the mainframe. */
+const START_ZOOM = 1.35;
 /** The background grid's cells: hexagons of this radius, about as wide as the old square grid's 40 px. */
 const GRID_HEX = 23;
 
@@ -65,6 +69,15 @@ const vec = (points: readonly Point[]): Phaser.Math.Vector2[] => points.map((p) 
 
 /** A found site's hexagon: the bigger the site, the bigger the hexagon. */
 const siteRadius = (s: Node): number => 13 + 1.5 * (s.capacity / MB);
+
+/** The bots' letters in the end card, in the game's order. */
+const BOT_LETTERS: readonly (readonly [BotState['kind'], string])[] = [
+  ['anchor', 'A'],
+  ['builder', 'I'],
+  ['tester', 'T'],
+  ['combinator', 'Y'],
+  ['explorer', 'X'],
+];
 
 /** Megabytes with one decimal, the unit left to the caller. */
 const mb = (n: number): string => (n / MB).toFixed(1);
@@ -95,6 +108,10 @@ export class MapScene extends Phaser.Scene {
   private placed = new WeakSet<Phaser.GameObjects.GameObject>();
   /** The zoom that shows the whole board. */
   private fitZoom = 1;
+  /** Whether the bots on the board at the start have their views: a view made later is a new robot coming into play. */
+  private started = false;
+  /** The hackers standing at the mainframe, by uid: a new one has just reached it. */
+  private atMainframe = new Set<string>();
 
   constructor() {
     super('map');
@@ -120,6 +137,8 @@ export class MapScene extends Phaser.Scene {
     });
     this.siteViews.clear();
     this.botViews.clear();
+    this.started = false;
+    this.atMainframe.clear();
     this.hud.clear();
     this.banner = null;
     this.drawGrid();
@@ -134,6 +153,7 @@ export class MapScene extends Phaser.Scene {
     drawScanlines(this, 0.1).setDepth(1000);
     this.setUpCameras();
     this.showAll();
+    this.started = true;
     this.drawStart();
     this.placeObjects();
   }
@@ -149,7 +169,9 @@ export class MapScene extends Phaser.Scene {
     const world = MAP.world;
     const cam = this.cameras.main;
     this.fitZoom = Math.min(width / (world.right - world.left), (height - BARS.top - BARS.bottom) / (world.bottom - world.top));
-    this.zoomTo(this.fitZoom);
+    // A little closer than the whole board, on the mainframe; Fit shows it all.
+    cam.setZoom(Math.min(MAX_ZOOM, this.fitZoom * START_ZOOM));
+    cam.centerOn(MAP.center.x, MAP.center.y);
     this.screen = this.cameras.add(0, 0, width, height, false, 'screen');
     const onBoard = (pointer: Phaser.Input.Pointer) => pointer.y > BARS.top && pointer.y < height - BARS.bottom;
     this.input.on('wheel', (pointer: Phaser.Input.Pointer, _over: unknown, _dx: number, dy: number) => {
@@ -237,6 +259,7 @@ export class MapScene extends Phaser.Scene {
         }
         this.overlay?.destroy();
         this.overlay = null;
+        sfx.prime();
         this.shell.clearCalls();
         this.shell.openTab('calls');
         this.setState('running');
@@ -548,6 +571,7 @@ export class MapScene extends Phaser.Scene {
       if (view === undefined) {
         view = this.newBotView(b);
         this.botViews.set(b.uid, view);
+        if (this.started) this.botComesIn(b, view);
       }
       let { x, y } = b.at;
       const group = b.node !== null && b.travel === null ? standing.get(b.node)! : null;
@@ -571,6 +595,13 @@ export class MapScene extends Phaser.Scene {
       view.label.setPosition(x, y + 19);
       const busy = b.travel !== null || (b.kind === 'explorer' && b.target !== null);
       view.sprite.setAlpha(busy ? 1 : 0.92);
+    }
+    // A hacker that has just reached the mainframe: its team's shockwave.
+    const there = w.bots.filter((b) => b.hacker && b.node === MAINFRAME_ID && b.travel === null);
+    for (const b of there) {
+      if (this.atMainframe.has(b.uid)) continue;
+      this.atMainframe.add(b.uid);
+      this.hackerArrives(b.team);
     }
     for (const [uid, view] of this.botViews) {
       if (seen.has(uid)) continue;
@@ -676,31 +707,97 @@ export class MapScene extends Phaser.Scene {
     this.hud.get('clock')?.setText(`${Math.floor(w.seconds / 60)}:${String(Math.floor(w.seconds % 60)).padStart(2, '0')}`);
   }
 
+  /** Rings in `color` growing out of (x, y) and fading: the effects' shape. */
+  private burst(x: number, y: number, color: number, rings: number, reach: number, duration = 700): void {
+    for (let i = 0; i < rings; i++) {
+      const g = this.add.graphics({ x, y }).setDepth(9);
+      g.lineStyle(3, color, 1);
+      g.strokeCircle(0, 0, 10);
+      g.setScale(0.5);
+      this.tweens.add({
+        targets: g,
+        scale: reach / 10,
+        alpha: 0,
+        delay: i * 140,
+        duration,
+        ease: 'Cubic.easeOut',
+        onComplete: () => g.destroy(),
+      });
+    }
+  }
+
+  /** A team's new robot comes into play at its origin: it pops in, a ring bursts out, a chime. */
+  private botComesIn(b: BotState, view: BotView): void {
+    const t = team(b.team);
+    this.burst(b.at.x, b.at.y, t.color, 2, 70, 600);
+    view.sprite.setScale(0);
+    this.tweens.add({ targets: view.sprite, scaleX: BOT_SIZE / view.sprite.width, scaleY: BOT_SIZE / view.sprite.height, duration: 380, ease: 'Back.easeOut' });
+    sfx.botArrives(TEAMS.findIndex((o) => o.id === b.team));
+  }
+
+  /** A robot reaches the mainframe: shockwaves in its team's colour, the core flares, an impact. */
+  private hackerArrives(id: TeamId): void {
+    const t = team(id);
+    this.burst(MAP.center.x, MAP.center.y, t.color, 3, 150, 800);
+    this.tweens.add({ targets: this.core, scale: 1.35, duration: 140, yoyo: true, ease: 'Quad.easeOut' });
+    sfx.hackerArrives();
+  }
+
+  /** The match is over: the board flashes and shakes in the winner's colour, bursts from the mainframe and its origin, a fanfare. */
+  private gameOver(id: TeamId): void {
+    const t = team(id);
+    const cam = this.cameras.main;
+    cam.flash(450, (t.color >> 16) & 0xff, (t.color >> 8) & 0xff, t.color & 0xff);
+    cam.shake(400, 0.006);
+    this.burst(MAP.center.x, MAP.center.y, t.color, 5, 320, 1200);
+    const origin = originAt(id);
+    this.burst(origin.x, origin.y, t.color, 3, 160, 1000);
+    sfx.victory();
+  }
+
   /** The end: the winner's name across the map, and a way to play again. */
   private showWinner(id: TeamId): void {
     const t = team(id);
     const { width, height } = this.scale;
     const box = this.add.graphics();
     box.fillStyle(0x07070f, 0.86);
-    box.fillRoundedRect(-320, -100, 640, 200, 16);
+    box.fillRoundedRect(-340, -150, 680, 300, 16);
     box.lineStyle(2, t.color, 0.9);
-    box.strokeRoundedRect(-320, -100, 640, 200, 16);
+    box.strokeRoundedRect(-340, -150, 680, 300, 16);
     // The team's name on its own line, the deed under it.
     const text = this.add
-      .text(0, -42, `${t.name.toUpperCase()}\nHACKED THE MAINFRAME`, { fontFamily: FONT, fontSize: '26px', fontStyle: 'bold', color: t.css, letterSpacing: 4, align: 'center', lineSpacing: 6 })
+      .text(0, -98, `${t.name.toUpperCase()}\nHACKED THE MAINFRAME`, { fontFamily: FONT, fontSize: '26px', fontStyle: 'bold', color: t.css, letterSpacing: 4, align: 'center', lineSpacing: 6 })
       .setOrigin(0.5)
       .setShadow(0, 0, t.css, 14, false, true);
     const line = this.add
-      .text(0, 30, `${this.match.strategyOf(id).name} · ${Math.round(this.match.world.seconds)} s · ${this.match.made.length} decisions on aityx`, {
+      .text(0, -40, `${this.match.strategyOf(id).name} · ${Math.round(this.match.world.seconds)} s · ${this.match.made.length} decisions on aityx`, {
         fontFamily: FONT,
         fontSize: '13px',
         color: PALETTE.muted,
         letterSpacing: 1,
       })
       .setOrigin(0.5);
-    const again = button(this, 0, 68, 'Play again', () => this.scene.restart(), { width: 150, height: 34, size: 14 });
+    // Every team's match: its progress, the bytes it collected, its bots of each kind (and those sent in).
+    const rows: Phaser.GameObjects.GameObject[] = [];
+    TEAMS.forEach((o, i) => {
+      const st = teamStats(this.match.world, o.id);
+      const y = -6 + i * 26;
+      const style = { fontFamily: FONT, fontSize: '14px', color: o.css, fontStyle: o.id === id ? 'bold' : 'normal' };
+      const kinds = BOT_LETTERS.map(([kind, letter]) => `${letter} ${st.bots[kind]}`).join('  ');
+      rows.push(
+        this.add.text(-310, y, `${o.name} · ${Math.round(st.pct)}%`, style).setOrigin(0, 0.5),
+        this.add.text(-70, y, `${fmtBytes(st.collected)}`, style).setOrigin(0, 0.5),
+        this.add.text(310, y, `${kinds}${st.hackers > 0 ? `  · ${st.hackers} sent in` : ''}`, style).setOrigin(1, 0.5),
+      );
+    });
+    const heads = [
+      this.add.text(-70, -26, 'BYTES COLLECTED', { fontFamily: FONT, fontSize: '10px', color: PALETTE.muted, letterSpacing: 2 }).setOrigin(0, 0.5),
+      this.add.text(310, -26, 'ROBOTS', { fontFamily: FONT, fontSize: '10px', color: PALETTE.muted, letterSpacing: 2 }).setOrigin(1, 0.5),
+    ];
+    const again = button(this, 0, 112, 'Play again', () => this.scene.restart(), { width: 150, height: 34, size: 14 });
     this.setState('over');
-    this.banner = this.add.container(width / 2, height / 2, [box, text, line, again]).setDepth(40);
+    this.gameOver(id);
+    this.banner = this.add.container(width / 2, height / 2, [box, text, line, ...heads, ...rows, again]).setDepth(40);
   }
 }
 

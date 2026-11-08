@@ -4,6 +4,21 @@ Working examples of business automation with aityx: processes, decision
 models, and applications built around them. Each folder is a self-contained
 sample with its own documentation.
 
+The demos come in three groups, each with its own index page, its own
+dev container and its own codespace:
+
+- **[aityx](#aityx)**: the decision demos, six apps and games whose
+  decisions run on aityx, on port 8800.
+- **[multyx](#multyx)**: the multiplayer games, each with a Google
+  sign-in and a leaderboard the server plays, on port 9700.
+- **[datyx](#datyx)**: the data-intensive applications, with their
+  databases, catalogue and streams, on port 9800.
+
+## aityx
+
+The decision demos: an app or a game in the browser, and the decisions
+behind it, run as aityx decision models.
+
 The demos call [aityx.ai](https://aityx.ai) with your own API key, which
 you set once, in your browser, on their index page:
 
@@ -37,7 +52,7 @@ Contact Hub) apart. Dev container
 | [RoboRules](RoboRules/) | `/demos/roborules/` | A web take on the old Robocode: robots whose behavior is an aityx decision model, fighting battles played turn by turn by aityx |
 | [PokerFace](PokerFace/) | `/demos/pokerface/` | A poker simulator where every player is a set of rules run by [aityx.ai](https://aityx.ai): no-limit hold'em at a table of nine, every aityx call in a sidebar, the pace in your hands, and strategies you can read or write |
 
-## Mortgage Hub
+### Mortgage Hub
 
 ![Mortgage Hub: a proposal request, filled in and sent, and aityx's regulatory check](Index/www/mortgagehub.gif)
 
@@ -54,14 +69,14 @@ model on [aityx.ai](https://aityx.ai).
 | Rules | An [aityx.ai](https://aityx.ai) decision model |
 | Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) in a [dev container](https://containers.dev/) |
 
-### Launching it
+#### Launching it
 
 **You need your own [aityx.ai](https://aityx.ai) API key.** No key ships
 with this repository. Without one the app still opens, but the
 regulatory check, the point of the demo, cannot run.
 
-Launch the demos with the badge under [aityx demos](#aityx-demos) at
-the top. That opens its dev container, **aityx demos**, on a 4-core
+Launch the demos with the badge under [aityx](#aityx), at the top
+of the group. That opens its dev container, **aityx demos**, on a 4-core
 machine (16 GB RAM): it starts the index, which serves Mortgage Hub with
 the other aityx demos. If you create the codespace yourself through
 *Code → Codespaces → New with options*, choose **aityx demos** as the dev
@@ -82,7 +97,7 @@ never written to disk, logged, or sent to a browser. An `AITYX_URL`
 secret sets its endpoint (`https://api.aityx.ai` when unset). The full
 instructions are in the [Mortgage Hub README](MortgageHub/README.md).
 
-### Running it locally
+#### Running it locally
 
 From the root of this repository:
 
@@ -95,7 +110,7 @@ http://localhost:8800/demos/mortgagehub/. Set your key on the index
 page, http://localhost:8800/demos/, or put a dev key in the root `.env`
 (copy [.env.example](.env.example)). Stop it with `./stop-aityx.sh`.
 
-## Contact Hub
+### Contact Hub
 
 ![Contact Hub: a refund request, routed by aityx to Customer Service, and the aityx response behind it](Index/www/contacthub.gif)
 
@@ -116,7 +131,7 @@ serves it at http://localhost:8800/demos/contacthub/, beside the
 others, with the key you set on the index page. The badge above opens it
 in a codespace. See the [Contact Hub README](ContactHub/README.md).
 
-## Cellfie
+### Cellfie
 
 ![Cellfie: the pattern zoo playing, with the patterns aityx recognizes labelled on the board](Index/www/cellfie.gif)
 
@@ -138,7 +153,7 @@ To start it locally from the repository root:
 and open http://localhost:8800/demos/cellfie/, with the key you set on
 the index page. See the [Cellfie README](Cellfie/README.md).
 
-## RiverRace
+### RiverRace
 
 ![RiverRace: planes up the river, flown by aityx, with every aityx decision in the side panel](Index/www/riverrace.gif)
 
@@ -160,7 +175,7 @@ To start it locally from the repository root:
 and open http://localhost:8800/demos/riverrace/. See the
 [RiverRace README](RiverRace/README.md).
 
-## RoboRules
+### RoboRules
 
 ![RoboRules: Rammer and Dodger in battle, each turn played by aityx](Index/www/roborules.gif)
 
@@ -180,7 +195,7 @@ another scores each round. From the root of this repository:
 and open http://localhost:8800/demos/roborules/, beside the other
 demos. See the [RoboRules README](RoboRules/README.md).
 
-## PokerFace
+### PokerFace
 
 ![PokerFace: hands of hold'em, each player's move decided by aityx, every call in the sidebar](Index/www/pokerface.gif)
 
@@ -203,10 +218,30 @@ serves it at http://localhost:8800/demos/pokerface/, alongside the
 other demos, with the key you set on the index page. The badge above
 opens it in a codespace. See the [PokerFace README](PokerFace/README.md).
 
-## Poker Tour
+## multyx
 
-[PokerTour/](PokerTour/) is PokerFace for a team, in the **multyx** group:
-the same table, where every player is a set of rules run on
+The multiplayer games on aityx: sign in, bring a strategy written as a
+decision model, and climb a leaderboard the server plays.
+
+Each game signs its players in with Google. In tatyx, a player sets
+their own aityx key, or plays on the dev key the server lends; Poker
+Tour plays on the host's key, which the app fetches with the player's
+identity. Each leaderboard plays on the server, on a key of its own.
+
+[![Open the multyx demos in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Fmultyx%2Fdevcontainer.json&machine=standardLinux32gb)
+
+Two games, each with its own server and port, and the group's
+[index](multyx-index/) on port 9700, whose page links them. Dev container
+[.devcontainer/multyx/](.devcontainer/multyx/devcontainer.json).
+
+| Demo | Address | What it shows |
+|---|---|---|
+| [Poker Tour](PokerTour/) | http://localhost:9810/pokertour/ | PokerFace for a team: sign in, play on the host's key, write or download a strategy and enter it in the tour, a tournament played on aityx four times a day, with a leaderboard |
+| [tatyx](tatyx/) | http://localhost:9710/app/ | Build the sites, hack the mainframe: three teams race across a Tron-like map in a synthwave game, every megabyte one decision of the team's strategy, an aityx decision model |
+
+### Poker Tour
+
+[PokerTour/](PokerTour/) is PokerFace for a team: the same table, where every player is a set of rules run on
 [aityx.ai](https://aityx.ai), but with the host's key for everyone, a
 Google sign-in for the people of aletyx (`aletyx.com` and `aletyx.ai`),
 and a leaderboard. The host puts the key in an S3 object; a player signs
@@ -223,17 +258,14 @@ From the root of this repository:
 ./start-multyx.sh PokerTour
 ```
 
-serves it at http://localhost:9810/app/ (or `docker compose up` in
+serves it at http://localhost:9810/pokertour/ (or `docker compose up` in
 `PokerTour/`); the group's index is on http://localhost:9700/. The sign-in, the key's place and the key itself are
 settings, none in the repository: see the [Poker Tour
 README](PokerTour/README.md).
 
-## tatyx
+### tatyx
 
-[tatyx/](tatyx/) is a web game in the making, in the **multyx** group
-with Poker Tour (the multiplayer games on aityx, each with a Google
-sign-in and a leaderboard), apart from the aityx and datyx groups:
-three teams race to hack into the mainframe in the middle of a Tron-like
+[tatyx/](tatyx/) is a web game in the making: three teams race to hack into the mainframe in the middle of a Tron-like
 map, each from its own sector, finding the map's sites and the links
 between them and building bytes on the sites over links that rot unless
 renewed; every team fields the five bots of aityx (the Anchor, the
@@ -257,6 +289,94 @@ repository:
 
 serves it at http://localhost:9710/app/; the group's index is on
 http://localhost:9700/. See the [tatyx README](tatyx/README.md).
+
+## datyx
+
+The data-intensive applications on aityx: a data system in the making,
+its API, its dashboard, HealthHub, and the catalogue behind them.
+
+Each system keeps its data in a database of its own (PostgreSQL), and
+the datyx API registers it in a catalogue
+([OpenMetadata](https://open-metadata.org)); HealthHub streams through
+Kafka and Flink. They run as containers, so the group needs
+[Docker](https://docs.docker.com/get-docker/) on a laptop; the
+codespace has it. Users sign in with Google, once the API has a client
+for it (`OIDC_CLIENT_ID`), and HealthHub triages its patients on aityx
+with the `AITYX_API_KEY` its server holds.
+
+[![Open the datyx demos in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Fdatyx%2Fdevcontainer.json&machine=standardLinux32gb)
+
+Three systems, each with its own servers and ports, and the group's
+[index](datyx-index/) on port 9800, whose page links them. Dev container
+[.devcontainer/datyx/](.devcontainer/datyx/devcontainer.json).
+
+| Demo | Address | What it shows |
+|---|---|---|
+| [datyx dashboard](datyx-dashboard/) | http://localhost:9906/app/ | The views of datyx: an app that calls the datyx API and shows the data sources, the catalogue, the models it trains and their inference, with every call in a side panel |
+| [datyx API](datyx/) | http://localhost:9900/q/swagger-ui | A Quarkus API on GraalVM with PostgreSQL and OpenMetadata: the data sources users add, encrypted per profile, and XGBoost models trained and scored on them |
+| [HealthHub](HealthHub/) | http://localhost:9801/app/ | A hospital's admissions on a map, each patient triaged by aityx from what they say at the desk: an app, an API, PostgreSQL, Kafka and Flink |
+
+### datyx dashboard
+
+[datyx-dashboard/](datyx-dashboard/) is the views of datyx: a web app,
+like every demo's, that invokes the datyx API and shows what it
+answers, with every call in a side panel. It lists the data sources on
+record, the catalogue and its tags for DeepAR and XGBoost, the models
+datyx trains with their results and every run, the account of the calls
+to them (inference), an audit of every request and response, the health
+of the API, PostgreSQL and OpenMetadata, and your profile. Views only:
+the data and the logic are the API's. From the root of this repository:
+
+```bash
+./start-datyx.sh
+```
+
+starts the group, and the dashboard on http://localhost:9906/app/ (its
+**Training** and **Inference** tabs at `?tab=training` and
+`?tab=inference`); the group's index is on http://localhost:9800/. See
+the [datyx dashboard README](datyx-dashboard/README.md).
+
+### datyx API
+
+[datyx/](datyx/) is the datyx system's API: REST on Quarkus and GraalVM,
+with Hibernate and Panache over PostgreSQL. It holds the data sources
+users add, each in the profile of whoever added it, with its access
+details encrypted with that profile's key, and registers their data in
+[OpenMetadata](https://open-metadata.org), the catalogue, whose own UI
+is on port 9902. It trains the groups tagged for XGBoost there itself,
+with XGBoost4J, at start and as often as their table says, scores series
+with them on demand, and accounts for every call. Users sign in with
+Google through OpenID Connect. From the root of this repository:
+
+```bash
+./start-datyx.sh datyx
+```
+
+and open its Swagger UI at http://localhost:9900/q/swagger-ui; its
+health check, http://localhost:9900/api/health, covers PostgreSQL and
+OpenMetadata. A first start takes a few minutes, while OpenMetadata
+migrates its schema. See the [datyx README](datyx/README.md).
+
+### HealthHub
+
+[HealthHub/](HealthHub/) is the app of the datyx group, and the first
+demo with a database: a Flutter app, a Dart API and PostgreSQL, laid
+out like Mortgage Hub. The page you open is a map of where you are, with
+a welcome over it; signing in with Google leads home, a dashboard whose
+one tile is the same map, with the admissions under it.
+[aityx.ai](https://aityx.ai) triages every patient who arrives at a
+hospital from what they say at the desk: how soon they must be seen,
+where they go, whether a nurse checks first, and why. Kafka streams a
+simulation of people moving across the map, and a Flink job counts the
+admissions per hospital and hour, the time series a forecast is trained
+on. From the root of this repository:
+
+```bash
+./start-datyx.sh HealthHub
+```
+
+and open http://localhost:9801/app/. See the [HealthHub
+README](HealthHub/README.md).
 
 ## Run all the demos
 

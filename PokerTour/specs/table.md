@@ -7,7 +7,15 @@ sidebar from the top of the window down ([The sidebar and the
 profile](profile.md): the leaderboard, the aityx calls, the profile);
 narrower, the sidebar opens from the app bar's sidebar icon as a bottom
 sheet. The app bar says **Poker Tour**, alone beside its icon, and on
-the right the build's version when the build sets `POKERTOUR_VERSION`.
+the right the music's mute button and volume slider ([Music](music.md))
+and the build's version when the build sets `POKERTOUR_VERSION`.
+Clicking the title (once the strategies are loaded) starts a new
+tournament among strangers: the table is cleared and seated with three
+to nine strategies (all of them when there are fewer), drawn at random
+from the table's list (the presets, the tour's and those written in the
+app), none twice, each player named as **Add** would name them; the
+hand count, the calls and the log start over, as with **New
+tournament**.
 
 ## What the table shows
 

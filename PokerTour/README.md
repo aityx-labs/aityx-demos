@@ -27,7 +27,7 @@ around it:
 
 It is in the **multyx** group (`group.id.txt`), with tatyx, on port **9810**. On a
 laptop or in the container it is one Dart server that serves the app
-under `/app/`, answers the API under `/api/` and plays the tournaments
+under `/pokertour/`, answers the API under `/api/` and plays the tournaments
 on a timer, keeping the tour in [Floci](https://floci.io/), the local
 AWS (its DynamoDB and S3, in Docker). On AWS it is serverless
 ([deploy/](deploy)): the app in S3 behind CloudFront, the API and the
@@ -96,7 +96,7 @@ made on the first start), builds the app's release web build and the
 server if they're stale ([scripts/build.sh](scripts/build.sh)) and
 starts the server
 ([scripts/serve.sh](scripts/serve.sh)) at
-**http://localhost:9810/app/**, with its API at `/api/` (`/api/health`,
+**http://localhost:9810/pokertour/**, with its API at `/api/` (`/api/health`,
 `/api/config`, `/api/leaderboard`). Stop it with `./stop-datyx.sh`. Or
 `devbox services up` in this folder.
 
@@ -138,11 +138,13 @@ on `AITYX_PROD_URL` (`https://api.aityx.ai`). Local runs use staging,
 `AITYX_URL=https://api-stage.aityx.ai`, with `POKERTOUR_LEADERBOARD_KEY`
 on the server; production never reads `AITYX_URL`, `AITYX_API_KEY` or
 the staging key. It prints the app's
-address, `https://<distribution>.cloudfront.net/app/`, which must be
-among the Google client's authorized origins. The stack:
+address, `https://<distribution>.cloudfront.net/pokertour/`, whose origin
+(the address without the path) must be among the Google client's
+authorized origins. The stack:
 
 - **S3 and CloudFront**: the web build in a private bucket, served by
-  CloudFront at `/app/` (a CloudFront function sends `/` there and
+  CloudFront at `/pokertour/` (a CloudFront function sends `/` and the
+  old `/app/` there and
   resolves folders); `/api/*` goes to the API function's URL, uncached,
   the bearer token passed on.
 - **Two Lambda functions** on one executable (`pokertour_api/bin/lambda.dart`,
@@ -190,13 +192,14 @@ situation) and seats it from the next tournament. Up to three a player;
 one of yours can be removed in Profile or withdrawn from the
 leaderboard.
 
-Each tournament seats up to nine of the strategies in the tour, the ones
+Each tournament seats a random number of the strategies in the tour,
+three to nine (all of them when there are fewer), none twice, the ones
 with the fewest tournaments first, and runs until one has every chip (or
 300 hands, or fourteen minutes: then the chips decide). The winner of a
 table of n gets n − 1 points, the last 0; the standings are by points,
 then wins. A strategy aityx refuses is left out with the reason shown,
-until it is replaced. The leaderboard says when the next scheduled
-tournament is; an admin sees **Play a tournament now** beside it.
+until it is replaced. The leaderboard counts down to the next scheduled
+tournament; an admin sees **Play a tournament now** beside it.
 
 ### Testing
 

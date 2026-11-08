@@ -15,8 +15,8 @@
     },
     "strong_edge": {
       "type": "boolean",
-      "desc": "A big enough edge to bet or raise for value: 20 points over the pot odds facing a bet, or a 60% chance of winning when a check is free",
-      "expr": "(can_check and equity >= 0.6) or (not(can_check) and edge >= 0.2)"
+      "desc": "A big enough edge to bet or raise for value: 30 points over the pot odds facing a bet, or a 70% chance of winning when a check is free",
+      "expr": "(can_check and equity >= 0.7) or (not(can_check) and edge >= 0.3)"
     },
     "action": {
       "type": "Action",
@@ -36,7 +36,7 @@
             "can_raise": "true"
           },
           "then": "raise",
-          "why": "Facing a bet, the chance of winning beats the pot odds by 20 points or more; or a free check, and a 60% chance of winning: bet for value."
+          "why": "Facing a bet, the chance of winning beats the pot odds by 30 points or more; or a free check, and a 70% chance of winning: bet for value."
         },
         {
           "when": {

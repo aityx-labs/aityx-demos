@@ -71,12 +71,22 @@ class _TableScreenState extends State<TableScreen> {
     Widget sidebar(BuildContext context) => widget.sidebar?.call(context) ?? _Sidebar(controller: c);
     final table = Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            Icon(Icons.style, color: scheme.primary),
-            const SizedBox(width: 10),
-            const Text(AppVersion.title),
-          ],
+        // The title starts a new tournament among random strategies.
+        title: Tooltip(
+          message: 'A new tournament among random strategies',
+          child: InkWell(
+            key: const Key('title'),
+            onTap: c.loaded ? c.randomTournament : null,
+            borderRadius: BorderRadius.circular(6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.style, color: scheme.primary),
+                const SizedBox(width: 10),
+                const Text(AppVersion.title),
+              ],
+            ),
+          ),
         ),
         actions: [
           ...widget.actions,

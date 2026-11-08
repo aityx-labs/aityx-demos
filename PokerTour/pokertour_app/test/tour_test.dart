@@ -8,6 +8,7 @@ import 'package:poker_core/table.dart';
 import 'package:pokertour_app/auth/auth_controller.dart';
 import 'package:pokertour_app/main.dart';
 import 'package:pokertour_app/tour/enter.dart';
+import 'package:pokertour_app/tour/leaderboard_panel.dart' show timeLeft;
 import 'package:pokertour_app/tour/tour_api.dart';
 
 const _config = {
@@ -39,7 +40,7 @@ const _board = {
 void main() {
   test('the server\'s answers are read', () async {
     final api = HttpTourApi(
-      base: Uri.parse('http://tour.test/app/'),
+      base: Uri.parse('http://tour.test/pokertour/'),
       client: MockClient((request) async {
         expect(request.headers['Authorization'], 'Bearer tok');
         return switch (request.url.path) {
@@ -76,6 +77,12 @@ void main() {
     expect(() => api.withdraw('x'), throwsA(isA<TourException>().having((e) => e.message, 'message', 'nope')));
   });
 
+  test('the time to the next tournament, for people', () {
+    expect(timeLeft(const Duration(hours: 5, minutes: 2, seconds: 9)), '5 h 02 min');
+    expect(timeLeft(const Duration(minutes: 12, seconds: 5)), '12 min 05 s');
+    expect(timeLeft(const Duration(seconds: 45)), '45 s');
+  });
+
   test('a strategy\'s file name', () {
     expect(strategyFileName(const Strategy(id: 'x', name: "Ana's Shark 2", tagline: '', decisions: {})), 'ana-s-shark-2.json');
     expect(strategyFileName(const Strategy(id: 'x', name: '!!', tagline: '', decisions: {})), 'strategy.json');
@@ -86,7 +93,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     final api = HttpTourApi(
-      base: Uri.parse('http://tour.test/app/'),
+      base: Uri.parse('http://tour.test/pokertour/'),
       client: MockClient((request) async => switch (request.url.path) {
         '/api/config' => http.Response(jsonEncode(_config), 200),
         '/api/leaderboard' => http.Response(jsonEncode(_board), 200),
@@ -101,15 +108,25 @@ void main() {
     expect(find.byKey(const Key('standings')), findsOneWidget);
     expect(find.text('Ana One'), findsWidgets);
     expect(find.textContaining('tournament #4'), findsOneWidget);
+    // The time to the next scheduled tournament (the fixture's is past).
+    expect(find.byKey(const Key('countdown')), findsOneWidget);
+    expect(find.textContaining('Next tournament any moment now'), findsOneWidget);
     // Wins, no points; no "latest tournaments"; a preset is a template strategy.
     expect(find.text('Points'), findsNothing);
     expect(find.textContaining('#3: 1. Ana One'), findsNothing);
     expect(find.byKey(const Key('owner-u-1')), findsOneWidget);
     expect(tester.widget<Text>(find.byKey(const Key('owner-rock'))).data, 'template strategy');
     expect(tester.widget<Text>(find.byKey(const Key('owner-u-1'))).data, 'Ana');
-    // Nobody is signed in: no upload, no "now", no table.
+    // Nobody is signed in: no upload, no "now"; the table and its
+    // controls show, seated with the presets, under a veil that takes
+    // every click.
     expect(find.byKey(const Key('upload-strategy')), findsNothing);
     expect(find.byKey(const Key('run-now')), findsNothing);
-    expect(find.byKey(const Key('play')), findsNothing);
+    expect(find.byKey(const Key('table-preview')), findsOneWidget);
+    expect(find.byKey(const Key('sign-in-veil')), findsOneWidget);
+    expect(find.text('Rocky'), findsOneWidget);
+    expect(find.byKey(const Key('play')), findsOneWidget);
+    expect(find.byKey(const Key('play')).hitTestable(), findsNothing);
+    expect(find.byKey(const Key('step')).hitTestable(), findsNothing);
   });
 }

@@ -1,4 +1,4 @@
-/// Serves the app's release web build under /app/, as HealthHub's web
+/// Serves the app's release web build under /pokertour/, as HealthHub's web
 /// server does: a file inside the build, else index.html for the app's
 /// own routes; only files inside the root.
 library;
@@ -29,7 +29,7 @@ class StaticFiles {
 
   final Directory root;
 
-  /// Writes the file at [relative] (under /app/) to [request]'s response.
+  /// Writes the file at [relative] (under /pokertour/) to [request]'s response.
   Future<void> serve(HttpRequest request, String relative) async {
     final response = request.response;
     var file = resolve(relative);

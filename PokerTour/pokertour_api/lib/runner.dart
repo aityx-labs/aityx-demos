@@ -1,7 +1,8 @@
 /// Plays the leaderboard's tournaments, one at a time, when asked: by
 /// the schedule (lib/schedule.dart: four times a day) or by an admin
-/// (POST /api/tournaments). Up to nine strategies at a table (the ones
-/// with the fewest tournaments first), every decision an aityx call on
+/// (POST /api/tournaments). Three to nine strategies at a table, as
+/// many as a draw says, none twice (the ones with the fewest tournaments
+/// first), every decision an aityx call on
 /// the host's key, until one has every chip, the hands run out, or the
 /// time does (on AWS, a Lambda function's fifteen minutes): then the
 /// chips decide, the places are recorded, and the runner is done until
@@ -82,6 +83,7 @@ class Runner {
     required this.decider,
     this.maxHands = 300,
     this.tableSize = 9,
+    this.minPlayers = 3,
     Random? random,
     this.log = true,
     this.progressEvery = const Duration(seconds: 5),
@@ -93,6 +95,9 @@ class Runner {
   /// A tournament longer than this ends on chips.
   final int maxHands;
   final int tableSize;
+
+  /// The fewest a table is drawn with, when that many can play.
+  final int minPlayers;
   final Random _random;
   final bool log;
 
@@ -163,12 +168,15 @@ class Runner {
     }
   }
 
-  /// Who sits: up to [tableSize] of [players], the fewest tournaments
-  /// first, ties at random.
+  /// Who sits: a number drawn at random from [minPlayers] to
+  /// [tableSize] (fewer when fewer can play) of [players], none twice,
+  /// the fewest tournaments first, ties at random.
   List<TourEntry> pick(Leaderboard board, List<TourEntry> players) {
     final shuffled = [...players]..shuffle(_random);
     shuffled.sort((a, b) => board.recordOf(a.id).tournaments - board.recordOf(b.id).tournaments);
-    return shuffled.take(tableSize).toList();
+    final most = min(tableSize, shuffled.length);
+    final least = min(minPlayers, most);
+    return shuffled.take(least + _random.nextInt(most - least + 1)).toList();
   }
 
   /// One tournament among [players] of [board]; its result once

@@ -1,5 +1,5 @@
 /// Poker Tour's server, on a laptop or in the container: one process that
-/// serves the app's release web build under /app/, answers the API under
+/// serves the app's release web build under /pokertour/, answers the API under
 /// /api/ (lib/routes.dart), keeps the tour in Floci, the local AWS
 /// (floci/compose.yaml): leaderboard.json and live.json in its S3, the
 /// strategies and aliases in its DynamoDB (lib/leaderboard.dart,
@@ -89,7 +89,7 @@ Future<void> main(List<String> args) async {
   }
   final webRoot = Directory((env['WEB_ROOT'] ?? '').isEmpty ? '../pokertour_app/build/web' : env['WEB_ROOT']!);
   if (!await File('${webRoot.path}/index.html').exists()) {
-    stderr.writeln('warning: no web build at ${webRoot.path} (WEB_ROOT): /app/ answers 404 until there is one');
+    stderr.writeln('warning: no web build at ${webRoot.path} (WEB_ROOT): /pokertour/ answers 404 until there is one');
   }
   final floci = Uri.parse((env['POKERTOUR_AWS_ENDPOINT'] ?? '').isEmpty ? 'http://localhost:9811' : env['POKERTOUR_AWS_ENDPOINT']!);
   if (floci.host.endsWith('amazonaws.com')) {
@@ -216,7 +216,7 @@ Future<void> main(List<String> args) async {
   final relay = AityxRelay(url);
   final files = StaticFiles(webRoot);
   final server = await HttpServer.bind(host, port);
-  stdout.writeln('pokertour on http://$host:$port/app/ (api at /api/, models from ${modelsDir.path}, tour in Floci at $floci, s3://$bucket and table $table)');
+  stdout.writeln('pokertour on http://$host:$port/pokertour/ (api at /api/, models from ${modelsDir.path}, tour in Floci at $floci, s3://$bucket and table $table)');
   // A clean stop: the runner finishes its decision and the file is saved.
   for (final signal in [ProcessSignal.sigint, ProcessSignal.sigterm]) {
     signal.watch().listen((_) async {
@@ -287,15 +287,17 @@ Future<void> _handle(
         ..headers.set(HttpHeaders.contentTypeHeader, answer.contentType)
         ..headers.set(HttpHeaders.cacheControlHeader, 'no-store')
         ..add(answer.body);
-    } else if (path == '/' || path == '/app') {
+    } else if (path == '/' || path == '/pokertour' || path == '/app' || path.startsWith('/app/')) {
+      // The app is at /pokertour/, beside other apps on the same server;
+      // /app/ is where it was.
       response
         ..statusCode = HttpStatus.movedPermanently
-        ..headers.set(HttpHeaders.locationHeader, '/app/');
-    } else if (path.startsWith('/app/')) {
+        ..headers.set(HttpHeaders.locationHeader, '/pokertour/');
+    } else if (path.startsWith('/pokertour/')) {
       if (request.method != 'GET' && request.method != 'HEAD') {
         response.statusCode = HttpStatus.methodNotAllowed;
       } else {
-        await files.serve(request, path.substring('/app/'.length));
+        await files.serve(request, path.substring('/pokertour/'.length));
       }
     } else if (path.startsWith('/api/')) {
       final bearer = request.headers.value(HttpHeaders.authorizationHeader);

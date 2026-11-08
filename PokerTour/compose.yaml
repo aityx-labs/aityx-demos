@@ -1,5 +1,5 @@
 # Poker Tour with Docker alone: `docker compose up` from this folder, then
-# open http://localhost:9810/app/. No devbox or Flutter needed on the host:
+# open http://localhost:9810/pokertour/. No devbox or Flutter needed on the host:
 # the image builds the app and the server (Dockerfile, with the
 # repository's packages/ as a second build context, for aityx_web). The settings come
 # from the environment, else this folder's .env (see .env.example): the

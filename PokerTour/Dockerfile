@@ -41,8 +41,8 @@ RUN flutter config --no-analytics --no-cli-animations \
 WORKDIR /src
 COPY --from=packages aityx_web/ packages/aityx_web/
 COPY . PokerTour/
-# Served under /app/, calling /api/ on its own origin.
-RUN cd PokerTour && WEB_BASE_HREF=/app/ bash scripts/make.sh web
+# Served under /pokertour/, calling /api/ on its own origin.
+RUN cd PokerTour && WEB_BASE_HREF=/pokertour/ bash scripts/make.sh web
 RUN cd PokerTour/pokertour_api && dart pub get && mkdir -p /out/bin \
     && dart compile exe bin/server.dart -o /out/bin/server
 

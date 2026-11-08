@@ -113,13 +113,24 @@ void main() {
       expect(r.action, 'call');
     });
 
-    test('folds the rest, but checks a free flop', () async {
-      expect((await play('rock', at(hand: 'medium'))).action, 'fold');
+    test('folds the rest, but sees a cheap flop and checks a free one', () async {
+      expect((await play('rock', at(hand: 'weak'))).action, 'fold');
+      expect((await play('rock', at(hand: 'medium'))).action, 'call');
+      expect(
+        (await play('rock', at(hand: 'medium', raises: 2, bet: 90, toCall: 90, pot: 135))).action,
+        'fold',
+      );
       final free = await play(
         'rock',
         at(hand: 'weak', position: 'blinds', toCall: 0),
       );
       expect(free.action, 'check');
+    });
+
+    test('goes all in with a playable hand once short-stacked', () async {
+      final short = await play('rock', at(hand: 'speculative', stack: 240));
+      expect(short.action, 'all_in');
+      expect((await play('rock', at(hand: 'weak', stack: 240))).action, 'fold');
     });
 
     test('calls with one pair, raises two pair', () async {
@@ -188,7 +199,7 @@ void main() {
       },
     );
 
-    test('bluffs the pot with nothing when the coin says so', () async {
+    test('bluffs the pot with nothing when the coin says so and few are left', () async {
       final nothing = at(
         street: 'flop',
         board: ['9s', '7c', '2d'],
@@ -197,6 +208,7 @@ void main() {
         bet: 0,
         toCall: 0,
         minRaise: 10,
+        players: 3,
       );
       final bluff = await play('maniac', {...nothing, 'random': 0.1});
       expect(bluff.action, 'raise');
@@ -205,12 +217,31 @@ void main() {
         (await play('maniac', {...nothing, 'random': 0.9})).action,
         'check',
       );
+      expect(
+        (await play('maniac', {...nothing, 'random': 0.1, 'players_in_hand': 5})).action,
+        'check',
+      );
+    });
+
+    test('folds a call that costs its stack without a likely winner', () async {
+      final big = at(
+        street: 'flop',
+        board: ['9s', '7c', '2d'],
+        made: 'pair',
+        equity: 0.45,
+        pot: 400,
+        bet: 200,
+        toCall: 200,
+        raises: 1,
+      );
+      expect((await play('maniac', big)).action, 'fold');
+      expect((await play('maniac', {...big, 'equity': 0.7})).action, 'raise');
     });
   });
 
   group('the Calling Station', () {
     test(
-      'calls before the flop, up to ten big blinds with weak cards',
+      'calls before the flop, up to four big blinds with weak cards',
       () async {
         expect((await play('station', at())).action, 'call');
         final ok = at(
@@ -218,9 +249,9 @@ void main() {
           hand: 'weak',
           equity: 0.2,
           raises: 2,
-          bet: 100,
-          toCall: 100,
-          pot: 150,
+          bet: 40,
+          toCall: 40,
+          pot: 75,
         );
         expect((await play('station', ok)).action, 'call');
         final tooMuch = at(
@@ -228,15 +259,15 @@ void main() {
           hand: 'weak',
           equity: 0.2,
           raises: 2,
-          bet: 101,
-          toCall: 101,
-          pot: 150,
+          bet: 41,
+          toCall: 41,
+          pot: 75,
         );
         expect((await play('station', tooMuch)).action, 'fold');
       },
     );
 
-    test('raises the minimum only with a straight or better', () async {
+    test('raises the minimum only with three of a kind or better', () async {
       final r = await play(
         'station',
         at(
@@ -271,6 +302,21 @@ void main() {
         ),
       );
       expect(r.action, 'fold');
+    });
+
+    test('folds a call of a fifth of its stack without an even chance', () async {
+      final dear = at(
+        street: 'turn',
+        board: ['Kh', '7h', '2d', '3c'],
+        made: 'pair',
+        equity: 0.4,
+        pot: 300,
+        bet: 200,
+        toCall: 200,
+        raises: 1,
+      );
+      expect((await play('station', dear)).action, 'fold');
+      expect((await play('station', {...dear, 'to_call': 100, 'pot_odds': 0.25})).action, 'call');
     });
   });
 
@@ -358,10 +404,16 @@ void main() {
       },
     );
 
-    test('steals from late position three times in five', () async {
+    test('steals from middle or late position four times in five', () async {
       final junk = at(hole: ['9h', '4d'], hand: 'weak', equity: 0.3);
-      expect((await play('shark', {...junk, 'random': 0.5})).action, 'raise');
-      expect((await play('shark', {...junk, 'random': 0.7})).action, 'fold');
+      expect((await play('shark', {...junk, 'random': 0.7})).action, 'raise');
+      expect((await play('shark', {...junk, 'random': 0.9})).action, 'fold');
+      expect((await play('shark', {...junk, 'position': 'early', 'random': 0.1})).action, 'fold');
+    });
+
+    test('plays medium cards harder when the table is short', () async {
+      final short = at(hand: 'medium', position: 'early', raises: 1, bet: 30, toCall: 30, pot: 45, players: 3);
+      expect((await play('shark', short)).action, 'raise');
     });
 
     test(

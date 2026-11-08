@@ -20,7 +20,7 @@ functions on AWS, [On AWS](aws.md)):
   presigned URL form) and credentials; the server's.
 - [pokertour_api](../pokertour_api), the server (`dart:io`, with
   [openid_client](https://pub.dev/packages/openid_client) for the
-  tokens): the app's static files under `/app/`, the API under `/api/`,
+  tokens): the app's static files under `/pokertour/`, the API under `/api/`,
   the leaderboard in its store and the tour's table, and the runner. `bin/server.dart` is one
   process on one port, **9810** (the multyx group's index is on 9700 and
   tatyx on 9710; this one keeps 9810, the origin the Google sign-in
@@ -56,7 +56,7 @@ functions on AWS, [On AWS](aws.md)):
   `./start-multyx.sh PokerTour` starts it alone.
 - **The build** ([scripts/build.sh](../scripts/build.sh), run by
   `scripts/serve.sh`, the repository's `build-all.sh` and `start-all.sh`,
-  or by hand): `web`, `flutter build web --release --base-href /app/
+  or by hand): `web`, `flutter build web --release --base-href /pokertour/
   --no-web-resources-cdn` through `scripts/make.sh web` into
   `pokertour_app/build/web/`, recorded in `build/web/.pokertour-services`
   (what the dev container image's `build-image.sh` looks for); and
@@ -113,7 +113,7 @@ functions on AWS, [On AWS](aws.md)):
 - **Coordinates**: the group `multyx` from `group.id.txt` and the artifact
   `pokertour` from `artifact.id.txt`.
 - **Builds**: the [Makefile](../Makefile) runs
-  [scripts/make.sh](../scripts/make.sh): `web` (base href `/app/` unless
+  [scripts/make.sh](../scripts/make.sh): `web` (base href `/pokertour/` unless
   `WEB_BASE_HREF` says otherwise), `android`, `ios`, `linux`, `all`,
   `clean`. The native builds have no sign-in: they never reach the table.
 - **Dev container**: the multyx group's

@@ -12,7 +12,7 @@ every commit and push:
   up -d`, so `test/floci_test.dart` runs the table and the bucket on it
   instead of skipping), `flutter analyze` and `flutter test` in
   `pokertour_app/`, and `bash
-  scripts/build.sh` builds the web app (base href `/app/`, no CDN) and
+  scripts/build.sh` builds the web app (base href `/pokertour/`, no CDN) and
   compiles the server. A change to `pokertour_api/bin/lambda.dart`,
   `lib/lambda/`, `lib/aws/` or `deploy/` is verified on AWS (`bash
   deploy/deploy.sh`, then `/api/health` through CloudFront and the
@@ -49,7 +49,7 @@ Do not commit or push code that has not passed both checks.
 - Toolchain is managed by [devbox.json](devbox.json); enter it with
   `devbox shell` and keep [devbox.lock](devbox.lock) committed.
 - One service: the server (`pokertour_api`) serves the web build at
-  `/app/` on port 9810 and the API at `/api/` (`./start-multyx.sh
+  `/pokertour/` on port 9810 and the API at `/api/` (`./start-multyx.sh
   PokerTour` at the root), keeping the tour in Floci, the local AWS
   (`floci/compose.yaml`, port 9811; see [CLAUDE.md](CLAUDE.md)). The app
   depends on the shared packages `../packages/aityx_web` and

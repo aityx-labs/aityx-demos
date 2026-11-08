@@ -151,27 +151,28 @@ Resources:
         SigningBehavior: always
         SigningProtocol: sigv4
 
-  # / and /app go to /app/; a folder gets its index.html; a path without
-  # an extension under /app/ gets the app (its own routing).
+  # /, /pokertour and the old /app go to /pokertour/; a folder gets its
+  # index.html; a path without an extension under /pokertour/ gets the
+  # app (its own routing).
   ViewerFunction:
     Type: AWS::CloudFront::Function
     Properties:
       Name: !Sub '${AWS::StackName}-viewer'
       AutoPublish: true
       FunctionConfig:
-        Comment: "Poker Tour's paths: /app/ is the app, a folder its index.html"
+        Comment: "Poker Tour's paths: /pokertour/ is the app, a folder its index.html"
         Runtime: cloudfront-js-2.0
       FunctionCode: |
         function handler(event) {
           var request = event.request;
           var uri = request.uri;
-          if (uri === '/' || uri === '/app') {
-            return { statusCode: 302, statusDescription: 'Found', headers: { location: { value: '/app/' } } };
+          if (uri === '/' || uri === '/pokertour' || uri === '/app' || uri.indexOf('/app/') === 0) {
+            return { statusCode: 302, statusDescription: 'Found', headers: { location: { value: '/pokertour/' } } };
           }
           if (uri.slice(-1) === '/') {
             request.uri = uri + 'index.html';
-          } else if (uri.indexOf('/app/') === 0 && uri.indexOf('.') === -1) {
-            request.uri = '/app/index.html';
+          } else if (uri.indexOf('/pokertour/') === 0 && uri.indexOf('.') === -1) {
+            request.uri = '/pokertour/index.html';
           }
           return request;
         }
@@ -439,7 +440,7 @@ Resources:
 Outputs:
   Url:
     Description: The app
-    Value: !Sub 'https://${Distribution.DomainName}/app/'
+    Value: !Sub 'https://${Distribution.DomainName}/pokertour/'
   Origin:
     Description: The origin to authorize in the Google OAuth client
     Value: !Sub 'https://${Distribution.DomainName}'

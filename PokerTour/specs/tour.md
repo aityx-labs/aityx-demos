@@ -13,8 +13,13 @@ own aityx key; the host's keys are the leaderboard's alone.
 
 The app opens on the welcome
 ([sign_in_screen.dart](../pokertour_app/lib/screens/sign_in_screen.dart)):
-what the tour is, the state of the sign-in, and the leaderboard as it
-stands (below). It asks the server how to sign in (`GET /api/config`:
+behind, the table as the game shows it, seated with the five presets
+(Rocky, Max, Sunny, Ada, Finn), with its controls, under a dark veil
+that takes every click: nothing on it can be pressed, focused or read
+out until the player signs in, and it never plays (its presets come from
+the app's assets; it has no key to decide with). On the veil: what the
+tour is, the state of the sign-in, and the leaderboard as it stands
+(below). It asks the server how to sign in (`GET /api/config`:
 the Google client id, the allowed domains, aityx's URL; never a key),
 again with a growing pause while the server doesn't answer, and
 then:
@@ -72,9 +77,12 @@ refreshed every ten seconds while shown. Each row has the strategy's name
 with its owner beneath ("template strategy" for a preset, whatever the
 API calls it), then the wins (the ranking is still by points; they
 aren't shown). The latest results aren't listed. The line at the top says what
-the leaderboard is doing, the tournaments waiting their turn ("the
-schedule's, a new strategy's") and when the next scheduled tournament
-is, in local time ("today at 18:00"). Only an admin (`GET /api/me` says
+the leaderboard is doing and the tournaments waiting their turn ("the
+schedule's, a new strategy's"); the line under it counts down to the
+next scheduled tournament by the second, with when it is in local time
+("Next tournament in 2 h 14 min, today at 18:00"; "12 min 05 s" under
+an hour; "any moment now" once the time has passed and the board hasn't
+caught up). Only an admin (`GET /api/me` says
 `admin`: an `aletyx.com` or `aletyx.ai` account, whatever
 `POKERTOUR_ALLOWED_DOMAINS` lets play; no setting widens it) has **Play
 a tournament now** beside it, disabled while an admin's is waiting; it
@@ -83,9 +91,8 @@ tournament is queued: it starts when the one being played ends" or "A
 tournament you asked for is waiting its turn already". Rows of yours say
 "yours" (matched by an owner id, a short hash of the email the server
 gives `GET /api/me`). Per row: **Download as JSON** (the rules; a preset's from
-the table's own, an entry's from `GET /api/strategies`), **Seat it at my
-table** (adds the strategy to the table's list and a player with it),
-and, for yours, **Withdraw**.
+the table's own, an entry's from `GET /api/strategies`) and, for yours,
+**Withdraw**.
 
 ### Aliases
 
@@ -154,8 +161,10 @@ function out of time, a server killed) holds nothing for long; a
 laptop's server, its table's only player, also lets its last process's
 lock go when it starts, and plays what that one left in the queue.
 
-- Up to nine strategies sit, the ones with the fewest tournaments
-  first, ties at random; fewer than two that can play, and it idles.
+- How many sit is drawn at random each tournament, from three to nine
+  (all of them when fewer can play), none twice: the ones with the
+  fewest tournaments first, ties at random; fewer than two that can
+  play, and it idles.
 - The game is PokerFace's ([poker_core](../poker_core)): 1000 chips
   each, blinds up every ten hands, no rebuys. Every decision is one aityx
   call on the leaderboard's key, as the app's
@@ -218,7 +227,8 @@ AWS](aws.md)).
 
 [test/tour_test.dart](../pokertour_app/test/tour_test.dart): the server's
 answers read (the admin, the schedule, starting a tournament), and the
-welcome page without a sign-in set up (no "now" button);
+welcome page without a sign-in set up (no "now" button; the table and
+its controls behind the veil, out of reach);
 [test/profile_test.dart](../pokertour_app/test/profile_test.dart): the
 player's key alone (never another), **Play** disabled until it works,
 and Profile setting the alias the leaderboard shows and removing a

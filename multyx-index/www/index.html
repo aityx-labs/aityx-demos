@@ -119,7 +119,7 @@
         icon: 'bot',
       },
       {
-        folder: 'PokerTour', port: 9810, name: 'Poker Tour',
+        folder: 'PokerTour', port: 9810, path: '/pokertour/', name: 'Poker Tour',
         what: 'PokerFace for a team: sign in, play on the host\'s key, enter the tour',
         desc: 'The poker simulator of the aityx group, for the people of aletyx: sign in with Google (aletyx.com or aletyx.ai), and the app fetches the host\'s aityx key from S3 with that identity (no API in between) and opens the table. Write a strategy or download a preset to start from, and enter it in the tour: a tournament among the strategies in the tour is played on aityx four times a day, and whenever an admin asks, and the leaderboard follows. One server here; serverless on AWS (S3, CloudFront, Lambda, an EventBridge schedule). Port 9810.',
         chips: ['Game', 'Flutter', 'Dart server', 'Google sign-in', 'S3 key', 'leaderboard', 'aityx'],

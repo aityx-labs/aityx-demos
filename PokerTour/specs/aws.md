@@ -7,12 +7,13 @@ script that builds and deploys it. The stack, named `pokertour`
 
 ## The parts
 
-- **The app**: the release web build (base href `/app/`, CanvasKit from
+- **The app**: the release web build (base href `/pokertour/`, CanvasKit from
   its own origin) in a private bucket, `pokertour-web-<account>`, under
-  `app/`, served by **CloudFront** through an origin access control. A
-  CloudFront function on every request sends `/` and `/app` to `/app/`,
+  `pokertour/`, served by **CloudFront** through an origin access control. A
+  CloudFront function on every request sends `/`, `/pokertour` and the
+  old `/app` paths to `/pokertour/`,
   gives a folder its `index.html`, and an extension-less path under
-  `/app/` the app. The default caching policy applies; `deploy.sh`
+  `/pokertour/` the app. The default caching policy applies; `deploy.sh`
   uploads with `max-age=300` and invalidates `/*`, and gives `.wasm`
   its type, which the CLI doesn't know.
 - **The API**: the function `pokertour-api` (`provided.al2023`, arm64,

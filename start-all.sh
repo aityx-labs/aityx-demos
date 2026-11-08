@@ -123,10 +123,15 @@ answers() {
 
 # web_path <demo>: the path of a service demo's web app on its web port:
 # the aityx index's page is at /demos/ (and its API under /demos/api/,
-# see Index/bin/server.dart); the datyx and multyx groups' apps are at
+# see Index/bin/server.dart); Poker Tour's at /pokertour/, beside other
+# apps on the same server; the datyx and multyx groups' other apps at
 # /app/, with their API at /api/.
 web_path() {
-  [[ "$1" == Index ]] && echo /demos/ || echo /app/
+  case "$1" in
+    Index) echo /demos/ ;;
+    PokerTour) echo /pokertour/ ;;
+    *) echo /app/ ;;
+  esac
 }
 api_path() {
   [[ "$1" == Index ]] && echo /demos/api/ || echo /api/

@@ -6,6 +6,65 @@ The feature files hold the current specification; see the
 
 ## 2026-11-08
 
+17. **In the index view of the poker app (before login), show a table
+    and controls like the game, with an overlay on top so nothing is
+    clickable until login.** The welcome page shows the game's table,
+    seated with the presets, and its controls, under a veil that takes
+    every click, focus and screen-reader visit; the welcome, the sign-in
+    and the leaderboard sit on the veil ([The tour](tour.md)).
+
+16. **Make the path to Poker Tour /pokertour instead of /app, so that it
+    can live in the same server as other apps.** The web build's base
+    href is `/pokertour/`; the server serves it there and sends `/`,
+    `/pokertour` and the old `/app/` paths to it, and so does the
+    CloudFront function; `deploy.sh` uploads it under `pokertour/` in
+    the web bucket. The API stays at `/api/`. The multyx index opens
+    Poker Tour at `/pokertour/` and takes a redirect for an answer
+    ([On AWS](aws.md), [Development environment](dev-environment.md)).
+
+15. **In Poker Tour, "the Mathematician" seems to dominate: make sure no
+    template strategy dominates; balance them. Save the strategies to the
+    repository as well as server side.** The five presets were tuned
+    against each other by simulating thousands of tournaments locally:
+    the Rock sees cheap flops, goes all in short-stacked and can't fold a
+    premium pair; the Maniac holds back junk at a full table, bluffs
+    when few are left and folds calls that would cost its stack; the
+    Station folds weak cards over four big blinds and calls that risk a
+    fifth of its stack; the Mathematician bets only on a 30-point edge;
+    the Shark steals more and plays wider at a short table
+    ([Strategies](strategies.md)). They are the app's assets, which the
+    server reads (a laptop's straight from the app, the Lambda functions
+    from the models deploy.sh bundles with them): no S3 or DynamoDB copy
+    is needed.
+
+14. **In each tournament on the leaderboard, pick a random number of
+    strategies, non repeated.** The runner draws the table's size at
+    random, three to nine (all of them when fewer can play), and seats
+    that many distinct strategies, the fewest tournaments first
+    ([The tour](tour.md)).
+
+13. **Make it have a jazz soundtrack, five songs, randomly played in
+    loop, soft and easy, with volume and mute control.** Five original
+    tracks (a ballad, a medium swing, a bossa nova, a minor blues and a
+    waltz), synthesized by `scripts/jazz.dart`, play at the table in a
+    random order, round and round, never one twice in a row; a note
+    button mutes them, a slider sets the volume, and the browser
+    remembers both ([Music](music.md)).
+
+12. **Show the time to the next tournament on the leaderboard.** A line
+    under the leaderboard's status counts down to the next scheduled
+    tournament by the second, with its local time ([The tour](tour.md)).
+
+11. **When the title is clicked, create a new tournament with random
+    strategies without repetition.** The app bar's title starts a new
+    tournament at the player's table with three to nine distinct
+    strategies drawn at random from the table's list ([The
+    table](table.md)).
+
+10. **Remove the "seat at my table" button column.** The leaderboard's
+    rows lost **Seat it at my table**; **Download as JSON** and, for
+    yours, **Withdraw** stay ([The tour](tour.md)).
+
 9. **Make sure the player's key, URL and alias are persisted.** The key
    and the alias already were: the key in the browser (localStorage,
    or sessionStorage for one session), the alias on the server, in the

@@ -2,8 +2,9 @@
 # Starts every demo: the six aityx demos, which the aityx index (Index/)
 # serves itself on one origin, and the demos that run as services, each
 # folder with a devbox.json and a process-compose.yaml (datyx, the datyx
-# dashboard, HealthHub, and the two index pages, Index/ for the aityx
-# group and datyx-index/ for the datyx group), detached, with `devbox
+# dashboard, HealthHub, Poker Tour, tatyx, and the index pages, Index/ for
+# the aityx group, datyx-index/ for the datyx group and multyx-index/ for
+# the multyx group), detached, with `devbox
 # services up -b` (or, in a codespace, the image's process-compose: see
 # demos-toolchain.sh), then waits until each one answers and prints where
 # to open it.
@@ -27,16 +28,17 @@
 #   ./start-all.sh ContactHub   # only these (an aityx demo starts the index too)
 #   ./start-aityx.sh            # the aityx group: the six aityx demos and their index
 #   ./start-datyx.sh            # the datyx group: the API, the dashboard, HealthHub and their index
+#   ./start-multyx.sh           # the multyx group: Poker Tour, tatyx and their index
 #   WAIT=0 ./start-all.sh       # start, don't wait
-# The groups come from each folder's group.id.txt (aityx or datyx); the
-# group scripts run this one with DEMOS_GROUP set.
+# The groups come from each folder's group.id.txt (aityx, datyx or
+# multyx); the group scripts run this one with DEMOS_GROUP set.
 #
 # The aityx key: each user sets their own on the index page, kept in their
 # browser. Optionally, AITYX_API_KEY in the environment (a Codespaces
 # secret) or in the .env at the root (see .env.example) is a dev key: the
 # index server reads it itself and lends it, through its own proxy, to
-# whoever opens the demos without a key of their own. The datyx group's
-# services that read a key (HealthHub) get a link to the root .env,
+# whoever opens the demos without a key of their own. The services that
+# read a key (HealthHub, Poker Tour, tatyx) get a link to the root .env,
 # <demo>/.env -> ../.env, and AITYX_API_KEY and AITYX_URL from the
 # environment. Watch a service with `devbox services attach -c <demo>`.
 # Stop them with ./stop-all.sh.
@@ -54,7 +56,7 @@ export AITYX_API_KEY="${AITYX_API_KEY:-}"
 export AITYX_URL="${AITYX_URL:-}"
 
 # The root .env, linked from each service folder that reads an aityx key
-# (its .env.example names AITYX_API_KEY): the datyx group's. The demos the
+# (its .env.example names AITYX_API_KEY): the datyx and multyx groups'. The demos the
 # index serves get none: the index server reads the root .env itself. A
 # folder's own .env that isn't a link is left as it is.
 if [[ -f "$root/.env" ]]; then
@@ -72,7 +74,7 @@ WAIT="${WAIT:-600}"
 # demos [names...]: the demos to act on, as folder names: the ones named,
 # else every folder the index serves and every folder with a devbox.json
 # and a process-compose.yaml. With DEMOS_GROUP set (start-aityx.sh,
-# start-datyx.sh and the stop scripts), only the folders whose
+# start-datyx.sh, start-multyx.sh and the stop scripts), only the folders whose
 # group.id.txt is that group, and a name outside it is an error: the
 # demos start and stop by group.
 demos() {
@@ -121,8 +123,8 @@ answers() {
 
 # web_path <demo>: the path of a service demo's web app on its web port:
 # the aityx index's page is at /demos/ (and its API under /demos/api/,
-# see Index/bin/server.dart); the datyx group's apps are at /app/, with
-# their API at /api/.
+# see Index/bin/server.dart); the datyx and multyx groups' apps are at
+# /app/, with their API at /api/.
 web_path() {
   [[ "$1" == Index ]] && echo /demos/ || echo /app/
 }
@@ -283,13 +285,13 @@ for demo in "${pending[@]+"${pending[@]}"}"; do
 done
 
 # Each group's index page, with a card per demo: Index/ for the aityx
-# demos (at /demos/), datyx-index/ for the datyx group; printed when it
-# answers.
-for pair in "Index:The six aityx demos" "datyx-index:The datyx group"; do
+# demos (at /demos/), datyx-index/ for the datyx group, multyx-index/ for
+# the multyx group; printed when it answers.
+for pair in "Index:The six aityx demos" "datyx-index:The datyx group" "multyx-index:The multyx group"; do
   folder="${pair%%:*}"
   index="$(port "$folder" FLUTTER_WEB_PORT 2>/dev/null)"
   page="http://localhost:$index$(web_path "$folder")"
-  [[ "$folder" == datyx-index ]] && page="http://localhost:$index/"
+  [[ "$folder" != Index ]] && page="http://localhost:$index/"
   if [[ -n "$index" ]] && answers "$page"; then
     echo "🏠 ${pair#*:}, on one page: $page"
   fi

@@ -52,12 +52,17 @@ toolchain_missing() {
 }
 
 # image_lacks <dir>: under the image, what the demo needs that the image
-# doesn't carry (a JDK, for datyx's API); nothing otherwise. start-all.sh
-# and build-all.sh skip such a demo instead of failing on it.
+# doesn't carry (a JDK, for datyx's API, in the datyx image only; Node,
+# for tatyx and the multyx index, in the multyx image only); nothing
+# otherwise. start-all.sh and build-all.sh skip such a demo instead of
+# failing on it.
 image_lacks() {
   [[ "$DEMOS_TOOLCHAIN" == image ]] || return 0
   if grep -qE '"(graalvm|jdk)' "$1/devbox.json" 2>/dev/null && ! command -v java >/dev/null; then
     echo "a JDK (java on the PATH)"
+  fi
+  if grep -q '"nodejs"' "$1/devbox.json" 2>/dev/null && ! command -v node >/dev/null; then
+    echo "Node (node on the PATH)"
   fi
   return 0
 }

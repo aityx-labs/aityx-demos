@@ -1,9 +1,10 @@
 # A demo group's dev container image, published to Docker Hub by
-# build-image.sh (`--build-arg GROUP=aityx` or `datyx`) and used by that
-# group's devcontainer.json in .devcontainer/<group>/ (`image`, not
-# `build`): Flutter, the GitHub CLI, process-compose, for datyx a JDK
-# (GraalVM) and its API's Maven dependencies, and the group's release web
-# builds already made (for aityx, the six apps the index serves at
+# build-image.sh (`--build-arg GROUP=aityx`, `datyx` or `multyx`) and
+# used by that group's devcontainer.json in .devcontainer/<group>/
+# (`image`, not `build`): Flutter, the GitHub CLI, process-compose, for
+# datyx a JDK (GraalVM) and its API's Maven dependencies, for multyx Node
+# (tatyx and the multyx index), and the group's release web builds
+# already made (for aityx, the six apps the index serves at
 # /demos/<slug>/), so a codespace starts the demos in seconds instead of
 # building for ten minutes. The organization has GitHub's prebuilds and
 # Actions switched off, so the image is built on a laptop and pushed (see
@@ -11,8 +12,8 @@
 # checksum. Nix and devbox are not in the image: in a codespace the demos
 # run on the image's Flutter and process-compose (DEMOS_TOOLCHAIN=image);
 # devbox stays the toolchain for a laptop.
-# The group: aityx or datyx (build-image.sh passes it). Its toolchain stage
-# below, then the same steps for both.
+# The group: aityx, datyx or multyx (build-image.sh passes it). Its
+# toolchain stage below, then the same steps for each.
 ARG GROUP=aityx
 
 FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04 AS base
@@ -127,6 +128,32 @@ RUN arch="$(dpkg --print-architecture)" \
 USER vscode
 ENV JAVA_HOME=/opt/graalvm
 ENV PATH="/opt/graalvm/bin:${PATH}"
+
+# tatyx and the multyx index run on Node (TypeScript built with Vite, and
+# plain Node servers), beside Poker Tour's Flutter: Node 22, the version
+# tatyx's devbox.lock pins, so a laptop and a codespace build the same
+# thing. The release archive, checked against the SHA-256 in its
+# SHASUMS256.txt.
+FROM base AS toolchain-multyx
+ARG NODE_VERSION=22.23.3
+ARG NODE_SHA256_AMD64=df450af89261115ef9f9e3830c3eeb2cc9213b63c720b1af623cb5dcbe2e02de
+ARG NODE_SHA256_ARM64=a44aeb94849a299b22df10b9e622ec2f605c2183501bc40590705131de7c740f
+USER root
+RUN arch="$(dpkg --print-architecture)" \
+    && case "$arch" in \
+         amd64) a=x64; sha="$NODE_SHA256_AMD64" ;; \
+         arm64) a=arm64; sha="$NODE_SHA256_ARM64" ;; \
+         *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL -o /tmp/node.tar.xz \
+         "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${a}.tar.xz" \
+    && echo "${sha}  /tmp/node.tar.xz" | sha256sum -c - \
+    && install -d /opt/node \
+    && tar -xJf /tmp/node.tar.xz -C /opt/node --strip-components=1 \
+    && rm /tmp/node.tar.xz \
+    && /opt/node/bin/node --version
+USER vscode
+ENV PATH="/opt/node/bin:${PATH}"
 
 FROM toolchain-${GROUP}
 

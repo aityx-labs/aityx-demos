@@ -5,17 +5,18 @@
   // The datyx group, started together: the datyx API (datyx/, Quarkus on
   // GraalVM, with PostgreSQL, Elasticsearch and OpenMetadata in
   // containers), the datyx dashboard (datyx-dashboard/, a Flutter web app
-  // calling it) and HealthHub (a Flutter app, a Dart API, PostgreSQL and
-  // Kafka),
-  // and its index page (datyx-index/, port 9800) that links them. The folders whose group.id.txt says datyx.
+  // calling it), HealthHub (a Flutter app, a Dart API, PostgreSQL and
+  // Kafka) and its index page (datyx-index/, port 9800) that links them.
+  // The folders whose group.id.txt says datyx.
   //
   // Source:  https://github.com/aityx-labs/aityx-demos
   // Rules:   https://aityx.ai
   // Aletyx:  https://aletyx.com
   //          https://nu01.com
   //
-  // One dev container per demo group: this one, and the aityx group's in
-  // .devcontainer/aityx/. Each has its own image. The scripts they run
+  // One dev container per demo group: this one, the aityx group's in
+  // .devcontainer/aityx/ and the multyx group's in .devcontainer/multyx/.
+  // Each has its own image. The scripts they run
   // are shared, in .devcontainer/, and act on the group DEMOS_GROUP names.
   // The name below is what GitHub shows in the "Dev container
   // configuration" list when you create a codespace.

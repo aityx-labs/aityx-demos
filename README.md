@@ -203,15 +203,72 @@ serves it at http://localhost:8800/demos/pokerface/, alongside the
 other demos, with the key you set on the index page. The badge above
 opens it in a codespace. See the [PokerFace README](PokerFace/README.md).
 
+## Poker Tour
+
+[PokerTour/](PokerTour/) is PokerFace for a team, in the **multyx** group:
+the same table, where every player is a set of rules run on
+[aityx.ai](https://aityx.ai), but with the host's key for everyone, a
+Google sign-in for the people of aletyx (`aletyx.com` and `aletyx.ai`),
+and a leaderboard. The host puts the key in an S3 object; a player signs
+in, and the app fetches the key with that identity (STS, then a signed
+GET, no API of ours in between) and opens the table. Players download
+the preset strategies to start from and enter their own; a tournament
+among the strategies in the tour is played on the host's key four times
+a day and whenever an admin asks, and the standings follow. On a laptop
+it is one server; on AWS it is serverless (S3, CloudFront, two Lambda
+functions and an EventBridge schedule, `bash PokerTour/deploy/deploy.sh`).
+From the root of this repository:
+
+```bash
+./start-multyx.sh PokerTour
+```
+
+serves it at http://localhost:9810/app/ (or `docker compose up` in
+`PokerTour/`); the group's index is on http://localhost:9700/. The sign-in, the key's place and the key itself are
+settings, none in the repository: see the [Poker Tour
+README](PokerTour/README.md).
+
+## tatyx
+
+[tatyx/](tatyx/) is a web game in the making, in the **multyx** group
+with Poker Tour (the multiplayer games on aityx, each with a Google
+sign-in and a leaderboard), apart from the aityx and datyx groups:
+three teams race to hack into the mainframe in the middle of a Tron-like
+map, each from its own sector, finding the map's sites and the links
+between them and building bytes on the sites over links that rot unless
+renewed; every team fields the five bots of aityx (the Anchor, the
+Builder, the Tester, the Combinator and the Explorer) under a colour tag
+of its own, and every megabyte it builds is one decision: which bot to
+deploy, or a megabyte into the hack. Nobody plays it by hand: each
+team's strategy is an aityx decision model, one of five presets or the
+team's own, uploaded on the title, and the game plays itself from them,
+every call shown beside the map. As in Poker Tour, players sign in with
+Google and play on their own key, and a leaderboard plays the presets
+on the server on a key of its own, never lent. A [Phaser 4](https://phaser.io) game
+in TypeScript with a synthwave soundtrack the browser synthesizes,
+served by a plain Node server, calling aityx from the browser through
+[packages/aityx_js](packages/aityx_js/README.md), the TypeScript twin of
+aityx_web. From the root of this
+repository:
+
+```bash
+./start-multyx.sh tatyx
+```
+
+serves it at http://localhost:9710/app/; the group's index is on
+http://localhost:9700/. See the [tatyx README](tatyx/README.md).
+
 ## Run all the demos
 
 From the root of this repository, with [Devbox](https://www.jetify.com/devbox):
 
 ```bash
 ./start-aityx.sh            # the six aityx demos, on http://localhost:8800/demos/
-./start-all.sh              # every demo, the datyx group too
+./start-all.sh              # every demo, the datyx and multyx groups too
 ./start-aityx.sh ContactHub # only the ones named (and the index)
-./stop-aityx.sh             # stops them; ./stop-all.sh stops everything
+./start-datyx.sh            # the datyx group: the API, the dashboard, HealthHub and their index, on http://localhost:9800/
+./start-multyx.sh           # the multyx group: Poker Tour, tatyx and their index, on http://localhost:9700/
+./stop-aityx.sh             # stops them; ./stop-datyx.sh, ./stop-multyx.sh and ./stop-all.sh likewise
 ./restart-all.sh            # syncs git (fast-forwards only), then restarts every demo
 ```
 
@@ -234,8 +291,14 @@ showing each build. Watch the index with
 index server whether it has one: `AITYX_API_KEY` in its environment, or
 in the root `.env` (copy [.env.example](.env.example)). If it does, it
 lends it through its own proxy, so the key never reaches the browser,
-and the demos work with nothing set on the page. `AITYX_URL` defaults to
-`https://api.aityx.ai`. The same `.env` key runs each demo's
+and the demos work with nothing set on the page. Local development runs
+on aityx staging: the `.env` key is staging's, with
+`AITYX_URL=https://api-stage.aityx.ai` (empty, it is production's
+`https://api.aityx.ai`, where a staging key doesn't work). Production is
+what gets deployed or published: the published demos carry no key and
+call `https://api.aityx.ai` with each visitor's own key, and deploys
+(Poker Tour's) read only `AITYX_PROD_URL` and `AITYX_PROD_API_KEY`. The
+same `.env` key runs each demo's
 `scripts/model-test.sh`, the tests that call aityx. No `.env`, nor
 anything else git ignores, goes into a Docker image:
 [sync-dockerignore.sh](sync-dockerignore.sh) copies the `.gitignore`

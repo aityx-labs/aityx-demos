@@ -15,8 +15,9 @@
   // Aletyx:  https://aletyx.com
   //          https://nu01.com
   //
-  // One dev container per demo group: this one, and the datyx group's in
-  // .devcontainer/datyx/. Each has its own image. The scripts they run
+  // One dev container per demo group: this one, the datyx group's in
+  // .devcontainer/datyx/ and the multyx group's in .devcontainer/multyx/.
+  // Each has its own image. The scripts they run
   // are shared, in .devcontainer/, and act on the group DEMOS_GROUP names.
   // The name below is what GitHub shows in the "Dev container
   // configuration" list when you create a codespace.

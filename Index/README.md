@@ -6,7 +6,8 @@ aityx palette, with a card for each of the six, in two groups, Games
 Contact Hub): an animation of the app, what it shows, its technology,
 **Open**, **Source** on GitHub, and **Codespace**; the six apps
 themselves, each under its own path; and "Your aityx key". The datyx
-group has its own index, [../datyx-index/](../datyx-index/).
+group has its own index, [../datyx-index/](../datyx-index/), and so has
+the multyx group, [../multyx-index/](../multyx-index/).
 
 Every demo is a Flutter web app that calls aityx from the browser, with
 the key the user sets once on this page: the page and the apps share one

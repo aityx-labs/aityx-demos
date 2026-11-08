@@ -40,16 +40,23 @@ import { button, drawScanlines, FONT, NEON, ORANGE, PALETTE, setButtonEnabled } 
 
 const RAD = Math.PI / 180;
 
-/** Where each sector's name goes: a far corner of it, clear of everything else. */
+/** Where each sector's name goes, on the screen: a far corner of it, clear of everything else. */
 const SECTOR_LABELS: Readonly<Record<TeamId, { at: Point; originX: number }>> = {
   cyan: { at: { x: 24, y: 66 }, originX: 0 },
-  magenta: { at: { x: 1256, y: 690 }, originX: 1 },
-  green: { at: { x: 24, y: 690 }, originX: 0 },
+  magenta: { at: { x: 1256, y: 664 }, originX: 1 },
+  green: { at: { x: 24, y: 664 }, originX: 0 },
 };
 
 /** A site's hexagon until it is found; found, it shows its size (siteRadius). */
 const SITE_RADIUS = 21;
-const BOT_SIZE = 34;
+const BOT_SIZE = 44;
+/** The HUD's depth and above: drawn by the screen's camera, never zoomed. */
+const HUD_DEPTH = 30;
+/** The bars over the board, top and bottom: the whole board fits between them. */
+const BARS = { top: 47, bottom: 40 };
+/** The closest zoom, and each step of the zoom's buttons and the wheel. */
+const MAX_ZOOM = 1.8;
+const ZOOM_STEP = 1.2;
 /** The background grid's cells: hexagons of this radius, about as wide as the old square grid's 40 px. */
 const GRID_HEX = 23;
 
@@ -82,6 +89,12 @@ export class MapScene extends Phaser.Scene {
   private state: Exclude<PlayState, null> = 'ready';
   /** Which match the calls panel shows: a late answer of an earlier one is dropped. */
   private matchNumber = 0;
+  /** The screen's camera, for the HUD and the overlays; the main camera shows the board. */
+  private screen!: Phaser.Cameras.Scene2D.Camera;
+  /** The objects already given to one camera or the other. */
+  private placed = new WeakSet<Phaser.GameObjects.GameObject>();
+  /** The zoom that shows the whole board. */
+  private fitZoom = 1;
 
   constructor() {
     super('map');
@@ -118,15 +131,92 @@ export class MapScene extends Phaser.Scene {
     }
     this.drawMainframe();
     this.drawHud();
-    drawScanlines(this, 0.1);
+    drawScanlines(this, 0.1).setDepth(1000);
+    this.setUpCameras();
     this.showAll();
     this.drawStart();
+    this.placeObjects();
+  }
+
+  /**
+   * Two cameras: the main one shows the board, between the bars, the whole
+   * of it at first, and zooms (the HUD's buttons, the wheel, + and -, 0 to
+   * fit) and pans (a drag); the screen's shows the HUD and the overlays,
+   * never zoomed.
+   */
+  private setUpCameras(): void {
+    const { width, height } = this.scale;
+    const world = MAP.world;
+    const cam = this.cameras.main;
+    this.fitZoom = Math.min(width / (world.right - world.left), (height - BARS.top - BARS.bottom) / (world.bottom - world.top));
+    this.zoomTo(this.fitZoom);
+    this.screen = this.cameras.add(0, 0, width, height, false, 'screen');
+    const onBoard = (pointer: Phaser.Input.Pointer) => pointer.y > BARS.top && pointer.y < height - BARS.bottom;
+    this.input.on('wheel', (pointer: Phaser.Input.Pointer, _over: unknown, _dx: number, dy: number) => {
+      if (onBoard(pointer)) this.zoomTo(cam.zoom * (dy > 0 ? 1 / ZOOM_STEP : ZOOM_STEP), pointer);
+    });
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (!pointer.isDown || !onBoard(pointer)) return;
+      cam.scrollX -= (pointer.x - pointer.prevPosition.x) / cam.zoom;
+      cam.scrollY -= (pointer.y - pointer.prevPosition.y) / cam.zoom;
+      this.keepOnBoard();
+    });
+    const keys = this.input.keyboard;
+    keys?.on('keydown-PLUS', () => this.zoomTo(cam.zoom * ZOOM_STEP));
+    keys?.on('keydown-NUMPAD_ADD', () => this.zoomTo(cam.zoom * ZOOM_STEP));
+    keys?.on('keydown-MINUS', () => this.zoomTo(cam.zoom / ZOOM_STEP));
+    keys?.on('keydown-NUMPAD_SUBTRACT', () => this.zoomTo(cam.zoom / ZOOM_STEP));
+    keys?.on('keydown-ZERO', () => this.zoomTo(this.fitZoom));
+  }
+
+  /** Zooms the board's camera, between the whole board and MAX_ZOOM, keeping the point under `at` (else the view's centre) where it is. */
+  private zoomTo(zoom: number, at?: Phaser.Input.Pointer): void {
+    const cam = this.cameras.main;
+    const next = Phaser.Math.Clamp(zoom, this.fitZoom, MAX_ZOOM);
+    const world = MAP.world;
+    if (next === this.fitZoom) {
+      cam.setZoom(next);
+      cam.centerOn((world.left + world.right) / 2, (world.top + world.bottom) / 2);
+      return;
+    }
+    const focus = at === undefined ? cam.midPoint.clone() : cam.getWorldPoint(at.x, at.y);
+    cam.setZoom(next);
+    if (at === undefined) {
+      cam.centerOn(focus.x, focus.y);
+    } else {
+      const after = cam.getWorldPoint(at.x, at.y);
+      cam.scrollX += focus.x - after.x;
+      cam.scrollY += focus.y - after.y;
+    }
+    this.keepOnBoard();
+  }
+
+  /** Keeps the view's centre on the board, so a pan never loses it. */
+  private keepOnBoard(): void {
+    const cam = this.cameras.main;
+    const world = MAP.world;
+    const mid = cam.midPoint;
+    const x = Phaser.Math.Clamp(mid.x, world.left, world.right);
+    const y = Phaser.Math.Clamp(mid.y, world.top, world.bottom);
+    if (x !== mid.x || y !== mid.y) cam.centerOn(x, y);
+  }
+
+  /** Gives each new object to its camera: the HUD's depth and above to the screen's, the rest to the board's. */
+  private placeObjects(): void {
+    for (const o of this.children.list) {
+      if (this.placed.has(o)) continue;
+      this.placed.add(o);
+      const depth = (o as unknown as { depth: number }).depth;
+      if (depth >= HUD_DEPTH) this.cameras.main.ignore(o);
+      else this.screen.ignore(o);
+    }
   }
 
   override update(_time: number, delta: number): void {
     if (this.state === 'running') this.match.advance((Math.min(delta, 250) / 1000) * this.shell.controls.speed);
     this.core.setRotation(this.match.world.tick * 0.004);
     this.showAll();
+    this.placeObjects();
     if (this.match.world.winner !== null && this.state !== 'over') this.setState('over');
   }
 
@@ -210,8 +300,10 @@ export class MapScene extends Phaser.Scene {
    * brighter, and the glow around the mainframe.
    */
   private drawGrid(): void {
-    const { width, height } = this.scale;
-    const g = this.add.graphics();
+    const world = MAP.world;
+    const g = this.add.graphics({ x: world.left, y: world.top });
+    const width = world.right - world.left;
+    const height = world.bottom - world.top;
     g.fillStyle(0x07070f, 1);
     g.fillRect(0, 0, width, height);
     const r = GRID_HEX;
@@ -231,7 +323,7 @@ export class MapScene extends Phaser.Scene {
     }
     for (let i = 8; i >= 1; i--) {
       g.fillStyle(ORANGE, 0.03);
-      g.fillCircle(MAP.center.x, MAP.center.y, 60 + i * 26);
+      g.fillCircle(MAP.center.x - world.left, MAP.center.y - world.top, 60 + i * 26);
     }
   }
 
@@ -254,7 +346,8 @@ export class MapScene extends Phaser.Scene {
       this.add
         .text(label.at.x, label.at.y, `${t.name.toUpperCase()} SECTOR`, { fontFamily: FONT, fontSize: '12px', color: t.css, letterSpacing: 3 })
         .setOrigin(label.originX, 0.5)
-        .setAlpha(0.7);
+        .setAlpha(0.7)
+        .setDepth(HUD_DEPTH);
     }
     g.lineStyle(1, NEON, 0.18);
     g.strokeCircle(MAP.center.x, MAP.center.y, MAP.radius);
@@ -314,7 +407,7 @@ export class MapScene extends Phaser.Scene {
     const label =
       known?.label ??
       this.add
-        .text(x, y, '', { fontFamily: FONT, fontSize: '10px', letterSpacing: 1 })
+        .text(x, y, '', { fontFamily: FONT, fontSize: '14px', letterSpacing: 1 })
         .setOrigin(0.5, 0)
         .setDepth(4);
     label.setPosition(x, y + radius + 4);
@@ -383,8 +476,9 @@ export class MapScene extends Phaser.Scene {
       this.core.arc(0, 0, 62, a0, a0 + 80 * RAD, false);
       this.core.strokePath();
     }
+    // Its name just under the base, each team's progress under the name; the hackers stand over it.
     this.add
-      .text(x, y - 112, 'MAINFRAME', { fontFamily: FONT, fontSize: '13px', fontStyle: 'bold', color: PALETTE.orange, letterSpacing: 4 })
+      .text(x, y + 74, 'MAINFRAME', { fontFamily: FONT, fontSize: '17px', fontStyle: 'bold', color: PALETTE.orange, letterSpacing: 4 })
       .setOrigin(0.5)
       .setDepth(10)
       .setShadow(0, 0, PALETTE.orange, 8, false, true);
@@ -392,7 +486,7 @@ export class MapScene extends Phaser.Scene {
       this.hud.set(
         `hack-${t.id}`,
         this.add
-          .text(x + (i - 1) * 64, y - 94, '', { fontFamily: FONT, fontSize: '12px', fontStyle: 'bold', color: t.css })
+          .text(x + (i - 1) * 72, y + 98, '', { fontFamily: FONT, fontSize: '16px', fontStyle: 'bold', color: t.css })
           .setOrigin(0.5)
           .setDepth(10),
       );
@@ -418,12 +512,18 @@ export class MapScene extends Phaser.Scene {
     g.strokePoints(hexagon(at.x, at.y, 14), true, true);
     g.fillStyle(t.color, 1);
     g.fillCircle(at.x, at.y, 3);
-    // The label: to the right of the top origin, under the HUD; under the lower ones.
-    const top = at.y < MAP.center.y;
+    // The name under it, and the team's stats under the name: its strategy, its bytes and its bots.
     this.add
-      .text(top ? at.x + 40 : at.x, top ? at.y : at.y + 34, t.name.toUpperCase(), { fontFamily: FONT, fontSize: '11px', fontStyle: 'bold', color: t.css, letterSpacing: 2 })
-      .setOrigin(top ? 0 : 0.5, top ? 0.5 : 0)
+      .text(at.x, at.y + 44, t.name.toUpperCase(), { fontFamily: FONT, fontSize: '15px', fontStyle: 'bold', color: t.css, letterSpacing: 2 })
+      .setOrigin(0.5, 0)
       .setDepth(5);
+    this.hud.set(
+      `stats-${id}`,
+      this.add
+        .text(at.x, at.y + 66, '', { fontFamily: FONT, fontSize: '13px', color: t.css, align: 'center' })
+        .setOrigin(0.5, 0)
+        .setDepth(5),
+    );
   }
 
   /**
@@ -451,19 +551,24 @@ export class MapScene extends Phaser.Scene {
       }
       let { x, y } = b.at;
       const group = b.node !== null && b.travel === null ? standing.get(b.node)! : null;
-      if (group !== null && group.length > 1) {
-        const i = group.indexOf(b);
-        const a = (i / group.length) * Math.PI * 2 - Math.PI / 2;
-        const at = w.nodes.find((n) => n.id === b.node)!;
-        const r = b.node === MAINFRAME_ID ? 74 : (at.kind === 'site' ? siteRadius(at) : SITE_RADIUS) + 8 + Math.min(12, group.length * 2);
+      const at = group === null ? null : w.nodes.find((n) => n.id === b.node)!;
+      if (at !== null && at.kind !== 'site') {
+        // Over the mainframe or an origin, on its upper arc: its name and stats are under it.
+        const i = group!.indexOf(b);
+        const a = group!.length === 1 ? -Math.PI / 2 : -Math.PI / 2 + (i / (group!.length - 1) - 0.5) * (200 * RAD);
+        const r = at.kind === 'mainframe' ? 84 : 54;
         x += r * Math.cos(a);
         y += r * Math.sin(a);
-      } else if (group !== null && b.node === MAINFRAME_ID) {
-        y -= 74;
+      } else if (group !== null && group.length > 1) {
+        const i = group.indexOf(b);
+        const a = (i / group.length) * Math.PI * 2 - Math.PI / 2;
+        const r = siteRadius(at!) + 12 + Math.min(14, group.length * 2);
+        x += r * Math.cos(a);
+        y += r * Math.sin(a);
       }
-      view.sprite.setPosition(x, y - 3);
+      view.sprite.setPosition(x, y - 4);
       view.ring.setPosition(x, y);
-      view.label.setPosition(x, y + 15);
+      view.label.setPosition(x, y + 19);
       const busy = b.travel !== null || (b.kind === 'explorer' && b.target !== null);
       view.sprite.setAlpha(busy ? 1 : 0.92);
     }
@@ -480,12 +585,12 @@ export class MapScene extends Phaser.Scene {
     const t = team(b.team);
     const ring = this.add.graphics().setDepth(6);
     ring.fillStyle(t.color, 0.22);
-    ring.fillEllipse(0, 11, 28, 9);
+    ring.fillEllipse(0, 14, 36, 12);
     ring.lineStyle(2, t.color, 0.95);
-    ring.strokeEllipse(0, 11, 28, 9);
+    ring.strokeEllipse(0, 14, 36, 12);
     const sprite = this.add.image(b.at.x, b.at.y, textureOf(b.id as BotId, b.team)).setDisplaySize(BOT_SIZE, BOT_SIZE).setDepth(7);
     const label = this.add
-      .text(b.at.x, b.at.y + 15, b.id, { fontFamily: FONT, fontSize: '9px', fontStyle: 'bold', color: t.css })
+      .text(b.at.x, b.at.y + 19, b.id, { fontFamily: FONT, fontSize: '12px', fontStyle: 'bold', color: t.css })
       .setOrigin(0.5, 0)
       .setDepth(7);
     sprite.setInteractive({ useHandCursor: true });
@@ -498,7 +603,7 @@ export class MapScene extends Phaser.Scene {
     return { sprite, ring, label };
   }
 
-  /** The HUD: a chip per team along the top (its strategy, bytes, bots and progress), the clock, the legend and the hint line along the bottom. */
+  /** The HUD: a chip per team along the top (its name and progress), the clock, the legend, the zoom and the hint line along the bottom. */
   private drawHud(): void {
     const { width, height } = this.scale;
     const bar = this.add.graphics().setDepth(30);
@@ -533,13 +638,18 @@ export class MapScene extends Phaser.Scene {
       this.add.text(width - 140, 23, '', { fontFamily: FONT, fontSize: '12px', color: PALETTE.muted }).setOrigin(1, 0.5).setDepth(31),
     );
     button(this, width - 76, 23, 'Title', () => this.scene.start('title'), { width: 110, height: 32, size: 13 }).setDepth(31);
+    // The zoom: out, the whole board, in.
+    const cam = this.cameras.main;
+    button(this, width - 116, height - 22, '−', () => this.zoomTo(cam.zoom / ZOOM_STEP), { width: 30, height: 26, size: 15 }).setDepth(31);
+    button(this, width - 72, height - 22, 'Fit', () => this.zoomTo(this.fitZoom), { width: 46, height: 26, size: 12 }).setDepth(31);
+    button(this, width - 28, height - 22, '+', () => this.zoomTo(cam.zoom * ZOOM_STEP), { width: 30, height: 26, size: 15 }).setDepth(31);
     const legend = this.add.graphics().setDepth(31);
     const entries = [
       ...TEAMS.map((t) => ({ color: t.color, css: t.css, label: `${t.name} team` })),
       { color: SYSTEM.color, css: SYSTEM.css, label: `${SYSTEM.name}'s: the mainframe, and the sites nobody holds` },
       { color: 0xf2e9dc, css: '#F2E9DC', label: 'a link, fading as it rots' },
     ];
-    let x = width / 2 - 400;
+    let x = width / 2 - 460;
     this.add.text(x, height - 16, 'TAGS', { fontFamily: FONT, fontSize: '10px', color: PALETTE.muted, letterSpacing: 2 }).setOrigin(0, 0.5).setDepth(31);
     x += 44;
     for (const e of entries) {
@@ -559,7 +669,8 @@ export class MapScene extends Phaser.Scene {
       const state = w.teams.find((s) => s.id === t.id)!;
       const bots = w.bots.filter((b) => b.team === t.id).length;
       const pct = Math.round(hackedPct(w, t.id));
-      this.hud.get(`top-${t.id}`)?.setText(`${t.name} · ${this.match.strategyOf(t.id).name.replace(/^The /, '')} · ${fmtBytes(state.bytes)} · ${bots} bots · ${pct}%`);
+      this.hud.get(`top-${t.id}`)?.setText(`${t.name} · ${pct}%`);
+      this.hud.get(`stats-${t.id}`)?.setText(`${this.match.strategyOf(t.id).name}\n${fmtBytes(state.bytes)} · ${bots} bots`);
       this.hud.get(`hack-${t.id}`)?.setText(`${pct}%`);
     }
     this.hud.get('clock')?.setText(`${Math.floor(w.seconds / 60)}:${String(Math.floor(w.seconds % 60)).padStart(2, '0')}`);
@@ -571,22 +682,23 @@ export class MapScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const box = this.add.graphics();
     box.fillStyle(0x07070f, 0.86);
-    box.fillRoundedRect(-300, -70, 600, 140, 16);
+    box.fillRoundedRect(-320, -100, 640, 200, 16);
     box.lineStyle(2, t.color, 0.9);
-    box.strokeRoundedRect(-300, -70, 600, 140, 16);
+    box.strokeRoundedRect(-320, -100, 640, 200, 16);
+    // The team's name on its own line, the deed under it.
     const text = this.add
-      .text(0, -26, `${t.name.toUpperCase()} HACKED THE MAINFRAME`, { fontFamily: FONT, fontSize: '24px', fontStyle: 'bold', color: t.css, letterSpacing: 4 })
+      .text(0, -42, `${t.name.toUpperCase()}\nHACKED THE MAINFRAME`, { fontFamily: FONT, fontSize: '26px', fontStyle: 'bold', color: t.css, letterSpacing: 4, align: 'center', lineSpacing: 6 })
       .setOrigin(0.5)
       .setShadow(0, 0, t.css, 14, false, true);
     const line = this.add
-      .text(0, 8, `${this.match.strategyOf(id).name} · ${Math.round(this.match.world.seconds)} s · ${this.match.made.length} decisions on aityx`, {
+      .text(0, 30, `${this.match.strategyOf(id).name} · ${Math.round(this.match.world.seconds)} s · ${this.match.made.length} decisions on aityx`, {
         fontFamily: FONT,
         fontSize: '13px',
         color: PALETTE.muted,
         letterSpacing: 1,
       })
       .setOrigin(0.5);
-    const again = button(this, 0, 44, 'Play again', () => this.scene.restart(), { width: 150, height: 34, size: 14 });
+    const again = button(this, 0, 68, 'Play again', () => this.scene.restart(), { width: 150, height: 34, size: 14 });
     this.setState('over');
     this.banner = this.add.container(width / 2, height / 2, [box, text, line, again]).setDepth(40);
   }

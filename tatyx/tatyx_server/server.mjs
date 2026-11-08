@@ -48,10 +48,11 @@
 // TATYX_OIDC_CLIENT_ID (the
 // Google client; none: nobody can sign in), TATYX_ALLOWED_DOMAINS
 // (aletyx.com,aletyx.ai; the admins are always aletyx.com's and
-// aletyx.ai's alone), TATYX_SESSION_SECRET (else a random one per
-// start), TATYX_LEADERBOARD (on|off), TATYX_LEADERBOARD_EVERY_HOURS (6;
-// 0: only when asked), TATYX_MAX_ENTRIES (3 strategies a player may have
-// in the tour), TATYX_DATA_DIR (../data).
+// aletyx.ai's alone), TATYX_SESSION_SECRET (else the one in
+// <data>/session-secret, made on the first start), TATYX_LEADERBOARD
+// (on|off), TATYX_LEADERBOARD_EVERY_HOURS (6; 0: only when asked),
+// TATYX_MAX_ENTRIES (3 strategies a player may have in the tour),
+// TATYX_DATA_DIR (../data).
 // The keys, the tokens, the cookies and the bodies are never logged.
 
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
@@ -59,7 +60,7 @@ import { createServer } from 'node:http';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { AuthError, SESSION_COOKIE, cookieOf, domainOf, sessionHeader, sessions, verifyGoogleIdToken } from './auth.mjs';
+import { AuthError, SESSION_COOKIE, cookieOf, domainOf, sessionHeader, sessions, storedSecret, verifyGoogleIdToken } from './auth.mjs';
 import { EntryError, createLeaderboard } from './leaderboard.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -76,7 +77,7 @@ const DEFAULT_DOMAINS = 'aletyx.com,aletyx.ai';
 const ADMIN_DOMAINS = ['aletyx.com', 'aletyx.ai'];
 const dataDir = resolve(env.TATYX_DATA_DIR || join(here, '..', 'data'));
 const runnerPath = resolve(env.TATYX_RUNNER || join(here, '..', 'tatyx_app', 'dist-runner', 'runner.mjs'));
-const session = sessions(env.TATYX_SESSION_SECRET || undefined);
+const session = sessions(env.TATYX_SESSION_SECRET || (await storedSecret(join(dataDir, 'session-secret'))));
 const MAX_ALIAS = 32;
 
 const TYPES = {
@@ -327,7 +328,13 @@ async function apiConfig() {
 async function sessionRoute(request, response) {
   if (request.method === 'GET') {
     const player = await playerOf(request);
-    return player === null ? json(response, 401, { error: 'signed out' }, 'no-store') : json(response, 200, player, 'no-store');
+    if (player === null) return json(response, 401, { error: 'signed out' }, 'no-store');
+    // A visit renews the session (at most once a day): a player who keeps coming back stays signed in.
+    const user = session.read(cookieOf(request, SESSION_COOKIE));
+    if (session.stale(user)) {
+      response.setHeader('Set-Cookie', sessionHeader(session.issue({ email: user.email, name: user.name ?? null, picture: user.picture ?? null }), secure(request)));
+    }
+    return json(response, 200, player, 'no-store');
   }
   if (!sameOrigin(request)) return json(response, 403, { error: "this origin's pages only" }, 'no-store');
   if (request.method === 'DELETE') {

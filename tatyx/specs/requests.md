@@ -382,3 +382,12 @@ The feature files hold the current specification; see the
     and a site's diamond inside, and the three origins on its corners in
     the teams' colours, each linked to the core. One file,
     `public/favicon.svg`, serves both ([Screens](screens.md#the-shell)).
+32. **Make sure the sign-in and the aityx key are remembered.** The
+    session was signed with a random secret per start and lasted 12
+    hours, so every restart of the server signed everyone out. Without
+    `TATYX_SESSION_SECRET`, the server now keeps its secret in
+    `<data>/session-secret` (made once, mode 600), and a session lasts
+    30 days since the player's last visit, renewed at most once a day.
+    The key already stayed in the browser's localStorage until
+    **Forget**, through sign-outs and restarts; that's now in the spec
+    ([Players](players.md)).

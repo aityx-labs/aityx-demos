@@ -6,12 +6,16 @@
 // packages. Never logs a token or a cookie.
 
 import { createHmac, createPublicKey, randomBytes, timingSafeEqual, verify } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 const GOOGLE_KEYS = 'https://www.googleapis.com/oauth2/v3/certs';
 const ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com']);
 export const SESSION_COOKIE = 'tatyx_session';
-/** A session lasts this long, or as long as the server's secret: a restart without TATYX_SESSION_SECRET signs everyone out. */
-export const SESSION_SECONDS = 12 * 60 * 60;
+/** A session lasts this long since the player's last visit (each visit renews it), and as long as the server's secret. */
+export const SESSION_SECONDS = 30 * 24 * 60 * 60;
+/** A session this old is renewed on the player's next visit: at most once a day. */
+export const RENEW_AFTER_SECONDS = 24 * 60 * 60;
 
 export class AuthError extends Error {
   constructor(message) {
@@ -103,7 +107,29 @@ export function sessions(secret = randomBytes(32)) {
         return null;
       }
     },
+    /** Whether a session read from a cookie is old enough to renew. */
+    stale(user, now = Date.now()) {
+      return user.exp - Math.floor(now / 1000) < SESSION_SECONDS - RENEW_AFTER_SECONDS;
+    },
   };
+}
+
+/**
+ * The secret that signs the sessions when TATYX_SESSION_SECRET is unset:
+ * the one in `file`, else a new random one written there (mode 600), so a
+ * restart keeps everyone signed in.
+ */
+export async function storedSecret(file) {
+  try {
+    const kept = (await readFile(file, 'utf8')).trim();
+    if (kept.length >= 32) return kept;
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+  const secret = randomBytes(32).toString('hex');
+  await mkdir(dirname(file), { recursive: true });
+  await writeFile(file, `${secret}\n`, { mode: 0o600 });
+  return secret;
 }
 
 /** The value of a cookie in a request's Cookie header. */

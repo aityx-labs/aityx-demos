@@ -222,6 +222,24 @@ void main() {
     await tester.pump();
     expect(s.keys.ownKey, 'good');
     expect(find.byKey(const Key('needs-key')), findsNothing);
+    // The saved key fills its field, masked, and is said to work.
+    TextField keyField() => tester.widget<TextField>(find.byKey(const Key('own-key')));
+    expect(keyField().controller!.text, 'good', reason: 'the field shows the saved key');
+    expect(keyField().obscureText, isTrue, reason: 'masked until Show');
+    expect(find.descendant(of: find.byKey(const Key('key-status')), matching: find.textContaining('set and works')), findsOneWidget);
+    // Typing another: not saved yet; then a rejected one says so.
+    await tester.enterText(find.byKey(const Key('own-key')), 'bad');
+    await tester.pump();
+    expect(find.textContaining('Not saved yet'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('save-profile')));
+    await tester.runAsync(() => pumpEventQueue());
+    await tester.pump();
+    expect(find.descendant(of: find.byKey(const Key('key-status')), matching: find.textContaining('rejected')), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('own-key')), 'good');
+    await tester.tap(find.byKey(const Key('save-profile')));
+    await tester.runAsync(() => pumpEventQueue());
+    await tester.pump();
+    expect(find.textContaining('set and works'), findsOneWidget);
     expect(tester.widget<ButtonStyleButton>(find.byKey(const Key('play'))).onPressed, isNotNull,
         reason: 'a working key: play');
 

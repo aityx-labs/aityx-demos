@@ -1,3 +1,4 @@
+import 'package:aityx_web/aityx_web.dart';
 import 'package:flutter/material.dart';
 
 import '../aityx/player_keys.dart';
@@ -13,7 +14,8 @@ import 'tour_session.dart';
 /// strategies in the tour, to upload or remove. Their own key (and,
 /// optionally, its URL) goes here: it runs their table, their strategies
 /// and their bots; without one, they can't play. Players never get the
-/// host's key.
+/// host's key. A saved key fills its field, masked like a password, with
+/// what aityx said of it underneath (works, rejected, unreachable).
 class ProfilePanel extends StatefulWidget {
   const ProfilePanel({super.key, required this.session});
 
@@ -31,6 +33,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
   bool _saving = false;
   final _url = TextEditingController();
   String? _urlShown;
+  String? _keyShown;
   bool _showKey = false;
   String? _problem;
 
@@ -60,9 +63,10 @@ class _ProfilePanelState extends State<ProfilePanel> {
     final me = s.me;
     final alias = _alias.text.trim();
     final aliasChanged = me != null && alias != (me.alias ?? me.defaultName) && !(alias.isEmpty && me.alias == null);
-    // A key typed in; or, with the player's own key, only its URL changed.
+    // A key typed in (not the saved one, which fills the field); or, with
+    // the player's own key, only its URL changed.
     final own = keys.ownKey;
-    final newKey = key.isNotEmpty ? key : (own != null && url.isNotEmpty && url != _urlShown ? own : null);
+    final newKey = key.isNotEmpty && key != own ? key : (own != null && url.isNotEmpty && url != _urlShown ? own : null);
     if (newKey == null && !aliasChanged) {
       setState(() => _problem = own == null ? 'Paste your aityx key first.' : null);
       if (own != null) _tell('Nothing changed.');
@@ -81,10 +85,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
         aliasProblem = e.message;
       }
     }
-    if (newKey != null) {
-      keys.save(newKey, url: url);
-      _key.clear();
-    }
+    if (newKey != null) keys.save(newKey, url: url);
     if (!mounted) return;
     setState(() {
       _saving = false;
@@ -146,6 +147,14 @@ class _ProfilePanelState extends State<ProfilePanel> {
           final typed = _url.text.trim();
           if (typed.isEmpty || typed == _urlShown) _url.text = urlNow;
           _urlShown = urlNow;
+        }
+        // The saved key, into its field when it changes (saved, forgotten),
+        // unless the player typed another.
+        final keyNow = keys.ownKey;
+        if (keyNow != _keyShown) {
+          final typed = _key.text.trim();
+          if (typed.isEmpty || typed == _keyShown) _key.text = keyNow ?? '';
+          _keyShown = keyNow;
         }
         return ListView(
           key: const Key('profile'),
@@ -250,7 +259,7 @@ class _ProfilePanelState extends State<ProfilePanel> {
               autocorrect: false,
               enableSuggestions: false,
               decoration: InputDecoration(
-                labelText: source == KeySource.own ? 'Replace your key' : 'Your key',
+                labelText: 'Your key',
                 hintText: 'aityx_sk_…',
                 isDense: true,
                 suffixIcon: IconButton(
@@ -259,8 +268,10 @@ class _ProfilePanelState extends State<ProfilePanel> {
                   icon: Icon(_showKey ? Icons.visibility_off : Icons.visibility, size: 18),
                 ),
               ),
+              onChanged: (_) => setState(() {}),
               onSubmitted: (_) => _saveProfile(),
             ),
+            if (source == KeySource.own) _KeyStatus(state: s.aityxState, edited: _key.text.trim() != keyNow),
             const SizedBox(height: 12),
             TextField(
               key: const Key('own-url'),
@@ -335,6 +346,67 @@ class _ProfilePanelState extends State<ProfilePanel> {
           ],
         );
       },
+    );
+  }
+}
+
+class _KeyStatus extends StatelessWidget {
+  const _KeyStatus({required this.state, required this.edited});
+
+  final AityxState? state;
+  final bool edited;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final st = state;
+    final Widget icon;
+    final String text;
+    final Color color;
+    if (edited) {
+      (icon, text, color) = (
+        Icon(Icons.edit_outlined, size: 16, color: scheme.onSurfaceVariant),
+        'Not saved yet: Save profile to use this key.',
+        scheme.onSurfaceVariant,
+      );
+    } else if (st == null) {
+      (icon, text, color) = (
+        const SizedBox.square(dimension: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+        'Your key is set. Checking it with aityx…',
+        scheme.onSurfaceVariant,
+      );
+    } else {
+      (icon, text, color) = switch (st.kind) {
+        AityxStateKind.ready => (
+          Icon(Icons.check_circle, size: 16, color: Aityx.green),
+          'Your key is set and works${st.url == null ? '' : ' with ${Uri.tryParse(st.url!)?.host ?? st.url}'}.',
+          Aityx.green,
+        ),
+        AityxStateKind.rejected => (
+          Icon(Icons.error, size: 16, color: scheme.error),
+          'aityx rejected your key: ${st.detail}.',
+          scheme.error,
+        ),
+        AityxStateKind.noKey => (Icon(Icons.error, size: 16, color: scheme.error), 'There is no key for your table.', scheme.error),
+        AityxStateKind.unreachable || AityxStateKind.failing => (
+          Icon(Icons.warning_amber, size: 16, color: Aityx.amber),
+          'Your key is set, but aityx could not check it: ${st.detail}.',
+          Aityx.amber,
+        ),
+      };
+    }
+    return Padding(
+      key: const Key('key-status'),
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          icon,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text, style: TextStyle(color: color)),
+          ),
+        ],
+      ),
     );
   }
 }

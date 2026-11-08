@@ -68,6 +68,17 @@ for the other architecture) into `deploy/out/lambda/`, zipped with the
 models, and uploaded to `pokertour-code-<account>-<region>` under
 `lambda/<hash>.zip`, so an unchanged build redeploys nothing.
 
+## Tags
+
+Like every project in the account, Poker Tour tags its resources
+`project=pokertour` and `tenancy=GA` (`POKERTOUR_TENANCY`: `GA`, `RC` or
+`shared`). `deploy.sh` puts them on the stack, and CloudFormation passes
+them to every resource of it that takes tags (the buckets, the table, the
+functions, their log groups, the roles, the distribution and its
+function), and on the code bucket itself. The schedule takes none (AWS
+tags schedule groups, not schedules), nor do the origin access control,
+the cache policy, the function URL and the permissions.
+
 ## The script
 
 `bash deploy/deploy.sh [--key] [--no-build]`, from the PokerTour

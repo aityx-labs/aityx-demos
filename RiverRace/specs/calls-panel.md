@@ -3,8 +3,13 @@
 The side panel ([calls_panel.dart](../riverrace_app/lib/calls/calls_panel.dart)),
 on the right on wide screens (1000 pixels and up), else in a drawer opened
 by **Calls (n)** in the app bar. Its header says how many calls were made,
-with a button that clears them. Before any call, it explains what the
-calls are.
+with a button that clears them. Before any call, it shows two paragraphs
+(scrolling when the panel is short): what the demo is (the 1982 Atari
+river shooter remade, two planes flown by aityx by rules you can edit,
+the yellow one yours), then what aityx does and how the calls appear
+(every few frames the race asks aityx what the two aityx pilots do, and
+pressing **Start** shows the calls here as they happen). From the first
+call on, the calls take its place.
 
 Every call to aityx is a card, newest first; the panel keeps the latest
 120. A card's header has:

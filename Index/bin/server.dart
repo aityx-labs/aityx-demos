@@ -5,7 +5,8 @@
 /// storage) is reused by every demo. Everything under one prefix, so the
 /// same files, copied as they are, serve from a static host's /demos/
 /// (the aityx website). Plain Dart, no packages, so `dart bin/server.dart`
-/// runs it. The datyx group has an index of its own (datyx-index/).
+/// runs it. The datyx and multyx groups have indexes of their own
+/// (datyx-index/, multyx-index/).
 ///
 ///   GET /, /demos         301 to /demos/
 ///   GET /app/, /<slug>/... 301 to /demos/ and /demos/<slug>/...: the paths

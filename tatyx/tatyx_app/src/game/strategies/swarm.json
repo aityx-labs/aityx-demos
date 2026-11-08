@@ -1,0 +1,21 @@
+{
+  "id": "swarm",
+  "name": "The Swarm",
+  "tagline": "Many hands: Combinators and Builders on every site it finds, no Testers to spare, and the hack once someone else gets close.",
+  "decisions": {
+    "build": {
+      "type": "Build",
+      "desc": "What the team's next megabyte buys",
+      "table": [
+        ["hack_pct", "leader_pct", "combinators", "builders", "anchors", "sites_known", "bots", "=>", "# why"],
+        {"when": {"hack_pct": ">= 40"}, "then": "hack", "why": "Well in: finish it."},
+        {"when": {"leader_pct": ">= 30"}, "then": "hack", "why": "Someone is getting close: a bot into the hack."},
+        {"when": {"combinators": "< 3"}, "then": "combinator", "why": "Another Combinator: shortcuts, and bytes built where there are none to make."},
+        {"when": {"builders": "< 3"}, "then": "builder", "why": "Another Builder: more hands on more sites."},
+        {"when": {"anchors": "< 2", "sites_known": ">= 4"}, "then": "anchor", "why": "Enough sites known: hold one more for the swarm alone."},
+        {"when": {"bots": "< 12"}, "then": "builder", "why": "The swarm grows."},
+        {"then": "hack", "why": "The swarm is big enough: a bot into the hack."}
+      ]
+    }
+  }
+}

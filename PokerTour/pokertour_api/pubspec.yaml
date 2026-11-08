@@ -1,0 +1,22 @@
+name: pokertour_api
+description: "Poker Tour's server: serves the app, keeps the strategies entered in the tour, and plays the leaderboard's tournaments on aityx with the host's key."
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  # ^3.13.0, not newer: the Nix Flutter in devbox ships Dart 3.13.0.
+  sdk: ^3.13.0
+
+dependencies:
+  http: ^1.6.0
+  openid_client: ^0.4.10+2
+  crypto: ^3.0.6
+  poker_core:
+    path: ../poker_core
+  # SigV4 for S3 and Lambda, shared with the app.
+  aws_lite:
+    path: ../aws_lite
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.26.0

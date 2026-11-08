@@ -1,0 +1,8 @@
+# The packages and the build: npm ci and scripts/build.sh make them.
+node_modules/
+tatyx_app/dist/
+tatyx_app/dist-runner/
+# The leaderboard's tournaments (TATYX_DATA_DIR).
+data/
+# Local settings (the key): see .env.example.
+.env

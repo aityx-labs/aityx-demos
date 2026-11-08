@@ -1,0 +1,22 @@
+{
+  "id": "doubler",
+  "name": "The Doubler",
+  "tagline": "A Tester beside every Builder: pairs that build twice as fast, on the richest sites it can reach.",
+  "decisions": {
+    "build": {
+      "type": "Build",
+      "desc": "What the team's next megabyte buys",
+      "table": [
+        ["hack_pct", "leader_pct", "builders", "testers", "mainframe_connected", "explorers", "sites_known", "=>", "# why"],
+        {"when": {"hack_pct": ">= 40"}, "then": "hack", "why": "Well in: finish it."},
+        {"when": {"leader_pct": ">= 50"}, "then": "hack", "why": "Someone is halfway in: race them."},
+        {"when": {"testers": "< 2", "builders": ">= 1"}, "then": "tester", "why": "A Builder without its Tester: double it."},
+        {"when": {"builders": "< 2"}, "then": "builder", "why": "A second Builder, for a second pair."},
+        {"when": {"testers": "< 3", "builders": ">= 3"}, "then": "tester", "why": "Every Builder its Tester."},
+        {"when": {"builders": "< 3"}, "then": "builder", "why": "A third pair: a Builder first."},
+        {"when": {"mainframe_connected": "false", "explorers": "< 2", "sites_known": "< 6"}, "then": "explorer", "why": "The mainframe is out of reach: another Explorer."},
+        {"then": "hack", "why": "Three pairs at work: a bot into the hack."}
+      ]
+    }
+  }
+}

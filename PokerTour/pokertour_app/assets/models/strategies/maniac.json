@@ -1,0 +1,29 @@
+{
+  "id": "maniac",
+  "name": "The Maniac",
+  "tagline": "Raises with almost anything, bluffs half the time, and hates folding.",
+  "decisions": {
+    "bluffing": {"type": "boolean", "desc": "This turn's coin flip: the Maniac bluffs half the time", "expr": "random < 0.5"},
+    "has_something": {"type": "boolean", "desc": "A pair or better, or a draw", "expr": "made_hand != \"high_card\" or flush_draw or straight_draw != \"none\""},
+    "action": {
+      "type": "Action",
+      "desc": "What the player does",
+      "table": [
+        ["street", "hand", "raises", "bluffing", "has_something", "equity", "pot_odds", "random", "can_check", "can_raise", "=>", "# why"],
+        {"when": {"street": "preflop", "hand": "weak", "raises": ">= 2", "bluffing": "false"}, "then": "fold", "why": "Weak cards against a raise and a re-raise, and the coin says no bluff: fold, for once."},
+        {"when": {"street": "preflop", "can_raise": "true"}, "then": "raise", "why": "Before the flop the Maniac raises with almost anything."},
+        {"when": {"street": "preflop"}, "then": "call", "why": "No raise possible: call, all in if need be."},
+        {"when": {"has_something": "true", "can_raise": "true"}, "then": "raise", "why": "A pair or a draw: bet it hard."},
+        {"when": {"bluffing": "true", "can_raise": "true"}, "then": "raise", "why": "Nothing, but the coin came up bluff: bet as if it were the nuts."},
+        {"when": {"can_check": "true"}, "then": "check", "why": "Nothing, no bluff this time, and nothing to call: check."},
+        {"when": {"random": "< 0.3"}, "then": "call", "why": "Nothing, but the Maniac calls three times in ten anyway."},
+        {"then": "fold", "why": "Nothing, no bluff, and chips to call: fold."}
+      ]
+    },
+    "raise_to": {
+      "type": "number",
+      "desc": "The total bet when raising: four big blinds to open, three and a half times the bet facing a raise, the whole pot after the flop",
+      "expr": "if street = \"preflop\" then (if raises = 0 then 4 * big_blind else decimal(3.5 * current_bet, 0)) else pot"
+    }
+  }
+}

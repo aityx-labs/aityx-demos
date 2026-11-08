@@ -86,9 +86,10 @@ score, bridge and losses, and **Race again** starts on a new river.
   over (after a second and a half, so the banner can be read), starts
   another on a new river; not Tab, Esc or a modifier alone, nor a
   shortcut with Cmd, Ctrl or Alt.
-- The controls sit in the top bar, right of the title and of the status
-  (the frame, and how long aityx took to answer), so the game starts
-  right under it: **Start**/**Pause**, **Restart** (same river) and
+- The controls sit in the top bar, right of the title, which stands
+  alone there (the frame and how long aityx took to answer are on each
+  call's card in the calls panel), so the game starts right under it:
+  **Start**/**Pause**, **Restart** (same river) and
   **New river** (icons, named on hover), **You fly**, **Sound** and
   **Speed** (½×, 1× by default, 1½×, 2×). In a window narrower than
   1,300 pixels they wrap in a row above the game instead.

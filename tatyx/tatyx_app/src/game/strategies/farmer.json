@@ -1,0 +1,22 @@
+{
+  "id": "farmer",
+  "name": "The Farmer",
+  "tagline": "Holds its sites with Anchors, builds on them with Builders doubled by Testers, and sends bots in to hack from a steady income.",
+  "decisions": {
+    "build": {
+      "type": "Build",
+      "desc": "What the team's next megabyte buys",
+      "table": [
+        ["hack_pct", "anchors", "builders", "testers", "links_rotting", "sites_held", "sites_known", "mainframe_connected", "hackers", "=>", "# why"],
+        {"when": {"hack_pct": ">= 50"}, "then": "hack", "why": "Halfway in: every bot goes in now."},
+        {"when": {"builders": "< 2"}, "then": "builder", "why": "A second Builder: twice the bytes."},
+        {"when": {"anchors": "< 2"}, "then": "anchor", "why": "A second Anchor: the Builders' sites, the team's alone."},
+        {"when": {"testers": "< 2"}, "then": "tester", "why": "A second Tester: each one doubles a Builder."},
+        {"when": {"mainframe_connected": "true", "hackers": "< 1"}, "then": "hack", "why": "The mainframe is in reach and nobody hacks it yet: send a bot in."},
+        {"when": {"builders": "< 3"}, "then": "builder", "why": "A third Builder, on a third site."},
+        {"when": {"mainframe_connected": "false", "sites_known": "< 4"}, "then": "explorer", "why": "The mainframe is not in reach: find more of the map."},
+        {"then": "hack", "why": "The farm is set: another bot into the hack."}
+      ]
+    }
+  }
+}

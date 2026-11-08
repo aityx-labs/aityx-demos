@@ -12,8 +12,9 @@
 #   ./stop-all.sh ContactHub    # only these
 #   ./stop-aityx.sh             # the aityx group: the index, which serves the six aityx demos
 #   ./stop-datyx.sh             # the datyx group: the API, the dashboard, HealthHub and their index
-# The groups come from each folder's group.id.txt (aityx or datyx); the
-# group scripts run this one with DEMOS_GROUP set.
+#   ./stop-multyx.sh            # the multyx group: Poker Tour, tatyx and their index
+# The groups come from each folder's group.id.txt (aityx, datyx or
+# multyx); the group scripts run this one with DEMOS_GROUP set.
 set -uo pipefail
 
 root="$(cd "$(dirname "$0")" && pwd)"
@@ -23,7 +24,7 @@ source "$root/demos-toolchain.sh"
 # demos [names...]: the demos to act on, as folder names: the ones named,
 # else every folder with a devbox.json and a process-compose.yaml, other
 # than the demos the index serves (index_serves in demos-toolchain.sh). With
-# DEMOS_GROUP set (start-aityx.sh, start-datyx.sh and the stop scripts),
+# DEMOS_GROUP set (the group scripts, start-aityx.sh, stop-datyx.sh, ...),
 # only the folders whose group.id.txt is that group, and a name outside
 # it is an error: the demos start and stop by group.
 demos() {

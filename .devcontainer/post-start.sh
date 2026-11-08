@@ -16,8 +16,10 @@
 # datyx API (9900, with PostgreSQL,
 # Elasticsearch and OpenMetadata in containers), the datyx dashboard
 # (9906), HealthHub (9801, with its PostgreSQL container on 9803 and
-# Kafka on 9804, its REST proxy on 9805) and
-# its index, datyx-index/ (9800). The builds are made by update-content.sh
+# Kafka on 9804, its REST proxy on 9805) and its index, datyx-index/
+# (9800). The multyx group: Poker Tour (9810, with Floci, the local AWS,
+# in a container on 9811), tatyx (9710) and its index, multyx-index/
+# (9700). The builds are made by update-content.sh
 # when the codespace was created (or come from the image), so the demos
 # are up in seconds; a demo whose build is missing or older than its
 # sources builds first, a minute or two. Watch one with
@@ -55,10 +57,12 @@ if [[ ${#missing[@]} -gt 0 ]]; then
 else
   # Detached, so it outlives postStartCommand. start-all.sh's output, and
   # what it says when each demo answers, goes to the log too. The group's
-  # index first (Index/ for aityx, datyx-index/ for datyx): it is up in
-  # seconds and links the others while they come up.
+  # index first (Index/ for aityx, datyx-index/ for datyx, multyx-index/
+  # for multyx): it is up in seconds and links the others while they
+  # come up.
   index=Index
   [[ "${DEMOS_GROUP:-}" == datyx ]] && index=datyx-index
+  [[ "${DEMOS_GROUP:-}" == multyx ]] && index=multyx-index
   setsid nohup bash -c '{ WAIT=120 ./start-all.sh "$1"; WAIT=900 ./start-all.sh; } 2>&1 |
     while IFS= read -r line; do
       printf "%s [start-all] %s\n" "$(date -u "+%Y-%m-%d %H:%M:%S")" "$line"

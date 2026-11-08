@@ -1,0 +1,68 @@
+{
+  "id": "mathematician",
+  "name": "The Mathematician",
+  "tagline": "Calls when the odds say so, bets when they say so loudly, and never bluffs.",
+  "decisions": {
+    "edge": {
+      "type": "number",
+      "desc": "How much the chance of winning beats the pot odds",
+      "expr": "equity - pot_odds"
+    },
+    "profitable_call": {
+      "type": "boolean",
+      "desc": "Does the chance of winning beat the pot odds?",
+      "expr": "equity > pot_odds"
+    },
+    "strong_edge": {
+      "type": "boolean",
+      "desc": "A big enough edge to bet or raise for value: 20 points over the pot odds facing a bet, or a 60% chance of winning when a check is free",
+      "expr": "(can_check and equity >= 0.6) or (not(can_check) and edge >= 0.2)"
+    },
+    "action": {
+      "type": "Action",
+      "desc": "What the player does",
+      "table": [
+        [
+          "strong_edge",
+          "can_raise",
+          "profitable_call",
+          "can_check",
+          "=>",
+          "# why"
+        ],
+        {
+          "when": {
+            "strong_edge": "true",
+            "can_raise": "true"
+          },
+          "then": "raise",
+          "why": "Facing a bet, the chance of winning beats the pot odds by 20 points or more; or a free check, and a 60% chance of winning: bet for value."
+        },
+        {
+          "when": {
+            "profitable_call": "true",
+            "can_check": "false"
+          },
+          "then": "call",
+          "why": "The chance of winning beats the pot odds: calling is profitable."
+        },
+        {
+          "when": {
+            "can_check": "true"
+          },
+          "then": "check",
+          "why": "Nothing to call and no edge worth betting: check and see the next card."
+        },
+        {
+          "then": "fold",
+          "why": "The call costs a bigger share of the pot than the chance of winning: fold."
+        }
+      ]
+    },
+    "raise_to": {
+      "type": "number",
+      "desc": "The total bet when raising: three big blinds to open before the flop, three times the bet facing a raise, two thirds of the pot after the flop",
+      "expr": "if street = \"preflop\" then (if raises = 0 then 3 * big_blind else 3 * current_bet) else decimal(pot * 0.66, 0)"
+    }
+  }
+}

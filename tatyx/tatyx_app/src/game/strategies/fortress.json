@@ -1,0 +1,22 @@
+{
+  "id": "fortress",
+  "name": "The Fortress",
+  "tagline": "Holds the cores: Anchors first, so the richest sites build for nobody else, then Builders and Testers behind them.",
+  "decisions": {
+    "build": {
+      "type": "Build",
+      "desc": "What the team's next megabyte buys",
+      "table": [
+        ["hack_pct", "anchors", "builders", "testers", "threat", "links_rotting", "sites_held", "income_kbs", "=>", "# why"],
+        {"when": {"hack_pct": ">= 50"}, "then": "hack", "why": "Halfway in: every bot goes in now."},
+        {"when": {"anchors": "< 2"}, "then": "anchor", "why": "Hold two sites before anything else."},
+        {"when": {"threat": ">= 2", "anchors": "< 4"}, "then": "anchor", "why": "Other teams are on the sites it knows: hold another."},
+        {"when": {"builders": "< 2"}, "then": "builder", "why": "Builders behind the walls."},
+        {"when": {"links_rotting": ">= 1", "testers": "< 2"}, "then": "tester", "why": "The walls' links are rotting: a Tester."},
+        {"when": {"anchors": "< 3", "sites_held": ">= 2"}, "then": "anchor", "why": "Both held: hold a third."},
+        {"when": {"income_kbs": "< 150", "builders": "< 3"}, "then": "builder", "why": "Not enough coming in: another Builder."},
+        {"then": "hack", "why": "The fortress pays its way: a bot into the hack."}
+      ]
+    }
+  }
+}

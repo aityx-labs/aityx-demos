@@ -186,3 +186,19 @@ The feature files hold the current specification; see the
     expects the new origin and proxy paths (see
     [Development environment](dev-environment.md) and
     [aityx calls](api.md)).
+
+21. **Remove the frame counter from the top near the title, so the
+    title stands alone, and, before play, show in the calls panel what
+    the demo is and what aityx is doing in it; after play, show the
+    calls as they are.** The app bar's status (*Frame n*, with *asking
+    aityx…* or *aityx answered in n ms*) went, from beside the title and
+    from the controls row of narrow windows alike, with the code that
+    built it and the last answer time it kept (each call's card still
+    says the frame and how long aityx took). Before the first call the
+    calls panel now shows two paragraphs: the demo (the 1982 Atari river
+    shooter remade, two planes flown by aityx by rules you can edit, the
+    yellow one yours) and what aityx does and how the calls appear
+    (every few frames the race asks aityx what the two aityx pilots do;
+    press **Start** and the calls show here as they happen), scrolling
+    when the panel is short. Once calls arrive the panel shows them as
+    before (see [Calls panel](calls-panel.md) and [Game](game.md)).

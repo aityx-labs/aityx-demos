@@ -8,6 +8,7 @@ built from one [Containerfile](Containerfile):
 |---|---|---|
 | aityx | `docker.io/aletyxcode/samples-and-demos-aityx` | Flutter, the GitHub CLI, process-compose, the packages the six aityx demos depend on (`packages/aityx_web` among them) and **their release web builds**, which the index serves at `/demos/<slug>/` |
 | datyx | `docker.io/aletyxcode/samples-and-demos-datyx` | the same tools, GraalVM (the datyx API's JDK), the API's Maven dependencies, the packages and **release web builds** of the datyx dashboard and HealthHub |
+| multyx | `docker.io/aletyxcode/samples-and-demos-multyx` | the same tools, Node 22 (tatyx and the multyx index), the packages and **release web build** of Poker Tour; tatyx, a TypeScript game, builds in the codespace (`npm ci` and Vite, a minute) |
 
 A group is the folders whose `group.id.txt` names it. A codespace
 restores the builds and starts the group's demos in seconds. GitHub's
@@ -26,6 +27,7 @@ with Docker running and devbox installed:
 docker login -u aletyxcode          # once; a Read & Write access token
 bash image/build-image.sh aityx
 bash image/build-image.sh datyx
+bash image/build-image.sh multyx
 ```
 
 [build-image.sh](build-image.sh) runs `./build-all.sh` on the group's
@@ -53,10 +55,12 @@ container pulls whatever `image` its `devcontainer.json` names.
   change elsewhere in the demo (its README, its specs) keeps the build.
 - No API binaries are in the image: the aityx demos have no APIs (each
   app calls aityx from the browser, and the index serves them all), and
-  the datyx group's `scripts/build.sh` compiles its in a few seconds.
+  the datyx and multyx groups' `scripts/build.sh` compile theirs in a
+  few seconds.
 - `DEMOS_TOOLCHAIN=image` (set by `devcontainer.json`) makes
   `start-all.sh`, `stop-all.sh` and `build-all.sh` use the image's
-  Flutter, process-compose and, for datyx, GraalVM instead of devbox, and
+  Flutter, process-compose and, for datyx, GraalVM, for multyx, Node,
+  instead of devbox, and
   `DEMOS_GROUP` makes them act on the container's group only.
 
 Rebuild and push a group's image after merging changes to its demos to

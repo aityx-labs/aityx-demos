@@ -1,0 +1,32 @@
+{
+  "id": "rock",
+  "name": "The Rock",
+  "tagline": "Waits for premium cards, then bets them. Folds everything else and never bluffs.",
+  "decisions": {
+    "strong_made": {"type": "boolean", "desc": "Two pair or better", "expr": "not(made_hand = \"high_card\" or made_hand = \"pair\")"},
+    "action": {
+      "type": "Action",
+      "desc": "What the player does",
+      "table": [
+        ["street", "hand", "raises", "strong_made", "made_hand", "equity", "can_check", "can_raise", "=>", "# why"],
+        {"when": {"street": "preflop", "hand": "premium", "can_raise": "true"}, "then": "raise", "why": "Premium cards: raise, whoever has bet before."},
+        {"when": {"street": "preflop", "hand": "premium"}, "then": "call", "why": "Premium cards, but no raise is possible: call."},
+        {"when": {"street": "preflop", "hand": "strong", "raises": "0", "can_raise": "true"}, "then": "raise", "why": "Strong cards and nobody has raised: open with a raise."},
+        {"when": {"street": "preflop", "hand": "strong", "raises": "1"}, "then": "call", "why": "Strong cards against one raise: call and see a flop."},
+        {"when": {"street": "preflop", "can_check": "true"}, "then": "check", "why": "In the big blind with nothing to call: a free flop."},
+        {"when": {"street": "preflop"}, "then": "fold", "why": "Not premium, not strong: the Rock waits for a better hand."},
+        {"when": {"strong_made": "true", "can_raise": "true"}, "then": "raise", "why": "Two pair or better: bet for value."},
+        {"when": {"strong_made": "true"}, "then": "call", "why": "Two pair or better, no raise possible: call."},
+        {"when": {"made_hand": "pair", "equity": ">= 0.5", "can_check": "true"}, "then": "check", "why": "A pair that is likely best: check and keep the pot small."},
+        {"when": {"made_hand": "pair", "equity": ">= 0.5"}, "then": "call", "why": "A pair that is likely best: call, but don't raise with one pair."},
+        {"when": {"can_check": "true"}, "then": "check", "why": "Nothing worth betting: check."},
+        {"then": "fold", "why": "No pair likely to be best, and chips to call: fold."}
+      ]
+    },
+    "raise_to": {
+      "type": "number",
+      "desc": "The total bet when raising: three big blinds to open, three times the bet facing a raise, half the pot after the flop",
+      "expr": "if street = \"preflop\" then (if raises = 0 then 3 * big_blind else 3 * current_bet) else decimal(pot * 0.5, 0)"
+    }
+  }
+}

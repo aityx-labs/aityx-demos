@@ -4,8 +4,8 @@
 one screen: the table with its controls, and beside it, on a window at
 least 1100 px wide, the sidebar of [aityx calls](calls.md); narrower, the
 sidebar opens from the app bar's receipt icon as a bottom sheet. The app
-bar says **PokerFace**, "every player is a set of rules, run on aityx",
-and the build's version when the build sets `POKERFACE_VERSION`.
+bar says **PokerFace**, alone beside its icon, and on the right the
+build's version when the build sets `POKERFACE_VERSION`.
 
 ## What the table shows
 

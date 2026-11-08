@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>multyx</title>
+  <meta name="description" content="The multyx group of the aityx demos: Poker Tour and tatyx, multiplayer games played on aityx, and where to open each.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <!-- Every link opens in a new tab: the index stays open. -->
+  <base target="_blank">
+  <style>
+    :root {
+      --bg0: #151418; --bg: #17161A; --bg1: #201E24; --bg2: #2A272E;
+      --border: #37333C; --dim: #47474D;
+      --fg0: #FFFFFF; --fg: #EFF2F4; --muted: #A9ACB6;
+      --orange: #E36742; --orange-light: #EB7B58;
+      --green: #4CC38A; --amber: #E8B04B; --red: #F0506E;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--fg); }
+    body {
+      font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 0 16px 48px;
+    }
+    a { color: var(--orange-light); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    header {
+      max-width: 1100px; margin: 0 auto; padding: 40px 0 24px;
+      display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+    }
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .brand svg { width: 44px; height: 44px; }
+    h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.01em; }
+    .tag { color: var(--muted); margin: 4px 0 0; }
+    .meta { color: var(--muted); font-size: 14px; text-align: right; align-self: flex-start; }
+    .meta a { color: var(--fg); }
+    main { max-width: 1100px; margin: 0 auto; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+    .card {
+      background: var(--bg1); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 10px;
+      transition: border-color .15s;
+    }
+    .card:hover { border-color: var(--dim); }
+    .head { display: flex; align-items: center; gap: 12px; }
+    .icon {
+      width: 40px; height: 40px; border-radius: 10px; flex: none;
+      background: var(--bg2); display: grid; place-items: center;
+    }
+    .icon svg { width: 24px; height: 24px; }
+    .head h2 { margin: 0; font-size: 18px; }
+    .head .what { margin: 0; color: var(--muted); font-size: 13px; }
+    .desc { margin: 0; color: var(--fg); font-size: 14.5px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      font-size: 11.5px; color: var(--muted); background: var(--bg2);
+      border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px;
+    }
+    .chip.aityx { color: var(--orange-light); border-color: rgba(227, 103, 66, .5); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      border-radius: 8px; padding: 7px 12px; font-size: 13.5px; font-weight: 600;
+      border: 1px solid var(--border); color: var(--fg); background: var(--bg2);
+    }
+    .btn:hover { text-decoration: none; border-color: var(--dim); }
+    .btn.primary { background: var(--orange); border-color: var(--orange); color: var(--fg0); }
+    .btn.primary:hover { background: var(--orange-light); }
+    .btn svg { width: 15px; height: 15px; }
+    h3.section { margin: 36px 0 12px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+    footer { max-width: 1100px; margin: 40px auto 0; color: var(--muted); font-size: 13.5px; border-top: 1px solid var(--border); padding-top: 18px; }
+    footer code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); }
+    @media (max-width: 600px) { header { padding-top: 24px; } .meta { text-align: left; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        <rect width="48" height="48" rx="12" fill="#E36742"/>
+        <path d="M24 9 L41 36 H7 Z" fill="#F2E9DC"/>
+        <path d="M24 20 L35 35 H13 Z" fill="#1C1A1F"/>
+        <rect x="20.5" y="26" width="2.4" height="6" rx="1.2" fill="#F5A356"/>
+        <rect x="25.1" y="26" width="2.4" height="6" rx="1.2" fill="#F5A356"/>
+      </svg>
+      <div>
+        <h1>multyx</h1>
+        <p class="tag">Multiplayer games on aityx: sign in, bring a strategy written as a decision model, and climb a leaderboard the server plays.</p>
+      </div>
+    </div>
+    <div class="meta">
+      <a href="https://github.com/aityx-labs/aityx-demos">github.com/aityx-labs/aityx-demos</a>
+    </div>
+  </header>
+
+  <main>
+    <h3 class="section">The multyx group</h3>
+    <div class="grid" id="apps"></div>
+  </main>
+
+  <footer>
+    Everything runs locally on its own port, tatyx on 9710 and Poker Tour on 9810: start the group with <code>./start-multyx.sh</code> at the
+    root of the repository, stop it with <code>./stop-multyx.sh</code>.
+    Or open the group in a <a href="https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Fmultyx%2Fdevcontainer.json&amp;machine=standardLinux32gb">GitHub codespace</a>.
+    The six aityx demos have an index of their own, on port 8800, at /demos/; the datyx group's is on 9800.
+  </footer>
+
+  <script>
+    // The group's demos, in the order shown. "folder" matches the
+    // repository's folders; "port" is the web app's, the FLUTTER_WEB_PORT
+    // default in its process-compose.yaml, and "path" what to open there
+    // (/app/ unless set).
+    const demos = [
+      {
+        folder: 'tatyx', port: 9710, name: 'tatyx',
+        what: 'Build the sites, hack the mainframe: every megabyte decided on aityx',
+        desc: 'A web game in the look of Tron and the sound of synthwave: three teams race to hack into the mainframe in the middle of the map, each from its own sector, finding the map\'s sites and the links between them and building bytes on the sites over links that rot unless renewed. Every team fields the five bots of aityx (the Anchor, the Builder, the Tester, the Combinator and the Explorer) under a colour tag of its own, and every megabyte it builds is one decision: which bot to deploy, or a megabyte into the hack. Each team\'s strategy is an aityx decision model, one of five presets or its own, uploaded; players sign in with Google, and a leaderboard plays the presets on the server. Phaser 4, TypeScript. Port 9710.',
+        chips: ['Game', 'Phaser 4', 'TypeScript', 'Web Audio', 'Node server', 'aityx'],
+        icon: 'bot',
+      },
+      {
+        folder: 'PokerTour', port: 9810, name: 'Poker Tour',
+        what: 'PokerFace for a team: sign in, play on the host\'s key, enter the tour',
+        desc: 'The poker simulator of the aityx group, for the people of aletyx: sign in with Google (aletyx.com or aletyx.ai), and the app fetches the host\'s aityx key from S3 with that identity (no API in between) and opens the table. Write a strategy or download a preset to start from, and enter it in the tour: a tournament among the strategies in the tour is played on aityx four times a day, and whenever an admin asks, and the leaderboard follows. One server here; serverless on AWS (S3, CloudFront, Lambda, an EventBridge schedule). Port 9810.',
+        chips: ['Game', 'Flutter', 'Dart server', 'Google sign-in', 'S3 key', 'leaderboard', 'aityx'],
+        icon: 'cards',
+      },
+    ];
+
+    const icons = {
+      cards: '<path d="M6 3 H15 V16 H6 Z M9 6 H18 V19 H9 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 9.2 C12 8 13.6 8 13.6 9.4 C13.6 10.4 12 11.6 12 11.6 C12 11.6 10.4 10.4 10.4 9.4 C10.4 8 12 8 12 9.2 Z"/>',
+      bot: '<path d="M12 3 L22 20 H2 Z" fill="#F2E9DC"/><path d="M12 10.5 L18.5 19.5 H5.5 Z" fill="#1C1A1F"/><rect x="9.9" y="14" width="1.5" height="4" rx=".75" fill="#F5A356"/><rect x="12.6" y="14" width="1.5" height="4" rx=".75" fill="#F5A356"/>',
+    };
+    const github = 'https://github.com/aityx-labs/aityx-demos/tree/main/';
+    // Every card opens in the multyx group's codespace (.devcontainer/multyx/).
+    const codespace = 'https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=' +
+      encodeURIComponent('.devcontainer/multyx/devcontainer.json') + '&machine=standardLinux32gb';
+    // Where to open one from here. A codespace forwards each port on its
+    // own host, https://<codespace>-<port>.app.github.dev/, with no :port:
+    // this page's host with its port swapped. Anywhere else, the port on
+    // this host.
+    const forwarded = location.hostname.match(/^(.+)-(\d+)\.(app\.github\.dev)$/);
+    const appUrl = (port, path = '/app/') => forwarded
+      ? 'https://' + forwarded[1] + '-' + port + '.' + forwarded[3] + path
+      : 'http://' + location.hostname + ':' + port + path;
+    const ext = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M19 14v6H4V5h6"/></svg>';
+
+    function card(d) {
+      const el = document.createElement('article');
+      el.className = 'card';
+      el.id = 'demo-' + d.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const chips = d.chips.map(c => '<span class="chip' + (c === 'aityx' ? ' aityx' : '') + '">' + c + '</span>').join('');
+      el.innerHTML =
+        '<div class="head"><div class="icon"><svg viewBox="0 0 24 24" fill="currentColor" style="color:#E36742">' + icons[d.icon] + '</svg></div>' +
+        '<div><h2>' + d.name + '</h2><p class="what">' + d.what + '</p></div></div>' +
+        '<p class="desc">' + d.desc + '</p>' +
+        '<div class="chips">' + chips + '</div>' +
+        '<div class="actions">' +
+        '<a class="btn primary" href="' + appUrl(d.port, d.path) + '" target="_blank" rel="noopener">Open' + ext + '</a>' +
+        '<a class="btn" href="' + github + (d.source || d.folder) + '">Source ' + ext + '</a>' +
+        '<a class="btn" href="' + codespace + '">Codespace ' + ext + '</a>' +
+        '</div>';
+      return el;
+    }
+
+    document.getElementById('apps').replaceChildren(...demos.map(card));
+  </script>
+</body>
+</html>

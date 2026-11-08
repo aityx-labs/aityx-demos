@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build && vite build -c vite.runner.config.ts",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run && node --test ../tatyx_server/test/",
     "typecheck": "tsc --noEmit",
     "recolor": "node tool/recolor.mjs",
     "build:runner": "vite build -c vite.runner.config.ts"

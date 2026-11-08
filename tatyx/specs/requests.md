@@ -289,3 +289,25 @@ The feature files hold the current specification; see the
     site is drawn as big as it is. A tournament plays each trio's three
     matches on one map, and a seed replays a match or a tournament
     ([The game](game.md#the-map), [The leaderboard](leaderboard.md)).
+24. **Only admins (aletyx.com or aletyx.ai accounts) can play a
+    tournament now; tournaments also on the schedule (every six hours)
+    and every time a player uploads a new strategy, which goes to the
+    server and enters the leaderboard. A tournament asked for while one
+    is being played waits for it to end: never in parallel, a queue.**
+    The admins are the `aletyx.com` and `aletyx.ai` players, fixed:
+    `TATYX_ADMIN_DOMAINS` is gone. Uploads go to the server, signed in
+    (the title's **Upload**, and **Enter a strategy** in the leaderboard
+    tab, with the player's entries and **Withdraw**): `GET`, `POST` and
+    `DELETE /api/strategies`, kept in `data/strategies.json`, at most
+    `TATYX_MAX_ENTRIES` (3) a player. A tournament's field is five of
+    the presets and the entries, the fewest matches played first; the
+    standings rank by wins per match played. Every tournament asked for
+    (the schedule's, an admin's, a new strategy's) is queued, one
+    waiting per source, kept in `leaderboard.json`, and played in turn;
+    the admin's cooldown (`TATYX_LEADERBOARD_COOLDOWN_MINUTES`) went with
+    it. Poker Tour, which keeps its tour in DynamoDB, queues its
+    tournaments there; tatyx, one process with JSON files, in its file.
+    Tests: the field and the standings (`test/tour.test.ts`), and the
+    queue and the entries on a fake runner
+    (`tatyx_server/test/leaderboard.test.mjs`, in `npm test`). See [The
+    leaderboard](leaderboard.md) and [Sign-in and keys](players.md).

@@ -38,8 +38,9 @@ may look at the title, the board and the leaderboard.
   per start, so a restart signs everyone out). The page never sees the
   token again, nor the cookie. `GET /api/session` says who is signed in;
   `DELETE /api/session` (Profile's **Sign out**) ends it. Admins, who
-  may start a tournament now, are the players of `TATYX_ADMIN_DOMAINS`
-  (the allowed domains unless set).
+  may start a tournament now, are the `aletyx.com` and `aletyx.ai`
+  players, whatever `TATYX_ALLOWED_DOMAINS` lets play: no setting
+  widens them.
 
 ## Whose key, on which aityx
 

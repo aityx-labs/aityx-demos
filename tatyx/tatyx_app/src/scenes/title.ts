@@ -11,6 +11,7 @@ import { BOTS, type Bot } from '../game/bots';
 import { BadStrategy, cyclePreset, isOwn, lineup, parseStrategy, setStrategy, strategyFile } from '../game/lineup';
 import { TEAMS, type Team } from '../game/teams';
 import { auth } from '../ui/auth';
+import { enterInTour } from '../ui/tour';
 import type { Shell } from '../ui/shell';
 import { button, drawScanlines, drawSynthwave, FONT, PALETTE, setButtonEnabled } from './look';
 
@@ -164,7 +165,13 @@ export class TitleScene extends Phaser.Scene {
     try {
       const s = parseStrategy(await file.text());
       setStrategy(t.id, s);
-      this.showCard(t, { text: `${s.name}: uploaded, and checked.`, bad: false });
+      // Signed in, it goes to the tour too, and the leaderboard plays it.
+      if (auth.player === null) this.showCard(t, { text: `${s.name}: uploaded, and checked. Sign in to enter it in the tour.`, bad: false });
+      else {
+        this.showCard(t, { text: `${s.name}: uploaded, and checked; entering it in the tour…`, bad: false });
+        const outcome = await enterInTour(s);
+        this.showCard(t, { text: outcome.ok ? `${s.name}: uploaded, and ${outcome.text}.` : `${s.name}: uploaded, but not in the tour: ${outcome.text}.`, bad: !outcome.ok });
+      }
     } catch (error) {
       this.showCard(t, { text: error instanceof BadStrategy ? `Not uploaded: ${error.message}.` : 'Not uploaded: the file could not be read.', bad: true });
     }

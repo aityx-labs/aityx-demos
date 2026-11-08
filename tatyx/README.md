@@ -23,8 +23,11 @@ Doubler, the Fortress) or the team's own, uploaded as JSON on the title,
 and the game plays itself from them, every call shown in the sidebar.
 As in Poker Tour, players sign in with Google (aletyx accounts) and play
 on their own aityx key, kept in their browser with its URL; and a
-leaderboard plays the presets against each other on the server, on a
-key of its own that never leaves it, every six hours.
+leaderboard plays the presets and the strategies players enter (an
+upload, signed in) against each other on the server, on a key of its
+own that never leaves it: every six hours, whenever a player enters a
+strategy, and whenever an admin (aletyx.com or aletyx.ai) asks, one
+tournament at a time, the others queued.
 
 What's here: the title (the roster, a card per team with its strategy),
 the map with the match and its controls (Start, Pause, the speed), the

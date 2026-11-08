@@ -4,11 +4,12 @@
 // `call` reaches aityx with: the server's, on the leaderboard key, which
 // never leaves the server. No DOM, no Phaser, no key here.
 
+import { BadStrategy, parseStrategy } from './lineup';
 import type { Decider } from './play';
-import { buildRequest, readDecision } from './strategy';
-import { lineups, playTournament, standings, type MatchResult, type Standing } from './tournament';
+import { buildRequest, readDecision, STRATEGIES, type Strategy } from './strategy';
+import { FIELD, lineups, pickField, playTournament, standings, type MatchResult, type Standing } from './tournament';
 
-export { lineups, standings, type MatchResult, type Standing };
+export { BadStrategy, FIELD, lineups, parseStrategy, pickField, standings, STRATEGIES, type MatchResult, type Standing, type Strategy };
 
 /** One systemone call: the body in, aityx's status and parsed body out. */
 export type Call = (body: Record<string, unknown>) => Promise<{ status: number; json: unknown }>;
@@ -29,9 +30,13 @@ export function deciderOn(call: Call): Decider {
   };
 }
 
-/** A tournament on aityx through `call`. */
-export function run(call: Call, onMatch?: (done: number, of: number, result: MatchResult) => void): Promise<{ results: MatchResult[]; standings: Standing[] }> {
-  return playTournament(deciderOn(call), onMatch);
+/** A tournament of the `field` (the presets by default) on aityx through `call`. */
+export function run(
+  call: Call,
+  onMatch?: (done: number, of: number, result: MatchResult) => void,
+  field: readonly Strategy[] = STRATEGIES,
+): Promise<{ results: MatchResult[]; standings: Standing[] }> {
+  return playTournament(deciderOn(call), onMatch, undefined, field);
 }
 
 /** How many matches a tournament plays. */

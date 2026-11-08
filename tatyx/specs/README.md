@@ -17,7 +17,8 @@ builds the hack. Played entirely by aityx: each
 team's strategy is an aityx decision model, a preset or the team's own,
 uploaded, and the game plays itself from them, every call shown beside
 the map; signed-in players play on their own key, and a leaderboard
-plays the presets on a key of its own. Tron's look, a synthwave
+plays the presets and the players' entries on a key of its own, one
+tournament at a time. Tron's look, a synthwave
 soundtrack. A Phaser 4 game, in the **tatyx** group of the aityx demos,
 on port 9710.
 
@@ -53,8 +54,10 @@ strategy editor are marked as **next** in each file.
 - [Sign-in and keys](players.md): Google sign-in (tatyx's own Google
   project and client), the session, the players' own keys and the
   leaderboard's, the profile.
-- [The leaderboard](leaderboard.md): the presets' tournaments on the
-  server, on the leaderboard key; the schedule, the standings, the tab.
+- [The leaderboard](leaderboard.md): the tournaments of the presets
+  and the players' entries on the server, on the leaderboard key; the
+  entries, the field, the schedule, an admin's and a new strategy's
+  tournaments, the queue, the standings, the tab.
 
 **Project**
 

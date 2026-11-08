@@ -21,8 +21,19 @@
 //                                   calls the player (32 characters at
 //                                   most; empty: their name)
 //   GET    /api/leaderboard         the standings, the latest tournament,
-//                                   what it is doing; open to all
-//   POST   /api/leaderboard/run     a tournament now: admins only
+//                                   what it is doing, the tournaments
+//                                   waiting their turn; open to all
+//   POST   /api/leaderboard/run     a tournament now, queued behind the
+//                                   one being played: admins only
+//   GET    /api/strategies          the strategies entered in the tour,
+//                                   with their rules and whose they are
+//                                   (an alias, never an email); signed in
+//   POST   /api/strategies          a strategy file's JSON: entered in the
+//                                   tour (replacing the player's of the
+//                                   same name), and a tournament asked
+//                                   for; 201, 400 (not a strategy), 409
+//                                   (too many); signed in
+//   DELETE /api/strategies/<id>     withdraws the player's entry; signed in
 //   POST   /aityx/v1/systemone      the relay: the body, forwarded to
 //                                   <AITYX_URL>/v1/systemone with the
 //                                   browser's own Authorization header
@@ -36,10 +47,11 @@
 // here, production's TATYX_PROD_LEADERBOARD_KEY is a deployment's only),
 // TATYX_OIDC_CLIENT_ID (the
 // Google client; none: nobody can sign in), TATYX_ALLOWED_DOMAINS
-// (aletyx.com,aletyx.ai), TATYX_ADMIN_DOMAINS (the allowed ones),
-// TATYX_SESSION_SECRET (else a random one per start), TATYX_LEADERBOARD
-// (on|off), TATYX_LEADERBOARD_EVERY_HOURS (6; 0: only on demand),
-// TATYX_LEADERBOARD_COOLDOWN_MINUTES (10), TATYX_DATA_DIR (../data).
+// (aletyx.com,aletyx.ai; the admins are always aletyx.com's and
+// aletyx.ai's alone), TATYX_SESSION_SECRET (else a random one per
+// start), TATYX_LEADERBOARD (on|off), TATYX_LEADERBOARD_EVERY_HOURS (6;
+// 0: only when asked), TATYX_MAX_ENTRIES (3 strategies a player may have
+// in the tour), TATYX_DATA_DIR (../data).
 // The keys, the tokens, the cookies and the bodies are never logged.
 
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
@@ -48,7 +60,7 @@ import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { AuthError, SESSION_COOKIE, cookieOf, domainOf, sessionHeader, sessions, verifyGoogleIdToken } from './auth.mjs';
-import { createLeaderboard } from './leaderboard.mjs';
+import { EntryError, createLeaderboard } from './leaderboard.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const env = process.env;
@@ -60,6 +72,8 @@ const DEFAULT_URL = 'https://api.aityx.ai';
 const MAX_BODY = 2 * 1024 * 1024;
 const PROXY_TIMEOUT_MS = 120_000;
 const DEFAULT_DOMAINS = 'aletyx.com,aletyx.ai';
+/** The tour's admins, who may start a tournament now: these domains' players, whatever TATYX_ALLOWED_DOMAINS says. */
+const ADMIN_DOMAINS = ['aletyx.com', 'aletyx.ai'];
 const dataDir = resolve(env.TATYX_DATA_DIR || join(here, '..', 'data'));
 const runnerPath = resolve(env.TATYX_RUNNER || join(here, '..', 'tatyx_app', 'dist-runner', 'runner.mjs'));
 const session = sessions(env.TATYX_SESSION_SECRET || undefined);
@@ -97,7 +111,7 @@ const leaderboard = createLeaderboard({
   settings: () => settings(),
   ownerName: (email) => ownerName(email),
   everyHours: Number(env.TATYX_LEADERBOARD_EVERY_HOURS ?? 6),
-  cooldownMinutes: Number(env.TATYX_LEADERBOARD_COOLDOWN_MINUTES ?? 10),
+  maxEntries: Number(env.TATYX_MAX_ENTRIES || 3),
   log: (line) => console.log(line),
 });
 
@@ -112,6 +126,7 @@ async function handle(request, response) {
   if (path === '/api/session') return sessionRoute(request, response);
   if (path === '/api/me') return meRoute(request, response);
   if (path === '/api/leaderboard/run') return runRoute(request, response);
+  if (path === '/api/strategies' || path.startsWith('/api/strategies/')) return strategiesRoute(request, response, path);
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     response.setHeader('Allow', 'GET, HEAD');
     return json(response, 405, { error: 'method not allowed' });
@@ -245,7 +260,6 @@ async function settings() {
     base,
     clientId: read('TATYX_OIDC_CLIENT_ID'),
     domains,
-    adminDomains: list(read('TATYX_ADMIN_DOMAINS')).length ? list(read('TATYX_ADMIN_DOMAINS')) : domains,
   });
 }
 
@@ -256,7 +270,7 @@ async function playerOf(request) {
   const s = await settings();
   const domain = domainOf(user.email);
   if (!s.domains.includes(domain)) return null;
-  return { email: user.email, name: user.name ?? null, picture: user.picture ?? null, alias: (await aliases())[user.email] ?? null, admin: s.adminDomains.includes(domain) };
+  return { email: user.email, name: user.name ?? null, picture: user.picture ?? null, alias: (await aliases())[user.email] ?? null, admin: ADMIN_DOMAINS.includes(domain) };
 }
 
 // ---- The players' aliases: what the leaderboard calls them, in <data>/players.json.
@@ -346,7 +360,7 @@ async function sessionRoute(request, response) {
   const user = { email: claims.email, name: claims.name ?? null, picture: claims.picture ?? null };
   response.setHeader('Set-Cookie', sessionHeader(session.issue(user), secure(request)));
   console.log(`session: a player of ${domain} signed in`);
-  return json(response, 200, { ...user, alias: (await aliases())[user.email] ?? null, admin: s.adminDomains.includes(domain) }, 'no-store');
+  return json(response, 200, { ...user, alias: (await aliases())[user.email] ?? null, admin: ADMIN_DOMAINS.includes(domain) }, 'no-store');
 }
 
 /** PUT /api/me: the signed-in player's alias, {"alias": ...}; empty for their name. */
@@ -372,7 +386,7 @@ async function meRoute(request, response) {
   return json(response, 200, await playerOf(request), 'no-store');
 }
 
-/** POST /api/leaderboard/run: a tournament now, for a signed-in admin. */
+/** POST /api/leaderboard/run: a tournament now (queued behind the one being played), for a signed-in admin. */
 async function runRoute(request, response) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST');
@@ -381,9 +395,41 @@ async function runRoute(request, response) {
   if (!sameOrigin(request)) return json(response, 403, { error: "this origin's pages only" }, 'no-store');
   const player = await playerOf(request);
   if (player === null) return json(response, 401, { error: 'sign in first' }, 'no-store');
-  if (!player.admin) return json(response, 403, { error: "only the tour's admins can start a tournament" }, 'no-store');
-  const outcome = await leaderboard.playNow();
-  return json(response, outcome.started ? 202 : 409, outcome, 'no-store');
+  if (!player.admin) return json(response, 403, { error: "only the tour's admins (aletyx.com and aletyx.ai accounts) can start a tournament" }, 'no-store');
+  const outcome = await leaderboard.ask('admin');
+  if (outcome.off) return json(response, 503, { error: outcome.off }, 'no-store');
+  return json(response, 202, { status: outcome.asked }, 'no-store');
+}
+
+/** /api/strategies: the entries (GET), a new one (POST), a withdrawal (DELETE /api/strategies/<id>); signed in. */
+async function strategiesRoute(request, response, path) {
+  const id = path === '/api/strategies' ? null : decodeURIComponent(path.slice('/api/strategies/'.length));
+  const allowed = id === null ? ['GET', 'POST'] : ['DELETE'];
+  if (!allowed.includes(request.method)) {
+    response.setHeader('Allow', allowed.join(', '));
+    return json(response, 405, { error: 'method not allowed' });
+  }
+  if (request.method !== 'GET' && !sameOrigin(request)) return json(response, 403, { error: "this origin's pages only" }, 'no-store');
+  const player = await playerOf(request);
+  if (player === null) return json(response, 401, { error: 'sign in first' }, 'no-store');
+  if (request.method === 'GET') return json(response, 200, { strategies: await leaderboard.entries(player.email) }, 'no-store');
+  if (request.method === 'DELETE') {
+    return (await leaderboard.withdraw(player.email, id)) ? json(response, 200, { ok: true }, 'no-store') : json(response, 404, { error: 'no such entry of yours' }, 'no-store');
+  }
+  let body;
+  try {
+    body = JSON.parse((await readBody(request, 80 * 1024)).toString('utf8'));
+  } catch {
+    return json(response, 400, { error: 'a strategy file’s JSON, up to 64 KB' }, 'no-store');
+  }
+  try {
+    const entered = await leaderboard.enter(player.email, body);
+    console.log(`strategies: a player of ${domainOf(player.email)} entered one`);
+    return json(response, 201, entered, 'no-store');
+  } catch (error) {
+    if (error instanceof EntryError) return json(response, error.status, { error: error.message }, 'no-store');
+    throw error;
+  }
 }
 
 /** A request's body, up to `limit` bytes. */

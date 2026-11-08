@@ -1,12 +1,42 @@
 # The leaderboard
 
-The preset strategies play each other on the server, on the tour's
-leaderboard key, and the standings show in the sidebar's first tab.
+The preset strategies and the ones players enter play each other on the
+server, on the tour's leaderboard key, and the standings show in the
+sidebar's first tab.
+
+## The players' strategies
+
+A signed-in player enters a strategy in the tour by uploading it: on
+the title (a team's **Upload**, which sets the team's strategy in the
+browser as before and, signed in, enters it too; signed out, the card
+says to sign in for that), or with **Enter a strategy** in the
+leaderboard tab, under **Your strategies in the tour**, which lists
+the player's entries, each with **Withdraw**
+([ui/tour.ts](../tatyx_app/src/ui/tour.ts)).
+
+- `POST /api/strategies` (signed in, this origin's pages): the strategy
+  file's JSON, checked on the server as the title checks an upload (the
+  game's `parseStrategy`, from the runner bundle): `400` with what to
+  fix; a preset's name is refused; a player has at most
+  `TATYX_MAX_ENTRIES` (3) in the tour, `409` past that; one of the same
+  name replaces theirs, as a new strategy with a fresh record. `201`
+  with the entry and `tournament`: what asking for one did (below).
+- `GET /api/strategies` (signed in): every entry, its rules, whose it is
+  (the owner's alias, never an email) and whether it is the caller's.
+- `DELETE /api/strategies/<id>` (signed in, this origin's pages): the
+  caller's entry withdrawn (`404` for another's); it leaves the
+  standings.
+
+The entries are kept in `tatyx/data/strategies.json` (mode 600), with
+their owners' emails, which no answer holds.
 
 ## A tournament
 
-Every trio of the five presets, each trio three times, turned a seat
-each time: thirty matches, in which every strategy plays every sector
+A **field** of five strategies plays it: of the presets and the
+entries, the fewest matches played in the tournaments kept first, so a
+new entry plays at once; on a tie a player's before a preset, then at
+random (`pickField`). Every trio of the field, each trio three times,
+turned a seat each time: thirty matches, in which every strategy plays every sector
 against every pair of the others, six times a seat
 ([tournament.ts](../tatyx_app/src/game/tournament.ts)). A trio's three
 matches play on the same map, drawn for that trio, so the seats are
@@ -29,42 +59,62 @@ the key no answer holds and no log prints.
 
 ## When
 
-- Every `TATYX_LEADERBOARD_EVERY_HOURS` hours (6), on the hour in UTC:
-  0, 6, 12 and 18 o'clock. 0: only on demand.
-- When an admin presses **Play a tournament now** in the tab
-  (`POST /api/leaderboard/run`: a signed-in admin, from the game's own
-  pages), unless one is being played, or one started less than
-  `TATYX_LEADERBOARD_COOLDOWN_MINUTES` (10) ago.
-- Never with `TATYX_LEADERBOARD=off`, or without a key.
+Asked for by three sources:
+
+- the **schedule**: every `TATYX_LEADERBOARD_EVERY_HOURS` hours (6), on
+  the hour in UTC: 0, 6, 12 and 18 o'clock. 0: none;
+- an **admin** pressing **Play a tournament now** in the tab
+  (`POST /api/leaderboard/run`: a signed-in `aletyx.com` or `aletyx.ai`
+  player, from the game's own pages; `403` for anyone else). `202`
+  with `status`: `started`, `queued` or `waiting`; `503` when the
+  leaderboard is off;
+- a player entering a **strategy** (above).
+
+Never two at once: a tournament asked for is **queued**, and played
+when the one being played ends, the oldest first. At most one waits per
+source: asking again while one from the same source waits answers
+`waiting`, and that one stands for both (a second new strategy plays in
+the tournament the first asked for, since the fewest matches played sit
+first). The server is one process: its drain of the queue is the only
+player, and the queue is kept in `leaderboard.json`, so a restart plays
+what was left in it. Never with `TATYX_LEADERBOARD=off`, or without a
+key.
 
 ## What is kept, and shown
 
 `tatyx/data/leaderboard.json` (`TATYX_DATA_DIR`; ignored by git, mode
-600) keeps the last 20 tournaments, each with its matches (the lineup,
-the winner, the time, each team's progress and bots, the decisions).
-`GET /api/leaderboard`, open to all, answers the standings over the
-tournaments kept, the latest tournament, what the leaderboard is doing
-(the match being played, the calls so far) and when the next one is; no
-key, no email.
+600) keeps the last 20 tournaments, each with who asked for it, its
+field (the ids, the names, the owners) and its matches (the lineup, the
+winner, the time, each team's progress and bots, the decisions), and the
+queue. `GET /api/leaderboard`, open to all, answers the standings over
+the tournaments kept (the presets and the entries in the tour), the
+latest tournament (with its field's names), what the leaderboard is
+doing (the match being played, the calls so far, who asked), the
+`queue` (each waiting tournament's source and when it was asked for)
+and when the next scheduled one is; no key, no email.
 
 The tab ([ui/leaderboard.ts](../tatyx_app/src/ui/leaderboard.ts)),
 refreshed every 8 s while it shows (every 2 s while a tournament plays):
 
 - what it is doing, or when the next tournament is, or why it doesn't
-  play; the last failure, in red;
-- **Play a tournament now**, for admins;
+  play, and what waits its turn ("the schedule's, a new strategy's");
+  the last failure, in red;
+- **Play a tournament now**, for admins only, disabled while an admin's
+  waits;
 - the standings: the place, the strategy with whose it is under it
   (its owner's alias; **template strategy** for a preset) and the
-  number of matches it won; most wins first, then the most mean
-  progress into the hack, then the fastest wins (which rank but aren't
-  shown);
+  number of matches it won; the most wins per match played first (an
+  entry plays fewer tournaments than the presets), then the most wins,
+  then the most mean progress into the hack, then the fastest wins
+  (which rank but aren't shown);
+- signed in, **Your strategies in the tour** (above);
 - the latest tournament: each match's lineup in its seats' colours,
   the winner in bold, the time and the calls.
 
 ## Known limitations
 
-- Only the presets play: a team's own strategy, uploaded on the title,
-  plays in that browser only.
+- The queue is the server's, in one process: two tatyx servers on one
+  data folder would each play theirs.
 - The seats are not equal: the origins sit on an oval, so the top one
   (cyan's sector) is nearer the mainframe than the other two, and in
   local tournaments that seat wins most matches. The tournament's

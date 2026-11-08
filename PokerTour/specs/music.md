@@ -1,15 +1,36 @@
 # Music
 
-The table plays jazz: five soft lounge-trio tracks in
-[assets/music/](../pokertour_app/assets/music) (their titles, styles,
-keys and tempos in its README), about 2½ minutes each, 11 MB together.
-They are made by [scripts/jazz.dart](../scripts/jazz.dart), from nothing:
-an FM electric piano, an additive upright bass, vibraphone, soft sax or
-flute, and brushes and cymbals of filtered noise, playing notes the
-script composes with a seeded random generator, so every run makes the
-same files. No samples, no recordings, no third-party music. It renders
-WAV and encodes MP3 with ffmpeg (112 kbps, 44.1 kHz stereo), peaks under
-−3 dBFS and about −18 LUFS, the five within a decibel of each other.
+The table plays lo-fi jazz, minimal: five tracks in
+[assets/music/](../pokertour_app/assets/music) (their titles, keys,
+tempos, loops and lead voices in its README), 70 to 84 BPM, about 2½
+minutes each, 11 MB together. They are made by
+[scripts/jazz.dart](../scripts/jazz.dart), from nothing, with a seeded
+random generator, so every run makes the same files. No samples, no
+recordings, no third-party music.
+
+- **One loop a track**: four bars of extended chords (ninths,
+  thirteenths), played the same each time round.
+- **Keys**: a mellow FM electric piano, laid back and softly rolled,
+  through a lowpass that opens through the intro, dims in the break and
+  closes through the outro.
+- **Bass**: a round sub bass, mostly the roots, now and then a fifth,
+  an octave or a step into the next chord.
+- **Motif**: a few notes from the key's pentatonic scale over four
+  bars, then its answer, played only in the theme sections, on nylon
+  guitar (a plucked string), vibraphone or high keys.
+- **Drums**: lazy boom-bap, a soft kick, a dusty snare late on two and
+  four, swung hats; sines and filtered noise, crushed to ten bits and
+  dulled. The kick ducks the rest a little.
+- **Form**: intro (keys alone), groove (keys, bass, drums), theme (and
+  the motif), groove, break (keys and bass, no drums), theme, and an
+  outro on the keys alone.
+- **Lo-fi**: everything goes through a wobbling tape delay (a slow wow
+  and a faint flutter, about ten cents at the most), a dark master
+  lowpass, and vinyl hiss, crackle and the odd pop.
+
+It renders WAV and encodes MP3 with ffmpeg (112 kbps, 44.1 kHz stereo),
+peaks under −3 dBFS and about −19 LUFS, the five within a decibel of
+each other.
 `pubspec.yaml` lists the five files, so the folder's README stays out of
 the bundle.
 

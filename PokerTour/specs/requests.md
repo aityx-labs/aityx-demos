@@ -511,3 +511,14 @@ The feature files hold the current specification; see the
     passes to the stack's resources, and tags the code bucket on every
     run. The live stack and code bucket were tagged the same way. See
     [On AWS](aws.md#tags).
+
+17. **The poker music is too bad: make it more lo-fi jazz, minimal;
+    regenerate all tracks.** `scripts/jazz.dart` was rewritten and the
+    five tracks made again: instead of a lounge trio playing forms with
+    heads and solos, each track is one four-bar loop of extended chords
+    on a mellow electric piano, a sub bass, a sparse pentatonic motif
+    (nylon guitar, vibraphone or high keys) in the theme sections
+    only, lazy boom-bap drums crushed to ten bits, a drumless break,
+    and tape wobble with vinyl hiss and crackle over it all; 70 to 84
+    BPM, new titles. The player, the controls and the file names are
+    unchanged. See [Music](music.md).

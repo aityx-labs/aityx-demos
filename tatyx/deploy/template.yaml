@@ -17,8 +17,8 @@ Parameters:
     Default: ''
   AllowedDomains:
     Type: String
-    Description: The email domains that may play, comma separated.
-    Default: aletyx.com,aletyx.ai
+    Description: The email domains that may play, comma separated; * is any Google account.
+    Default: '*'
   AityxUrl:
     Type: String
     Description: >-
@@ -123,7 +123,8 @@ Resources:
         SigningProtocol: sigv4
 
   # /, /tatyx and the old /app paths go to /tatyx/; a folder gets its
-  # index.html; a path without an extension under /tatyx/ gets the app.
+  # index.html, as do the privacy policy and the terms (/tatyx/privacy,
+  # /tatyx/tos); another path without an extension under /tatyx/ gets the app.
   ViewerFunction:
     Type: AWS::CloudFront::Function
     Properties:
@@ -141,6 +142,8 @@ Resources:
           }
           if (uri.slice(-1) === '/') {
             request.uri = uri + 'index.html';
+          } else if (uri === '/tatyx/privacy' || uri === '/tatyx/tos') {
+            request.uri = uri + '/index.html';
           } else if (uri.indexOf('/tatyx/') === 0 && uri.indexOf('.') === -1) {
             request.uri = '/tatyx/index.html';
           }

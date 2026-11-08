@@ -172,7 +172,9 @@ export function mountShell(root: HTMLElement): Shell {
     } else if (signIn === null) {
       account.innerHTML = '<p class="note bad">Sign-in is not set up on this server yet (it has no Google client: TATYX_OIDC_CLIENT_ID), so nobody can play here.</p>';
     } else {
-      account.innerHTML = `<p>Sign in to play.</p><div id="gsi"></div><p class="note bad" id="auth-error" hidden></p>`;
+      const base = import.meta.env.BASE_URL;
+      account.innerHTML = `<p>Sign in to play.</p><div id="gsi"></div><p class="note bad" id="auth-error" hidden></p>`
+        + `<p class="note">By signing in you agree to the <a href="${base}tos" target="_blank" rel="noopener">Terms</a> and the <a href="${base}privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>`;
       void auth.renderButton(account.querySelector('#gsi')!);
     }
     const error = account.querySelector<HTMLElement>('#auth-error');

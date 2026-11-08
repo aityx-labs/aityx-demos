@@ -6,6 +6,14 @@ The feature files hold the current specification; see the
 
 ## 2026-11-08
 
+20. **"Access blocked: Poker Tour can only be used within its
+    organization": make it available to external accounts as well.**
+    The Google project's consent screen is *External* now, in
+    production, and the tour's domains default to `*`, any Google
+    account (`POKERTOUR_ALLOWED_DOMAINS` still narrows it); the sign-in
+    asks for "your Google account". The admins are still the aletyx.com
+    and aletyx.ai accounts alone ([The tour](tour.md)).
+
 19. **Found checking the deploy: a random tournament seated a preset
     twice.** The table's list held each preset twice, the app's own and
     the copy the server returns with the tour's strategies (`tour-shark`

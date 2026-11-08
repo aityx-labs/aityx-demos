@@ -1,8 +1,8 @@
 /// Who is calling: Google, through OpenID Connect. The app signs the user
 /// in with the client id this server publishes (GET /api/config) and
 /// sends the ID token as a bearer; this verifies it against Google's keys
-/// (package:openid_client), reads the identity, and lets only the tour's
-/// domains (aletyx.com, aletyx.ai) through. Without OIDC_CLIENT_ID nobody
+/// (package:openid_client), reads the identity, and lets the tour's
+/// domains through (any Google account by default). Without OIDC_CLIENT_ID nobody
 /// can sign in: every call that needs a player answers 503.
 library;
 
@@ -16,7 +16,7 @@ import 'package:openid_client/openid_client.dart';
 ///   OIDC_ISSUER              the provider (default https://accounts.google.com)
 ///   OIDC_CLIENT_ID           the OAuth client id the app signs in with
 ///   POKERTOUR_ALLOWED_DOMAINS  the email domains that may play, comma
-///                            separated (default aletyx.com,aletyx.ai)
+///                            separated; * is any (default *)
 /// The tour's admins, who can start a tournament now, are the aletyx.com
 /// and aletyx.ai accounts ([adminDomains]), whatever the domains that
 /// may play: no setting widens them.
@@ -41,7 +41,7 @@ class AuthSettings {
   static List<String> _domains(String? text) =>
       (text ?? '').split(',').map((d) => d.trim().toLowerCase()).where((d) => d.isNotEmpty).toList();
 
-  static const defaultDomains = ['aletyx.com', 'aletyx.ai'];
+  static const defaultDomains = ['*'];
 
   final String issuer;
   final String clientId;
@@ -59,8 +59,11 @@ class AuthSettings {
     'clientId': enabled ? clientId : null,
   };
 
+  /// Whether any account may play: the domains are *.
+  bool get anyDomain => domains.contains('*');
+
   /// Whether [email] is in one of the tour's domains.
-  bool allows(String email) => domains.contains(_domainOf(email));
+  bool allows(String email) => anyDomain || domains.contains(_domainOf(email));
 
   /// Whether [email] is one of the tour's admins: it may play, and it is
   /// an aletyx.com or aletyx.ai account.

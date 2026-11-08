@@ -28,10 +28,10 @@ class SignedInUser {
     return at < 0 ? '' : email.substring(at + 1).toLowerCase();
   }
 
-  /// Whether the account is in one of [domains] (aletyx.com, aletyx.ai):
-  /// by its email, which Google verified.
+  /// Whether the account is in one of [domains] (* is any): by its
+  /// email, which Google verified.
   bool allowedIn(Iterable<String> domains) =>
-      domains.any((d) => d.toLowerCase() == domain);
+      domains.any((d) => d == '*' || d.toLowerCase() == domain);
 }
 
 /// Signs the user in with Google, through the client id the server names

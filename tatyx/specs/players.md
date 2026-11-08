@@ -15,7 +15,7 @@ may look at the title, the board and the leaderboard.
 
 - **The Google client**: Google project `aletyxcode-tatyx` (tatyx's own,
   in the aletyx.com organization), its consent screen "tatyx",
-  *Internal*, so only the organization's accounts can sign in at
+  *External* and in production, so any Google account can sign in at
   Google's side, and its *Web application* client `tatyx-web`, whose
   authorized JavaScript origins are `http://localhost:9710` and
   `http://localhost:9711` (Vite's dev server); add any address it is
@@ -31,8 +31,8 @@ may look at the title, the board and the leaderboard.
   the token is verified there, with no package: RS256 against Google's
   published keys (cached as long as Google says), the issuer, the
   audience (the client id), the expiry, a verified email, and the
-  email's domain among `TATYX_ALLOWED_DOMAINS` (`aletyx.com`,
-  `aletyx.ai`). Then a **session**: an HMAC-signed cookie,
+  email's domain among `TATYX_ALLOWED_DOMAINS` (`*`, any, by
+  default). Then a **session**: an HMAC-signed cookie,
   `tatyx_session` (`HttpOnly`, `SameSite=Strict`, `Secure` over https),
   for 30 days since the player's last visit (`GET /api/session` renews
   it, at most once a day), signed with `TATYX_SESSION_SECRET`, else the

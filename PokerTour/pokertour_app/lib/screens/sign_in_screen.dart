@@ -8,6 +8,7 @@ import '../table/controls_bar.dart';
 import '../table/table_view.dart';
 import '../theme.dart';
 import '../tour/leaderboard_panel.dart';
+import '../tour/links.dart';
 import '../tour/tour_session.dart';
 
 /// The page before the table: the table itself, seated with the presets,
@@ -171,7 +172,8 @@ class _Status extends StatelessWidget {
     final scheme = theme.colorScheme;
     final muted = theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
     final auth = session.auth;
-    final domains = session.config?.domains.join(' or ') ?? '';
+    final allowed = session.config?.domains ?? const <String>[];
+    final domains = allowed.contains('*') ? 'Google' : allowed.join(' or ');
     switch (session.stage) {
       case TourStage.loading:
         return Row(
@@ -200,6 +202,16 @@ class _Status extends StatelessWidget {
                 child: Text(auth.error!, style: TextStyle(color: scheme.error)),
               ),
             if (auth.ready) GoogleSignInButton(auth: auth) else const LinearProgressIndicator(),
+            const SizedBox(height: 8),
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text('By signing in you agree to the', style: muted),
+                TextButton(key: const Key('terms'), onPressed: () => openPage('tos'), child: const Text('Terms')),
+                Text('and the', style: muted),
+                TextButton(key: const Key('privacy'), onPressed: () => openPage('privacy'), child: const Text('Privacy Policy')),
+              ],
+            ),
           ],
         );
       case TourStage.notAllowed:

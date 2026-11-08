@@ -74,9 +74,9 @@ Or, with Node 22 on the PATH, `bash scripts/serve.sh`, or `make dev`,
 
 ## Sign-in and the keys
 
-To play, a player signs in with Google (an `aletyx.com` or `aletyx.ai`
-account), in the sidebar's Profile. tatyx has its own Google project,
-`aletyxcode-tatyx`, with an *Internal* consent screen and a web client,
+To play, a player signs in with Google (any account, unless
+`TATYX_ALLOWED_DOMAINS` narrows it), in the sidebar's Profile. tatyx has its own Google project,
+`aletyxcode-tatyx`, with an *External* consent screen (in production) and a web client,
 `tatyx-web`, for `http://localhost:9710` and `:9711`; its id is
 `TATYX_OIDC_CLIENT_ID` in the repository's `.env`. Serve the game from
 another address and that address must be added to the client's

@@ -16,8 +16,8 @@ Parameters:
     Default: ''
   AllowedDomains:
     Type: String
-    Description: The email domains that may play, comma separated.
-    Default: aletyx.com,aletyx.ai
+    Description: The email domains that may play, comma separated; * is any Google account.
+    Default: '*'
   AityxUrl:
     Type: String
     Description: >-
@@ -152,8 +152,9 @@ Resources:
         SigningProtocol: sigv4
 
   # /, /pokertour and the old /app go to /pokertour/; a folder gets its
-  # index.html; a path without an extension under /pokertour/ gets the
-  # app (its own routing).
+  # index.html, as do the privacy policy and the terms (/pokertour/privacy,
+  # /pokertour/tos); another path without an extension under /pokertour/
+  # gets the app (its own routing).
   ViewerFunction:
     Type: AWS::CloudFront::Function
     Properties:
@@ -171,6 +172,8 @@ Resources:
           }
           if (uri.slice(-1) === '/') {
             request.uri = uri + 'index.html';
+          } else if (uri === '/pokertour/privacy' || uri === '/pokertour/tos') {
+            request.uri = uri + '/index.html';
           } else if (uri.indexOf('/pokertour/') === 0 && uri.indexOf('.') === -1) {
             request.uri = '/pokertour/index.html';
           }

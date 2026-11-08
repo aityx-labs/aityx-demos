@@ -19,6 +19,21 @@ import 'tour/tour_session.dart';
 
 export 'table/table_screen.dart' show TableScreen;
 
+/// The tour's strategies as the table seats them: the players' entries,
+/// each saying whose it is; not the presets, which the table has already
+/// (a second copy would let a random tournament seat one twice).
+List<Strategy> tableStrategies(Iterable<TourStrategy> tour) => [
+  for (final t in tour)
+    if (!t.preset)
+      Strategy(
+        id: t.strategy.id,
+        name: t.strategy.name,
+        tagline: 'In the tour, by ${t.owner}. ${t.strategy.tagline}'.trim(),
+        decisions: t.strategy.decisions,
+        custom: true,
+      ),
+];
+
 void main() {
   runApp(const PokerTourApp());
 }
@@ -100,18 +115,8 @@ class _PokerTourAppState extends State<PokerTourApp> {
 
   /// The tour's strategies among the table's, to seat players with.
   void _seatTourStrategies(GameController controller) {
-    final tour = _session.tourStrategies;
-    if (tour.isEmpty) return;
-    controller.addStrategies([
-      for (final t in tour)
-        Strategy(
-          id: t.strategy.id,
-          name: t.strategy.name,
-          tagline: 'In the tour, by ${t.owner}. ${t.strategy.tagline}'.trim(),
-          decisions: t.strategy.decisions,
-          custom: true,
-        ),
-    ]);
+    final tour = tableStrategies(_session.tourStrategies);
+    if (tour.isNotEmpty) controller.addStrategies(tour);
   }
 
   @override

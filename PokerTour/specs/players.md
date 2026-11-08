@@ -52,7 +52,8 @@ Every strategy known to the app: the presets (the app's
 [assets/models/strategies/](../pokertour_app/assets/models/strategies))
 first, then the tour's (the strategies players entered, read from the
 server once signed in, with "In the tour, by <alias or name>" in their
-tagline),
+tagline; not the server's copies of the presets, so no preset is listed,
+or seated by a random tournament, twice),
 then those written in the app (marked "yours"), each with its tagline and
 buttons: **Rules** opens a preset's rules, **Edit** a custom strategy's;
 **Download as JSON** saves any strategy's `name`, `tagline` and

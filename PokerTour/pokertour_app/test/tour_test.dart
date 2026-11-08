@@ -50,6 +50,7 @@ void main() {
           '/api/tournaments' when request.method == 'POST' => http.Response('{"status":"queued"}', 202),
           '/api/strategies' => http.Response(jsonEncode({'strategies': [
             {'id': 'u-1', 'name': 'Ana One', 'tagline': 'Mine', 'decisions': {'action': {'expr': '"call"'}, 'raise_to': {'expr': 'min_raise'}}, 'owner': 'Ana', 'ownerId': 'abc', 'preset': false},
+            {'id': 'rock', 'name': 'The Rock', 'tagline': 'Tight', 'decisions': {'action': {'expr': '"fold"'}, 'raise_to': {'expr': 'min_raise'}}, 'owner': 'the house', 'ownerId': 'house', 'preset': true},
           ]}), 200),
           _ => http.Response('{"error":"nope"}', 404),
         };
@@ -70,8 +71,13 @@ void main() {
     expect(board.hoursUtc, [0, 6, 12, 18]);
     expect(board.queue, ['strategy']);
     final strategies = await api.strategies();
-    expect(strategies.single.strategy.id, 'tour-u-1');
-    expect(strategies.single.strategy.custom, isTrue);
+    expect(strategies.map((t) => t.strategy.id), ['tour-u-1', 'tour-rock']);
+    expect(strategies.first.strategy.custom, isTrue);
+    expect(strategies.map((t) => t.preset), [false, true]);
+    // The table takes the players' entries, not a second copy of a preset.
+    final table = tableStrategies(strategies);
+    expect(table.map((s) => s.id), ['tour-u-1']);
+    expect(table.single.tagline, 'In the tour, by Ana. Mine');
     expect((await api.me()).admin, isTrue);
     expect(await api.startTournament(), 'queued');
     expect(() => api.withdraw('x'), throwsA(isA<TourException>().having((e) => e.message, 'message', 'nope')));

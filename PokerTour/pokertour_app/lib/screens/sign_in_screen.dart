@@ -66,8 +66,8 @@ class SignInScreen extends StatelessWidget {
                           "No-limit hold'em where every player is a set of rules run on "
                           'aityx. Play at your own table with your aityx key, write a '
                           'strategy, and enter it in the tour: the leaderboard plays '
-                          'the strategies against each other four times a day, and '
-                          'whenever an admin asks.',
+                          'the strategies against each other four times a day, '
+                          'whenever a strategy is entered, and whenever an admin asks.',
                           style: theme.textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 16),

@@ -400,3 +400,25 @@ The feature files hold the current specification; see the
     and the key when one is typed (or its URL changed), with one
     message for both; **Forget my key** stays. The profile tests use
     the one button. See [The sidebar and the profile](profile.md).
+
+15. **Only admins (aletyx.com or aletyx.ai accounts) can play a
+    tournament now; tournaments also on the schedule (every six hours)
+    and every time a player uploads a new strategy. A tournament asked
+    for while one is being played waits for it to end: never two in
+    parallel, a queue, controlled in DynamoDB.** The admins are the
+    `aletyx.com` and `aletyx.ai` accounts, fixed: `POKERTOUR_ADMIN_DOMAINS`
+    and the template's `AdminDomains` are gone, and an account a wider
+    `POKERTOUR_ALLOWED_DOMAINS` lets play is no admin. Every tournament
+    asked for (the schedule's, an admin's, a new strategy's) is queued in
+    the tour's table (`pk` `QUEUE`, one waiting per source) and played in
+    turn by whoever holds the runner's lock (`pk` `RUNNER`, a conditional
+    write that lapses after sixteen minutes): the laptop's server, or
+    the runner function, which plays one per invocation and invokes
+    itself while more wait. `POST /api/strategies` asks for one and says
+    what asking did (`tournament`); `POST /api/tournaments` answers
+    `started`, `queued` or `waiting` instead of `running`; the
+    leaderboard's runner has the `queue`, which the app's line shows,
+    and an admin's button stays enabled while a tournament plays. Tests:
+    the queue and the lock in memory and on Floci's DynamoDB, the routes,
+    the app's reading. See [The tour](tour.md#the-runner) and [On
+    AWS](aws.md).

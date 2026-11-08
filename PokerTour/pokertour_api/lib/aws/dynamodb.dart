@@ -1,5 +1,7 @@
 /// DynamoDB from the server, with signed headers (aws_lite): the four
-/// calls the tour's table needs (GetItem, PutItem, DeleteItem, Query), and
+/// calls the tour's table needs (GetItem, PutItem, DeleteItem, Query; a
+/// put or a delete conditional when asked, which is what keeps the
+/// tournaments one at a time), and
 /// [DynamoClient.call] for any other, on
 /// AWS or, on a laptop, on Floci (an [endpoint] of its own).
 library;
@@ -14,6 +16,11 @@ import 's3.dart' show AwsException;
 
 /// An item: attribute names to DynamoDB's typed values ({"S": ...}).
 typedef Item = Map<String, Object?>;
+
+/// A conditional put or delete found its condition false.
+class DynamoConditionFailed extends AwsException {
+  const DynamoConditionFailed(super.status, super.message);
+}
 
 class DynamoClient {
   DynamoClient({required this.credentials, required this.region, Uri? endpoint, http.Client? client, this.timeout = const Duration(seconds: 20)})
@@ -32,9 +39,20 @@ class DynamoClient {
     return (answer['Item'] as Map?)?.cast<String, Object?>();
   }
 
-  Future<void> put(String table, Item item) => call('PutItem', {'TableName': table, 'Item': item});
+  /// Puts [item]; with [condition] (and its [names] and [values]), only
+  /// when it holds: a [DynamoConditionFailed] otherwise.
+  Future<void> put(String table, Item item, {String? condition, Map<String, String>? names, Item? values}) =>
+      call('PutItem', {'TableName': table, 'Item': item, ..._condition(condition, names, values)});
 
-  Future<void> delete(String table, Item key) => call('DeleteItem', {'TableName': table, 'Key': key});
+  /// Deletes the item with [key]; with [condition], as [put].
+  Future<void> delete(String table, Item key, {String? condition, Map<String, String>? names, Item? values}) =>
+      call('DeleteItem', {'TableName': table, 'Key': key, ..._condition(condition, names, values)});
+
+  static Map<String, Object?> _condition(String? condition, Map<String, String>? names, Item? values) => {
+    'ConditionExpression': ?condition,
+    if (names != null && names.isNotEmpty) 'ExpressionAttributeNames': names,
+    if (values != null && values.isNotEmpty) 'ExpressionAttributeValues': values,
+  };
 
   /// Every item whose partition key [name] is [value], page after page.
   Future<List<Item>> query(String table, String name, String value) async {
@@ -93,7 +111,9 @@ class DynamoClient {
       })();
       final type = '${error['__type'] ?? ''}'.split('#').last;
       final message = '${error['message'] ?? error['Message'] ?? ''}';
-      throw AwsException(response.statusCode, 'DynamoDB $operation: ${[type, message].where((s) => s.isNotEmpty).join(': ')}');
+      final what = 'DynamoDB $operation: ${[type, message].where((s) => s.isNotEmpty).join(': ')}';
+      if (type == 'ConditionalCheckFailedException') throw DynamoConditionFailed(response.statusCode, what);
+      throw AwsException(response.statusCode, what);
     }
     return text.isEmpty ? const {} : (jsonDecode(text) as Map).cast<String, Object?>();
   }

@@ -16,8 +16,9 @@ answers with the action, the amount and the rule that decided it, from
 the browser, on the player's own key: players never get the host's. The
 server ([pokertour_api](../pokertour_api)) serves the app, takes the
 strategies players enter (kept in DynamoDB, with their aliases), and
-plays a tournament among the strategies in the tour four times a day and
-whenever an admin asks, on the leaderboard's own key, keeping the
+plays a tournament among the strategies in the tour four times a day,
+whenever an admin asks and whenever a player enters a strategy, one at
+a time (queued in DynamoDB), on the leaderboard's own key, keeping the
 standings; on AWS it runs serverless, as Lambda functions behind
 CloudFront, and on a laptop on Floci, the local AWS. The
 table, the sidebar, the pace and the strategies are PokerFace's; the
@@ -30,8 +31,9 @@ engine is shared with the server ([poker_core](../poker_core)).
 - [The tour](tour.md): the sign-in with Google and the allowed domains,
   the keys (the players' own, the leaderboard's), the leaderboard with
   its owners by alias, entering and withdrawing strategies, the
-  schedule, the admins' "now", the runner that plays the tournaments,
-  and where the tour is kept (DynamoDB and S3).
+  schedule, the admins' "now", a tournament per new strategy, the queue
+  that plays them one at a time, the runner, and where the tour is kept
+  (DynamoDB and S3).
 - [On AWS](aws.md): the serverless deployment: S3 and CloudFront for
   the app, two Lambda functions for the API and the runner, the tour's
   table, the data bucket with the leaderboard's key, the EventBridge

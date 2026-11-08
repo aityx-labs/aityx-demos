@@ -53,7 +53,8 @@ class _LeaderboardViewState extends State<LeaderboardView> {
     String message;
     try {
       message = switch (await s.startTournament()) {
-        'running' => 'A tournament is being played already.',
+        'queued' => 'A tournament is queued: it starts when the one being played ends.',
+        'waiting' => 'A tournament you asked for is waiting its turn already.',
         _ => 'A tournament is starting; the standings follow it here.',
       };
     } on TourException catch (e) {
@@ -109,7 +110,7 @@ class _LeaderboardViewState extends State<LeaderboardView> {
           if (signedIn && s.admin && board != null && board.runnerEnabled)
             FilledButton.tonalIcon(
               key: const Key('run-now'),
-              onPressed: _starting || board.runnerState == 'playing' ? null : _start,
+              onPressed: _starting || board.queue.contains('admin') ? null : _start,
               icon: const Icon(Icons.play_arrow, size: 18),
               label: const Text('Play a tournament now'),
             ),
@@ -169,13 +170,16 @@ class _RunnerLine extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final next = board.nextRunAt;
+    final waiting = board.queue.isEmpty
+        ? ''
+        : ' Waiting their turn: ${board.queue.map(_asker).join(', ')}.';
     final coming = !board.runnerEnabled
         ? ''
         : next == null
-        ? ' No tournament is scheduled; an admin can start one.'
-        : ' The next scheduled tournament is ${_when(next)}.';
+        ? '$waiting No tournament is scheduled; an admin can start one, and every new strategy does.'
+        : '$waiting The next scheduled tournament is ${_when(next)}.';
     final (color, text) = switch (board.runnerState) {
-      'playing' => (Aityx.green, 'The leaderboard is playing: ${board.runnerDetail}'),
+      'playing' => (Aityx.green, 'The leaderboard is playing: ${board.runnerDetail}.$waiting'),
       'waiting' => (Aityx.amber, 'Latest: ${board.runnerDetail}.$coming'),
       'error' => (scheme.error, 'The leaderboard stopped: ${board.runnerDetail}.$coming'),
       _ => (scheme.outline, board.runnerEnabled ? 'The leaderboard is idle: ${board.runnerDetail}.$coming' : 'The leaderboard is off on this server.'),
@@ -188,6 +192,14 @@ class _RunnerLine extends StatelessWidget {
       ],
     );
   }
+
+  /// Who asked for a waiting tournament.
+  static String _asker(String source) => switch (source) {
+    'schedule' => "the schedule's",
+    'admin' => "an admin's",
+    'strategy' => "a new strategy's",
+    _ => source,
+  };
 
   /// [at] in local time: "today at 18:00", "tomorrow at 00:00", or the
   /// date.

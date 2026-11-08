@@ -18,12 +18,6 @@ Parameters:
     Type: String
     Description: The email domains that may play, comma separated.
     Default: aletyx.com,aletyx.ai
-  AdminDomains:
-    Type: String
-    Description: >-
-      The email domains whose accounts may start a tournament now; empty
-      for the domains that may play.
-    Default: ''
   AityxUrl:
     Type: String
     Description: >-
@@ -66,7 +60,6 @@ Parameters:
     Description: The prefix of the tour's files in the data bucket.
 
 Conditions:
-  HasAdmins: !Not [!Equals [!Ref AdminDomains, '']]
   HasSchedule: !Not [!Equals [!Ref ScheduleHours, off]]
 
 Resources:
@@ -93,8 +86,9 @@ Resources:
         Status: Enabled
 
   # The tour's table: the players' strategies (pk STRATEGY) and their
-  # names and aliases (pk PLAYER), sk the strategy's or the owner's id
-  # (lib/tour_db.dart). Kept when the stack goes, as the bucket is.
+  # names and aliases (pk PLAYER), sk the strategy's or the owner's id;
+  # the tournaments asked for (pk QUEUE) and the runner's lock (pk
+  # RUNNER), which keep them one at a time (lib/tour_db.dart). Kept when the stack goes, as the bucket is.
   Table:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Retain
@@ -250,8 +244,8 @@ Resources:
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
 
   # The functions' role: their logs, the tour's files, the tour's table,
-  # the leaderboard's key object (to read), and, for the API, the runner
-  # function to invoke. The runner by name, not reference, so the role
+  # the leaderboard's key object (to read), and the runner function to
+  # invoke (the API's, and the runner's own while tournaments wait). The runner by name, not reference, so the role
   # needs no function and no function the role.
   FunctionRole:
     Type: AWS::IAM::Role
@@ -329,7 +323,6 @@ Resources:
           OIDC_ISSUER: https://accounts.google.com
           OIDC_CLIENT_ID: !Ref GoogleClientId
           POKERTOUR_ALLOWED_DOMAINS: !Ref AllowedDomains
-          POKERTOUR_ADMIN_DOMAINS: !If [HasAdmins, !Ref AdminDomains, !Ref AllowedDomains]
           AITYX_URL: !Ref AityxUrl
           POKERTOUR_LEADERBOARD_KEY_OBJECT: !Ref LeaderboardKeyObject
           POKERTOUR_SCHEDULE_HOURS: !Ref ScheduleHours
@@ -360,8 +353,10 @@ Resources:
       Principal: '*'
       InvokedViaFunctionUrl: true
 
-  # The runner: one tournament per invocation, within fifteen minutes;
-  # one at a time (a second invocation waits its turn, up to an hour).
+  # The runner: the queue's oldest tournament per invocation, within
+  # fifteen minutes, under the table's lock; one at a time (a second
+  # invocation waits its turn, up to an hour), then itself again while
+  # more wait.
   RunnerFunction:
     Type: AWS::Lambda::Function
     DependsOn: RunnerLogs
@@ -384,6 +379,8 @@ Resources:
           POKERTOUR_DATA_BUCKET: !Sub '${AWS::StackName}-data-${AWS::AccountId}'
           POKERTOUR_DATA_PREFIX: !Ref DataPrefix
           POKERTOUR_TABLE: !Ref Table
+          # Itself: it invokes itself again while tournaments wait.
+          POKERTOUR_RUNNER_FUNCTION: !Sub '${AWS::StackName}-runner'
           AITYX_URL: !Ref AityxUrl
           POKERTOUR_LEADERBOARD_KEY_OBJECT: !Ref LeaderboardKeyObject
           POKERTOUR_SCHEDULE_HOURS: !Ref ScheduleHours

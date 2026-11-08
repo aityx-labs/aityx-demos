@@ -5,8 +5,9 @@
 /// strategies and aliases in its DynamoDB (lib/leaderboard.dart,
 /// lib/store.dart, lib/tour_db.dart), as the functions keep them in AWS,
 /// and plays the leaderboard's tournaments on aityx with the
-/// leaderboard's key (lib/runner.dart) when the schedule says, or an
-/// admin asks. On AWS the same code runs as two Lambda functions instead
+/// leaderboard's key (lib/runner.dart) when the schedule says, an admin
+/// asks, or a player enters a strategy: queued in the tour's table and
+/// played one at a time under its lock (lib/queue.dart). On AWS the same code runs as two Lambda functions instead
 /// (bin/lambda.dart). The key never reaches a browser: players bring
 /// their own.
 ///
@@ -26,8 +27,9 @@
 ///                         never AWS's, and with Floci's dummy credentials
 ///   POKERTOUR_DATA_BUCKET, POKERTOUR_TABLE  the bucket and the table in
 ///                         it (default pokertour-local, both)
-///   OIDC_ISSUER, OIDC_CLIENT_ID, POKERTOUR_ALLOWED_DOMAINS,
-///   POKERTOUR_ADMIN_DOMAINS  the sign-in and the admins (lib/auth.dart)
+///   OIDC_ISSUER, OIDC_CLIENT_ID, POKERTOUR_ALLOWED_DOMAINS  the sign-in
+///                         (lib/auth.dart; the admins are aletyx.com's and
+///                         aletyx.ai's)
 ///   POKERTOUR_RUN         on (the default, with a key) or off: the runner
 ///   POKERTOUR_SCHEDULE_HOURS  when it plays on its own: hours of the day,
 ///                         UTC (default 0,6,12,18; off for none)
@@ -54,6 +56,7 @@ import 'package:pokertour_api/aws/dynamodb.dart';
 import 'package:pokertour_api/aws/s3.dart';
 import 'package:pokertour_api/leaderboard.dart';
 import 'package:pokertour_api/models_dir.dart';
+import 'package:pokertour_api/queue.dart';
 import 'package:pokertour_api/routes.dart';
 import 'package:pokertour_api/runner.dart';
 import 'package:pokertour_api/schedule.dart';
@@ -126,10 +129,42 @@ Future<void> main(List<String> args) async {
   }
   if (!auth.enabled) stderr.writeln('warning: OIDC_CLIENT_ID is not set: nobody can sign in or enter strategies');
 
-  // A tournament the last process left unfinished.
+  // The tournaments asked for, queued in the tour's table; this server
+  // plays them one at a time while it holds the table's lock.
+  final queue = TournamentQueue(boards.db, holder: 'server-$pid');
+
+  // A tournament the last process left unfinished, and its lock: this
+  // server is its table's only player.
   final before = await readLive(store);
-  if (before != null && before.stale(DateTime.now())) {
+  if (before != null && (before.stale(DateTime.now()) || before.state == 'playing')) {
     await store.write(LiveState.name, jsonEncode(LiveState(state: 'error', detail: 'the last tournament was cut short: the server stopped').toJson()));
+  }
+  await boards.db.unlock(null);
+
+  /// Plays the queue until it is empty; a drain asked for while one runs
+  /// goes round once more when it ends.
+  var draining = false;
+  var again = false;
+  Future<void> drain() async {
+    if (!enabled) return;
+    if (draining) {
+      again = true;
+      return;
+    }
+    draining = true;
+    try {
+      do {
+        again = false;
+        await queue.drain((request) async {
+          stdout.writeln('runner: a tournament asked for by the ${request.source}${request.by == null ? '' : ' (${request.by})'}');
+          await runner.play(deadline: DateTime.now().add(_timeLimit));
+        });
+      } while (again);
+    } catch (error) {
+      stderr.writeln('runner: the queue could not be played: $error');
+    } finally {
+      draining = false;
+    }
   }
 
   /// The schedule: a timer to the next hour on it, then the next.
@@ -139,21 +174,29 @@ Future<void> main(List<String> args) async {
     final next = schedule.next(now);
     if (!enabled || next == null) return;
     timer = Timer(next.difference(now), () async {
-      await runner.play(deadline: DateTime.now().add(_timeLimit));
+      try {
+        await queue.ask(TournamentSource.schedule);
+        unawaited(drain());
+      } catch (error) {
+        stderr.writeln('runner: the scheduled tournament could not be queued: $error');
+      }
       scheduleNext();
     });
     stdout.writeln('runner: the next scheduled tournament is at ${next.toIso8601String()}');
   }
 
   scheduleNext();
-  if (enabled && !schedule.enabled) stdout.writeln('note: POKERTOUR_SCHEDULE_HOURS=off: tournaments only when an admin asks');
+  if (enabled && !schedule.enabled) stdout.writeln('note: POKERTOUR_SCHEDULE_HOURS=off: tournaments only when an admin asks or a strategy is entered');
+  // What the last process left in the queue.
+  unawaited(drain());
 
-  /// An admin's "now": started here and then, unless one is on.
-  Future<String> start(Identity by) async {
-    if (runner.playing) return 'running';
-    stdout.writeln('api: a tournament was started by ${by.ownerId}');
-    unawaited(runner.play(deadline: DateTime.now().add(_timeLimit)));
-    return 'started';
+  /// An admin's "now", or a new strategy's: queued, and played when its
+  /// turn comes.
+  Future<String> start(String source, Identity by) async {
+    final asked = await queue.ask(source, by: by.ownerId);
+    stdout.writeln('api: a tournament asked for by the $source (${by.ownerId}): ${asked.name}');
+    unawaited(drain());
+    return asked.name;
   }
 
   /// Runs [json]'s rules on aityx with the sample situation; throws when
@@ -179,6 +222,7 @@ Future<void> main(List<String> args) async {
     signal.watch().listen((_) async {
       timer?.cancel();
       runner.stop();
+      await boards.db.unlock(queue.holder);
       await server.close(force: true);
       exit(0);
     });
@@ -206,6 +250,7 @@ Future<void> main(List<String> args) async {
           schedule: schedule,
           runnerEnabled: enabled,
           start: enabled ? start : null,
+          waiting: queue.waiting,
           check: check,
         ),
       );

@@ -268,8 +268,9 @@ class TourSession extends ChangeNotifier {
     await Future.wait([refreshLeaderboard(), refreshStrategies()]);
   }
 
-  /// Starts a tournament now; the server's status ("started" or
-  /// "running"). Throws [TourException] with the server's reason.
+  /// Asks for a tournament now; the server's status: "started",
+  /// "queued" (behind the one being played) or "waiting" (an admin's
+  /// waits already). Throws [TourException] with the server's reason.
   Future<String> startTournament() async {
     final status = await api.startTournament();
     unawaited(refreshLeaderboard());

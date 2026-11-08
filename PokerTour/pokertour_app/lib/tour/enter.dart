@@ -24,10 +24,13 @@ Future<EnterOutcome> enterInTour(BuildContext context, Strategy strategy) async 
   }
   try {
     final entered = await session.enter(strategy);
-    final out = (
-      ok: true,
-      text: '${entered.strategy.name} is in the tour: the leaderboard seats it from the next tournament.',
-    );
+    final next = switch (entered.tournament) {
+      'started' => 'a tournament is starting for it.',
+      'queued' => 'a tournament for it is queued, after the one being played.',
+      'waiting' => 'it plays in the tournament waiting its turn.',
+      _ => 'the leaderboard seats it from the next tournament.',
+    };
+    final out = (ok: true, text: '${entered.strategy.name} is in the tour: $next');
     messenger?.showSnackBar(SnackBar(content: Text(out.text)));
     return out;
   } on TourException catch (e) {

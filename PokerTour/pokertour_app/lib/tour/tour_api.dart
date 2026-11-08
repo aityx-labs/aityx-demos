@@ -199,6 +199,7 @@ class Leaderboard {
     required this.runnerDetail,
     this.nextRunAt,
     this.hoursUtc = const [],
+    this.queue = const [],
   });
 
   factory Leaderboard.fromJson(Map<String, Object?> json) {
@@ -212,6 +213,10 @@ class Leaderboard {
       runnerDetail: runner['detail'] as String? ?? '',
       nextRunAt: DateTime.tryParse(runner['nextRunAt'] as String? ?? ''),
       hoursUtc: ((runner['hoursUtc'] as List?) ?? const []).map((h) => (h as num).toInt()).toList(),
+      queue: [
+        for (final r in (runner['queue'] as List?) ?? const [])
+          if (r is Map && r['source'] is String) r['source'] as String,
+      ],
     );
   }
 
@@ -229,22 +234,32 @@ class Leaderboard {
 
   /// The hours of the day, UTC, at which tournaments are played.
   final List<int> hoursUtc;
+
+  /// The tournaments waiting their turn, the oldest first, by who asked:
+  /// schedule, admin or strategy.
+  final List<String> queue;
 }
 
 /// A strategy entered in the tour, rules and all (GET /api/strategies).
 class TourStrategy {
-  const TourStrategy({required this.id, required this.owner, required this.ownerId, required this.strategy});
+  const TourStrategy({required this.id, required this.owner, required this.ownerId, required this.strategy, this.tournament});
 
   factory TourStrategy.fromJson(Map<String, Object?> json) => TourStrategy(
     id: json['id'] as String,
     owner: json['owner'] as String? ?? '',
     ownerId: json['ownerId'] as String? ?? '',
     strategy: Strategy.fromJson(json, id: 'tour-${json['id']}', custom: true),
+    tournament: json['tournament'] as String?,
   );
 
   final String id;
   final String owner;
   final String ownerId;
+
+  /// Once entered: the tournament it asked for, "started", "queued"
+  /// (behind the one being played) or "waiting" (one asked for already
+  /// waits, and it plays in it); null when the leaderboard is off.
+  final String? tournament;
 
   /// The rules, as a custom strategy (sent whole with every decision),
   /// with the id `tour-<id>`.

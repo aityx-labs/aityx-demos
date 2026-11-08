@@ -33,7 +33,7 @@ const _board = {
   'history': [
     {'number': 3, 'finished': '2026-11-06T10:00:00Z', 'places': [{'id': 'u-1', 'name': 'Ana One', 'place': 1}, {'id': 'rock', 'name': 'The Rock', 'place': 2}]},
   ],
-  'runner': {'enabled': true, 'state': 'playing', 'detail': 'tournament #4, 2 players', 'hoursUtc': [0, 6, 12, 18], 'nextRunAt': '2026-11-07T18:00:00.000Z'},
+  'runner': {'enabled': true, 'state': 'playing', 'detail': 'tournament #4, 2 players', 'hoursUtc': [0, 6, 12, 18], 'nextRunAt': '2026-11-07T18:00:00.000Z', 'queue': [{'source': 'strategy', 'at': '2026-11-07T13:00:00Z'}]},
 };
 
 void main() {
@@ -46,7 +46,7 @@ void main() {
           '/api/config' => http.Response(jsonEncode(_config), 200),
           '/api/leaderboard' => http.Response(jsonEncode(_board), 200),
           '/api/me' => http.Response(jsonEncode({'email': 'ana@aletyx.com', 'ownerId': 'abc', 'name': 'Ana', 'admin': true}), 200),
-          '/api/tournaments' when request.method == 'POST' => http.Response('{"status":"running"}', 202),
+          '/api/tournaments' when request.method == 'POST' => http.Response('{"status":"queued"}', 202),
           '/api/strategies' => http.Response(jsonEncode({'strategies': [
             {'id': 'u-1', 'name': 'Ana One', 'tagline': 'Mine', 'decisions': {'action': {'expr': '"call"'}, 'raise_to': {'expr': 'min_raise'}}, 'owner': 'Ana', 'ownerId': 'abc', 'preset': false},
           ]}), 200),
@@ -67,11 +67,12 @@ void main() {
     expect(board.runnerState, 'playing');
     expect(board.nextRunAt, DateTime.utc(2026, 11, 7, 18));
     expect(board.hoursUtc, [0, 6, 12, 18]);
+    expect(board.queue, ['strategy']);
     final strategies = await api.strategies();
     expect(strategies.single.strategy.id, 'tour-u-1');
     expect(strategies.single.strategy.custom, isTrue);
     expect((await api.me()).admin, isTrue);
-    expect(await api.startTournament(), 'running');
+    expect(await api.startTournament(), 'queued');
     expect(() => api.withdraw('x'), throwsA(isA<TourException>().having((e) => e.message, 'message', 'nope')));
   });
 

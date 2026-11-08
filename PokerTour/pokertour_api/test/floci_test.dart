@@ -18,6 +18,7 @@ import 'package:pokertour_api/tour_db.dart';
 import 'package:test/test.dart';
 
 import 'models.dart';
+import 'queue_test.dart' show queueRules;
 
 const credentials = AwsCredentials(accessKeyId: 'test', secretAccessKey: 'test');
 
@@ -88,5 +89,17 @@ void main() async {
     await boards.update((b) => b.withdraw(ana, entry.id));
     expect(await db.entries(), isEmpty);
     expect((await s3.get('pokertour-local', '$run/leaderboard.json'))?.text, contains('"revision"'));
+  }, skip: up ? false : 'Floci is not running at $floci (devbox services up)');
+
+  group('the tournament queue in DynamoDB', () {
+    // Each test its own table's items: the queue and the lock are one per table.
+    setUp(() async {
+      if (!up) return;
+      for (final source in ['schedule', 'admin', 'strategy']) {
+        await dynamo.delete(run, {'pk': {'S': 'QUEUE'}, 'sk': {'S': source}});
+      }
+      await dynamo.delete(run, {'pk': {'S': 'RUNNER'}, 'sk': {'S': 'LOCK'}});
+    });
+    queueRules(() => DynamoTourDb(dynamo, run));
   }, skip: up ? false : 'Floci is not running at $floci (devbox services up)');
 }

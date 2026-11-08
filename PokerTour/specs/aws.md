@@ -24,17 +24,22 @@ script that builds and deploys it. The stack, named `pokertour`
   request policy. The function URL event (payload 2.0) becomes a call of
   `route()`; the answer, a JSON body with `cache-control: no-store`.
 - **The runner**: the function `pokertour-runner` (same code,
-  `POKERTOUR_ROLE=runner`, 900 s, reserved concurrency 1): one
-  tournament per invocation, with a deadline 45 s before the function's,
-  and the result in the response (`played`, `number`, `hands`, `calls`,
-  the state). Invoked by the **EventBridge schedule**
-  `pokertour-tournaments`, `cron(0 0,6,12,18 * * ? *)` UTC
-  (`ScheduleHours`), and by the API asynchronously when an admin asks
-  (`POST /api/tournaments` → `lambda:InvokeFunction` with
-  `X-Amz-Invocation-Type: Event`), unless `live.json` says one is on. A
-  second invocation while one runs is throttled by the concurrency
-  limit and retried by Lambda for up to an hour; function errors are not
-  retried.
+  `POKERTOUR_ROLE=runner`, 900 s, reserved concurrency 1): the
+  queue's oldest tournament per invocation, under the table's lock
+  ([The tour](tour.md#the-runner)), with a deadline 45 s before the
+  function's, and the result in the response (`played`, `number`,
+  `hands`, `calls`, the state, `more`); while more wait it invokes
+  itself again (`POKERTOUR_RUNNER_FUNCTION`, its own name), so each
+  tournament gets a function of its own. Invoked by the **EventBridge
+  schedule** `pokertour-tournaments`, `cron(0 0,6,12,18 * * ? *)` UTC
+  (`ScheduleHours`), which queues the schedule's first, and by the API
+  asynchronously once it has queued an admin's or a new strategy's
+  (`POST /api/tournaments`, `POST /api/strategies` →
+  `lambda:InvokeFunction` with `X-Amz-Invocation-Type: Event`). An
+  invocation that finds the lock taken, or nothing queued, plays
+  nothing. A second invocation while one runs is throttled by the
+  concurrency limit and retried by Lambda for up to an hour; function
+  errors are not retried.
 - **The tour's table**, `pokertour-tour` (DynamoDB, on demand,
   point-in-time recovery, encrypted, kept if the stack goes): the
   players' strategies and aliases ([The tour](tour.md)), named to the

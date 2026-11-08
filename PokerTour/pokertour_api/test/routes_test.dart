@@ -1,6 +1,7 @@
 import 'package:poker_core/table.dart';
 import 'package:pokertour_api/auth.dart';
 import 'package:pokertour_api/leaderboard.dart';
+import 'package:pokertour_api/queue.dart';
 import 'package:pokertour_api/routes.dart';
 import 'package:pokertour_api/runner.dart';
 import 'package:pokertour_api/schedule.dart';
@@ -11,7 +12,7 @@ import 'models.dart';
 
 const off = AuthSettings(issuer: 'https://accounts.google.com', clientId: '');
 const on = AuthSettings(issuer: 'https://accounts.google.com', clientId: 'client-1');
-const strict = AuthSettings(issuer: 'https://accounts.google.com', clientId: 'client-1', adminDomains: ['aletyx.ai']);
+const wide = AuthSettings(issuer: 'https://accounts.google.com', clientId: 'client-1', domains: ['aletyx.com', 'aletyx.ai', 'example.com']);
 const ana = Identity(subject: '1', email: 'ana@aletyx.com', name: 'Ana');
 const anaIn = Verified(ana, null);
 const outsider = Verified(null, Refusal.domain);
@@ -111,25 +112,46 @@ void main() {
     expect((await boards.read()).entries.containsKey(id), isFalse);
   });
 
-  test('me says who is an admin; only admins start a tournament', () async {
+  test('me says who is an admin: aletyx.com and aletyx.ai only; only admins start a tournament', () async {
     final boards = Boards(store: MemoryStore(), models: models);
-    final me = await route('GET', '/api/me', auth: strict, boards: boards, who: anaIn);
+    const cy = Verified(Identity(subject: '3', email: 'cy@example.com'), null);
+    final me = await route('GET', '/api/me', auth: wide, boards: boards, who: cy);
+    expect(me.status, 200, reason: 'example.com may play here');
     expect((me.body as Map)['admin'], isFalse);
     const bo = Verified(Identity(subject: '2', email: 'bo@aletyx.ai'), null);
-    expect(((await route('GET', '/api/me', auth: strict, boards: boards, who: bo)).body as Map)['admin'], isTrue);
-    var started = 0;
-    Future<String> start(Identity by) async {
-      started++;
+    expect(((await route('GET', '/api/me', auth: wide, boards: boards, who: bo)).body as Map)['admin'], isTrue);
+    expect(((await route('GET', '/api/me', auth: wide, boards: boards, who: anaIn)).body as Map)['admin'], isTrue);
+    final asked = <String>[];
+    Future<String> start(String source, Identity by) async {
+      asked.add(source);
       return 'started';
     }
-    expect((await route('POST', '/api/tournaments', auth: strict, boards: boards)).status, 401);
-    expect((await route('POST', '/api/tournaments', auth: strict, boards: boards, who: anaIn, runnerEnabled: true, start: start)).status, 403);
-    expect((await route('POST', '/api/tournaments', auth: strict, boards: boards, who: bo, runnerEnabled: false, start: start)).status, 503);
-    final ok = await route('POST', '/api/tournaments', auth: strict, boards: boards, who: bo, runnerEnabled: true, start: start);
+    expect((await route('POST', '/api/tournaments', auth: wide, boards: boards)).status, 401);
+    expect((await route('POST', '/api/tournaments', auth: wide, boards: boards, who: cy, runnerEnabled: true, start: start)).status, 403);
+    expect((await route('POST', '/api/tournaments', auth: wide, boards: boards, who: bo, runnerEnabled: false, start: start)).status, 503);
+    final ok = await route('POST', '/api/tournaments', auth: wide, boards: boards, who: bo, runnerEnabled: true, start: start);
     expect(ok.status, 202);
     expect((ok.body as Map)['status'], 'started');
-    expect(started, 1);
-    expect((await route('POST', '/api/tournaments', auth: on, boards: boards, who: anaIn, runnerEnabled: true, start: start)).status, 202, reason: 'by default every player\'s domain is an admin\'s');
+    expect(asked, ['admin']);
+  });
+
+  test('a new strategy asks for a tournament; the leaderboard shows the queue, no owners', () async {
+    final boards = Boards(store: MemoryStore(), models: models);
+    final queue = TournamentQueue(boards.db, holder: 'test');
+    Future<String> start(String source, Identity by) async => (await queue.ask(source, by: by.ownerId)).name;
+    var ok = await route('POST', '/api/strategies', auth: on, boards: boards, who: anaIn, body: mine, runnerEnabled: true, start: start);
+    expect(ok.status, 201);
+    expect((ok.body as Map)['tournament'], 'started');
+    // Another upload while that one waits: it plays in it.
+    ok = await route('POST', '/api/strategies', auth: on, boards: boards, who: anaIn, body: {...mine, 'name': 'Ana Two'}, runnerEnabled: true, start: start);
+    expect((ok.body as Map)['tournament'], 'waiting');
+    final board = await route('GET', '/api/leaderboard', auth: on, boards: boards, runnerEnabled: true, waiting: queue.waiting);
+    final waiting = ((board.body as Map)['runner'] as Map)['queue'] as List;
+    expect(waiting.map((r) => (r as Map)['source']), ['strategy']);
+    expect((waiting.single as Map).containsKey('by'), isFalse, reason: 'who asked stays in the table');
+    // With the leaderboard off nothing is asked for.
+    ok = await route('POST', '/api/strategies', auth: on, boards: boards, who: anaIn, body: {...mine, 'name': 'Ana Three'}, start: start);
+    expect((ok.body as Map)['tournament'], isNull);
   });
 
   test('the leaderboard says what the runner is doing and when the next tournament is', () async {

@@ -24,8 +24,7 @@
 # Settings, from the environment or .env: OIDC_CLIENT_ID or
 # POKERTOUR_OIDC_CLIENT_ID (the sign-in; without it nobody can sign in),
 # AITYX_PROD_URL and POKERTOUR_PROD_LEADERBOARD_KEY (production's aityx),
-# POKERTOUR_ALLOWED_DOMAINS,
-# POKERTOUR_ADMIN_DOMAINS, POKERTOUR_SCHEDULE_HOURS, POKERTOUR_MAX_HANDS,
+# POKERTOUR_ALLOWED_DOMAINS, POKERTOUR_SCHEDULE_HOURS, POKERTOUR_MAX_HANDS,
 # POKERTOUR_MAX_ENTRIES; and POKERTOUR_STACK (default
 # pokertour), AWS_REGION (default the CLI's), LAMBDA_ARCH (arm64, the
 # default, or x86_64: Docker builds for it, emulated when it isn't the
@@ -107,7 +106,6 @@ params=(
   "LambdaArchitecture=$arch"
 )
 [[ -n "${POKERTOUR_ALLOWED_DOMAINS:-}" ]] && params+=("AllowedDomains=$POKERTOUR_ALLOWED_DOMAINS")
-[[ -n "${POKERTOUR_ADMIN_DOMAINS:-}" ]] && params+=("AdminDomains=$POKERTOUR_ADMIN_DOMAINS")
 [[ -n "${POKERTOUR_SCHEDULE_HOURS:-}" ]] && params+=("ScheduleHours=$POKERTOUR_SCHEDULE_HOURS")
 [[ -n "${POKERTOUR_MAX_HANDS:-}" ]] && params+=("MaxHands=$POKERTOUR_MAX_HANDS")
 [[ -n "${POKERTOUR_MAX_ENTRIES:-}" ]] && params+=("MaxEntries=$POKERTOUR_MAX_ENTRIES")

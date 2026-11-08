@@ -17,8 +17,10 @@ around it:
   Calling Station, the Mathematician and the Shark), players download
   strategies to start from and enter their own: a tournament among the
   strategies in the tour is played on the leaderboard's key four times a day,
-  every six hours, and whenever an admin (an aletyx account) presses
-  **Play a tournament now** on the leaderboard; the standings follow.
+  every six hours, whenever an admin (an aletyx.com or aletyx.ai
+  account) presses **Play a tournament now** on the leaderboard, and
+  whenever a player enters a strategy; one at a time, the others queued
+  until it ends. The standings follow.
   The app shows them, each strategy over its owner's alias (set in
   Profile; the Google name by default), the tournament being played,
   when the next one is, and the latest results.
@@ -77,8 +79,7 @@ Two things, both the host's, neither in the repository:
 Without the first the app shows the leaderboard and says the host
 hasn't set the tour up; without the second the leaderboard doesn't play.
 The tour's admins, who can start a tournament from the leaderboard, are
-the accounts of `POKERTOUR_ADMIN_DOMAINS` (the playing domains unless
-set). See [.env.example](.env.example) for every setting.
+the aletyx.com and aletyx.ai accounts, whatever the playing domains. See [.env.example](.env.example) for every setting.
 
 ## Run it locally
 
@@ -103,7 +104,9 @@ The server keeps the tour in Floci as the functions keep it in AWS: the
 players' strategies and aliases in its DynamoDB, `leaderboard.json` and
 `live.json` in its S3 (`POKERTOUR_AWS_ENDPOINT`, never an AWS address).
 A tournament is played at the hours of `POKERTOUR_SCHEDULE_HOURS`
-(`0,6,12,18` UTC: four a day, every six hours) and when an admin asks;
+(`0,6,12,18` UTC: four a day, every six hours), when an admin asks and
+when a player enters a strategy, never two at once: queued in the
+tour's DynamoDB table and played in turn;
 every decision is one aityx call on the leaderboard's key, a few hundred
 a tournament. `POKERTOUR_RUN=off` stops them.
 
@@ -144,10 +147,12 @@ among the Google client's authorized origins. The stack:
   the bearer token passed on.
 - **Two Lambda functions** on one executable (`pokertour_api/bin/lambda.dart`,
   a custom runtime): `pokertour-api` answers the API and, when an admin
-  asks for a tournament, invokes `pokertour-runner` asynchronously;
-  `pokertour-runner` plays one tournament per invocation within its
-  fifteen minutes (the chips decide if the time runs out), one at a
-  time (reserved concurrency 1; a second call waits). Both read the
+  asks for a tournament or a player enters a strategy, queues one in the
+  table and invokes `pokertour-runner` asynchronously;
+  `pokertour-runner` plays the queue's oldest per invocation within its
+  fifteen minutes (the chips decide if the time runs out), under the
+  table's lock, and invokes itself again while more wait (reserved
+  concurrency 1 besides; a second call waits). Both read the
   leaderboard's key from the bucket with their role; nothing secret is
   in the environment.
 - **The tour's table** (`pokertour-tour`, DynamoDB, kept if the stack

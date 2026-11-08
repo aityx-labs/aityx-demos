@@ -17,27 +17,24 @@ import 'package:openid_client/openid_client.dart';
 ///   OIDC_CLIENT_ID           the OAuth client id the app signs in with
 ///   POKERTOUR_ALLOWED_DOMAINS  the email domains that may play, comma
 ///                            separated (default aletyx.com,aletyx.ai)
-///   POKERTOUR_ADMIN_DOMAINS  the email domains whose accounts are the
-///                            tour's admins, who can start a tournament
-///                            now (default: the domains that may play)
+/// The tour's admins, who can start a tournament now, are the aletyx.com
+/// and aletyx.ai accounts ([adminDomains]), whatever the domains that
+/// may play: no setting widens them.
 class AuthSettings {
   const AuthSettings({
     required this.issuer,
     required this.clientId,
     this.domains = defaultDomains,
-    this.adminDomains = defaultDomains,
   });
 
   factory AuthSettings.fromEnvironment([Map<String, String>? env]) {
     env ??= Platform.environment;
     final issuer = env['OIDC_ISSUER'] ?? '';
     final domains = _domains(env['POKERTOUR_ALLOWED_DOMAINS']);
-    final admins = _domains(env['POKERTOUR_ADMIN_DOMAINS']);
     return AuthSettings(
       issuer: issuer.isEmpty ? 'https://accounts.google.com' : issuer,
       clientId: env['OIDC_CLIENT_ID'] ?? '',
       domains: domains.isEmpty ? defaultDomains : domains,
-      adminDomains: admins.isEmpty ? (domains.isEmpty ? defaultDomains : domains) : admins,
     );
   }
 
@@ -51,7 +48,7 @@ class AuthSettings {
   final List<String> domains;
 
   /// The admins' domains: an account in one can start a tournament now.
-  final List<String> adminDomains;
+  static const adminDomains = ['aletyx.com', 'aletyx.ai'];
 
   bool get enabled => clientId.isNotEmpty;
 
@@ -65,8 +62,9 @@ class AuthSettings {
   /// Whether [email] is in one of the tour's domains.
   bool allows(String email) => domains.contains(_domainOf(email));
 
-  /// Whether [email] is one of the tour's admins.
-  bool isAdmin(String email) => adminDomains.contains(_domainOf(email));
+  /// Whether [email] is one of the tour's admins: it may play, and it is
+  /// an aletyx.com or aletyx.ai account.
+  bool isAdmin(String email) => allows(email) && adminDomains.contains(_domainOf(email));
 
   static String _domainOf(String email) {
     final at = email.lastIndexOf('@');

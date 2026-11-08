@@ -62,7 +62,8 @@ played
 (its number, hand, aityx calls so far, each seat's stack or finishing
 place), the latest twenty results, and the runner (`enabled`; its state,
 playing, waiting, idle or error, with a line of detail; the schedule's
-hours, UTC, and `nextRunAt`). A tournament nobody has heard from for
+hours, UTC, and `nextRunAt`; and `queue`, the tournaments waiting their
+turn, oldest first, each by its `source` and `at`, never who asked). A tournament nobody has heard from for
 sixteen minutes is reported as cut short, with no current tournament.
 
 The app shows it on the welcome page and in the sidebar's
@@ -71,12 +72,15 @@ refreshed every ten seconds while shown. Each row has the strategy's name
 with its owner beneath ("template strategy" for a preset, whatever the
 API calls it), then the wins (the ranking is still by points; they
 aren't shown). The latest results aren't listed. The line at the top says what
-the leaderboard is doing and when the next scheduled tournament is, in
-local time ("today at 18:00"); an admin (`GET /api/me` says `admin`:
-an account in `POKERTOUR_ADMIN_DOMAINS`, the playing domains by
-default) has **Play a tournament now** beside it, disabled while one is
-being played; it calls `POST /api/tournaments` and says "A tournament is
-starting" or "A tournament is being played already". Rows of yours say
+the leaderboard is doing, the tournaments waiting their turn ("the
+schedule's, a new strategy's") and when the next scheduled tournament
+is, in local time ("today at 18:00"). Only an admin (`GET /api/me` says
+`admin`: an `aletyx.com` or `aletyx.ai` account, whatever
+`POKERTOUR_ALLOWED_DOMAINS` lets play; no setting widens it) has **Play
+a tournament now** beside it, disabled while an admin's is waiting; it
+calls `POST /api/tournaments` and says "A tournament is starting", "A
+tournament is queued: it starts when the one being played ends" or "A
+tournament you asked for is waiting its turn already". Rows of yours say
 "yours" (matched by an owner id, a short hash of the email the server
 gives `GET /api/me`). Per row: **Download as JSON** (the rules; a preset's from
 the table's own, an entry's from `GET /api/strategies`), **Seat it at my
@@ -107,7 +111,10 @@ is a strategy (a name of up to 60 characters, `decisions.action` and
 has fewer than three (`POKERTOUR_MAX_ENTRIES`; an entry of the same name
 is replaced, with a fresh record), then runs it on aityx on the sample
 situation (A♥ K♦ on K♠ 7♣ 2♦; `422` with aityx's reason when it refuses
-the rules), and seats it from the next tournament. `DELETE
+the rules), enters it, and asks for a tournament (below), where it sits
+first, having played none; the answer's `tournament` says what asking
+did (`started`, `queued`, `waiting`; null when the leaderboard is off),
+and the app's message after an upload says so. `DELETE
 /api/strategies/{id}` withdraws one of yours.
 
 Every call that enters or reads strategies, or starts a tournament,
@@ -116,18 +123,36 @@ needs a bearer token Google issued for the server's client id
 against Google's keys, remembered until it expires), for a verified
 email in an allowed domain: `401` without one, `403` for another domain,
 `503` while the server has no client id. `POST /api/tournaments` wants an
-admin's besides (`403` otherwise) and answers `202` with `started`, or
-`running` when a tournament is on; `503` when the leaderboard is off.
+admin's besides (`403` otherwise) and answers `202` with `started`,
+`queued` (behind the tournament being played) or `waiting` (an admin's
+is queued already); `503` when the leaderboard is off.
 
 ### The runner
 
 [runner.dart](../pokertour_api/lib/runner.dart) plays one tournament
-when asked (`POKERTOUR_RUN=on` and a key): by the schedule
-([schedule.dart](../pokertour_api/lib/schedule.dart):
-`POKERTOUR_SCHEDULE_HOURS`, `0,6,12,18` UTC, four times a day, every six
-hours; a timer in the server, an EventBridge schedule on AWS), or by an
-admin's **Play a tournament now**. One at a time: a second ask while one
-is on answers `running`.
+when asked (`POKERTOUR_RUN=on` and a key), by three sources:
+
+- the **schedule** ([schedule.dart](../pokertour_api/lib/schedule.dart):
+  `POKERTOUR_SCHEDULE_HOURS`, `0,6,12,18` UTC, four times a day, every
+  six hours; a timer in the server, an EventBridge schedule on AWS);
+- an **admin**'s **Play a tournament now**;
+- a player's **new strategy**, every entry (a replacement too).
+
+Never two at once: a tournament asked for is **queued**
+([queue.dart](../pokertour_api/lib/queue.dart)) in the tour's table
+and played when the one being played ends, the oldest first. At most one
+waits per source: asking again while one from the same source waits
+answers `waiting`, and that one stands for both (a second new strategy
+plays in the tournament the first asked for, since the fewest
+tournaments sit first). The queue is played by whoever holds the
+runner's **lock**, an item of the same table taken with a conditional
+write (free, its holder's, or lapsed): the laptop's server, or on AWS
+the runner function, one tournament per invocation, which invokes
+itself again while more wait. A lock lapses sixteen minutes after it
+was taken, longer than a tournament may run, so a holder that died (a
+function out of time, a server killed) holds nothing for long; a
+laptop's server, its table's only player, also lets its last process's
+lock go when it starts, and plays what that one left in the queue.
 
 - Up to nine strategies sit, the ones with the fewest tournaments
   first, ties at random; fewer than two that can play, and it idles.
@@ -159,7 +184,10 @@ AWS ([Development environment](dev-environment.md)):
   DynamoDB): the players' strategies (`pk` `STRATEGY`, `sk` the entry's
   id), with their owners' emails (never served), and the players
   (`pk` `PLAYER`, `sk` the owner id), their name and alias; each item's
-  rest as JSON in `data`.
+  rest as JSON in `data`. Also the queue (`pk` `QUEUE`, `sk` the source:
+  `schedule`, `admin` or `strategy`; when it was asked for and the
+  owner id of who asked), put only if absent, and the runner's lock
+  (`pk` `RUNNER`, `sk` `LOCK`; `holder` and `until`, in ms).
 - **The store** ([store.dart](../pokertour_api/lib/store.dart), S3):
   `leaderboard.json`, every record, the history and a revision, and
   `live.json`, the runner's state and the tournament being played,
@@ -177,8 +205,8 @@ they are always in the tour.
 
 See [.env.example](../.env.example): the leaderboard's key and aityx's
 URL (`POKERTOUR_LEADERBOARD_KEY`, else `AITYX_API_KEY`; `AITYX_URL`), the
-sign-in (`OIDC_CLIENT_ID`, `OIDC_ISSUER`, `POKERTOUR_ALLOWED_DOMAINS`,
-`POKERTOUR_ADMIN_DOMAINS`), the runner (`POKERTOUR_RUN`,
+sign-in (`OIDC_CLIENT_ID`, `OIDC_ISSUER`, `POKERTOUR_ALLOWED_DOMAINS`; the admins are aletyx.com's
+and aletyx.ai's, no setting), the runner (`POKERTOUR_RUN`,
 `_SCHEDULE_HOURS`, `_MAX_HANDS`, `_MAX_ENTRIES`), Floci
 (`POKERTOUR_AWS_ENDPOINT`, default `http://localhost:9811`, never AWS's;
 `POKERTOUR_DATA_BUCKET` and `POKERTOUR_TABLE`, both `pokertour-local`

@@ -2,11 +2,14 @@
 /// functions, told apart by POKERTOUR_ROLE:
 ///   api     answers the API (lib/routes.dart) behind the function's URL,
 ///           which CloudFront serves under /api/ beside the app in S3;
-///           starts a tournament, when an admin asks, by invoking the
-///           runner function without waiting for it
-///   runner  plays one tournament (lib/runner.dart) per invocation, within
-///           the function's time limit; invoked by the EventBridge
-///           schedule four times a day, and by the API
+///           when an admin asks for a tournament, or a player enters a
+///           strategy, queues one in the tour's table (lib/queue.dart)
+///           and invokes the runner function without waiting for it
+///   runner  plays the queue's oldest tournament (lib/runner.dart) per
+///           invocation, under the table's lock, within the function's
+///           time limit, and invokes itself again while more wait;
+///           invoked by the EventBridge schedule four times a day (which
+///           queues the schedule's), and by the API
 /// Both keep the tour in the data bucket (lib/store.dart: leaderboard.json
 /// and live.json, under a prefix) and the tour's table (lib/tour_db.dart:
 /// the players' strategies and aliases), and read the leaderboard's key from its
@@ -19,13 +22,14 @@
 ///   POKERTOUR_DATA_PREFIX     their prefix in it (default tour/)
 ///   POKERTOUR_TABLE           the tour's DynamoDB table: the players'
 ///                             strategies and aliases (lib/tour_db.dart)
-///   POKERTOUR_RUNNER_FUNCTION the runner function's name (for the api)
+///   POKERTOUR_RUNNER_FUNCTION the runner function's name (the api's, and
+///                             the runner's own, to go on with the queue)
 ///   POKERTOUR_LEADERBOARD_KEY_OBJECT  the leaderboard's key object in
 ///                             the data bucket (the key alone)
 ///   POKERTOUR_MODELS          the models folder (default models/, beside
 ///                             the executable)
 ///   AITYX_URL, OIDC_ISSUER, OIDC_CLIENT_ID, POKERTOUR_ALLOWED_DOMAINS,
-///   POKERTOUR_ADMIN_DOMAINS, POKERTOUR_SCHEDULE_HOURS,
+///   POKERTOUR_SCHEDULE_HOURS,
 ///   POKERTOUR_MAX_HANDS, POKERTOUR_MAX_ENTRIES  as bin/server.dart's
 library;
 
@@ -44,6 +48,7 @@ import 'package:pokertour_api/aws/s3.dart';
 import 'package:pokertour_api/lambda/runtime.dart';
 import 'package:pokertour_api/leaderboard.dart';
 import 'package:pokertour_api/models_dir.dart';
+import 'package:pokertour_api/queue.dart';
 import 'package:pokertour_api/routes.dart';
 import 'package:pokertour_api/runner.dart';
 import 'package:pokertour_api/schedule.dart';
@@ -173,15 +178,17 @@ class _Tour {
     }
   }
 
-  /// Starts a tournament for [by]: invokes the runner function, unless
-  /// one is being played.
-  Future<String> start(Identity by) async {
-    final live = await readLive(store);
-    if (live != null && live.state == 'playing' && !live.stale(DateTime.now())) return 'running';
-    await lambda.invokeAsync(runnerFunction, {'source': 'admin', 'by': by.ownerId, 'at': DateTime.now().toUtc().toIso8601String()});
-    stdout.writeln('api: a tournament was started by ${by.ownerId}');
-    return 'started';
+  /// Asks for a tournament from [source], by [by]: queued in the table,
+  /// and the runner function invoked, which plays it when its turn comes.
+  Future<String> start(String source, Identity by) async {
+    final asked = await _queue('api').ask(source, by: by.ownerId);
+    // Even when one was waiting: a runner that died left it to the next.
+    await lambda.invokeAsync(runnerFunction, {'source': source});
+    stdout.writeln('api: a tournament asked for by the $source (${by.ownerId}): ${asked.name}');
+    return asked.name;
   }
+
+  TournamentQueue _queue(String holder) => TournamentQueue(boards.db, holder: holder);
 
   /// The API function: a Lambda function URL event (payload 2.0) in, the
   /// answer out.
@@ -222,6 +229,7 @@ class _Tour {
       schedule: schedule,
       runnerEnabled: runnerEnabled,
       start: runnerEnabled ? start : null,
+      waiting: _queue('api').waiting,
       check: check,
     );
     return _answer(answer);
@@ -236,8 +244,12 @@ class _Tour {
     if (answer.body != null) 'body': jsonEncode(answer.body),
   };
 
-  /// The runner function: one tournament, within the time left.
+  /// The runner function: the queue's oldest tournament, within the time
+  /// left, under the table's lock; then itself again, while more wait.
   Future<Object?> runner(Object? event, LambdaContext context) async {
+    final source = event is Map ? event['source'] : null;
+    final queue = _queue('runner-${context.requestId}');
+    if (source == TournamentSource.schedule) await queue.ask(TournamentSource.schedule);
     final aityx = await decider();
     if (aityx == null) {
       final live = LiveState(state: 'error', detail: 'the host\'s key is not in S3: the leaderboard cannot play');
@@ -246,16 +258,23 @@ class _Tour {
     }
     final runner = Runner(boards: boards, decider: aityx, maxHands: maxHands);
     final deadline = context.deadline.subtract(const Duration(seconds: 45));
-    final source = event is Map ? event['source'] : null;
-    stdout.writeln('runner: a tournament asked by ${source ?? 'someone'}, ${context.remaining().inSeconds} s left');
-    final result = await runner.play(deadline: deadline);
+    TournamentResult? result;
+    final played = await queue.drain(max: 1, (request) async {
+      stdout.writeln('runner: a tournament asked for by the ${request.source}, ${context.remaining().inSeconds} s left');
+      result = await runner.play(deadline: deadline);
+    });
+    // The next one gets a function of its own, with all its time.
+    final more = played > 0 && (await queue.waiting()).isNotEmpty;
+    if (more) await lambda.invokeAsync(runnerFunction, {'source': 'queue'});
+    final r = result;
     return {
-      'played': result != null,
-      if (result != null) 'number': result.number,
-      if (result != null) 'hands': result.hands,
-      if (result != null) 'calls': result.calls,
+      'played': r != null,
+      if (r != null) 'number': r.number,
+      if (r != null) 'hands': r.hands,
+      if (r != null) 'calls': r.calls,
       'state': runner.live.state,
-      'detail': runner.live.detail,
+      'detail': played == 0 ? 'nothing to play, or another runner is playing' : runner.live.detail,
+      'more': more,
     };
   }
 }

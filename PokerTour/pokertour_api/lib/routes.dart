@@ -15,8 +15,10 @@
 ///   GET  /api/leaderboard {"standings": [...], "current": the tournament
 ///                         being played or null, "history": the latest
 ///                         results, "runner": {"enabled", "state",
-///                         "detail", "hoursUtc", "nextRunAt"}}; open to
-///                         all, no emails in it
+///                         "detail", "hoursUtc", "nextRunAt", "queue":
+///                         the tournaments waiting, the oldest first,
+///                         [{"source", "at"}]}}; open to all, no emails
+///                         or owners in it
 ///   GET  /api/me          who the bearer token says is calling, with the
 ///                         "ownerId" the standings use, their "alias"
 ///                         (null: the leaderboard shows their name) and
@@ -29,24 +31,30 @@
 ///   POST /api/strategies  {"name", "tagline", "decisions"}: enters the
 ///                         strategy (replacing the caller's of the same
 ///                         name) once aityx runs it on the sample
-///                         situation; 201 with the entry; 400 when it
+///                         situation, and asks for a tournament (queued
+///                         behind the one being played); 201 with the
+///                         entry and "tournament": what asking did
+///                         (as POST /api/tournaments' status, or null
+///                         when the leaderboard is off); 400 when it
 ///                         isn't a strategy, 422 when aityx refuses it,
 ///                         409 when the player has too many; signed in
 ///   DELETE /api/strategies/{id}  withdraws the caller's entry; 204, or
 ///                         404; signed in
-///   POST /api/tournaments starts a tournament now: 202 with {"status":
-///                         "started", or "running" when one is being
-///                         played}; an admin, signed in; 503 when the
-///                         leaderboard is off
+///   POST /api/tournaments asks for a tournament now: 202 with {"status":
+///                         "started"; "queued" behind the one being
+///                         played, never beside it; or "waiting" when an
+///                         admin's is queued already}; an admin, signed
+///                         in; 503 when the leaderboard is off
 ///
 /// Signed in: a bearer token Google issued for the server's client id, for
 /// an account in the tour's domains: 401 without one, 403 for another
-/// domain, 503 while the server has no client id. An admin: an account in
-/// the admins' domains (403 otherwise).
+/// domain, 503 while the server has no client id. An admin: an aletyx.com
+/// or aletyx.ai account (403 otherwise).
 library;
 
 import 'auth.dart';
 import 'leaderboard.dart';
+import 'queue.dart';
 import 'runner.dart';
 import 'schedule.dart';
 import 'store.dart';
@@ -67,16 +75,17 @@ class Answer {
 /// with the reason when aityx refuses them.
 typedef StrategyCheck = Future<void> Function(Object? strategyJson);
 
-/// Starts a tournament for the admin [by]: "started", or "running" when
-/// one is being played already. Throws when it can't.
-typedef TournamentStarter = Future<String> Function(Identity by);
+/// Asks for a tournament from [source] (lib/queue.dart), by [by]: what
+/// it did, one of [Asked]'s names. Throws when it can't.
+typedef TournamentStarter = Future<String> Function(String source, Identity by);
 
 /// [auth]: how the server signs users in. [who]: the bearer token's
 /// verdict, when the request had one. [boards]: the tour, in its store.
 /// [live]: what the runner last wrote, for the leaderboard; [schedule]
 /// when it plays on its own and [runnerEnabled] whether it plays at all.
-/// [start] starts a tournament now (POST /api/tournaments); [check] is
-/// the aityx check for POST /api/strategies.
+/// [start] asks for a tournament (POST /api/tournaments, and a new
+/// strategy); [waiting], the tournaments queued; [check] is the aityx
+/// check for POST /api/strategies.
 Future<Answer> route(
   String method,
   String path, {
@@ -91,17 +100,19 @@ Future<Answer> route(
   Schedule schedule = const Schedule([]),
   bool runnerEnabled = false,
   TournamentStarter? start,
+  Future<List<TournamentRequest>> Function()? waiting,
   StrategyCheck? check,
   DateTime? now,
 }) async {
   final at = (now ?? DateTime.now()).toUtc();
   final cutShort = live != null && live.stale(at);
 
-  Map<String, Object?> runnerJson() => {
+  Future<Map<String, Object?>> runnerJson() async => {
     'enabled': runnerEnabled,
     'state': cutShort ? 'error' : (live?.state ?? 'idle'),
     'detail': cutShort ? 'the last tournament was cut short' : (live?.detail ?? 'no tournament played yet'),
     ...schedule.toJson(at),
+    'queue': [for (final r in await (waiting?.call() ?? Future.value(const <TournamentRequest>[]))) r.toJson(withBy: false)],
   };
 
   Answer signedIn() {
@@ -119,7 +130,7 @@ Future<Answer> route(
         'ok': true,
         'aityx': aityx,
         'auth': auth.enabled,
-        'runner': runnerJson(),
+        'runner': await runnerJson(),
         'entries': (await boards.read()).entries.length,
       });
     case ('GET', '/api/config'):
@@ -135,7 +146,7 @@ Future<Answer> route(
         'standings': board.standings(),
         'current': cutShort ? null : live?.current,
         'history': [for (final t in board.history) t.toJson()],
-        'runner': runnerJson(),
+        'runner': await runnerJson(),
       });
     case ('GET', '/api/me'):
       final gate = signedIn();
@@ -181,7 +192,17 @@ Future<Answer> route(
       try {
         final entry = await boards.update((b) => b.enter(who!.identity!, body));
         final player = await boards.db.player(entry.ownerId);
-        return Answer(201, entry.toStrategy(shownOwner: player?.shown));
+        // A new strategy plays in the next tournament: one is asked for,
+        // queued behind any being played. The entry stands if it can't be.
+        String? tournament;
+        if (runnerEnabled && start != null) {
+          try {
+            tournament = await start(TournamentSource.strategy, who!.identity!);
+          } on Exception catch (e) {
+            tournament = 'not asked for: $e';
+          }
+        }
+        return Answer(201, {...entry.toStrategy(shownOwner: player?.shown), 'tournament': tournament});
       } on EntryException catch (e) {
         return Answer(e.message.contains('withdraw one first') ? 409 : 400, {'error': e.message});
       } on StoreConflict {
@@ -191,11 +212,11 @@ Future<Answer> route(
       final gate = signedIn();
       if (gate.status != 200) return gate;
       if (!auth.isAdmin(who!.identity!.email)) {
-        return Answer(403, {'error': 'only the tour\'s admins (${auth.adminDomains.join(' and ')} accounts) can start a tournament'});
+        return Answer(403, {'error': 'only the tour\'s admins (${AuthSettings.adminDomains.join(' and ')} accounts) can start a tournament'});
       }
       if (!runnerEnabled || start == null) return const Answer(503, {'error': 'the leaderboard is off on this server'});
       try {
-        return Answer(202, {'status': await start(who.identity!)});
+        return Answer(202, {'status': await start(TournamentSource.admin, who.identity!)});
       } on Exception catch (e) {
         return Answer(502, {'error': 'the tournament could not be started: $e'});
       }

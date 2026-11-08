@@ -181,7 +181,8 @@ async function handle(request, response) {
   }
   if (path === '/api/health') return json(response, 200, { ok: true });
   if (path === '/api/config') return json(response, 200, await apiConfig(), 'no-store');
-  if (path === '/api/leaderboard') return json(response, 200, await leaderboard.view(), 'no-store');
+  // The wins are the admins' alone: a player sees the standings' order, not the counts.
+  if (path === '/api/leaderboard') return json(response, 200, await leaderboard.view({ admin: (await playerOf(request))?.admin === true }), 'no-store');
   if (path.startsWith('/tatyx/')) return file(response, path.slice('/tatyx'.length));
   return json(response, 404, { error: 'not found' });
 }

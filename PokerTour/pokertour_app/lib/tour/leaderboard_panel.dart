@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:poker_core/table.dart' show Strategy;
 
@@ -12,15 +14,15 @@ import 'tour_session.dart';
 /// tournament being played now (or when the next is), each strategy over
 /// its owner (their alias, else their name; a preset is a template
 /// strategy).
-/// Signed in, you can withdraw your own, download any, and seat one at
-/// your table (uploads are in Players and Profile); an admin can start a
-/// tournament now.
+/// Signed in, you can withdraw your own and download any (uploads are in
+/// Players and Profile); an admin can start a tournament now.
 class LeaderboardView extends StatefulWidget {
   const LeaderboardView({super.key, required this.session, this.controller, this.compact = false});
 
   final TourSession session;
 
-  /// The table to seat a strategy at, when there is one.
+  /// The table, whose presets a template strategy's download is read
+  /// from, when there is one.
   final GameController? controller;
 
   /// For the sidebar: fewer columns (no best place) and the actions under
@@ -75,25 +77,13 @@ class _LeaderboardViewState extends State<LeaderboardView> {
     }
   }
 
-  /// The strategy's rules, for a download or a seat: the tour's, read
+  /// The strategy's rules, for a download: the tour's, read
   /// once signed in, or a preset from the table.
   Strategy? _rules(Standing row) {
     if (row.preset) {
       return widget.controller?.strategies.where((x) => x.id == row.id).firstOrNull;
     }
     return s.tourStrategies.where((t) => t.id == row.id).firstOrNull?.strategy;
-  }
-
-  void _seat(Standing row, Strategy rules) {
-    final c = widget.controller;
-    if (c == null) return;
-    c.addStrategies([rules]);
-    final seat = c.addPlayer(c.suggestName(rules), rules);
-    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-      SnackBar(
-        content: Text(seat == null ? 'The table is full: nine seats.' : '${seat.name} plays ${rules.name} at your table.'),
-      ),
-    );
   }
 
   @override
@@ -138,14 +128,16 @@ class _LeaderboardViewState extends State<LeaderboardView> {
               )
             else ...[
               _RunnerLine(board: board),
+              if (board.runnerEnabled && board.nextRunAt != null) ...[
+                const SizedBox(height: 6),
+                _Countdown(at: board.nextRunAt!),
+              ],
               const SizedBox(height: 8),
               _Standings(
                 board: board,
                 session: s,
                 compact: widget.compact,
                 rules: _rules,
-                canSeat: widget.controller != null,
-                onSeat: _seat,
                 onWithdraw: _withdraw,
               ),
               if (board.current != null) ...[
@@ -177,7 +169,7 @@ class _RunnerLine extends StatelessWidget {
         ? ''
         : next == null
         ? '$waiting No tournament is scheduled; an admin can start one, and every new strategy does.'
-        : '$waiting The next scheduled tournament is ${_when(next)}.';
+        : waiting;
     final (color, text) = switch (board.runnerState) {
       'playing' => (Aityx.green, 'The leaderboard is playing: ${board.runnerDetail}.$waiting'),
       'waiting' => (Aityx.amber, 'Latest: ${board.runnerDetail}.$coming'),
@@ -200,21 +192,86 @@ class _RunnerLine extends StatelessWidget {
     'strategy' => "a new strategy's",
     _ => source,
   };
+}
 
-  /// [at] in local time: "today at 18:00", "tomorrow at 00:00", or the
-  /// date.
-  static String _when(DateTime at) {
-    final local = at.toLocal();
-    final now = DateTime.now();
-    final day = DateTime(local.year, local.month, local.day);
-    final today = DateTime(now.year, now.month, now.day);
-    final time = '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
-    return switch (day.difference(today).inDays) {
-      0 => 'today at $time',
-      1 => 'tomorrow at $time',
-      _ => 'on ${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')} at $time',
-    };
+/// The time to the next scheduled tournament, counting down by the
+/// second, and when it is.
+class _Countdown extends StatefulWidget {
+  const _Countdown({required this.at});
+
+  final DateTime at;
+
+  @override
+  State<_Countdown> createState() => _CountdownState();
+}
+
+class _CountdownState extends State<_Countdown> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
   }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final left = widget.at.difference(DateTime.now());
+    return Row(
+      key: const Key('countdown'),
+      children: [
+        Icon(Icons.timer_outlined, size: 16, color: scheme.primary),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text.rich(
+            TextSpan(
+              children: [
+                const TextSpan(text: 'Next tournament '),
+                TextSpan(
+                  text: left.isNegative ? 'any moment now' : 'in ${timeLeft(left)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontFeatures: [FontFeature.tabularFigures()]),
+                ),
+                TextSpan(text: ', ${localWhen(widget.at)}'),
+              ],
+            ),
+            style: theme.textTheme.bodySmall,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// [left] for people: "5 h 02 min", "12 min 05 s", "45 s".
+String timeLeft(Duration left) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  final h = left.inHours, m = left.inMinutes % 60, s = left.inSeconds % 60;
+  if (h > 0) return '$h h ${two(m)} min';
+  if (m > 0) return '$m min ${two(s)} s';
+  return '$s s';
+}
+
+/// [at] in local time: "today at 18:00", "tomorrow at 00:00", or the
+/// date.
+String localWhen(DateTime at) {
+  final local = at.toLocal();
+  final now = DateTime.now();
+  final day = DateTime(local.year, local.month, local.day);
+  final today = DateTime(now.year, now.month, now.day);
+  final time = '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  return switch (day.difference(today).inDays) {
+    0 => 'today at $time',
+    1 => 'tomorrow at $time',
+    _ => 'on ${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')} at $time',
+  };
 }
 
 class _Standings extends StatelessWidget {
@@ -223,8 +280,6 @@ class _Standings extends StatelessWidget {
     required this.session,
     required this.compact,
     required this.rules,
-    required this.canSeat,
-    required this.onSeat,
     required this.onWithdraw,
   });
 
@@ -232,8 +287,6 @@ class _Standings extends StatelessWidget {
   final TourSession session;
   final bool compact;
   final Strategy? Function(Standing) rules;
-  final bool canSeat;
-  final void Function(Standing, Strategy) onSeat;
   final Future<void> Function(Standing) onWithdraw;
 
   @override
@@ -288,9 +341,7 @@ class _Standings extends StatelessWidget {
                 DataCell(_Actions(
                   row: row,
                   rules: rules(row),
-                  canSeat: canSeat,
                   mine: session.mine(row),
-                  onSeat: onSeat,
                   onWithdraw: onWithdraw,
                 )),
               ],
@@ -326,17 +377,13 @@ class _Actions extends StatelessWidget {
   const _Actions({
     required this.row,
     required this.rules,
-    required this.canSeat,
     required this.mine,
-    required this.onSeat,
     required this.onWithdraw,
   });
 
   final Standing row;
   final Strategy? rules;
-  final bool canSeat;
   final bool mine;
-  final void Function(Standing, Strategy) onSeat;
   final Future<void> Function(Standing) onWithdraw;
 
   @override
@@ -351,13 +398,6 @@ class _Actions extends StatelessWidget {
             visualDensity: VisualDensity.compact,
             onPressed: () => saveTextFile(strategyFileName(r), r.toEditable()),
             icon: const Icon(Icons.download_outlined, size: 18),
-          ),
-        if (r != null && canSeat)
-          IconButton(
-            tooltip: 'Seat it at my table',
-            visualDensity: VisualDensity.compact,
-            onPressed: () => onSeat(row, r),
-            icon: const Icon(Icons.chair_outlined, size: 18),
           ),
         if (mine)
           IconButton(

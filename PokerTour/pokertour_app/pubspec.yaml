@@ -77,6 +77,12 @@ flutter:
   assets:
     - assets/models/
     - assets/models/strategies/
+    # The soundtrack, made by scripts/jazz.dart (not the folder: its README stays out).
+    - assets/music/1.mp3
+    - assets/music/2.mp3
+    - assets/music/3.mp3
+    - assets/music/4.mp3
+    - assets/music/5.mp3
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

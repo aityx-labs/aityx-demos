@@ -89,7 +89,7 @@ http.Client world({String aityxUrl = staging}) {
 }
 
 TourSession session(http.Client client, {PlayerKeys? keys, String email = 'ana@aletyx.com'}) => TourSession(
-  api: HttpTourApi(base: Uri.parse('http://tour.test/app/'), client: client, token: () async => 'id-token'),
+  api: HttpTourApi(base: Uri.parse('http://tour.test/pokertour/'), client: client, token: () async => 'id-token'),
   auth: FakeAuth(email),
   keys: keys ?? memoryKeys(),
   client: client,

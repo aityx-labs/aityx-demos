@@ -184,14 +184,14 @@ void main() {
         },
         'receipt': {
           'decisions': {
-            'action': {'value': 'call', 'rule': 10},
+            'action': {'value': 'call', 'rule': 15},
           },
         },
       });
       expect(action['action'], 'call');
       expect(action['raise_to'], 60);
-      expect(action['rule'], 10);
-      expect(action['why'], startsWith('A pair that is likely best: call'));
+      expect(action['rule'], 15);
+      expect(action['why'], startsWith('A pair with a fair chance: call'));
       expect(action['decisions'], {'strong_made': 0});
     });
 

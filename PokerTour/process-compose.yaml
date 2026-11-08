@@ -2,7 +2,7 @@ version: "0.5"
 
 # `devbox services up`: Floci, the local AWS (floci/compose.yaml), and the
 # Poker Tour server (scripts/serve.sh), one process on one port: the app
-# under /app/, its API under /api/, and the leaderboard's tournaments, on
+# under /pokertour/, its API under /api/, and the leaderboard's tournaments, on
 # the schedule or when an admin asks. The server keeps the tour in Floci.
 # The variables are named as every demo's, so start-all.sh reads the port
 # the same way; the API shares the web port.

@@ -61,6 +61,8 @@ engine is shared with the server ([poker_core](../poker_core)).
   downloads, **Enter it in the tour** and **Upload a strategy**.
 - [The aityx light](aityx-status.md): the dot, top right, that says
   whether the player's key is there and aityx accepts it.
+- [Music](music.md): five soft jazz tracks, synthesized by a script,
+  played in a random loop at the table, with mute and volume.
 - [Theme](theme.md): the aityx dark palette, and the felt.
 - [App icon](app-icon.md): an orange ace of spades with a chip.
 
@@ -79,7 +81,7 @@ engine is shared with the server ([poker_core](../poker_core)).
 **Project**
 
 - [Development environment](dev-environment.md): devbox, Floci (the
-  local AWS), the server that serves the web build at `/app/` on port
+  local AWS), the server that serves the web build at `/pokertour/` on port
   9810, the tests, the container and the multyx group's dev container.
 
 ## Workflow

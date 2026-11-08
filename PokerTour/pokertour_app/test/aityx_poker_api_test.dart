@@ -23,7 +23,7 @@ const _calls = {
   },
   'receipt': {
     'decisions': {
-      'action': {'value': 'call', 'rule': 10},
+      'action': {'value': 'call', 'rule': 15},
     },
   },
 };
@@ -101,8 +101,8 @@ void main() {
 
       expect(result.kind, ActionKind.call);
       expect(result.raiseTo, 60);
-      expect(result.rule, 10);
-      expect(result.why, startsWith('A pair that is likely best: call'));
+      expect(result.rule, 15);
+      expect(result.why, startsWith('A pair with a fair chance: call'));
       expect(result.decisions, {'strong_made': 0});
       // The call for the sidebar: the body sent, never the headers.
       expect(result.request, sent);

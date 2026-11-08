@@ -67,11 +67,45 @@ arithmetic, comparisons, `decimal`), documented at
 
 | Strategy | In short |
 |---|---|
-| [The Rock](../pokertour_app/assets/models/strategies/rock.json) | Raises premium cards, opens strong ones and calls one raise with them, folds everything else (checks a free flop). After the flop bets two pair or better, calls with a pair likely best, never bluffs. Opens 3 BB, re-raises 3×, bets half the pot |
-| [The Maniac](../pokertour_app/assets/models/strategies/maniac.json) | Raises almost anything before the flop (folds weak cards to two raises only when the coin says no bluff). After the flop bets any pair or draw, bluffs when `random < 0.5`, calls three times in ten with nothing. Opens 4 BB, re-raises 3.5×, bets the pot |
-| [The Calling Station](../pokertour_app/assets/models/strategies/station.json) | Calls to see what happens: before the flop up to ten big blinds with weak cards, after it unless hopeless (under 10% equity against a bet over half the pot). Raises the minimum, and only with a straight or better |
-| [The Mathematician](../pokertour_app/assets/models/strategies/mathematician.json) | Pot odds: calls when `equity > pot_odds`, bets or raises when the edge is 20 points or more (or 60% equity when a check is free), folds otherwise; never bluffs. Opens 3 BB, re-raises 3×, bets two thirds of the pot |
-| [The Shark](../pokertour_app/assets/models/strategies/shark.json) | Tight and aggressive: raises premium and strong cards, opens medium ones and calls a raise with them in position, calls cheap with speculative ones, steals from late position three times in five. After the flop bets for value (two pair or better, or a pair with 60% equity), semi-bluffs flush draws and open-enders when nobody has bet, continuation-bets two times in three against few players, calls when the odds say so with at least 30% equity. Opens 2.5 BB, re-raises 3×, bets two thirds of the pot |
+| [The Rock](../pokertour_app/assets/models/strategies/rock.json) | Tight and passive. Raises premium cards when nobody has, calls a raise with them; opens strong ones; calls one raise with strong or medium cards, or a small one (four big blinds) with speculative ones; limps medium and speculative cards for up to two big blinds; folds the rest (checks a free flop). Short-stacked, 25 big blinds or less, goes all in with any playable hand. After the flop bets two pair or better, never lets go of a premium pair, calls with a pair at 30% equity, never bluffs. Opens 3 BB, re-raises 3×, bets half the pot |
+| [The Maniac](../pokertour_app/assets/models/strategies/maniac.json) | Raises almost anything before the flop, except junk (weak or speculative) with three or more players still to act, and weak cards against a raise when the coin (`random < 0.5`) says no bluff; folds anything but premium and strong cards to a re-raise, unless bluffing. After the flop bets any pair or draw when nobody has, raises it at 60% equity, calls it at 40%; bluffs on the coin when three players or fewer are left. Folds any call of 15% of its stack or more without 55% equity. Opens 4 BB, re-raises 3.5×, bets the pot |
+| [The Calling Station](../pokertour_app/assets/models/strategies/station.json) | Calls to see what happens: before the flop up to four big blinds with weak cards, anything with the rest; after it unless hopeless (under 25% equity against a bet over 30% of the pot, or a call of a fifth of its stack without 50%). Raises the minimum, and only with three of a kind or better |
+| [The Mathematician](../pokertour_app/assets/models/strategies/mathematician.json) | Pot odds: calls when `equity > pot_odds`, bets or raises when the edge is 30 points or more (or 70% equity when a check is free), folds otherwise; never bluffs. Opens 3 BB, re-raises 3×, bets two thirds of the pot |
+| [The Shark](../pokertour_app/assets/models/strategies/shark.json) | Tight and aggressive: raises premium and strong cards, opens medium ones and calls a raise with them in position, calls cheap with speculative ones, raises medium and speculative ones at a table of three or fewer, steals from middle or late position four times in five. After the flop bets for value (two pair or better, or a pair with 60% equity), semi-bluffs flush draws and open-enders when nobody has bet, continuation-bets four times in five against few players, calls when the odds say so with at least 30% equity. Opens 2.5 BB, re-raises 3×, bets two thirds of the pot |
+
+## Balance
+
+No preset dominates. They were tuned against each other on 2026-11-08
+by simulation: the engine of [poker_core](../poker_core) playing
+thousands of tournaments, with the rules evaluated locally instead of on
+aityx, tables drawn as the leaderboard draws them (three to five of the
+five, at random; 1000 chips, blinds up every ten hands). Each preset's
+points and wins are measured against its fair share (the points and the
+wins it would get if every strategy were as good, at the tables it sat
+at; 1.00 is fair):
+
+| Strategy | Points | Wins |
+|---|---|---|
+| The Rock | 1.16 | 0.85 |
+| The Shark | 1.04 | 0.83 |
+| The Mathematician | 0.99 | 1.05 |
+| The Calling Station | 0.91 | 1.10 |
+| The Maniac | 0.86 | 1.17 |
+
+(1400 tournaments, equity from 30 run-outs to make thousands of
+tournaments affordable; 100 run-outs gave the same picture. Before the
+tuning, 700 tournaments measured the same way gave the Rock
+1.35 points and 0.42 wins, the Mathematician 1.23 and 1.70, the Shark
+1.20 and 1.39, the Maniac 0.65 and 0.96, the Station 0.52 and 0.54.)
+
+Before, the Mathematician won 1.7 times its share and the Station got
+half its points: the Station and the Maniac busted first, the Rock
+outlasted them and the Mathematician and the Shark took the chips.
+Now each has its weakness and its strength: the Rock still outlasts the
+gamblers (it finishes second most often) but rarely wins heads-up; the
+Maniac wins often once the table is short and busts early as often; the
+Station, the Mathematician and the Shark sit in between. Luck decides
+a single tournament: any of the five wins its share of them.
 
 ## Verified
 
@@ -79,9 +113,12 @@ arithmetic, comparisons, `decimal`), documented at
 [model_scenarios_test.dart](../pokertour_app/test/model_scenarios_test.dart)
 on aityx, with the key from the repository's root `.env`: every strategy answers with a rule that fired, and each one
 plays its character in fixed situations (the Rock's premium raise and
-strong call, the Maniac's coin, the Station's ten-big-blind limit and
-hopeless fold, the Mathematician's call at 30% equity against 25% pot
-odds and fold against 40%, the Shark's steal, semi-bluff and position).
+strong call, cheap flop and short-stack all in; the Maniac's coin, its
+bluff with few players left and its stack-saving fold; the Station's
+four-big-blind limit, hopeless fold and stack-saving fold; the
+Mathematician's call at 30% equity against 25% pot odds and fold
+against 40%; the Shark's steal, semi-bluff, position and short-table
+raise).
 The app's tests ([table_test.dart](../pokertour_app/test/table_test.dart))
 also check that every action table's rows test only columns in its header
 and end with an else row.

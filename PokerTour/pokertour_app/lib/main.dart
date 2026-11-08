@@ -7,6 +7,9 @@ import 'api/poker_api.dart';
 import 'app_version.dart';
 import 'auth/auth_controller.dart';
 import 'game/controller.dart';
+import 'music/music_control.dart';
+import 'music/soundtrack.dart';
+import 'persist/storage_area.dart';
 import 'screens/sign_in_screen.dart';
 import 'table/table_screen.dart';
 import 'theme.dart';
@@ -57,6 +60,9 @@ class _PokerTourAppState extends State<PokerTourApp> {
   GameController? _controller;
   AityxClient? _aityx;
 
+  /// The jazz at the table, from the moment it opens.
+  late final Soundtrack _music = Soundtrack(storage: widget.api != null ? memoryArea() : localArea());
+
   @override
   void initState() {
     super.initState();
@@ -79,6 +85,7 @@ class _PokerTourAppState extends State<PokerTourApp> {
     if (ready && _controller == null) {
       _aityx = TourAityxClient(_session.keys);
       _controller = GameController(api: AityxPokerApi(aityx: _aityx!));
+      _music.start();
     } else if (!ready && _controller != null) {
       _controller?.dispose();
       _controller = null;
@@ -109,6 +116,7 @@ class _PokerTourAppState extends State<PokerTourApp> {
   @override
   void dispose() {
     _session.removeListener(_changed);
+    _music.dispose();
     _controller?.dispose();
     _aityx?.close();
     if (widget.session == null) {
@@ -143,6 +151,7 @@ class _PokerTourAppState extends State<PokerTourApp> {
             ? SignInScreen(session: _session)
             : TableScreen(
                 controller: controller,
+                actions: [MusicControl(soundtrack: _music)],
                 sidebar: widget.api != null && widget.session == null
                     ? null
                     : (context) => TourSidebar(session: _session, controller: controller),

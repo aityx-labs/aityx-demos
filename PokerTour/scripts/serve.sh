@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Serves Poker Tour on http://localhost:${FLUTTER_WEB_PORT:-9810}/app/: the
+# Serves Poker Tour on http://localhost:${FLUTTER_WEB_PORT:-9810}/pokertour/: the
 # server (pokertour_api/bin/server.dart, compiled to a native executable
 # by scripts/build.sh, only when it changed) serves the app's release web
-# build under /app/, its API under /api/, and plays the leaderboard's
+# build under /pokertour/, its API under /api/, and plays the leaderboard's
 # tournaments. Runs via `devbox services up` (see process-compose.yaml) or
 # `devbox run serve`. The settings come from the environment, else the
 # repo's .env (scripts/env.sh): the aityx key reaches the server's

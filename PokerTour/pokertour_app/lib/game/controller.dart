@@ -224,6 +224,24 @@ class GameController extends ChangeNotifier {
     _notify();
   }
 
+  /// A new tournament among strangers: the table cleared and seated with
+  /// three to nine strategies (fewer when there aren't that many), drawn
+  /// at random from [strategies], none twice.
+  void randomTournament() {
+    reset();
+    for (final seat in [...game.seats]) {
+      game.removePlayer(seat);
+    }
+    final pool = [...strategies]..shuffle(game.random);
+    final most = min(PokerGame.maxSeats, pool.length);
+    final least = min(3, most);
+    final count = least + game.random.nextInt(most - least + 1);
+    for (final s in pool.take(count)) {
+      game.addPlayer(suggestName(s), s.id);
+    }
+    _notify();
+  }
+
   Future<void> _run() async {
     while (playing && !_disposed) {
       final step = await _step();

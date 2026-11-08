@@ -2,7 +2,7 @@
 # documents the settings, e.g. `make android MODE=debug`.
 #
 #   make           every platform this host can build
-#   make web       pokertour_app/build/web/ (base href /app/)
+#   make web       pokertour_app/build/web/ (base href /pokertour/)
 #   make android   release APK
 #   make ios       Runner.app (macOS only; unsigned unless IOS_CODESIGN=1)
 #   make linux     Linux bundle (Linux only)

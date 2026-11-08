@@ -42,8 +42,9 @@ void main() {
     final runner = Runner(boards: boards, decider: fake(models), maxHands: 20, random: Random(3), log: false);
     final result = await runner.play();
     expect(result, isNotNull);
-    expect(result!.places.length, 5);
-    expect(result.places.map((p) => p.place).toSet(), {1, 2, 3, 4, 5});
+    final n = result!.places.length;
+    expect(n, inInclusiveRange(3, 5));
+    expect(result.places.map((p) => p.place).toSet(), {for (var i = 1; i <= n; i++) i});
     expect(result.calls, greaterThan(0));
     final board = await boards.read();
     expect(board.tournamentsPlayed, 1);
@@ -56,7 +57,7 @@ void main() {
     expect(live?.current, isNull);
   }, timeout: const Timeout(Duration(minutes: 2)));
 
-  test('the fewest tournaments sit first, up to nine', () async {
+  test('the fewest tournaments sit first, three to nine of them, none twice', () async {
     final boards = Boards(store: MemoryStore(), models: models, random: Random(4));
     for (var i = 0; i < 6; i++) {
       await boards.update((b) => b.enter(Identity(subject: '$i', email: 'p$i@aletyx.com'), {
@@ -70,10 +71,18 @@ void main() {
     });
     final board = await boards.read();
     final runner = Runner(boards: boards, decider: fake(models), random: Random(5), log: false);
-    final picked = runner.pick(board, board.playable);
-    expect(picked.length, 9);
-    expect(picked.map((e) => e.id), isNot(contains('rock')));
-    expect(picked.map((e) => e.id), isNot(contains('shark')));
+    final sizes = <int>{};
+    for (var i = 0; i < 40; i++) {
+      final picked = runner.pick(board, board.playable);
+      expect(picked.length, inInclusiveRange(3, 9));
+      expect(picked.map((e) => e.id).toSet().length, picked.length);
+      expect(picked.map((e) => e.id), isNot(contains('rock')));
+      expect(picked.map((e) => e.id), isNot(contains('shark')));
+      sizes.add(picked.length);
+    }
+    expect(sizes.length, greaterThan(3), reason: 'the size is drawn at random');
+    // Fewer than three can play: they all sit.
+    expect(runner.pick(board, board.playable.take(2).toList()), hasLength(2));
   });
 
   test('a strategy aityx refuses is marked broken and folds on', () async {
@@ -97,7 +106,7 @@ void main() {
     final result = await slow.play(deadline: DateTime.now().add(const Duration(milliseconds: 600)));
     expect(result, isNotNull);
     expect(result!.hands, lessThan(300));
-    expect(result.places.map((p) => p.place).toSet(), {1, 2, 3, 4, 5});
+    expect(result.places.map((p) => p.place).toSet(), {for (var i = 1; i <= result.places.length; i++) i});
     expect((await readLive(store))?.detail, contains('out of time'));
 
     final rejected = Runner(boards: boards, decider: fake(models, status: () => 401), maxHands: 10, random: Random(8), log: false);

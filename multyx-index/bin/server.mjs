@@ -105,7 +105,8 @@ async function answers(url) {
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(2000), redirect: 'manual' });
     await response.arrayBuffer();
-    return response.status >= 200 && response.status < 300;
+    // A redirect is an answer too: Poker Tour sends /app/ to /pokertour/.
+    return response.status >= 200 && response.status < 400;
   } catch {
     return false;
   }

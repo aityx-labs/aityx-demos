@@ -126,11 +126,11 @@ data_bucket="$(output DataBucket)"
 distribution="$(output DistributionId)"
 leaderboard_key_object="pokertour/leaderboard.key"
 
-echo "deploy: the web build to s3://$web_bucket/app/"
-aws s3 sync --quiet --delete --region "$region" "$root/pokertour_app/build/web" "s3://$web_bucket/app/" \
+echo "deploy: the web build to s3://$web_bucket/pokertour/"
+aws s3 sync --quiet --delete --region "$region" "$root/pokertour_app/build/web" "s3://$web_bucket/pokertour/" \
   --exclude ".pokertour-services" --cache-control "public, max-age=300"
 # The CLI doesn't know .wasm's type; CanvasKit needs it right.
-aws s3 cp --quiet --recursive --region "$region" "s3://$web_bucket/app/" "s3://$web_bucket/app/" \
+aws s3 cp --quiet --recursive --region "$region" "s3://$web_bucket/pokertour/" "s3://$web_bucket/pokertour/" \
   --exclude "*" --include "*.wasm" --content-type application/wasm \
   --cache-control "public, max-age=300" --metadata-directive REPLACE
 aws cloudfront create-invalidation --distribution-id "$distribution" --paths "/*" --query 'Invalidation.Id' --output text >/dev/null

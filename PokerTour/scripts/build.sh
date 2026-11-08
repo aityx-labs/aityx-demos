@@ -2,7 +2,7 @@
 # Builds what the server serves, and only what changed since the last
 # build:
 #   web      the app's release web build, pokertour_app/build/web/, through
-#            scripts/make.sh web: under /app/, calling /api/ on its own
+#            scripts/make.sh web: under /pokertour/, calling /api/ on its own
 #            origin and aityx with the key it fetched
 #   server   the server (pokertour_api/bin/server.dart), compiled to
 #            pokertour_api/build/server
@@ -72,7 +72,7 @@ with_lock() {
 
 # The settings the server needs the web build made with; recorded beside
 # the build once it succeeds, and required before it is reused.
-web_settings='base_href=/app/ web_resources_cdn=no'
+web_settings='base_href=/pokertour/ web_resources_cdn=no'
 
 build_web_if_stale() {
   local out="$app/build/web" stamp="$app/build/web/.pokertour-services"
@@ -84,7 +84,7 @@ build_web_if_stale() {
       "$shared/lib" "$shared/pubspec.yaml" \
       "$root/version.X.txt" "$root/version.Y.txt"; then
     echo "build: web (pokertour_app/build/web is missing, has other settings, or is older than the app)"
-    env WEB_BASE_HREF=/app/ bash "$root/scripts/make.sh" web
+    env WEB_BASE_HREF=/pokertour/ bash "$root/scripts/make.sh" web
     echo "$web_settings" >"$stamp"
   else
     echo "build: web is up to date"

@@ -136,6 +136,45 @@ void main() {
     expect(find.textContaining('Players (3)'), findsOneWidget);
   });
 
+  testWidgets('the title starts a new tournament among random strategies', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(PokerTourApp(api: FakeApi()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('step')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Hand #1'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('title')));
+    await tester.pumpAndSettle();
+    // Two strategies: both seated again, and the hand gone.
+    expect(find.textContaining('Players (2)'), findsOneWidget);
+    expect(find.text('Rocky'), findsOneWidget);
+    expect(find.text('Max'), findsOneWidget);
+    expect(find.text('Press play to deal.'), findsOneWidget);
+  });
+
+  test('a random tournament seats three to nine strategies, none twice', () async {
+    final c = GameController(api: FakeApi(), random: Random(7));
+    await c.load();
+    for (var i = 0; i < 10; i++) {
+      c.saveCustom('{"name": "Mine $i", "decisions": {"action": {}, "raise_to": {}}}');
+    }
+    final counts = <int>{};
+    for (var i = 0; i < 40; i++) {
+      c.randomTournament();
+      final ids = [for (final s in c.game.seats) s.strategyId];
+      expect(ids.toSet().length, ids.length);
+      expect(ids.length, inInclusiveRange(3, 9));
+      expect(c.game.seats.map((s) => s.name).toSet().length, ids.length);
+      counts.add(ids.length);
+    }
+    expect(counts.length, greaterThan(1));
+  });
+
   test('a strategy is parsed from the editor, or refused with a reason', () {
     final s = Strategy.parse(
       '{"name": "Mine", "decisions": {"action": {"expr": "\\"call\\""}, "raise_to": {"expr": "min_raise"}}}',

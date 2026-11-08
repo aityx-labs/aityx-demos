@@ -35,7 +35,7 @@ stale() {
 
 # The settings the server needs the build made with; recorded beside the
 # build once it succeeds, and required before it is reused.
-web_settings='base=/app/'
+web_settings='base=/tatyx/'
 
 install_if_stale() {
   if stale "$app/node_modules/.package-lock.json" "$app/package.json" "$app/package-lock.json" "$shared/package.json"; then

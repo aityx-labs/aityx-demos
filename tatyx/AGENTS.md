@@ -9,8 +9,8 @@ every commit and push:
   code path, not just a syntax check. For this project that means `npm
   test` and `npm run typecheck` in `tatyx_app/` and in
   `../packages/aityx_js/`, and `bash scripts/build.sh` builds the web app
-  the server serves at `/app/`. Then open it (`bash scripts/serve.sh`,
-  http://localhost:9710/app/) and look: the title, the field, the light,
+  the server serves at `/tatyx/`. Then open it (`bash scripts/serve.sh`,
+  http://localhost:9710/tatyx/) and look: the title, the field, the light,
   the key dialog.
 - **Secrets**, as in Poker Tour: every player brings their own aityx
   key, kept in their browser (the key form saves it, with its URL); the
@@ -37,7 +37,7 @@ Do not commit or push code that has not passed both checks.
 - tatyx is a [Phaser 4](https://phaser.io) game in TypeScript, built
   with Vite ([tatyx_app/](tatyx_app)), served by a plain Node server
   ([tatyx_server/server.mjs](tatyx_server/server.mjs)) on port 9710:
-  the app at `/app/`, `/api/health`, and aityx for the app at `/aityx/`.
+  the app at `/tatyx/`, `/api/health`, and aityx for the app at `/aityx/`.
   It calls aityx from the browser through the shared
   [aityx-js](../packages/aityx_js/README.md) package, the TypeScript twin
   of the Flutter demos' aityx_web.

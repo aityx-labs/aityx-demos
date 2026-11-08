@@ -39,7 +39,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    // /app/#map opens on the map, for development and screenshots.
+    // /tatyx/#map opens on the map, for development and screenshots.
     this.scene.start(window.location.hash === '#map' ? 'map' : 'title');
   }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Serves tatyx on http://localhost:${FLUTTER_WEB_PORT:-9710}/app/: the
+# Serves tatyx on http://localhost:${FLUTTER_WEB_PORT:-9710}/tatyx/: the
 # server (tatyx_server/server.mjs) serves the app's release build under
-# /app/, its health check under /api/, and aityx for the app under
+# /tatyx/, its health check under /api/, and aityx for the app under
 # /aityx/ (the relay for the player's own key). Builds what's stale first
 # (scripts/build.sh). Runs via `devbox services up` (see
 # process-compose.yaml) or `devbox run serve`. The settings come from the

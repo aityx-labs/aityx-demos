@@ -46,7 +46,7 @@ The balance of the rules and a strategy editor come next: see
 |---|---|
 | Game ([tatyx_app/](tatyx_app)) | [Phaser 4](https://phaser.io) (TypeScript, [Vite](https://vite.dev)): three scenes, boot, the title and the map; the world, its rules, the bots' behaviours, the match and the strategies as plain data and pure functions in [src/game/](tatyx_app/src/game), with no Phaser in it; the shell around the canvas (the bar, the aityx light and key dialog, the calls panel) in plain DOM |
 | aityx from the browser ([packages/aityx_js](../packages/aityx_js/README.md)) | The shared TypeScript package: the user's key and its URL, the relay to the server's aityx, the systemone call, the status check, the light and the key form; the twin of the Flutter demos' aityx_web |
-| Server ([tatyx_server/](tatyx_server)) | Plain Node (`node:http`, `node:crypto`, no packages): the app at `/app/`; `/api/` for the config, the Google sign-in and its session ([auth.mjs](tatyx_server/auth.mjs)), and the leaderboard ([leaderboard.mjs](tatyx_server/leaderboard.mjs)); the relay at `/aityx/`, which passes the player's own key on to the server's aityx (staging takes no calls from browsers) and never adds one |
+| Server ([tatyx_server/](tatyx_server)) | Plain Node (`node:http`, `node:crypto`, no packages): the app at `/tatyx/`; `/api/` for the config, the Google sign-in and its session ([auth.mjs](tatyx_server/auth.mjs)), and the leaderboard ([leaderboard.mjs](tatyx_server/leaderboard.mjs)); the relay at `/aityx/`, which passes the player's own key on to the server's aityx (staging takes no calls from browsers) and never adds one |
 | Art ([art/](art/README.md)) | The concept art of the five bots, as reference; the portraits the app shows are made from it |
 | Dev environment | [Devbox](https://www.jetify.com/devbox) (Node 22) on a laptop, or the multyx group's [dev container](../.devcontainer/multyx/devcontainer.json) |
 
@@ -55,7 +55,7 @@ The balance of the rules and a strategy editor come next: see
 From the root of the repository:
 
 ```bash
-./start-multyx.sh           # the multyx group: tatyx on http://localhost:9710/app/, Poker Tour and the index on http://localhost:9700/
+./start-multyx.sh           # the multyx group: tatyx on http://localhost:9710/tatyx/, Poker Tour and the index on http://localhost:9700/
 ./start-multyx.sh tatyx     # tatyx alone
 ./stop-multyx.sh
 ```
@@ -63,9 +63,9 @@ From the root of the repository:
 From this folder, with [Devbox](https://www.jetify.com/devbox):
 
 ```bash
-devbox services up          # the server, detached: http://localhost:9710/app/
+devbox services up          # the server, detached: http://localhost:9710/tatyx/
 devbox run serve            # the same, in the foreground (builds what's stale first)
-devbox run dev              # Vite's dev server, http://localhost:9711/app/, hot reload; the server on 9710 answers /api/ and /aityx/
+devbox run dev              # Vite's dev server, http://localhost:9711/tatyx/, hot reload; the server on 9710 answers /api/ and /aityx/
 devbox run test             # the tests and the type check
 ```
 

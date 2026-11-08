@@ -1,7 +1,7 @@
 version: "0.5"
 
 # `devbox services up`: the tatyx server (scripts/serve.sh), one process
-# on one port: the app under /app/, its health check under /api/, and
+# on one port: the app under /tatyx/, its health check under /api/, and
 # aityx for the app under /aityx/. The variables are named as every
 # demo's, so start-all.sh reads the port the same way; the API shares the
 # web port.

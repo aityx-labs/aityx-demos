@@ -1,4 +1,4 @@
-// The app's build and dev server. The app is served under /app/ by the
+// The app's build and dev server. The app is served under /tatyx/ by the
 // tatyx server (tatyx_server/server.mjs, port 9710), which also
 // answers /api/ and the relay to its aityx at /aityx/; `npm run dev`
 // serves the sources on 9711 and proxies those two paths to the server,
@@ -12,7 +12,7 @@ const here = fileURLToPath(new URL('.', import.meta.url));
 const aityxJs = fileURLToPath(new URL('../../packages/aityx_js', import.meta.url));
 
 export default defineConfig({
-  base: '/app/',
+  base: '/tatyx/',
   server: {
     port: 9711,
     strictPort: true,

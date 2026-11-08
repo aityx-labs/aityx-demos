@@ -34,8 +34,10 @@ may look at the title, the board and the leaderboard.
   email's domain among `TATYX_ALLOWED_DOMAINS` (`aletyx.com`,
   `aletyx.ai`). Then a **session**: an HMAC-signed cookie,
   `tatyx_session` (`HttpOnly`, `SameSite=Strict`, `Secure` over https),
-  for 12 hours, signed with `TATYX_SESSION_SECRET` (else a random secret
-  per start, so a restart signs everyone out). The page never sees the
+  for 30 days since the player's last visit (`GET /api/session` renews
+  it, at most once a day), signed with `TATYX_SESSION_SECRET`, else the
+  secret in `<data>/session-secret` (made on the first start, mode 600,
+  ignored by git), so a restart keeps everyone signed in. The page never sees the
   token again, nor the cookie. `GET /api/session` says who is signed in;
   `DELETE /api/session` (Profile's **Sign out**) ends it. Admins, who
   may start a tournament now, are the `aletyx.com` and `aletyx.ai`
@@ -62,7 +64,8 @@ straight from the browser.
 The player's key and its URL are kept in their browser (localStorage,
 `aityx.key` and `aityx.url`, on the game's own origin) until **Forget**:
 the URL saved with it, production's too, so the key keeps going where it
-was checked, whatever the server's aityx later is. The alias is the
+was checked, whatever the server's aityx later is. Signing out and the
+server's restarts leave it as it is. The alias is the
 server's (below), so it follows the player to any browser.
 
 The leaderboard's keys are in the repository's root `.env`, each its
@@ -104,7 +107,7 @@ too.
 - A player's key goes from the browser to aityx (through the relay for
   this server's aityx); the sign-in is asked by the page, not enforced
   by aityx or the relay, which spends only the caller's own key.
-- A user's own key on aityx staging fails from the browser: staging
-  takes no browser calls (Poker Tour relays them; tatyx doesn't yet).
-- The sessions live in the server's memory secret unless
-  `TATYX_SESSION_SECRET` is set.
+- A session can't be ended from the server before its 30 days: signing
+  out clears the cookie in that browser only, and changing the secret
+  (`TATYX_SESSION_SECRET`, or deleting `<data>/session-secret`) signs
+  everyone out.

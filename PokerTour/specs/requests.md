@@ -6,6 +6,13 @@ The feature files hold the current specification; see the
 
 ## 2026-11-08
 
+19. **Found checking the deploy: a random tournament seated a preset
+    twice.** The table's list held each preset twice, the app's own and
+    the copy the server returns with the tour's strategies (`tour-shark`
+    beside `shark`), so clicking the title could seat The Shark twice.
+    The tour's copies of the presets are no longer added
+    ([Players and strategies](players.md)).
+
 18. **Fixes from a review of the above before deploying.** A new
     tournament (the title, or **New tournament**) while aityx is deciding
     for the old table no longer throws when the answer comes back or

@@ -242,19 +242,23 @@ class Leaderboard {
 
 /// A strategy entered in the tour, rules and all (GET /api/strategies).
 class TourStrategy {
-  const TourStrategy({required this.id, required this.owner, required this.ownerId, required this.strategy, this.tournament});
+  const TourStrategy({required this.id, required this.owner, required this.ownerId, required this.strategy, this.preset = false, this.tournament});
 
   factory TourStrategy.fromJson(Map<String, Object?> json) => TourStrategy(
     id: json['id'] as String,
     owner: json['owner'] as String? ?? '',
     ownerId: json['ownerId'] as String? ?? '',
     strategy: Strategy.fromJson(json, id: 'tour-${json['id']}', custom: true),
+    preset: json['preset'] == true,
     tournament: json['tournament'] as String?,
   );
 
   final String id;
   final String owner;
   final String ownerId;
+
+  /// One of the presets, which the table has already, from the app.
+  final bool preset;
 
   /// Once entered: the tournament it asked for, "started", "queued"
   /// (behind the one being played) or "waiting" (one asked for already

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.5/.schema/devbox.schema.json",
+  "packages": {
+    "nodejs": "22",
+    "curl":   "latest"
+  },
+  "shell": {
+    "scripts": {
+      "build": "bash scripts/build.sh",
+      "serve": "bash scripts/serve.sh",
+      "dev":   "cd tatyx_app && npm install --no-audit --no-fund && npm run dev",
+      "test":  "cd tatyx_app && npm install --no-audit --no-fund && npm test && npm run typecheck"
+    }
+  }
+}

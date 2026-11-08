@@ -1,0 +1,28 @@
+{
+  "name": "tatyx · a team's next megabyte",
+  "types": {
+    "Build": "anchor|builder|tester|combinator|explorer|hack|save"
+  },
+  "inputs": {
+    "seconds": {"type": "number >= 0", "desc": "Seconds since the start of the game", "from": "the clock"},
+    "bytes_mb": {"type": "number >= 0", "desc": "The team's bytes, built and not yet spent, in megabytes; at least 1 when the strategy is asked", "from": "the team's origin"},
+    "bots": {"type": "number >= 1", "desc": "The team's bots, all kinds together, the hackers too", "from": "the map"},
+    "hackers": {"type": "number >= 0", "desc": "Bots sent to the mainframe, where they build the hack for the rest of the match; the counts by kind leave them out", "from": "the map"},
+    "anchors": {"type": "number >= 0", "desc": "Anchors at work: each holds a site, so only the team builds on it", "from": "the map"},
+    "builders": {"type": "number >= 0", "desc": "Builders at work: each builds bytes on the site it stands on", "from": "the map"},
+    "testers": {"type": "number >= 0", "desc": "Testers at work: each renews the links it crosses, and doubles a Builder on its site (or builds on a held site)", "from": "the map"},
+    "combinators": {"type": "number >= 0", "desc": "Combinators at work: each makes shortcuts where two links meet, and builds like a Builder", "from": "the map"},
+    "explorers": {"type": "number >= 0", "desc": "Explorers at work: each runs free and finds sites and links", "from": "the map"},
+    "sites_known": {"type": "number >= 0", "desc": "Sites the team has found", "from": "the team's map"},
+    "sites_held": {"type": "number >= 0", "desc": "Sites with one of the team's Anchors on them", "from": "the map"},
+    "sites_total": {"type": "number >= 0", "desc": "Sites on the whole map, found or not", "from": "the map"},
+    "room_mb": {"type": "number >= 0", "desc": "Megabytes still to build on the sites the team knows that no other team holds: each site builds only up to its size, then it is spent", "from": "the team's map"},
+    "links_known": {"type": "number >= 0", "desc": "Live links the team knows", "from": "the team's map"},
+    "links_rotting": {"type": "number >= 0", "desc": "Of those, the ones under a third of their health", "from": "the team's map"},
+    "income_kbs": {"type": "number >= 0", "desc": "Bytes the team is building on sites, in kilobytes per second, lately", "from": "the team's origin"},
+    "mainframe_connected": {"type": "boolean", "desc": "Whether the team's origin reaches the mainframe over links it knows, so its hackers can go there and build", "from": "the team's map"},
+    "hack_pct": {"type": "number [0..100]", "desc": "The team's progress into the hack: the bytes it has built at the mainframe over the hack's price", "from": "the mainframe"},
+    "leader_pct": {"type": "number [0..100]", "desc": "The best other team's progress into the hack", "from": "the mainframe"},
+    "threat": {"type": "number >= 0", "desc": "Other teams' bots standing on sites the team knows", "from": "the map"}
+  }
+}

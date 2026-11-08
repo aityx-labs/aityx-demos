@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" aria-hidden="true">
+  <rect width="48" height="48" rx="12" fill="#E36742"/>
+  <!-- The Scout, A: a triangle with its two glowing eyes. -->
+  <path d="M24 9 L41 36 H7 Z" fill="#F2E9DC"/>
+  <path d="M24 20 L35 35 H13 Z" fill="#1C1A1F"/>
+  <rect x="20.5" y="26" width="2.4" height="6" rx="1.2" fill="#F5A356"/>
+  <rect x="25.1" y="26" width="2.4" height="6" rx="1.2" fill="#F5A356"/>
+</svg>

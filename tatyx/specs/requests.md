@@ -289,3 +289,16 @@ The feature files hold the current specification; see the
     site is drawn as big as it is. A tournament plays each trio's three
     matches on one map, and a seed replays a match or a tournament
     ([The game](game.md#the-map), [The leaderboard](leaderboard.md)).
+23. **Two new strategies for each game, combining the others, assigned
+    to the user, so that they appear on the leaderboard when they win.**
+    tatyx's leaderboard played the presets only; now the server keeps
+    the players' entries (`POST`, `GET` and `DELETE /api/strategies`,
+    checked on aityx before they go in, three a player, in
+    `entries.json`) and seats up to two of them in every tournament
+    beside the presets, the fewest played first; the standings show
+    them under their owners' aliases ([The
+    leaderboard](leaderboard.md#entering-a-strategy)). The user's two,
+    The Homesteader (the Farmer's farm with the Sprinter's road) and The
+    Raider (the Fortress's Anchor, the Doubler's pairs, a Combinator),
+    were entered for them on the local server, as were two in Poker
+    Tour's local tour, which already took entries.

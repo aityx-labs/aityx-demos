@@ -23,6 +23,12 @@
 //   GET    /api/leaderboard         the standings, the latest tournament,
 //                                   what it is doing; open to all
 //   POST   /api/leaderboard/run     a tournament now: admins only
+//   GET    /api/strategies          the signed-in player's entries in the
+//                                   tour, {"strategies": [...]}
+//   POST   /api/strategies          a strategy file (name, tagline,
+//                                   decisions): entered in the tour,
+//                                   checked on aityx first; 201
+//   DELETE /api/strategies/{id}     withdraws one of the player's; 204
 //   POST   /aityx/v1/systemone      the relay: the body, forwarded to
 //                                   <AITYX_URL>/v1/systemone with the
 //                                   browser's own Authorization header
@@ -48,7 +54,7 @@ import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { AuthError, SESSION_COOKIE, cookieOf, domainOf, sessionHeader, sessions, verifyGoogleIdToken } from './auth.mjs';
-import { createLeaderboard } from './leaderboard.mjs';
+import { EntryError, createLeaderboard } from './leaderboard.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const env = process.env;
@@ -112,6 +118,7 @@ async function handle(request, response) {
   if (path === '/api/session') return sessionRoute(request, response);
   if (path === '/api/me') return meRoute(request, response);
   if (path === '/api/leaderboard/run') return runRoute(request, response);
+  if (path === '/api/strategies' || path.startsWith('/api/strategies/')) return strategiesRoute(request, response, path);
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     response.setHeader('Allow', 'GET, HEAD');
     return json(response, 405, { error: 'method not allowed' });
@@ -384,6 +391,37 @@ async function runRoute(request, response) {
   if (!player.admin) return json(response, 403, { error: "only the tour's admins can start a tournament" }, 'no-store');
   const outcome = await leaderboard.playNow();
   return json(response, outcome.started ? 202 : 409, outcome, 'no-store');
+}
+
+/** /api/strategies: the signed-in player's entries in the tour (GET), a new one (POST), and /api/strategies/{id} to withdraw one (DELETE). */
+async function strategiesRoute(request, response, path) {
+  const id = path === '/api/strategies' ? null : decodeURIComponent(path.slice('/api/strategies/'.length));
+  const allowed = id === null ? 'GET, POST' : 'DELETE';
+  if (!allowed.split(', ').includes(request.method ?? '')) {
+    response.setHeader('Allow', allowed);
+    return json(response, 405, { error: 'method not allowed' });
+  }
+  if (request.method !== 'GET' && !sameOrigin(request)) return json(response, 403, { error: "this origin's pages only" }, 'no-store');
+  const player = await playerOf(request);
+  if (player === null) return json(response, 401, { error: 'sign in first' }, 'no-store');
+  if (request.method === 'GET') return json(response, 200, { strategies: await leaderboard.entriesOf(player.email) }, 'no-store');
+  if (request.method === 'DELETE') {
+    if (!(await leaderboard.withdraw(player.email, id))) return json(response, 404, { error: 'no strategy of yours by that id' }, 'no-store');
+    response.statusCode = 204;
+    return response.end();
+  }
+  let text;
+  try {
+    text = (await readBody(request, 64 * 1024)).toString('utf8');
+  } catch {
+    return json(response, 413, { error: 'a strategy file is 64 KB at most' }, 'no-store');
+  }
+  try {
+    return json(response, 201, await leaderboard.enter(player.email, text), 'no-store');
+  } catch (error) {
+    if (error instanceof EntryError) return json(response, error.status, { error: error.message }, 'no-store');
+    throw error;
+  }
 }
 
 /** A request's body, up to `limit` bytes. */

@@ -1,5 +1,5 @@
-// The leaderboard's tab: the standings of the preset strategies over the
-// tournaments the server played on its own key, what it is doing now, the
+// The leaderboard's tab: the standings of the preset strategies and the
+// players' entries over the tournaments the server played on its own key, what it is doing now, the
 // latest tournament's matches, and, for the tour's admins, a tournament
 // now. Read from GET /api/leaderboard while the tab shows.
 
@@ -34,7 +34,8 @@ interface View {
   everyHours: number;
   tournaments: number;
   standings: Standing[];
-  latest: { number: number; startedAt: string; finishedAt: string; calls: number; results: Result[] } | null;
+  /** `names`: the entries' names by id, for the lineups (the presets' are below). */
+  latest: { number: number; startedAt: string; finishedAt: string; calls: number; names?: Record<string, string>; results: Result[] } | null;
 }
 
 const COLORS: Record<string, string> = { cyan: '#00E5FF', magenta: '#FF2BD6', green: '#39FF7A' };
@@ -45,7 +46,7 @@ const esc = (text: string) => text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 
 export function mountLeaderboard(parent: HTMLElement): { visible(on: boolean): void } {
   parent.innerHTML = `
-<p class="muted small">The preset strategies play each other on the server, on the tour’s own key, every few hours: every trio of them, each in every sector. The standings are over the latest tournaments.</p>
+<p class="muted small">The preset strategies and the players’ entries play each other on the server, on the tour’s own key, every few hours: every trio of them, each in every sector. The standings are over the latest tournaments.</p>
 <div class="lb-status" id="lb-status"></div>
 <button class="btn primary" type="button" id="lb-run" hidden>Play a tournament now</button>
 <p class="note bad" id="lb-error" hidden></p>
@@ -83,10 +84,11 @@ export function mountLeaderboard(parent: HTMLElement): { visible(on: boolean): v
     if (v.latest === null) {
       latest.innerHTML = '';
     } else {
+      const names = { ...v.latest.names, ...NAMES };
       const rows = v.latest.results
         .map((r) => {
           const seats = Object.entries(r.lineup)
-            .map(([team, id]) => `<span class="seat${r.winner === team ? ' won' : ''}" style="color:${COLORS[team] ?? 'inherit'}">${esc(NAMES[id] ?? id)}</span>`)
+            .map(([team, id]) => `<span class="seat${r.winner === team ? ' won' : ''}" style="color:${COLORS[team] ?? 'inherit'}">${esc(names[id] ?? id)}</span>`)
             .join(' · ');
           const end = r.winner === null ? 'no winner' : `${Math.floor(r.seconds / 60)}:${String(Math.round(r.seconds % 60)).padStart(2, '0')}`;
           return `<li>${seats} <span class="muted">${end} · ${r.decisions} calls</span></li>`;

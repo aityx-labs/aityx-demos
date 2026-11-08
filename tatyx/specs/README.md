@@ -53,8 +53,9 @@ strategy editor are marked as **next** in each file.
 - [Sign-in and keys](players.md): Google sign-in (tatyx's own Google
   project and client), the session, the players' own keys and the
   leaderboard's, the profile.
-- [The leaderboard](leaderboard.md): the presets' tournaments on the
-  server, on the leaderboard key; the schedule, the standings, the tab.
+- [The leaderboard](leaderboard.md): the tournaments of the presets and
+  the players' entries on the server, on the leaderboard key; entering a
+  strategy, the schedule, the standings, the tab.
 
 **Project**
 

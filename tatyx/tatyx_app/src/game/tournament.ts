@@ -1,12 +1,13 @@
-// The leaderboard's tournament: the preset strategies play every lineup
-// (each strategy in each seat, so no sector favours anyone), one headless
+// The leaderboard's tournament: the strategies in it (the presets, and
+// the players' entries the server seats) play every lineup (each
+// strategy in each seat, so no sector favours anyone), one headless
 // match each, and the standings follow from the results. A headless match
 // waits for its decisions after every tick, so how fast aityx answers
 // never changes how it ends. Pure: the decider is given (the server's, on
 // the leaderboard key; the table itself in tests).
 
-import { Match, strategiesOf, type Decider } from './play';
-import { STRATEGIES } from './strategy';
+import { Match, type Decider } from './play';
+import { STRATEGIES, type Strategy } from './strategy';
 import { TEAMS, type TeamId } from './teams';
 import { hackedPct, randomSeed, RULES } from './world';
 
@@ -69,9 +70,26 @@ export class AityxFailing extends Error {
   }
 }
 
+/** Each team's strategy in a lineup, from the strategies in the tournament. */
+function seated(lineup: Lineup, field: readonly Strategy[]): Record<TeamId, Strategy> {
+  return Object.fromEntries(
+    TEAMS.map((t) => {
+      const s = field.find((f) => f.id === lineup[t.id]);
+      if (!s) throw new Error(`no strategy ${lineup[t.id]} in the tournament`);
+      return [t.id, s];
+    }),
+  ) as Record<TeamId, Strategy>;
+}
+
 /** One headless match: ticks, waiting for every decision, until a winner or MAX_MATCH_SECONDS; on a new map unless given a seed. */
-export async function playMatch(decider: Decider, lineup: Lineup, maxSeconds = MAX_MATCH_SECONDS, seed: number = randomSeed()): Promise<MatchResult> {
-  const match = new Match(decider, strategiesOf(lineup), undefined, seed);
+export async function playMatch(
+  decider: Decider,
+  lineup: Lineup,
+  maxSeconds = MAX_MATCH_SECONDS,
+  seed: number = randomSeed(),
+  field: readonly Strategy[] = STRATEGIES,
+): Promise<MatchResult> {
+  const match = new Match(decider, seated(lineup, field), undefined, seed);
   while (match.world.winner === null && match.world.seconds < maxSeconds) {
     match.advance(RULES.tickSeconds);
     await match.settle();
@@ -93,9 +111,9 @@ export async function playMatch(decider: Decider, lineup: Lineup, maxSeconds = M
   };
 }
 
-/** The standings over some results: most wins first, then the most progress, then the fastest wins. */
-export function standings(results: readonly MatchResult[]): Standing[] {
-  const rows = STRATEGIES.map((s) => {
+/** The standings of `field` over some results: most wins first, then the most progress, then the fastest wins. */
+export function standings(results: readonly MatchResult[], field: readonly Strategy[] = STRATEGIES): Standing[] {
+  const rows = field.map((s) => {
     const seats = results.flatMap((r) => TEAMS.filter((t) => r.lineup[t.id] === s.id).map((t) => ({ r, team: t.id })));
     const wins = seats.filter(({ r, team }) => r.winner === team);
     const mean = (xs: number[]) => (xs.length === 0 ? 0 : xs.reduce((a, b) => a + b, 0) / xs.length);
@@ -114,25 +132,27 @@ export function standings(results: readonly MatchResult[]): Standing[] {
 }
 
 /**
- * A whole tournament: every lineup, one match each, in turn: 30 matches
- * for five strategies. A trio plays its three turns on the same map, so
- * the seats are compared fairly: a new map per trio, or, given a seed,
- * the trio's maps from it, to replay the tournament.
+ * A whole tournament of `field` (the presets unless given): every
+ * lineup, one match each, in turn: 30 matches for five strategies, 105
+ * for seven. A trio plays its three turns on the same map, so the seats
+ * are compared fairly: a new map per trio, or, given a seed, the trio's
+ * maps from it, to replay the tournament.
  */
 export async function playTournament(
   decider: Decider,
   onMatch?: (done: number, of: number, result: MatchResult) => void,
   seed?: number,
+  field: readonly Strategy[] = STRATEGIES,
 ): Promise<{ results: MatchResult[]; standings: Standing[] }> {
-  const all = lineups();
+  const all = lineups(field.map((s) => s.id));
   const results: MatchResult[] = [];
   const seeds = new Map<number, number>();
   for (const [i, lineup] of all.entries()) {
     const trio = Math.floor(i / TEAMS.length);
     if (!seeds.has(trio)) seeds.set(trio, seed === undefined ? randomSeed() : (seed + trio) >>> 0);
-    const result = await playMatch(decider, lineup, MAX_MATCH_SECONDS, seeds.get(trio)!);
+    const result = await playMatch(decider, lineup, MAX_MATCH_SECONDS, seeds.get(trio)!, field);
     results.push(result);
     onMatch?.(results.length, all.length, result);
   }
-  return { results, standings: standings(results) };
+  return { results, standings: standings(results, field) };
 }

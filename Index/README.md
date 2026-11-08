@@ -2,7 +2,7 @@
 
 The aityx demos on one origin, under `/demos/`: the index page, in the
 aityx palette, with a card for each of the six, in two groups, Games
-(RiverRace, PokerFace, Cellfie, RoboRules) and Apps (Mortgage Hub,
+(Cellfie, PokerFace, RoboRules, RiverRace) and Apps (Mortgage Hub,
 Contact Hub): an animation of the app, what it shows, its technology,
 **Open**, **Source** on GitHub, and **Codespace**; the six apps
 themselves, each under its own path; and "Your aityx key". The datyx
@@ -10,7 +10,11 @@ group has its own index, [../datyx-index/](../datyx-index/).
 
 Every demo is a Flutter web app that calls aityx from the browser, with
 the key the user sets once on this page: the page and the apps share one
-origin, so they share the browser's storage.
+origin, so they share the browser's storage. A card's picture and **Open**
+open the app in a new tab that keeps its opener (`rel="opener"`), so a
+key kept "only this session" (sessionStorage) is copied into it; with
+noopener the new tab would start empty. Every other link on the page
+(aityx.ai, the console, GitHub, Codespaces) opens a new tab too.
 
 ## What it serves
 

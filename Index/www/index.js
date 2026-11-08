@@ -17,11 +17,11 @@
 // it, or false.
 const demos = [
   {
-    kind: 'game', folder: 'RiverRace', name: 'RiverRace',
-    what: 'The Atari river raid, three planes at once, two flown by aityx',
-    desc: 'The 1982 Atari river shooter, remade: banks and islands, bridges, tankers, helicopters, jets and fuel depots, with three planes up one river at once. Two are flown by aityx, each by its own rules (a decision table you can edit while they fly); the yellow one is yours. Who scores more? Every aityx call, sent and received, in a side panel.',
-    chips: ['aityx', 'simulation', 'game', 'multiplayer', 'user playable'],
-    icon: 'plane', codespace: 'aityx',
+    kind: 'game', folder: 'Cellfie', name: 'Cellfie',
+    what: 'The cells take a picture of themselves, and aityx says who’s in it',
+    desc: 'Conway’s Game of Life on an infinite board, with the rules of birth and death (Conway’s, HighLife’s and Life without death, as switches) and a catalogue of its patterns, as an aityx decision model: one aityx call per generation names what lives, what dies and which clusters are blocks, gliders or pulsars, with the request and the response in a side panel.',
+    chips: ['aityx', 'simulation'],
+    icon: 'grid', codespace: 'aityx',
   },
   {
     kind: 'game', folder: 'PokerFace', name: 'PokerFace',
@@ -31,18 +31,18 @@ const demos = [
     icon: 'cards', codespace: 'aityx',
   },
   {
-    kind: 'game', folder: 'Cellfie', name: 'Cellfie',
-    what: 'The cells take a picture of themselves, and aityx says who’s in it',
-    desc: 'Conway’s Game of Life on an infinite board, with the rules of birth and death (Conway’s, HighLife’s and Life without death, as switches) and a catalogue of its patterns, as an aityx decision model: one aityx call per generation names what lives, what dies and which clusters are blocks, gliders or pulsars, with the request and the response in a side panel.',
-    chips: ['aityx', 'simulation'],
-    icon: 'grid', codespace: 'aityx',
-  },
-  {
     kind: 'game', folder: 'RoboRules', name: 'RoboRules',
     what: 'Robocode on the web, every turn played by aityx',
     desc: 'Tanks fight until one is left. Every robot’s behavior is an aityx decision model, its rules a table you can edit, and the whole battle (sensors, moves, bullets, hits, damage, scores) is played by aityx; the app only draws it.',
     chips: ['aityx', 'simulation', 'multiplayer'],
     icon: 'robot', codespace: 'aityx',
+  },
+  {
+    kind: 'game', folder: 'RiverRace', name: 'RiverRace',
+    what: 'The Atari river raid, three planes at once, two flown by aityx',
+    desc: 'The 1982 Atari river shooter, remade: banks and islands, bridges, tankers, helicopters, jets and fuel depots, with three planes up one river at once. Two are flown by aityx, each by its own rules (a decision table you can edit while they fly); the yellow one is yours. Who scores more? Every aityx call, sent and received, in a side panel.',
+    chips: ['aityx', 'simulation', 'game', 'multiplayer', 'user playable'],
+    icon: 'plane', codespace: 'aityx',
   },
   {
     kind: 'app', folder: 'MortgageHub', name: 'Mortgage Hub',
@@ -74,10 +74,14 @@ const codespaces = (d) =>
   encodeURIComponent('.devcontainer/' + d.codespace + '/devcontainer.json') +
   '&machine=standardLinux32gb';
 // A demo's app: beside this page (/demos/<slug>/), on this origin, so it
-// reads the key saved here. Opened in this tab: a key kept "only this
-// session" lives in this tab's sessionStorage, and a new tab (noopener)
-// starts with an empty one, so it would open without the key.
+// reads the key saved here. Opened in a new tab, with an opener: a key
+// kept "only this session" lives in this tab's sessionStorage, which the
+// browser copies into a new tab only when the tab keeps its opener. With
+// noopener (the default for target="_blank" since Chrome 88) the new tab
+// starts with an empty one and the demo would open without the key. The
+// app is on this origin, so the opener is no risk.
 const appPath = (d) => d.folder.toLowerCase() + '/';
+const appTab = 'target="_blank" rel="opener"';
 const ext = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M19 14v6H4V5h6"/></svg>';
 
 function card(d) {
@@ -88,7 +92,7 @@ function card(d) {
   // Its animation, www/<slug>.gif (a recording of the app, 720 px wide),
   // opens the app too.
   el.innerHTML =
-    '<a class="shot" href="' + appPath(d) + '" tabindex="-1" aria-hidden="true">' +
+    '<a class="shot" href="' + appPath(d) + '" ' + appTab + ' tabindex="-1" aria-hidden="true">' +
     '<img src="' + d.folder.toLowerCase() + '.gif" alt="" width="720" height="362" loading="lazy" decoding="async"></a>' +
     '<div class="head"><div class="icon"><svg viewBox="0 0 24 24" fill="currentColor">' + icons[d.icon] + '</svg></div>' +
     '<div><h2>' + d.name + '</h2><p class="what">' + d.what + '</p></div></div>' +
@@ -96,7 +100,7 @@ function card(d) {
     '<div class="chips">' + chips + '</div>' +
     '<div class="status" hidden></div>' +
     '<div class="actions">' +
-    '<a class="btn primary" href="' + appPath(d) + '">Open</a>' +
+    '<a class="btn primary" href="' + appPath(d) + '" ' + appTab + '>Open ' + ext + '</a>' +
     '<a class="btn" href="' + github + d.folder + '" target="_blank" rel="noopener">Source ' + ext + '</a>' +
     (d.codespace ? '<a class="btn" href="' + codespaces(d) + '" target="_blank" rel="noopener">Codespace ' + ext + '</a>' : '') +
     '</div>';

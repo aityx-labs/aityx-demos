@@ -6,17 +6,20 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { RENEW_AFTER_SECONDS, SESSION_SECONDS, sessions, storedSecret } from '../auth.mjs';
+import { fileStore } from '../store.mjs';
 
 const user = { email: 'player@aletyx.com', name: 'Player', picture: null };
 
 test('the secret is made once and kept, mode 600: a restart keeps the sessions', async () => {
-  const file = join(await mkdtemp(join(tmpdir(), 'tatyx-auth-')), 'data', 'session-secret');
-  const first = await storedSecret(file);
-  assert.equal(await storedSecret(file), first);
+  const dir = join(await mkdtemp(join(tmpdir(), 'tatyx-auth-')), 'data');
+  const file = join(dir, 'session-secret');
+  const store = fileStore(dir);
+  const first = await storedSecret(store);
+  assert.equal(await storedSecret(store), first);
   assert.equal((await readFile(file, 'utf8')).trim(), first);
   assert.equal((await stat(file)).mode & 0o777, 0o600);
   const cookie = sessions(first).issue(user);
-  assert.equal(sessions(await storedSecret(file)).read(cookie)?.email, user.email);
+  assert.equal(sessions(await storedSecret(fileStore(dir))).read(cookie)?.email, user.email);
   assert.equal(sessions('another secret, another server').read(cookie), null);
 });
 

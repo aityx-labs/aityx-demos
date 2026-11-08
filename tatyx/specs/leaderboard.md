@@ -27,8 +27,11 @@ the player's entries, each with **Withdraw**
   caller's entry withdrawn (`404` for another's); it leaves the
   standings.
 
-The entries are kept in `tatyx/data/strategies.json` (mode 600), with
-their owners' emails, which no answer holds.
+The entries are kept in the store's `strategies.json`
+(`tatyx/data/` on a laptop, mode 600; the data bucket deployed), with
+their owners' emails, which no answer holds. A tour with none yet
+starts with the strategies kept in the repository,
+[strategies/](../strategies) ([Deployment](deploy.md#the-strategies-kept-in-the-repository)).
 
 ## A tournament
 
@@ -75,15 +78,17 @@ when the one being played ends, the oldest first. At most one waits per
 source: asking again while one from the same source waits answers
 `waiting`, and that one stands for both (a second new strategy plays in
 the tournament the first asked for, since the fewest matches played sit
-first). The server is one process: its drain of the queue is the only
-player, and the queue is kept in `leaderboard.json`, so a restart plays
-what was left in it. Never with `TATYX_LEADERBOARD=off`, or without a
-key.
+first). On a laptop the server is one process: its drain of the queue
+is the only player, and the queue is kept in `leaderboard.json`, so a
+restart plays what was left in it. Deployed, the runner function plays
+each tournament asked for, one at a time, and the others wait in
+Lambda's queue ([Deployment](deploy.md)). Never with
+`TATYX_LEADERBOARD=off`, or without a key.
 
 ## What is kept, and shown
 
-`tatyx/data/leaderboard.json` (`TATYX_DATA_DIR`; ignored by git, mode
-600) keeps the last 20 tournaments, each with who asked for it, its
+The store's `leaderboard.json` (`tatyx/data/`, `TATYX_DATA_DIR`, ignored
+by git, mode 600; deployed, the data bucket) keeps the last 20 tournaments, each with who asked for it, its
 field (the ids, the names, the owners) and its matches (the lineup, the
 winner, the time, each team's progress and bots, the decisions), and the
 queue. `GET /api/leaderboard`, open to all, answers the standings over

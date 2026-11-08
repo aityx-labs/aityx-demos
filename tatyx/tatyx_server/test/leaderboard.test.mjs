@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { EntryError, createLeaderboard } from '../leaderboard.mjs';
+import { fileStore } from '../store.mjs';
 import * as fake from './fake-runner.mjs';
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 20));
@@ -17,7 +18,7 @@ async function until(check) {
 test('tournaments queue one per source and never play at once; an entry asks for one and plays first', async () => {
   const dataDir = await mkdtemp(join(tmpdir(), 'tatyx-lb-'));
   const board = createLeaderboard({
-    dataDir,
+    store: fileStore(dataDir),
     runnerPath: new URL('./fake-runner.mjs', import.meta.url).pathname,
     settings: async () => ({ leaderboardKey: 'test', leaderboardOff: false, base: new URL('https://aityx.test') }),
     ownerName: async (email) => email.split('@')[0],

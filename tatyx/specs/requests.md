@@ -418,3 +418,16 @@ The feature files hold the current specification; see the
     apps.** The build's base, the server's routes (`/`, `/tatyx` and the
     old `/app` paths redirect to `/tatyx/`), the scripts, the docs,
     `start-all.sh` and the multyx index.
+39. **Save the strategies to this repo, in the game project, as well as
+    server side.** The players' strategies of the laptop's tour (The
+    Homesteader and The Raider) are in [strategies/](../strategies), one
+    file each; a tour with no entries yet starts with them, locally and
+    deployed. The server keeps its files in a store
+    (`tatyx_server/store.mjs`): a folder on a laptop, an S3 bucket
+    deployed. The old `entries.json` is read when there is no
+    `strategies.json`.
+40. **Deploy tatyx to AWS.** Serverless, as Poker Tour: CloudFront at
+    `/tatyx/`, the API and the relay as a Lambda function (the server's
+    own routes through `tatyx_server/lambda.mjs`), the runner as another
+    (one tournament at a time), the tour in an S3 bucket, the schedule
+    four times a day ([Deployment](deploy.md); `bash deploy/deploy.sh`).

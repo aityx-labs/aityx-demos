@@ -70,7 +70,7 @@ server's (below), so it follows the player to any browser.
 
 The leaderboard's keys are in the repository's root `.env`, each its
 own: staging's `TATYX_LEADERBOARD_KEY`, for a laptop's server, and
-production's `TATYX_PROD_LEADERBOARD_KEY`, for a deployment to come,
+production's `TATYX_PROD_LEADERBOARD_KEY`, for the deployment ([Deployment](deploy.md)),
 which a local server never reads.
 
 ## Profile
@@ -85,7 +85,8 @@ The sidebar's third tab ([ui/shell.ts](../tatyx_app/src/ui/shell.ts)):
   player's strategies there; the field starts with their name (their
   alias once they have one), and the name itself, or an empty field,
   means the name. Kept on the server, in
-  `<TATYX_DATA_DIR>/players.json`, set with `PUT /api/me`.
+  the store's `players.json` (`<TATYX_DATA_DIR>/`, or the data bucket
+  deployed), set with `PUT /api/me`.
 - **Your aityx key**: which key the games run on, in a line (the
   player's own, or none, in red: every player brings their own), and
   the shared key form: the key; its URL, filled with this server's

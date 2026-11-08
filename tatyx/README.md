@@ -90,9 +90,17 @@ leaderboard's alone, in the repository's `.env` (see
 
 - `TATYX_LEADERBOARD_KEY`: staging's, for the tournaments of a laptop's
   server (with `AITYX_URL`, aityx staging).
-- `TATYX_PROD_LEADERBOARD_KEY`: production's, a different key, for a
-  deployment to come (with `AITYX_PROD_URL`); a local server never reads
-  it.
+- `TATYX_PROD_LEADERBOARD_KEY`: production's, a different key, for the
+  deployment (with `AITYX_PROD_URL`); a local server never reads it.
+
+## Deploy
+
+`bash deploy/deploy.sh` deploys tatyx to AWS, serverless: the app at
+`https://<id>.cloudfront.net/tatyx/`, the API and the relay as a Lambda
+function, the tournaments as another, the tour in an S3 bucket, a
+tournament every six hours. See [Deployment](specs/deploy.md). The
+players' strategies kept with the game are in [strategies/](strategies):
+an empty tour starts with them.
 
 On a laptop a player's calls to aityx staging go through the server's
 relay at `/aityx/` with the player's own key, since staging takes no

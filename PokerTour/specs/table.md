@@ -15,7 +15,9 @@ to nine strategies (all of them when there are fewer), drawn at random
 from the table's list (the presets, the tour's and those written in the
 app), none twice, each player named as **Add** would name them; the
 hand count, the calls and the log start over, as with **New
-tournament**.
+tournament**. Either may come while aityx is deciding for the old
+table: that answer is dropped when it comes back, and a **Play**
+pressed meanwhile waits for it, then plays the new tournament.
 
 ## What the table shows
 

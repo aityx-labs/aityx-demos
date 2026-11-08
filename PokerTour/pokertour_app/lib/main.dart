@@ -87,6 +87,7 @@ class _PokerTourAppState extends State<PokerTourApp> {
       _controller = GameController(api: AityxPokerApi(aityx: _aityx!));
       _music.start();
     } else if (!ready && _controller != null) {
+      _music.stop();
       _controller?.dispose();
       _controller = null;
       _aityx?.close();

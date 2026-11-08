@@ -127,6 +127,35 @@ void main() {
       expect(free.action, 'check');
     });
 
+    test('keeps premium cards with a pair likely best, not ace-king on a paired board', () async {
+      final overpair = at(
+        street: 'flop',
+        hole: ['Ah', 'As'],
+        board: ['9c', '7d', '2s'],
+        hand: 'premium',
+        made: 'pair',
+        equity: 0.8,
+        pot: 120,
+        bet: 40,
+        toCall: 40,
+        raises: 1,
+      );
+      expect((await play('rock', overpair)).action, 'raise');
+      final paired = at(
+        street: 'flop',
+        hole: ['Ah', 'Kh'],
+        board: ['7c', '7d', '2s'],
+        hand: 'premium',
+        made: 'pair',
+        equity: 0.25,
+        pot: 120,
+        bet: 80,
+        toCall: 80,
+        raises: 1,
+      );
+      expect((await play('rock', paired)).action, 'fold');
+    });
+
     test('goes all in with a playable hand once short-stacked', () async {
       final short = await play('rock', at(hand: 'speculative', stack: 240));
       expect(short.action, 'all_in');
@@ -411,9 +440,16 @@ void main() {
       expect((await play('shark', {...junk, 'position': 'early', 'random': 0.1})).action, 'fold');
     });
 
-    test('plays medium cards harder when the table is short', () async {
+    test('re-raises a loose opener when the table is short', () async {
       final short = at(hand: 'medium', position: 'early', raises: 1, bet: 30, toCall: 30, pot: 45, players: 3);
       expect((await play('shark', short)).action, 'raise');
+      final spec = at(hole: ['7h', '6h'], hand: 'speculative', raises: 1, bet: 40, toCall: 40, pot: 55, players: 3);
+      expect((await play('shark', spec)).action, 'raise', reason: 'four big blinds: re-raise');
+      expect(
+        (await play('shark', {...spec, 'current_bet': 25, 'to_call': 25, 'pot_odds': 25 / 65})).action,
+        'call',
+        reason: 'two and a half big blinds: call',
+      );
     });
 
     test(

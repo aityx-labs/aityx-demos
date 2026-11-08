@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:aityx_web/aityx_web.dart' show StorageArea;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pokertour_app/music/music_control.dart';
@@ -34,6 +36,18 @@ class FakePlayer implements TrackPlayer {
 
   @override
   void dispose() {}
+}
+
+/// Storage the browser blocks: every read and write throws.
+class BlockedArea implements StorageArea {
+  @override
+  String? read(String name) => throw StateError('storage blocked');
+
+  @override
+  void write(String name, String value) => throw StateError('storage blocked');
+
+  @override
+  void remove(String name) => throw StateError('storage blocked');
 }
 
 void main() {
@@ -74,6 +88,29 @@ void main() {
     next.toggleMute();
     expect(again.played, hasLength(1));
     expect(again.volume, 0.6);
+  });
+
+  test('blocked storage: the defaults, and settings that last the visit', () {
+    final player = FakePlayer();
+    final music = Soundtrack(storage: BlockedArea(), player: player)..start();
+    expect(music.volume, Soundtrack.defaultVolume);
+    expect(music.muted, isFalse);
+    expect(player.played, hasLength(1));
+    music.setVolume(0.5);
+    music.toggleMute();
+    expect(music.volume, 0.5);
+    expect(music.muted, isTrue);
+  });
+
+  test('stop silences it until the next start', () {
+    final player = FakePlayer();
+    final music = Soundtrack(storage: memoryArea(), player: player)..start();
+    music.stop();
+    expect(player.paused, isTrue);
+    expect(music.current, isNull);
+    music.start();
+    expect(player.played, hasLength(2));
+    expect(player.paused, isFalse);
   });
 
   testWidgets('the controls mute and set the volume', (tester) async {

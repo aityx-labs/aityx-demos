@@ -67,11 +67,11 @@ arithmetic, comparisons, `decimal`), documented at
 
 | Strategy | In short |
 |---|---|
-| [The Rock](../pokertour_app/assets/models/strategies/rock.json) | Tight and passive. Raises premium cards when nobody has, calls a raise with them; opens strong ones; calls one raise with strong or medium cards, or a small one (four big blinds) with speculative ones; limps medium and speculative cards for up to two big blinds; folds the rest (checks a free flop). Short-stacked, 25 big blinds or less, goes all in with any playable hand. After the flop bets two pair or better, never lets go of a premium pair, calls with a pair at 30% equity, never bluffs. Opens 3 BB, re-raises 3×, bets half the pot |
+| [The Rock](../pokertour_app/assets/models/strategies/rock.json) | Tight and passive. Raises premium cards when nobody has, calls a raise with them; opens strong ones; calls one raise with strong or medium cards, or a small one (four big blinds) with speculative ones; limps medium and speculative cards for up to two big blinds; folds the rest (checks a free flop). Short-stacked, 25 big blinds or less, goes all in with any playable hand. After the flop bets two pair or better, never lets go of premium cards with a pair likely best (50% equity; not ace-king on a paired board), calls with a pair at 30% equity, never bluffs. Opens 3 BB, re-raises 3×, bets half the pot |
 | [The Maniac](../pokertour_app/assets/models/strategies/maniac.json) | Raises almost anything before the flop, except junk (weak or speculative) with three or more players still to act, and weak cards against a raise when the coin (`random < 0.5`) says no bluff; folds anything but premium and strong cards to a re-raise, unless bluffing. After the flop bets any pair or draw when nobody has, raises it at 60% equity, calls it at 40%; bluffs on the coin when three players or fewer are left. Folds any call of 15% of its stack or more without 55% equity. Opens 4 BB, re-raises 3.5×, bets the pot |
 | [The Calling Station](../pokertour_app/assets/models/strategies/station.json) | Calls to see what happens: before the flop up to four big blinds with weak cards, anything with the rest; after it unless hopeless (under 25% equity against a bet over 30% of the pot, or a call of a fifth of its stack without 50%). Raises the minimum, and only with three of a kind or better |
 | [The Mathematician](../pokertour_app/assets/models/strategies/mathematician.json) | Pot odds: calls when `equity > pot_odds`, bets or raises when the edge is 30 points or more (or 70% equity when a check is free), folds otherwise; never bluffs. Opens 3 BB, re-raises 3×, bets two thirds of the pot |
-| [The Shark](../pokertour_app/assets/models/strategies/shark.json) | Tight and aggressive: raises premium and strong cards, opens medium ones and calls a raise with them in position, calls cheap with speculative ones, raises medium and speculative ones at a table of three or fewer, steals from middle or late position four times in five. After the flop bets for value (two pair or better, or a pair with 60% equity), semi-bluffs flush draws and open-enders when nobody has bet, continuation-bets four times in five against few players, calls when the odds say so with at least 30% equity. Opens 2.5 BB, re-raises 3×, bets two thirds of the pot |
+| [The Shark](../pokertour_app/assets/models/strategies/shark.json) | Tight and aggressive: raises premium and strong cards, opens medium ones and calls a raise with them in position, calls cheap with speculative ones, at a table of three or fewer re-raises a single raise with medium cards out of position and with speculative ones when the raise costs more than three big blinds (punishing a loose opener; a cheaper one it calls), steals from middle or late position four times in five. After the flop bets for value (two pair or better, or a pair with 60% equity), semi-bluffs flush draws and open-enders when nobody has bet, continuation-bets four times in five against few players, calls when the odds say so with at least 30% equity. Opens 2.5 BB, re-raises 3×, bets two thirds of the pot |
 
 ## Balance
 
@@ -86,11 +86,11 @@ at; 1.00 is fair):
 
 | Strategy | Points | Wins |
 |---|---|---|
-| The Rock | 1.16 | 0.85 |
-| The Shark | 1.04 | 0.83 |
-| The Mathematician | 0.99 | 1.05 |
-| The Calling Station | 0.91 | 1.10 |
-| The Maniac | 0.86 | 1.17 |
+| The Rock | 1.17 | 0.86 |
+| The Shark | 1.02 | 0.86 |
+| The Mathematician | 1.01 | 1.08 |
+| The Calling Station | 0.92 | 1.06 |
+| The Maniac | 0.84 | 1.13 |
 
 (1400 tournaments, equity from 30 run-outs to make thousands of
 tournaments affordable; 100 run-outs gave the same picture. Before the

@@ -54,6 +54,13 @@ class GameController extends ChangeNotifier {
   bool _busy = false;
   bool _disposed = false;
 
+  /// Counts the tournaments: an aityx answer for one that was reset in
+  /// the meantime is dropped.
+  int _tournament = 0;
+
+  /// Counts the play loops: only the latest one runs.
+  int _loop = 0;
+
   final List<AityxCall> calls = [];
   AityxCall? thinking;
   Step? lastStep;
@@ -198,7 +205,7 @@ class GameController extends ChangeNotifier {
     playing = true;
     error = null;
     _notify();
-    unawaited(_run());
+    unawaited(_run(++_loop));
   }
 
   void pause() {
@@ -216,6 +223,8 @@ class GameController extends ChangeNotifier {
   /// A new tournament; the calls and the log start over.
   void reset() {
     playing = false;
+    _tournament++;
+    _loop++;
     game.reset();
     calls.clear();
     thinking = null;
@@ -242,10 +251,15 @@ class GameController extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> _run() async {
-    while (playing && !_disposed) {
+  Future<void> _run(int loop) async {
+    while (playing && !_disposed && loop == _loop) {
       final step = await _step();
-      if (!playing || _disposed || step == null) break;
+      if (!playing || _disposed || loop != _loop) break;
+      if (step == null) {
+        // A decision for a table that was reset is still out: wait it out.
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        continue;
+      }
       final factor = switch (step) {
         HandOver() => 2.5,
         TournamentOver() => 0.0,
@@ -291,16 +305,21 @@ class GameController extends ChangeNotifier {
           calls.insert(0, call);
           thinking = call;
           _notify();
+          final tournament = _tournament;
           try {
             final result = await api.act(strategy, situation);
             call.result = result;
             if (_disposed) return step;
+            // The table was reset while aityx thought: the answer is for
+            // a hand that is gone.
+            if (tournament != _tournament) return null;
             call.taken = game.apply(
               PlayerAction(result.kind, raiseTo: result.raiseTo),
             );
             // The log's line for the action points back at the call.
             game.log.last.call = call.number;
           } on ApiException catch (e) {
+            if (tournament != _tournament) return null;
             call.error = e.message;
             error = '${seat.name} (${strategy.name}): ${e.message}';
             playing = false;

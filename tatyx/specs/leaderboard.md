@@ -96,7 +96,11 @@ the tournaments kept (the presets and the entries in the tour), the
 latest tournament (with its field's names), what the leaderboard is
 doing (the match being played, the calls so far, who asked), the
 `queue` (each waiting tournament's source and when it was asked for)
-and when the next scheduled one is; no key, no email.
+and when the next scheduled one is; no key, no email. The wins, and
+what tells them (each standing's wins, mean progress and winning time,
+each match's winner and progress), go to a signed-in admin alone, so
+the counts don't steer the players: everyone else gets the standings'
+order and the matches' lineups and times.
 
 The tab ([ui/leaderboard.ts](../tatyx_app/src/ui/leaderboard.ts)),
 refreshed every 8 s while it shows (every 2 s while a tournament plays):
@@ -107,14 +111,15 @@ refreshed every 8 s while it shows (every 2 s while a tournament plays):
 - **Play a tournament now**, for admins only, disabled while an admin's
   waits;
 - the standings: the place, the strategy with whose it is under it
-  (its owner's alias; **template strategy** for a preset) and the
-  number of matches it won; the most wins per match played first (an
+  (its owner's alias; **template strategy** for a preset) and, for an
+  admin alone, the number of matches it won; the most wins per match played first (an
   entry plays fewer tournaments than the presets), then the most wins,
   then the most mean progress into the hack, then the fastest wins
   (which rank but aren't shown);
 - signed in, **Your strategies in the tour** (above);
 - the latest tournament: each match's lineup in its seats' colours,
-  the winner in bold, the time and the calls.
+  the winner in bold (an admin's view alone), the time and the calls.
+  Signing in or out fetches the leaderboard again.
 
 ## Known limitations
 

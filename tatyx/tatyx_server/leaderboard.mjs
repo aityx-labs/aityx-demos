@@ -255,8 +255,12 @@ export function createLeaderboard({ store, seeds = [], runnerPath, settings, own
     return { asked };
   }
 
-  /** What GET /api/leaderboard answers: no keys, no emails. */
-  async function view() {
+  /**
+   * What GET /api/leaderboard answers: no keys, no emails. The wins (and
+   * what tells them: the progress, the winning times, each match's
+   * winner) for an admin alone, so they don't steer the players.
+   */
+  async function view({ admin = false } = {}) {
     await load();
     const ready = await readiness();
     const live = await liveNow();
@@ -277,6 +281,8 @@ export function createLeaderboard({ store, seeds = [], runnerPath, settings, own
     // Under each strategy, whose it is: its owner's alias; a preset has none (a template strategy).
     standings = await Promise.all(standings.map(async (s) => ({ ...s, by: owners.has(s.strategy) ? await ownerName(owners.get(s.strategy)) : null })));
     const latest = tournaments.at(-1) ?? null;
+    if (!admin) standings = standings.map(({ wins, progress, winSeconds, ...rest }) => rest);
+    const results = (latest?.results ?? []).map((r) => (admin ? r : (({ winner, winnerStrategy, progress, ...rest }) => rest)(r)));
     return {
       enabled: ready.enabled,
       reason: ready.reason,
@@ -293,7 +299,7 @@ export function createLeaderboard({ store, seeds = [], runnerPath, settings, own
         finishedAt: latest.finishedAt,
         calls: latest.calls,
         names: Object.fromEntries((latest.field ?? []).map((f) => [f.id, f.name])),
-        results: latest.results,
+        results,
       },
     };
   }

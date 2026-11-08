@@ -24,6 +24,6 @@ export async function run(_call, onMatch, field) {
   await new Promise((resolve) => state.release.push(resolve));
   onMatch?.(1);
   state.playing -= 1;
-  const results = [{ lineup: { cyan: field[0].id, magenta: field[1].id, green: field[2].id } }];
+  const results = [{ lineup: { cyan: field[0].id, magenta: field[1].id, green: field[2].id }, winner: 'cyan', winnerStrategy: field[0].id, seconds: 60, progress: { cyan: 100, magenta: 40, green: 20 } }];
   return { results, standings: standings(results, field) };
 }

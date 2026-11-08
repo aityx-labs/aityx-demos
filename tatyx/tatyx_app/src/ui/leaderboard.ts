@@ -16,17 +16,19 @@ interface Standing {
   /** Whose it is: the owner's alias; null for a preset. */
   by: string | null;
   played: number;
-  wins: number;
-  progress: number;
-  winSeconds: number | null;
+  /** The wins, and what tells them: an admin's alone (the server leaves them out for the players). */
+  wins?: number;
+  progress?: number;
+  winSeconds?: number | null;
 }
 
 interface Result {
   lineup: Record<string, string>;
-  winner: string | null;
-  winnerStrategy: string | null;
+  /** An admin's alone, as the progress. */
+  winner?: string | null;
+  winnerStrategy?: string | null;
   seconds: number;
-  progress: Record<string, number>;
+  progress?: Record<string, number>;
   decisions: number;
 }
 
@@ -95,10 +97,12 @@ export function mountLeaderboard(parent: HTMLElement): { visible(on: boolean): v
     if (v.standings.length === 0) {
       table.innerHTML = '<p class="muted">No tournament yet.</p>';
     } else {
-      table.innerHTML = `<table class="standings"><thead><tr><th>#</th><th>Strategy</th><th title="Matches won">Wins</th></tr></thead><tbody>${v.standings
+      // The wins for the admins alone: the server sends them nobody else.
+      const wins = v.standings.some((s) => s.wins !== undefined);
+      table.innerHTML = `<table class="standings"><thead><tr><th>#</th><th>Strategy</th>${wins ? '<th title="Matches won">Wins</th>' : ''}</tr></thead><tbody>${v.standings
         .map(
           (s, i) =>
-            `<tr><td>${i + 1}</td><td>${esc(s.name)}<div class="by muted small">${esc(s.by ?? 'template strategy')}</div></td><td>${s.wins}</td></tr>`,
+            `<tr><td>${i + 1}</td><td>${esc(s.name)}<div class="by muted small">${esc(s.by ?? 'template strategy')}</div></td>${wins ? `<td>${s.wins}</td>` : ''}</tr>`,
         )
         .join('')}</tbody></table><p class="muted small">Over ${v.tournaments} tournament${v.tournaments === 1 ? '' : 's'}.</p>`;
     }
@@ -111,10 +115,11 @@ export function mountLeaderboard(parent: HTMLElement): { visible(on: boolean): v
             .map(([team, id]) => `<span class="seat${r.winner === team ? ' won' : ''}" style="color:${COLORS[team] ?? 'inherit'}">${esc(NAMES[id] ?? v.latest?.names?.[id] ?? id)}</span>`)
             .join(' · ');
           const end = r.winner === null ? 'no winner' : `${Math.floor(r.seconds / 60)}:${String(Math.round(r.seconds % 60)).padStart(2, '0')}`;
+          // r.winner is undefined for a player: no winner shown, only the time.
           return `<li>${seats} <span class="muted">${end} · ${r.decisions} calls</span></li>`;
         })
         .join('');
-      latest.innerHTML = `<h3>Tournament ${v.latest.number}</h3><p class="muted small">Finished at ${time(v.latest.finishedAt)}, ${v.latest.calls} aityx calls. The winner of each match in bold, its seat’s colour on each strategy.</p><ul class="matches">${rows}</ul>`;
+      latest.innerHTML = `<h3>Tournament ${v.latest.number}</h3><p class="muted small">Finished at ${time(v.latest.finishedAt)}, ${v.latest.calls} aityx calls. ${v.latest.results.some((r) => r.winner !== undefined) ? 'The winner of each match in bold, its' : 'Its'} seat’s colour on each strategy.</p><ul class="matches">${rows}</ul>`;
     }
   };
 
@@ -189,6 +194,8 @@ export function mountLeaderboard(parent: HTMLElement): { visible(on: boolean): v
   auth.onChange(() => {
     if (last) render(last);
     void refreshMine();
+    // Signed in as an admin, or out: the server answers the wins to admins alone.
+    void refresh();
   });
 
   return {

@@ -431,3 +431,9 @@ The feature files hold the current specification; see the
     own routes through `tatyx_server/lambda.mjs`), the runner as another
     (one tournament at a time), the tour in an S3 bucket, the schedule
     four times a day ([Deployment](deploy.md); `bash deploy/deploy.sh`).
+41. **Only show the win count on the leaderboard to admins, so it
+    does not influence players.** `GET /api/leaderboard` leaves out the
+    wins and what tells them (the progress, the winning times, each
+    match's winner) unless an admin is signed in; the tab shows the
+    **Wins** column and the bold winners only when they come, and asks
+    again on signing in or out ([The leaderboard](leaderboard.md)).

@@ -60,6 +60,13 @@ test('tournaments queue one per source and never play at once; an entry asks for
   assert.equal(view.tournaments, 3);
   assert.deepEqual(view.queue, []);
   assert.equal(view.standings.find((s) => s.name === 'Ana One')?.by, 'ana');
+  // The wins, and what tells them, for an admin alone: a player sees the order only.
+  assert.ok(view.standings.every((s) => !('wins' in s) && !('progress' in s) && !('winSeconds' in s)));
+  assert.ok(view.latest.results.every((r) => !('winner' in r) && !('winnerStrategy' in r) && !('progress' in r)));
+  const admin = await board.view({ admin: true });
+  assert.ok(admin.standings.every((s) => typeof s.wins === 'number'));
+  assert.ok(admin.latest.results.every((r) => 'winner' in r));
+  assert.deepEqual(admin.standings.map((s) => s.strategy), view.standings.map((s) => s.strategy));
 
   // Withdrawn: out of the standings and the entries; only its owner can.
   const [one] = (await board.entries(ana)).filter((e) => e.name === 'Ana One');

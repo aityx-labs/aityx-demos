@@ -1,0 +1,39 @@
+# --- Devbox / direnv ---
+.devbox/
+.envrc.local
+
+# --- Local settings (see .env.example) ---
+.env
+.env.*
+!.env.example
+
+# --- Build output ---
+build/
+# Dart's caches, in every package (the app's own .gitignore has it too)
+.dart_tool/
+# deploy/deploy.sh's Lambda bundle
+deploy/out/
+*.iml
+.idea/
+
+# --- Logs & OS noise ---
+*.log
+# The codespace's start-up log, once kept here; it is at the repository
+# root now (see .devcontainer/startup-log.sh)
+startup.log
+.DS_Store
+Thumbs.db
+
+# --- Editors ---
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+
+*.local*
+
+# --- Claude Code: local settings, permissions and agent worktrees ---
+.claude/
+
+# --- The leaderboard, kept by the server (POKERTOUR_DATA) ---
+data/

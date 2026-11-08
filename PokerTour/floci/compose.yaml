@@ -1,0 +1,32 @@
+# Floci: the local AWS for Poker Tour on a laptop (CLAUDE.md: every AWS
+# service a local run needs is Floci). The server (scripts/serve.sh) keeps
+# the tour in it as the deployed functions keep it in AWS: leaderboard.json
+# and live.json in the S3 bucket pokertour-local, the players' strategies
+# and aliases in the DynamoDB table pokertour-local (init/ready.d/
+# 10-tour.sh makes both when missing). Persistent, in the Docker volume
+# pokertour-floci, so the tour survives a restart.
+# Started by `devbox services up` (0-floci in process-compose.yaml).
+#
+# A project name of its own: by default Compose names the project after the
+# folder, floci, which other repositories' Floci folders share, and would
+# then take their containers for this one's.
+name: pokertour-floci
+services:
+  floci:
+    # The compat image has the AWS CLI, which the init hook uses. Pinned by
+    # digest (the multi-arch index), as the other demos' Floci, so a
+    # re-pushed tag can't change what runs here.
+    image: floci/floci:nightly-09242026-compat@sha256:eb725a12cd80bbbcb476a33c0a1d98382a54d5c9f39c4c31b160f7cdf9cf1a6e
+    container_name: pokertour-floci
+    ports:
+      - "127.0.0.1:${POKERTOUR_FLOCI_PORT:-9811}:4566"
+    environment:
+      FLOCI_STORAGE_MODE: persistent
+      FLOCI_STORAGE_PERSISTENT_PATH: /app/data
+    volumes:
+      - ./init/ready.d:/etc/floci/init/ready.d:ro
+      - pokertour-floci:/app/data
+
+volumes:
+  pokertour-floci:
+    name: pokertour-floci

@@ -1,0 +1,15 @@
+name: aws_lite
+description: "The little of AWS Poker Tour needs, in pure Dart: Signature Version 4 (a presigned GET for the browser, signed headers for the server) and credentials."
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  # ^3.13.0, not newer: the Nix Flutter in devbox ships Dart 3.13.0.
+  sdk: ^3.13.0
+
+dependencies:
+  crypto: ^3.0.6
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.26.0

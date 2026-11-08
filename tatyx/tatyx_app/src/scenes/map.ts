@@ -21,6 +21,7 @@ import {
   MB,
   SECTOR_ANGLES,
   botsAt,
+  holderOf,
   fmtBytes,
   hackedPct,
   knowsLink,
@@ -256,7 +257,7 @@ export class MapScene extends Phaser.Scene {
         .setAlpha(0.7);
     }
     g.lineStyle(1, NEON, 0.18);
-    g.strokeEllipse(MAP.center.x, MAP.center.y, MAP.rx * 2, MAP.ry * 2);
+    g.strokeCircle(MAP.center.x, MAP.center.y, MAP.radius);
     const corners = TEAMS.map((t) => onRing(SECTOR_ANGLES[t.id]));
     g.lineStyle(1, NEON, 0.2);
     g.strokePoints(vec(corners), true, true);
@@ -295,13 +296,14 @@ export class MapScene extends Phaser.Scene {
    * nameless until a team finds it; orange, the computer's, once found,
    * as big as the site is, with what it has built over its size under it,
    * a thin hexagon around it for every team that knows it, filled in a
-   * team's colour while that team's Anchor holds it; dim again once spent.
+   * team's colour while that team's Anchor holds it (for the Anchor's
+   * time, RULES.holdSeconds); dim again once spent.
    * Drawn again whenever any of that changes.
    */
   private drawSite(s: Node, w: World): void {
     const knowers = w.teams.filter((t) => knowsNode(t, s.id)).map((t) => t.id);
-    const holders = botsAt(w, s.id).filter((b) => b.kind === 'anchor').map((b) => b.team);
-    const signature = `${Math.round(s.bytes / 1024)}|${knowers.join()}|${holders.join()}`;
+    const holder = holderOf(w, s.id);
+    const signature = `${Math.round(s.bytes / 1024)}|${knowers.join()}|${holder}`;
     const known = this.siteViews.get(s.id);
     if (known?.signature === signature) return;
     const { x, y } = s.at;
@@ -318,7 +320,7 @@ export class MapScene extends Phaser.Scene {
     label.setPosition(x, y + radius + 4);
     g.clear();
     const owner = found && !done ? SYSTEM : { color: 0x5a5a66, css: '#5A5A66' };
-    const fill = holders.length === 1 ? team(holders[0]!).color : null;
+    const fill = holder === null ? null : team(holder).color;
     if (found) {
       for (let i = 2; i >= 1; i--) {
         g.fillStyle(fill ?? owner.color, 0.06);
@@ -343,7 +345,7 @@ export class MapScene extends Phaser.Scene {
     g.fillStyle(found && !done ? ORANGE : owner.color, found && !done ? 0.95 : 0.5);
     g.fillPoints(diamond(x, y, size), true);
     const text = !found ? '?' : done ? `×${s.richness} · spent · ${mb(s.capacity)} MB` : `×${s.richness} · ${mb(s.bytes)}/${mb(s.capacity)} MB`;
-    label.setText(text).setColor(fill === null ? owner.css : team(holders[0]!).css);
+    label.setText(text).setColor(holder === null ? owner.css : team(holder).css);
     if (known === undefined) {
       this.tweens.add({ targets: g, alpha: 0.7, duration: 1100 + (x % 5) * 110, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     }

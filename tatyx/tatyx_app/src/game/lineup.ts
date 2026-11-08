@@ -135,3 +135,15 @@ export function cyclePreset(team: TeamId, step: 1 | -1): Strategy {
   setStrategy(team, next);
   return next;
 }
+
+/** A preset for every team, drawn at random, no two the same: what a click on the title does. */
+export function shuffleLineup(random: () => number = Math.random): Record<TeamId, Strategy> {
+  const pool = [...STRATEGIES];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j]!, pool[i]!];
+  }
+  current = Object.fromEntries(TEAMS.map((t, i) => [t.id, pool[i]!])) as Record<TeamId, Strategy>;
+  save(current);
+  return current;
+}

@@ -10,7 +10,7 @@ strategy chooses, a megabyte each ([Deciding on aityx](aityx.md)).
 
 | Letter | Name | Part on the map |
 |---|---|---|
-| A | **Anchor** | Walks the links to the best site it knows and stays. While it stands there, the site is its team's alone: only its team builds on it. |
+| A | **Anchor** | Walks the links to the best site it knows and holds it for 15 s: the site is its team's alone, only its team builds on it, the Anchor too. Then it moves on to hold another. |
 | I | **Builder** | Walks the links to a site and builds bytes there for its team; twice as fast with a Tester of its team beside it. |
 | T | **Tester** | Renews every link it crosses. On a site with its team's Builder, it doubles the Builder; on a site its team's Anchor holds, it builds itself. |
 | Y | **Combinator** | Where two links it knows meet, makes a direct link between their far ends, a shortcut; with none to make, builds on a site like a Builder, though no Tester doubles it. |
@@ -39,7 +39,8 @@ usual work.
 
 - **Anchor**: the best site where its team's Builders work, else the
   best site, that no other Anchor of its team holds or heads for; it
-  stays.
+  stays its 15 s, then goes on to the next such site, another than the
+  one it held when there is one.
 - **Builder**: the best site its team holds, else the best site, that
   no other Builder of its team works or heads for; it stays and builds.
 - **Tester**: the weakest link it knows, when one is rotting (under
@@ -54,8 +55,9 @@ usual work.
   to keep moving. It builds nothing.
 
 Bots never die and never fight: the only contest is for a site, and an
-Anchor settles it. The first Anchor to arrive holds the site; another
-team's Anchor arriving later holds nothing there, and leaves.
+Anchor settles it, for a while. The first Anchor to arrive holds the
+site for 15 s; another team's Anchor arriving later holds nothing there
+meanwhile, and leaves.
 
 ## Teams and tags
 

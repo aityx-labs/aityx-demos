@@ -1,14 +1,15 @@
 // The title: the synthwave sun setting behind the grid, the five bots in
 // a row over it, each with its letter, name and part; under them, a card
 // per team with its strategy: a preset to pick (◀ ▶), or the team's own,
-// uploaded as JSON, and any of them downloaded to edit. Play leads to the
+// uploaded as JSON, and any of them downloaded to edit; a click on the
+// title draws a new lineup, three presets at random. Play leads to the
 // map, and starts the music (the user's act the browser asks for); it
 // asks to sign in first.
 import Phaser from 'phaser';
 
 import { synthwave } from '../audio/synthwave';
 import { BOTS, type Bot } from '../game/bots';
-import { BadStrategy, cyclePreset, isOwn, lineup, parseStrategy, setStrategy, strategyFile } from '../game/lineup';
+import { BadStrategy, cyclePreset, isOwn, lineup, parseStrategy, setStrategy, shuffleLineup, strategyFile } from '../game/lineup';
 import { TEAMS, type Team } from '../game/teams';
 import { auth } from '../ui/auth';
 import { enterInTour } from '../ui/tour';
@@ -35,10 +36,16 @@ export class TitleScene extends Phaser.Scene {
     shell.controls.show(null);
     drawSynthwave(this, 540);
 
+    // A click on the title: every team a preset at random, no two the same.
     this.add
       .text(width / 2, 50, 'tatyx', { fontFamily: FONT, fontSize: '56px', fontStyle: 'bold', color: PALETTE.orangeLight })
       .setOrigin(0.5)
-      .setShadow(0, 0, PALETTE.orange, 18, false, true);
+      .setShadow(0, 0, PALETTE.orange, 18, false, true)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerup', () => {
+        shuffleLineup();
+        for (const t of TEAMS) this.showCard(t);
+      });
     this.add
       .text(width / 2, 94, 'BUILD THE SITES, HACK THE MAINFRAME', {
         fontFamily: FONT,

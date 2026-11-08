@@ -79,16 +79,21 @@ The sidebar's third tab ([ui/shell.ts](../tatyx_app/src/ui/shell.ts)):
   **Sign out**; what went wrong with a sign-in, in red (another domain's
   account, a token that didn't check out). **Your name on the
   leaderboard**: an alias, 32 characters at most, shown under the
-  player's strategies there; it starts as their name, and empty (or the
-  name itself) means the name. Kept on the server, in
+  player's strategies there; the field starts with their name (their
+  alias once they have one), and the name itself, or an empty field,
+  means the name. Kept on the server, in
   `<TATYX_DATA_DIR>/players.json`, set with `PUT /api/me`.
 - **Your aityx key**: which key the games run on, in a line (the
   player's own, or none, in red: every player brings their own), and
-  the shared key form (the key; its URL, filled with this server's
+  the shared key form: the key; its URL, filled with this server's
   aityx, staging locally and production deployed, else the one saved
-  with the key; **Check and save**, which checks the key where the game
-  will send it, through the relay for this server's aityx, and keeps it
-  and its URL in this browser until **Forget**). Where to get a key.
+  with the key; **Save profile** and **Forget**. Where to get a key.
+- **Save profile**, the profile's one button (Enter in the name does the
+  same): it saves the name when it changed, then the key when it or its
+  URL changed, checked first where the game will send it, through the
+  relay for this server's aityx, and kept with its URL in this browser
+  until **Forget**; an unchanged key spends no check. One line under it
+  says what was saved, or why not.
 
 The sidebar opens on Profile, and its tab wears a red dot, whenever
 the player has no key of their own. A click on the aityx light opens it

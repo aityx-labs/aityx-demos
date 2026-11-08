@@ -1,4 +1,4 @@
-// The page around the canvas: the bar (the brand, the match's controls,
+// The page around the canvas: the bar (the brand, home on a click, the match's controls,
 // the music and the aityx light), the game pane, and
 // the sidebar of three tabs, as Poker Tour's: the leaderboard, the aityx
 // calls (a line each; a click opens the whole call) and the profile (the
@@ -50,22 +50,19 @@ export interface Shell {
   hasKey(): boolean;
   /** Calls `listener` whenever hasKey() may have changed; returns the unsubscribe. */
   onKeyChange(listener: () => void): () => void;
+  /** What the brand in the bar does when clicked: home, the title. */
+  onHome(handler: () => void): void;
 }
 
-const LOGO = `<svg viewBox="0 0 48 48" aria-hidden="true">
-  <rect width="48" height="48" rx="12" fill="#E36742"/>
-  <path d="M24 9 L41 36 H7 Z" fill="#F2E9DC"/>
-  <path d="M24 20 L35 35 H13 Z" fill="#1C1A1F"/>
-  <rect x="20.5" y="26" width="2.4" height="6" rx="1.2" fill="#F5A356"/>
-  <rect x="25.1" y="26" width="2.4" height="6" rx="1.2" fill="#F5A356"/>
-</svg>`;
+/** The logo: the board in small (public/favicon.svg, the tab's icon too). */
+const LOGO = `<img src="./favicon.svg" alt="" width="26" height="26">`;
 
 const SPEEDS = [0.5, 1, 2, 4, 8];
 
 export function mountShell(root: HTMLElement): Shell {
   root.innerHTML = `
 <header class="bar">
-  <div class="brand">${LOGO}<span>tatyx</span></div>
+  <a class="brand" id="home" href="./" title="Home">${LOGO}<span>tatyx</span></a>
   <div class="controls" id="controls" hidden>
     <button class="btn primary" id="play" type="button">Start</button>
     <label class="speed">speed
@@ -368,9 +365,20 @@ export function mountShell(root: HTMLElement): Shell {
     showVolume();
   });
 
+  // ---- The brand: home, from anywhere ----------------------------------
+  let homeHandler: (() => void) | null = null;
+  $('#home').addEventListener('click', (e) => {
+    if (homeHandler === null) return;
+    e.preventDefault();
+    homeHandler();
+  });
+  const onHome = (handler: () => void) => {
+    homeHandler = handler;
+  };
+
   openTab('leaderboard');
   void auth.load();
-  return { game, light, controls: controlsApi, showCall, clearCalls, openTab, hasKey, onKeyChange };
+  return { game, light, controls: controlsApi, showCall, clearCalls, openTab, hasKey, onKeyChange, onHome };
 }
 
 function pretty(value: unknown): string {

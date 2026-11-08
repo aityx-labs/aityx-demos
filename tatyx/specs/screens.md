@@ -4,7 +4,7 @@ One page, [index.html](../tatyx_app/index.html), at `/app/`: a shell in
 plain DOM around a Phaser canvas, in the aityx dark palette (near-black
 with a violet tint, light grey text, an orange accent;
 [style.css](../tatyx_app/src/style.css)); on the canvas, the neon of
-Tron and synthwave: cyan lines, a magenta sun, scanlines.
+Tron and synthwave: cyan lines, a neon purple sun, scanlines.
 
 ## The shell
 
@@ -40,7 +40,7 @@ is in [look.ts](../tatyx_app/src/scenes/look.ts).
 - **Boot**: loads the five portraits behind a bar, then the title (or
   the map, when the URL ends in `#map`).
 - **The title**: the synthwave backdrop, a starfield over a sun of
-  magenta-to-orange bands setting behind a neon horizon, with a magenta
+  purple-to-orange bands setting behind a neon horizon, with a purple
   grid running from the bottom of the stage to the vanishing point;
   "tatyx" in glowing orange and the line "Build the sites, hack the
   mainframe"; the roster: the five bots in a row, each bobbing, with its

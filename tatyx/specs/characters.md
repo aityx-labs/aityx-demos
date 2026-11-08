@@ -60,13 +60,17 @@ team's Anchor arriving later holds nothing there, and leaves.
 ## Teams and tags
 
 Three teams, each on a sector of the map, each with a colour tag
-([teams.ts](../tatyx_app/src/game/teams.ts)):
+([teams.ts](../tatyx_app/src/game/teams.ts)), a palette out of Miami
+Vice:
 
-| Team | Tag | Strategy to begin with |
+| Team (id) | Tag | Strategy to begin with |
 |---|---|---|
-| Cyan | `#00E5FF` | The Farmer |
-| Magenta | `#FF2BD6` | The Sprinter |
-| Green | `#39FF7A` | The Swarm |
+| Vice Cyan (`cyan`) | `#00F0FF` | The Farmer |
+| Neon Purple (`magenta`) | `#BC6CFF` | The Sprinter |
+| Sunset Pink (`green`) | `#FF5CA8` | The Swarm |
+
+The ids are the first palette's, kept so the tournaments already
+recorded (whose results name the teams by id) still count.
 
 Each team's strategy is the player's to choose on the title: a preset,
 or the team's own, uploaded ([Deciding on aityx](aityx.md#a-teams-own-strategy)).

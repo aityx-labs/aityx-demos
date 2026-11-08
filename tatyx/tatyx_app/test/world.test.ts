@@ -54,7 +54,7 @@ describe('the teams', () => {
     expect(colors.has(SYSTEM.color)).toBe(false);
     expect(SYSTEM.css).toBe('#E36742');
     expect(tag('system')).toBe(SYSTEM);
-    expect(team('cyan').css).toBe('#00E5FF');
+    expect(team('cyan').css).toBe('#00F0FF');
   });
   it('sit in a triangle around the mainframe, 120 degrees apart', () => {
     const angles = TEAMS.map((t) => SECTOR_ANGLES[t.id]).sort((a, b) => a - b);

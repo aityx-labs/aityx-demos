@@ -311,3 +311,22 @@ The feature files hold the current specification; see the
     queue and the entries on a fake runner
     (`tatyx_server/test/leaderboard.test.mjs`, in `npm test`). See [The
     leaderboard](leaderboard.md) and [Sign-in and keys](players.md).
+25. **Change the team colors to this palette: the cyan named "vice
+    cyan", #00F0FF; the magenta "neon purple", #BC6CFF; the green
+    "miami peach", #FFB86B.** Miami peach falls in the orange band
+    reserved for aityx's own pieces (#E36742), so the user chose
+    "sunset pink", #FF5CA8, instead. The teams are now Vice Cyan
+    (#00F0FF), Neon Purple (#BC6CFF) and Sunset Pink (#FF5CA8), in
+    `teams.json`; their ids stay `cyan`, `magenta` and `green`, so
+    the tournaments already recorded still count. The portraits were
+    painted again (`npm run recolor`), the leaderboard takes the
+    seats' colours from the teams' list instead of a copy, and the
+    look's neon and sun accents follow the first two colours, so the
+    title's sun is purple ([The bots](characters.md#teams-and-tags)).
+26. **Four more music loops, synthwave, soft, repeatable, played in a
+    random order.** The soundtrack is five songs: Neon Drive, as it was,
+    and Night Drive, Palm Shadows, Pastel Horizon and Afterglow,
+    slower and quieter, with triangle voices and a light kit. Each
+    plays through once, then the next is drawn at random from the
+    others (never the same twice in a row) and starts on the next bar
+    ([Sound](sound.md#the-soundtrack)).

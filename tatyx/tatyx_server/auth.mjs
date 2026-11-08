@@ -122,8 +122,12 @@ export async function storedSecret(store, name = 'session-secret') {
   const kept = (await store.read(name))?.trim() ?? '';
   if (kept.length >= 32) return kept;
   const secret = randomBytes(32).toString('hex');
-  if (await store.create(name, `${secret}\n`)) return secret;
-  return (await store.read(name)).trim();
+  if (kept === '' && (await store.create(name, `${secret}\n`))) return secret;
+  // Another start wrote one meanwhile: that one, if it is whole; a short one is never a key.
+  const other = (await store.read(name))?.trim() ?? '';
+  if (other.length >= 32) return other;
+  await store.write(name, `${secret}\n`);
+  return secret;
 }
 
 /** The value of a cookie in a request's Cookie header. */

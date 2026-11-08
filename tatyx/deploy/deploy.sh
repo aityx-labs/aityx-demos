@@ -133,10 +133,11 @@ leaderboard_key_object="tatyx/leaderboard.key"
 
 # Vite's hashed assets never change; the page, the portraits and the rest are checked again.
 echo "deploy: the web build to s3://$web_bucket/tatyx/"
-aws s3 sync --quiet --delete --region "$region" "$web" "s3://$web_bucket/tatyx/" \
-  --exclude ".tatyx-services" --exclude "assets/*" --cache-control "no-cache"
+# The assets first, so the new page never names one that isn't there yet.
 aws s3 sync --quiet --region "$region" "$web/assets" "s3://$web_bucket/tatyx/assets/" \
   --cache-control "public, max-age=31536000, immutable"
+aws s3 sync --quiet --delete --region "$region" "$web" "s3://$web_bucket/tatyx/" \
+  --exclude ".tatyx-services" --exclude "assets/*" --cache-control "no-cache"
 aws cloudfront create-invalidation --distribution-id "$distribution" --paths "/*" --query 'Invalidation.Id' --output text >/dev/null
 
 # put_key <object> <value> <what>: writes the key, through a pipe, when

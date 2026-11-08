@@ -22,6 +22,8 @@ import { pathToFileURL } from 'node:url';
 /** How many tournaments the file keeps, and the standings count. */
 const KEEP = 20;
 const CALL_TIMEOUT_MS = 30_000;
+/** How long a tournament asked for waits, deployed, before another from the same source is asked for: Lambda's queue keeps it six hours. */
+const WAITING_MS = 6 * 3_600_000;
 /** Who asks for a tournament. */
 export const SOURCES = ['schedule', 'admin', 'strategy'];
 
@@ -178,6 +180,12 @@ export function createLeaderboard({ store, seeds = [], runnerPath, settings, own
     }
     await load();
     live.running = true;
+    // Its run starts: the next ask from the same source asks for another.
+    const asked = parsed(await store.read('asked.json')) ?? {};
+    if (asked[source] !== undefined) {
+      delete asked[source];
+      await store.write('asked.json', json(asked));
+    }
     try {
       await playOne(source, ready.settings);
     } finally {
@@ -225,7 +233,12 @@ export function createLeaderboard({ store, seeds = [], runnerPath, settings, own
     const ready = await readiness();
     if (!ready.enabled) return { off: ready.reason };
     // Deployed: the runner function plays it, one at a time; the others wait their turn there.
+    // One waiting per source, as here: asked.json says when each was asked for, until its run starts.
     if (dispatch !== null) {
+      const asked = parsed(await store.read('asked.json')) ?? {};
+      const at = Date.parse(asked[source] ?? '');
+      if (Number.isFinite(at) && Date.now() - at < WAITING_MS) return { asked: 'waiting' };
+      await store.write('asked.json', json({ ...asked, [source]: new Date().toISOString() }));
       const running = (await liveNow()).running;
       await dispatch(source);
       return { asked: running ? 'queued' : 'started' };

@@ -81,7 +81,8 @@ const webRoot = resolve(env.WEB_ROOT || join(here, '..', 'tatyx_app', 'dist'));
 const envFiles = [join(here, '..', '.env'), join(here, '..', '..', '.env')];
 const DEFAULT_URL = 'https://api.aityx.ai';
 const MAX_BODY = 2 * 1024 * 1024;
-const PROXY_TIMEOUT_MS = 120_000;
+/** How long the relay waits for aityx: under the function's and CloudFront's 60 s, deployed. */
+const PROXY_TIMEOUT_MS = env.AWS_LAMBDA_FUNCTION_NAME ? 55_000 : 120_000;
 const DEFAULT_DOMAINS = 'aletyx.com,aletyx.ai';
 /** The tour's admins, who may start a tournament now: these domains' players, whatever TATYX_ALLOWED_DOMAINS says. */
 const ADMIN_DOMAINS = ['aletyx.com', 'aletyx.ai'];
@@ -268,6 +269,16 @@ async function dotEnv() {
   return {};
 }
 
+/** The leaderboard's key from its object; none (the leaderboard is off) when it can't be read, never a failed request. */
+async function keyFrom(object) {
+  try {
+    return ((await store.secret(object)) ?? '').trim();
+  } catch (error) {
+    console.error(`settings: the leaderboard's key object could not be read (${error?.name ?? 'error'})`);
+    return '';
+  }
+}
+
 /**
  * The key and URL: each from the environment (a Codespaces secret, also
  * read from the codespace's secrets file), else from .env, read again at
@@ -281,7 +292,7 @@ async function settings() {
   const read = (name) => env[name] || secrets[name] || fromFile[name] || '';
   // The leaderboard's key alone: the players bring their own. Deployed, it is an object only the functions read.
   const keyObject = env.TATYX_LEADERBOARD_KEY_OBJECT;
-  const leaderboardKey = keyObject && store.secret ? ((await store.secret(keyObject)) ?? '').trim() : read('TATYX_LEADERBOARD_KEY') || read('AITYX_API_KEY');
+  const leaderboardKey = keyObject && store.secret ? await keyFrom(keyObject) : read('TATYX_LEADERBOARD_KEY') || read('AITYX_API_KEY');
   const list = (value) => value.split(',').map((d) => d.trim().toLowerCase()).filter(Boolean);
   const domains = list(read('TATYX_ALLOWED_DOMAINS') || DEFAULT_DOMAINS);
   const envUrl = env.AITYX_URL || secrets.AITYX_URL || '';

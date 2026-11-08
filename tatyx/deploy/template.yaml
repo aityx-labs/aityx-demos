@@ -57,7 +57,7 @@ Parameters:
     Description: The prefix of the tour's files in the data bucket.
 
 Conditions:
-  HasSchedule: !Not [!Equals [!Ref ScheduleHours, off]]
+  HasSchedule: !Not [!Equals [!Ref ScheduleHours, 'off']]
 
 Resources:
   # The tour's files under DataPrefix (leaderboard.json, strategies.json,
@@ -272,13 +272,11 @@ Resources:
               - Effect: Allow
                 Action: [s3:GetObject, s3:PutObject]
                 Resource: !Sub 'arn:aws:s3:::${AWS::StackName}-data-${AWS::AccountId}/${DataPrefix}*'
-              # So a missing file is a 404, not an AccessDenied.
+              # So a missing file (or key object) is a 404, not an
+              # AccessDenied: S3 asks for ListBucket on the bucket itself.
               - Effect: Allow
                 Action: s3:ListBucket
                 Resource: !Sub 'arn:aws:s3:::${AWS::StackName}-data-${AWS::AccountId}'
-                Condition:
-                  StringLike:
-                    s3:prefix: !Sub '${DataPrefix}*'
               - Effect: Allow
                 Action: s3:GetObject
                 Resource: !Sub 'arn:aws:s3:::${AWS::StackName}-data-${AWS::AccountId}/${LeaderboardKeyObject}'

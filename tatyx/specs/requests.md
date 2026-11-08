@@ -391,3 +391,26 @@ The feature files hold the current specification; see the
     The key already stayed in the browser's localStorage until
     **Forget**, through sign-outs and restarts; that's now in the spec
     ([Players](players.md)).
+33. **Add a zoom control to the map, and more sites outside the
+    origins.** Every sector has three **outer** relays beyond the
+    origins (1 to 3.5 MB), so the board reaches past the stage; the
+    map's camera shows it all at first and zooms (**−**, **Fit**, **+**,
+    the wheel, the keys + − 0) and pans (a drag), while a second camera
+    keeps the HUD and the cards still ([The game](game.md#the-map-on-screen)).
+34. **The winner's card is too small: break the line between the team's
+    name and "hacked the mainframe".** The card is bigger, the name on
+    one line, "HACKED THE MAINFRAME" on the next.
+35. **The Explorers a little slower, the sites a little more sparse.**
+    The Explorer runs at 90 px/s (was 110); no two nodes closer than
+    120 px (was 80). A site with no room left starts its sector's
+    drawing over, so every map has all its sites.
+36. **At the top, only each team's name and progress; its stats under
+    its origin.** The HUD's chips say "Vice Cyan · 12%"; the strategy,
+    the bytes and the bots are under each origin, under its name.
+37. **The mainframe's name sits off its base; the board is too
+    cluttered: larger, sparser.** The name is just under the mainframe,
+    the progress under it, the hackers on its upper arc (and the bots at
+    an origin on its upper arc, clear of its name); the board is larger
+    (the ring 340 px, was 296), the cores and relays farther out, and
+    the fonts and bots bigger, for the zoomed-out view. Balance measured
+    again: the Sprinter leads (56%), noted in [The game](game.md#balance).

@@ -51,7 +51,7 @@ export const RULES = {
   /** How long an Anchor holds a site after it arrives there; then it moves on to hold another. */
   holdSeconds: 15,
   /** Pixels per second: the Explorer off the links, the others on them. */
-  explorerSpeed: 110,
+  explorerSpeed: 90,
   linkSpeed: 70,
   /** A shortcut must save at least this many pixels of walking. */
   shortcutMinSaving: 60,
@@ -61,34 +61,41 @@ export const RULES = {
   tickSeconds: 0.1,
 } as const;
 
-/** The map, in stage pixels: the mainframe at its centre, the origins on a ring around it, all three as far from it. */
+/**
+ * The map, in stage pixels: the mainframe at its centre, the origins on a
+ * ring around it, all three as far from it. The board reaches past the
+ * stage (`world`), beyond the origins: the map's camera zooms out to show
+ * it all, and in, on a player's zoom.
+ */
 export const MAP = {
   width: 1280,
   height: 720,
   center: { x: 640, y: 404 } as Point,
   /** The ring the three origins sit on: a triangle with one vertex up. */
-  radius: 296,
+  radius: 340,
+  /** The whole board, past the stage on every side but the sides. */
+  world: { left: 80, right: 1200, top: -160, bottom: 1000 },
 } as const;
 
 /**
  * Each game draws the sites anew, within these bounds: in every team's
- * sector, so many **cores** near the mainframe and so many **relays**
- * farther out, at a reach from the mainframe (0) to past the origins'
- * ring (1 is on it), anywhere across the sector but its edges; how
- * many bytes each builds before it is spent, in steps of half a
- * megabyte; no two nodes closer than `apart` pixels, and every one
- * inside `bounds`, clear of the bars.
+ * sector, so many **cores** near the mainframe, so many **relays**
+ * farther out, and so many **outer** relays beyond the origins, at a
+ * reach from the mainframe (0) to past the origins' ring (1 is on it),
+ * anywhere across the sector but its edges; how many bytes each builds
+ * before it is spent, in steps of half a megabyte; no two nodes closer
+ * than `apart` pixels, and every one inside `bounds`, the board.
  */
 export const SITE_DRAW = {
-  perSector: { core: 3, relay: 4 },
-  reach: { core: [0.3, 0.55], relay: [0.55, 1.35] },
+  perSector: { core: 3, relay: 4, outer: 3 },
+  reach: { core: [0.38, 0.72], relay: [0.66, 1.1], outer: [1.15, 1.55] },
   /** Degrees off the sector's middle, either way: its edges are 60° off. */
   spread: 54,
-  size: { relay: [0.5 * MB, 3 * MB], core: [2 * MB, 5 * MB] },
-  apart: 80,
+  size: { relay: [0.5 * MB, 3 * MB], core: [2 * MB, 5 * MB], outer: [1 * MB, 3.5 * MB] },
+  apart: 120,
   /** The fewest links from an origin. */
   originLinks: 2,
-  bounds: { left: 60, right: 1220, top: 96, bottom: 640 },
+  bounds: { left: 90, right: 1190, top: -140, bottom: 960 },
 } as const;
 
 /** Where each team's origin is, as an angle from the centre: up, lower right, lower left. */
@@ -264,23 +271,36 @@ export function buildMap(seed: number): { nodes: Node[]; map: Pair[] } {
     nodes.push({ id: originId(team.id), kind: 'origin', at: originAt(team.id), team: team.id, bytes: 0, richness: 0, capacity: 0 });
   }
   // One sector drawn, and turned for the others: a new map every game, the same for every team.
-  let n = 0;
-  for (const kind of ['core', 'relay'] as const) {
-    for (let i = 0; i < SITE_DRAW.perSector[kind]; i++) {
-      const [lo, hi] = SITE_DRAW.reach[kind];
-      let ats: Point[] = [];
-      for (let tries = 0; tries < 20000; tries++) {
-        const offset = between([-SITE_DRAW.spread, SITE_DRAW.spread]);
-        // Even over the area: farther out, more room.
-        const reach = Math.sqrt(lo * lo + random() * (hi * hi - lo * lo));
-        ats = TEAMS.map((t) => onRing(SECTOR_ANGLES[t.id] + offset, reach));
-        if (ats.every(clear) && ats.every((a, j) => ats.every((b, k) => j === k || distance(a, b) >= SITE_DRAW.apart))) break;
-        ats = [];
+  // A site with no room left starts the sector over, from the same seed's next numbers.
+  const fixed = nodes.length;
+  for (let attempt = 0; attempt < 50; attempt++) {
+    nodes.length = fixed;
+    let n = 0;
+    let full = true;
+    for (const kind of ['core', 'relay', 'outer'] as const) {
+      for (let i = 0; i < SITE_DRAW.perSector[kind]; i++) {
+        const [lo, hi] = SITE_DRAW.reach[kind];
+        let ats: Point[] = [];
+        for (let tries = 0; tries < 2000; tries++) {
+          const offset = between([-SITE_DRAW.spread, SITE_DRAW.spread]);
+          // Even over the area: farther out, more room.
+          const reach = Math.sqrt(lo * lo + random() * (hi * hi - lo * lo));
+          ats = TEAMS.map((t) => onRing(SECTOR_ANGLES[t.id] + offset, reach));
+          if (ats.every(clear) && ats.every((a, j) => ats.every((b, k) => j === k || distance(a, b) >= SITE_DRAW.apart))) break;
+          ats = [];
+        }
+        if (ats.length === 0) {
+          full = false;
+          break;
+        }
+        const capacity = size(SITE_DRAW.size[kind]);
+        // An outer relay builds at a relay's rate: it is farther, and as plain.
+        const richness = RULES.richness[kind === 'outer' ? 'relay' : kind];
+        for (const at of ats) nodes.push({ id: `${kind}-${++n}`, kind: 'site', at, team: null, bytes: 0, richness, capacity });
       }
-      if (ats.length === 0) continue;
-      const capacity = size(SITE_DRAW.size[kind]);
-      for (const at of ats) nodes.push({ id: `${kind}-${++n}`, kind: 'site', at, team: null, bytes: 0, richness: RULES.richness[kind], capacity });
+      if (!full) break;
     }
+    if (full) break;
   }
   const map: Pair[] = [];
   for (let i = 0; i < nodes.length; i++) {

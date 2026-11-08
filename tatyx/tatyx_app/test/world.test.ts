@@ -99,9 +99,10 @@ describe('the map', () => {
       expect(teamState(world, t.id).known).toEqual({ nodes: [originId(t.id)], links: [] });
       expect(node(world, originId(t.id)).team).toBe(t.id);
     }
-    expect(world.nodes.filter((n) => n.kind === 'site')).toHaveLength(21);
+    const perSector = SITE_DRAW.perSector.core + SITE_DRAW.perSector.relay + SITE_DRAW.perSector.outer;
+    expect(world.nodes.filter((n) => n.kind === 'site')).toHaveLength(3 * perSector);
     expect(world.links).toEqual([]);
-    expect(world.map.length).toBeGreaterThan(21);
+    expect(world.map.length).toBeGreaterThan(3 * perSector);
   });
   it('builds faster near the mainframe than farther out, starts with nothing built, and keeps the sites apart and on the board, on every map', () => {
     /** How far out a point is: 0 at the mainframe, 1 on the origins' ring. */
@@ -110,12 +111,13 @@ describe('the map', () => {
       const { nodes } = buildMap(seed);
       const sites = nodes.filter((n) => n.kind === 'site');
       for (const s of sites) {
-        const core = s.id.startsWith('core-');
+        const kind = s.id.startsWith('core-') ? 'core' : s.id.startsWith('outer-') ? 'outer' : 'relay';
+        const core = kind === 'core';
         expect(s.richness).toBe(core ? RULES.richness.core : RULES.richness.relay);
-        const [near, far] = core ? SITE_DRAW.reach.core : SITE_DRAW.reach.relay;
+        const [near, far] = SITE_DRAW.reach[kind];
         expect(reach(s.at)).toBeGreaterThanOrEqual(near - 1e-9);
         expect(reach(s.at)).toBeLessThanOrEqual(far + 1e-9);
-        const [lo, hi] = core ? SITE_DRAW.size.core : SITE_DRAW.size.relay;
+        const [lo, hi] = SITE_DRAW.size[kind];
         expect(s.capacity).toBeGreaterThanOrEqual(lo);
         expect(s.capacity).toBeLessThanOrEqual(hi);
         expect(s.capacity % (MB / 2)).toBe(0);
@@ -126,6 +128,9 @@ describe('the map', () => {
         expect(s.at.y).toBeLessThanOrEqual(SITE_DRAW.bounds.bottom);
       }
       expect(sites.filter((s) => s.richness === RULES.richness.core)).toHaveLength(3 * SITE_DRAW.perSector.core);
+      expect(sites.filter((s) => s.id.startsWith('outer-'))).toHaveLength(3 * SITE_DRAW.perSector.outer);
+      // Beyond the origins: past their ring.
+      for (const s of sites.filter((o) => o.id.startsWith('outer-'))) expect(reach(s.at)).toBeGreaterThan(1);
       const all = nodes.map((n) => n.at);
       for (let i = 0; i < all.length; i++) {
         for (let j = i + 1; j < all.length; j++) expect(Math.hypot(all[i]!.x - all[j]!.x, all[i]!.y - all[j]!.y)).toBeGreaterThanOrEqual(SITE_DRAW.apart);
@@ -244,9 +249,11 @@ describe('the links', () => {
 describe('building bytes', () => {
   /** Cyan knowing its corner of the map, no bots, and a relay of cyan's connected to its origin. */
   function ground(): { world: World; site: string } {
-    const explored = run(only(newWorld(SEED), ['explorer']), 12);
-    const cyan = teamState(explored, 'cyan');
-    const site = explored.nodes.find((n) => n.kind === 'site' && cyan.known.nodes.includes(n.id) && connected(explored, cyan, n.id))!;
+    // Explore until cyan knows two sites joined to its origin (links rot, so stop there).
+    const joined = (w: World) => w.nodes.filter((n) => n.kind === 'site' && teamState(w, 'cyan').known.nodes.includes(n.id) && connected(w, teamState(w, 'cyan'), n.id));
+    let explored = only(newWorld(SEED), ['explorer']);
+    for (let i = 0; i < 60 && joined(explored).length < 2; i++) explored = run(explored, 0.5);
+    const site = joined(explored)[0]!;
     expect(site).toBeDefined();
     return { world: { ...explored, bots: [] }, site: site.id };
   }
@@ -332,7 +339,9 @@ describe('building bytes', () => {
     const both = withBots(now, [done, fresh]);
     expect(holderOf(both, site)).toBe('magenta');
     expect(rate(both, done, site)).toBe(0);
-    expect(rate(both, fresh, site)).toBe(base(both, site));
+    // The next Anchor builds there, as the holder (one of the team's own: another team may have no way to the site).
+    const next = { ...fresh, team: 'cyan' as const, uid: 'cyan-next' };
+    expect(rate(withBots(now, [done, next]), next, site)).toBe(base(both, site));
     // A tick before its time is up, the first still held it.
     expect(holderOf(withBots(now, [{ ...done, since: now.tick - hold + 1 }, { ...fresh, since: now.tick - hold + 2 }]), site)).toBe('cyan');
     // Alone and out of time, it sets off for another site it knows, to hold that one.
@@ -369,7 +378,7 @@ describe('building bytes', () => {
 
 describe('the Combinator', () => {
   it('makes a shortcut where two links it knows meet, and the team walks it', () => {
-    let world = run(only(newWorld(SEED), ['explorer', 'combinator']), 30);
+    let world = run(only(newWorld(SEED), ['explorer', 'combinator']), 60);
     const shortcuts = world.links.filter((l) => l.by === 'cyan');
     expect(shortcuts.length).toBeGreaterThan(0);
     const cyan = teamState(world, 'cyan');
@@ -419,7 +428,8 @@ describe('buying and hacking', () => {
     const testers = newWorld(SEED).bots.filter((b) => b.kind === 'tester');
     world = { ...world, bots: [...world.bots, ...sent, ...testers] };
     expect(situation(world, 'cyan')).toMatchObject({ mainframe_connected: true, hackers: 2 });
-    world = run(world, 30);
+    // Until they build there: the way rots too, so look while it holds.
+    for (let i = 0; i < 120 && hackedPct(world, 'cyan') === 0; i++) world = run(world, 0.5);
     expect(hackedPct(world, 'cyan')).toBeGreaterThan(0);
     expect(node(world, MAINFRAME_ID).bytes).toBe(teamState(world, 'cyan').hacked);
     for (const b of world.bots.filter((o) => o.hacker)) expect(b.node === MAINFRAME_ID || b.target === MAINFRAME_ID || world.winner !== null).toBe(true);

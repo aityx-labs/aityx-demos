@@ -1,6 +1,6 @@
 # Screens
 
-One page, [index.html](../tatyx_app/index.html), at `/app/`: a shell in
+One page, [index.html](../tatyx_app/index.html), at `/tatyx/`: a shell in
 plain DOM around a Phaser canvas, in the aityx dark palette (near-black
 with a violet tint, light grey text, an orange accent;
 [style.css](../tatyx_app/src/style.css)); on the canvas, the neon of
@@ -64,9 +64,10 @@ is in [look.ts](../tatyx_app/src/scenes/look.ts).
   edges and names, the triangle and the ring the origins sit on, the
   mainframe with its turning rings, the origins, the sites (dim until
   found), the links as they are found, rot and are renewed, the bots
-  walking them (and bought at the origins), the HUD with the teams'
-  strategies, bytes, bots and progress, the clock, the legend of the
-  tags and the hint line; **Title** goes back; before the match, the
+  walking them (and bought at the origins), each team's strategy, bytes
+  and bots under its origin, the HUD with the teams' names and progress,
+  the clock, the legend of the tags, the zoom and the hint line; the
+  board zooms and pans; **Title** goes back; before the match, the
   lineup and **Start**; while paused, "PAUSED"; at the end, the winner
   and **Play again** ([The game](game.md#playing-a-match)). The links and the bots are drawn each frame; a
   site, whenever its bytes, its finders or its holder change.

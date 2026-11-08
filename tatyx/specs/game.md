@@ -46,7 +46,7 @@ aityx](aityx.md)).
 | An Anchor, on the site it holds | builds as a Builder |
 | A link, from full health to gone | 15 s |
 | A link counts as rotting under | 34% health |
-| The Explorer runs, off the links | 110 px/s |
+| The Explorer runs, off the links | 90 px/s |
 | The others walk, on the links | 70 px/s |
 | A shortcut must save | 60 px of walking |
 | Live shortcuts per team | 3 |
@@ -56,15 +56,17 @@ aityx](aityx.md)).
 
 The hidden graph (`buildMap` in world.ts) is drawn anew every game,
 from a seed (`newWorld(seed)`; `SITE_DRAW`): in every team's sector,
-three **cores** near the mainframe (×2), 89 to 163 px from it, and four
-**relays** farther out (×1), 163 to 400 px from it, so some lie beyond
-the origins, toward the corners of the board; anywhere across the
-sector but its last 6° to either side, inside the board (clear of the
-HUD and the legend); cores sized 2 to 5 MB, relays 0.5 to 3 MB, in steps
-of half a megabyte; no two nodes closer than 80 px. One sector is drawn
-and turned a third and two thirds of the way round for the other two,
-so the three sectors are the same on every map, and no seat is luckier
-than another.
+three **cores** near the mainframe (×2), 116 to 231 px from it, four
+**relays** farther out (×1), 211 to 374 px from it, and three **outer**
+relays beyond the origins (×1), 391 to 527 px from it; anywhere across
+the sector but its last 6° to either side, inside the board, which
+reaches past the stage (`MAP.world`); cores sized 2 to 5 MB, relays 0.5
+to 3 MB, outer relays 1 to 3.5 MB, in steps of half a megabyte; no two
+nodes closer than 120 px. One sector is drawn and turned a third and
+two thirds of the way round for the other two, so the three sectors are
+the same on every map, and no seat is luckier than another; a site with
+no room left starts the sector's drawing over (from the same seed), so
+every map has all thirty sites.
 
 The links are the map's neighbours: two nodes are joined when no
 other node lies inside the circle they span (the Gabriel graph), so a
@@ -72,7 +74,7 @@ site is joined to the sites around it, across the sectors' edges too,
 and the mainframe to the cores around it; never an origin straight to
 another origin or to the mainframe. An origin with only one neighbour
 is joined to its nearest sites besides, so every origin has two ways
-out at least. Some forty-eight links in all, every node reaching the
+out at least. Some seventy links in all (60 to 84), every node reaching the
 mainframe by several ways. The same seed draws the same map, so a match
 can be replayed; the app draws a new one for every match.
 
@@ -146,21 +148,29 @@ says so.
 
 Tron's look: a neon hexagonal grid on black (pointy-top cells, as the
 sites, every fifth cell of every other row brighter), glowing lines, scanlines over
-everything, the synthwave sun on the title. In stage pixels (1280 ×
-720):
+everything, the synthwave sun on the title. The board is drawn in world
+pixels, the mainframe at (640, 404), and reaches past the 1280 × 720
+stage, beyond the origins (`MAP.world`). Its camera shows all of it at
+first, between the HUD's bars, and zooms: **−**, **Fit** and **+** in
+the bottom right corner, the mouse wheel (around the pointer), and the
+keys +, − and 0 (fit); a drag pans, never off the board. The HUD, the
+cards and the scanlines are drawn by a second camera, never zoomed
+(depth 30 and up).
 
-- **The mainframe** at the centre, (640, 404): an orange hexagonal core
-  with two rings turning around it, its name, and over it each team's
-  progress into the hack, a percentage in the team's colour.
+- **The mainframe** at the centre: an orange hexagonal core with two
+  rings turning around it, its name just under it, and under the name
+  each team's progress into the hack, a percentage in the team's
+  colour; the bots sent there stand on its upper arc.
 - **The sectors**: three wedges of 120°, one per team, tinted with the
   team's colour, their edges drawn from the centre. The team's origin
-  sits on a ring around the centre (296 px), at the middle of its
+  sits on a ring around the centre (340 px), at the middle of its
   sector, all three as far from the mainframe: Vice Cyan up (−90°), Neon
   Purple lower right (30°), Sunset Pink lower left (150°); the three make
   a triangle with one vertex up, drawn in neon.
 - **An origin** per team: a hexagon in the team's colour with a smaller
-  one inside, with its name (to the right of the top one, under the
-  lower ones); no bytes and no percentage.
+  one inside; under it its name and the team's stats: its strategy, its
+  bytes and how many bots it has. The bots standing there stand on its
+  upper arc, clear of the name.
 - **The sites**: small dim hexagons with a question mark until a team
   finds them; then orange, the computer's, as big as the site is (the
   bigger its size, the bigger the hexagon), with a diamond (bigger for a
@@ -176,13 +186,14 @@ everything, the synthwave sun on the title. In stage pixels (1280 ×
   standing at one site spread around it, the Explorer runs straight
   across the map, the others along the links. Hovering one says who it
   is and what it does, or that it was sent to the mainframe.
-- **The HUD**: along the top, "HACK THE MAINFRAME" in orange, a chip per team
-  with its strategy, its bytes, how many bots it has and its progress,
-  the clock, and **Title**; along the bottom, the legend of the tags on
-  one line, with the hint line over it; each sector's name in its far
-  corner; "PAUSED" under the HUD while paused. At the end, the winner's
-  name across the map, its strategy, the time and the number of
-  decisions, and **Play again**.
+- **The HUD**: along the top, "HACK THE MAINFRAME" in orange, a chip per
+  team with its name and its progress only (the rest is under its
+  origin), the clock, and **Title**; along the bottom, the legend of the
+  tags on one line, with the hint line over it, and the zoom; each
+  sector's name in its far corner; "PAUSED" under the HUD while paused.
+  At the end, a card across the map: the winner's name on one line and
+  "HACKED THE MAINFRAME" on the next, its strategy, the time and the
+  number of decisions, and **Play again**.
 
 ## Playing a match
 
@@ -235,6 +246,14 @@ presets: the old rules on the new map); now: the rules above.
 | "Two Builders, two Testers, then hack" | 69% | 44% |
 | "Anchors until four, then hack" | | 23% |
 | The top seat (cyan) | 53% | 32% |
+
+On the larger board (radius 340, the outer relays, no two nodes closer
+than 120 px, the Explorer at 90 px/s), measured on 300 matches, every
+lineup of the presets ten times on its own map: the Sprinter 56%, the
+Doubler 40%, the Farmer 32%, the Fortress 23%, the Swarm 16%; every
+match won, in 76 s on average; the seats 30% to 38%. A longer board
+favours the rush to the hack: the Sprinter leads, to be balanced again
+(a 12 MB hack moved it only to 48%).
 
 What changed, and why:
 

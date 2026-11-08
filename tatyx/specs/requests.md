@@ -289,6 +289,18 @@ The feature files hold the current specification; see the
     site is drawn as big as it is. A tournament plays each trio's three
     matches on one map, and a seed replays a match or a tournament
     ([The game](game.md#the-map), [The leaderboard](leaderboard.md)).
+23. **In the profile view, no "Empty: <name>" on the alias field: the
+    name as its default, or what the player saves; a single button to
+    save the profile, not one for the name and another for the key.**
+    The alias field starts with the player's name (their alias once
+    they have one) and has no hint line under it. Its **Save** and the
+    key form's **Check and save** became one **Save profile**, which
+    saves the name when it changed and the key when it or its URL
+    changed (an unchanged key is not checked again), with one line
+    saying what was saved; **Forget** stays. The shared key form
+    (`packages/aityx_js`) takes the button's label and the page's own
+    fields to save with the key (`submitLabel`, `alsoSave`). Poker
+    Tour's Profile got the same ([Sign-in and keys](players.md#profile)).
 24. **Only admins (aletyx.com or aletyx.ai accounts) can play a
     tournament now; tournaments also on the schedule (every six hours)
     and every time a player uploads a new strategy, which goes to the
@@ -330,3 +342,43 @@ The feature files hold the current specification; see the
     plays through once, then the next is drawn at random from the
     others (never the same twice in a row) and starts on the next bar
     ([Sound](sound.md#the-soundtrack)).
+27. **"The Doubler" dominates and wins all: a bigger board, with more
+    sites, more random, and rules that keep any strategy from
+    dominating, while keeping the game simple.** Measured headless on
+    tournaments of hundreds of matches, with the presets and with
+    one-line probe strategies a player could upload ("hack every
+    megabyte"), which won 98% of their matches. The map
+    is twenty-one sites (three cores and four relays per sector, some
+    beyond the origins), placed and sized anew and linked as
+    neighbours (the Gabriel graph) every game, one sector drawn and
+    turned for the others, the origins on a ring as far from the
+    mainframe; the sites smaller (relays 0.5 to 3 MB, cores 2 to 5 MB).
+    The rules: links rot in 15 s (not 45), the hack costs 10 MB (not
+    6), and an Anchor builds on the site it holds. Now every preset wins
+    27% to 40% of its matches, each probe 28% to 44%, every seat a
+    third; the ways a team has are searched once per world state, a
+    tick twenty times faster ([The game](game.md#balance)).
+28. **The tatyx logo at the top goes home, every time.** The logo and
+    the name in the bar are a link to the title, from the map (the
+    match ends, as with **Title**) and from the title itself
+    ([Screens](screens.md#the-shell)).
+29. **On the title, a click on the title draws the teams' strategies
+    anew, at random, no two the same.** `shuffleLineup` in lineup.ts
+    picks three different presets and keeps them, like ◀ ▶ do
+    ([Screens](screens.md#the-game)).
+30. **Nerf the Anchor a little: it holds a site only for a limited time,
+    configurable; recheck the balance.** An Anchor holds the site it
+    arrives at for `RULES.holdSeconds`, 15 s, building there and keeping
+    other teams off; then its hold is over, it builds nothing there, and
+    it moves on to hold another site it knows (the same one only when
+    there is no other); a later Anchor standing there holds the site in
+    turn. The map fills a held site only while the hold lasts. Measured
+    against hold times of 10 s, 15 s, 30 s and none: the presets win 25%
+    to 41%, every probe (an Anchor-heavy one too, 23%) under 45%, at 15 s
+    ([The game](game.md#balance), [The bots](characters.md)).
+31. **The app logo a hexagonal pattern, more in line with the game's
+    look.** The logo, in the bar and as the tab's icon, is the board in
+    small: an orange hexagon on black, the mainframe, with a smaller one
+    and a site's diamond inside, and the three origins on its corners in
+    the teams' colours, each linked to the core. One file,
+    `public/favicon.svg`, serves both ([Screens](screens.md#the-shell)).

@@ -25,6 +25,7 @@ import {
   originAt,
   originId,
   room,
+  seeded,
   route,
   sendHacker,
   situation,
@@ -56,7 +57,7 @@ describe('the teams', () => {
     expect(tag('system')).toBe(SYSTEM);
     expect(team('cyan').css).toBe('#00F0FF');
   });
-  it('sit in a triangle around the mainframe, 120 degrees apart', () => {
+  it('sit in a triangle around the mainframe, 120 degrees apart, all three as far from it', () => {
     const angles = TEAMS.map((t) => SECTOR_ANGLES[t.id]).sort((a, b) => a - b);
     expect(angles[1]! - angles[0]!).toBe(120);
     expect(angles[2]! - angles[1]!).toBe(120);
@@ -66,6 +67,7 @@ describe('the teams', () => {
       expect(at.x).toBeLessThan(MAP.width);
       expect(at.y).toBeGreaterThan(0);
       expect(at.y).toBeLessThan(MAP.height);
+      expect(Math.hypot(at.x - MAP.center.x, at.y - MAP.center.y)).toBeCloseTo(MAP.radius, 6);
     }
   });
 });
@@ -86,7 +88,7 @@ const only = (world: World, kinds: readonly string[]): World => ({ ...world, bot
 
 describe('the map', () => {
   const world = newWorld(SEED);
-  it('has the mainframe in the middle, an origin and five bots per team, nine sites, and no link found yet', () => {
+  it('has the mainframe in the middle, an origin and five bots per team, twenty-one sites, and no link found yet', () => {
     expect(world.tick).toBe(0);
     expect(world.winner).toBeNull();
     expect(node(world, MAINFRAME_ID).at).toEqual(MAP.center);
@@ -97,63 +99,73 @@ describe('the map', () => {
       expect(teamState(world, t.id).known).toEqual({ nodes: [originId(t.id)], links: [] });
       expect(node(world, originId(t.id)).team).toBe(t.id);
     }
-    expect(world.nodes.filter((n) => n.kind === 'site')).toHaveLength(9);
+    expect(world.nodes.filter((n) => n.kind === 'site')).toHaveLength(21);
     expect(world.links).toEqual([]);
-    expect(world.map.length).toBeGreaterThan(9);
+    expect(world.map.length).toBeGreaterThan(21);
   });
-  it('builds faster near the mainframe than near the origins, starts with nothing built, and keeps the sites apart, on every map', () => {
+  it('builds faster near the mainframe than farther out, starts with nothing built, and keeps the sites apart and on the board, on every map', () => {
+    /** How far out a point is: 0 at the mainframe, 1 on the origins' ring. */
+    const reach = (p: { x: number; y: number }) => Math.hypot(p.x - MAP.center.x, p.y - MAP.center.y) / MAP.radius;
     for (const seed of SEEDS) {
       const { nodes } = buildMap(seed);
       const sites = nodes.filter((n) => n.kind === 'site');
       for (const s of sites) {
         const core = s.id.startsWith('core-');
-        const from = Math.hypot(s.at.x - MAP.center.x, s.at.y - MAP.center.y);
         expect(s.richness).toBe(core ? RULES.richness.core : RULES.richness.relay);
-        // The cores nearer the mainframe than any relay.
-        if (core) expect(from).toBeLessThanOrEqual(SITE_DRAW.core.radius[1] + 1);
-        else expect(from).toBeGreaterThan(SITE_DRAW.core.radius[1]);
+        const [near, far] = core ? SITE_DRAW.reach.core : SITE_DRAW.reach.relay;
+        expect(reach(s.at)).toBeGreaterThanOrEqual(near - 1e-9);
+        expect(reach(s.at)).toBeLessThanOrEqual(far + 1e-9);
         const [lo, hi] = core ? SITE_DRAW.size.core : SITE_DRAW.size.relay;
         expect(s.capacity).toBeGreaterThanOrEqual(lo);
         expect(s.capacity).toBeLessThanOrEqual(hi);
         expect(s.capacity % (MB / 2)).toBe(0);
         expect(s.bytes).toBe(0);
-        expect(s.at.x).toBeGreaterThan(40);
-        expect(s.at.x).toBeLessThan(MAP.width - 40);
-        expect(s.at.y).toBeGreaterThan(80);
-        expect(s.at.y).toBeLessThan(MAP.height - 60);
+        expect(s.at.x).toBeGreaterThanOrEqual(SITE_DRAW.bounds.left);
+        expect(s.at.x).toBeLessThanOrEqual(SITE_DRAW.bounds.right);
+        expect(s.at.y).toBeGreaterThanOrEqual(SITE_DRAW.bounds.top);
+        expect(s.at.y).toBeLessThanOrEqual(SITE_DRAW.bounds.bottom);
       }
-      expect(sites.filter((s) => s.richness === RULES.richness.core)).toHaveLength(3);
+      expect(sites.filter((s) => s.richness === RULES.richness.core)).toHaveLength(3 * SITE_DRAW.perSector.core);
       const all = nodes.map((n) => n.at);
       for (let i = 0; i < all.length; i++) {
         for (let j = i + 1; j < all.length; j++) expect(Math.hypot(all[i]!.x - all[j]!.x, all[i]!.y - all[j]!.y)).toBeGreaterThanOrEqual(SITE_DRAW.apart);
       }
     }
   });
-  it('is drawn anew every game: the same seed the same sites, another seed elsewhere and other sizes, the same graph', () => {
+  it('is drawn anew every game: the same seed the same map, another seed other places, sizes and links', () => {
     expect(buildMap(SEED)).toEqual(buildMap(SEED));
     expect(newWorld(SEED).seed).toBe(SEED);
     const other = buildMap(SEED + 1);
     const sites = (seed: number) => buildMap(seed).nodes.filter((n) => n.kind === 'site');
     expect(sites(SEED).map((n) => n.at)).not.toEqual(sites(SEED + 1).map((n) => n.at));
-    expect(new Set(SEEDS.flatMap((seed) => sites(seed).map((n) => n.capacity))).size).toBeGreaterThan(5);
-    expect(other.map).toEqual(buildMap(SEED).map);
+    expect(new Set(SEEDS.flatMap((seed) => sites(seed).map((n) => n.capacity))).size).toBeGreaterThanOrEqual(8);
+    expect(other.map).not.toEqual(buildMap(SEED).map);
     expect(newWorld().seed).not.toBe(newWorld().seed);
   });
-  it('joins every origin to the mainframe by some path of the hidden map', () => {
-    for (const t of TEAMS) {
-      const seen = new Set([originId(t.id)]);
-      const queue = [originId(t.id)];
-      while (queue.length) {
-        const id = queue.shift()!;
-        for (const p of world.map) {
-          const other = p.a === id ? p.b : p.b === id ? p.a : null;
-          if (other !== null && !seen.has(other)) {
-            seen.add(other);
-            queue.push(other);
+  it('joins every node to the mainframe, and every origin by two ways out at least, never an origin straight to another or to the mainframe, on every map', () => {
+    for (const seed of SEEDS) {
+      const { nodes, map } = buildMap(seed);
+      const reached = (from: string) => {
+        const seen = new Set([from]);
+        const queue = [from];
+        while (queue.length) {
+          const id = queue.shift()!;
+          for (const p of map) {
+            const other = p.a === id ? p.b : p.b === id ? p.a : null;
+            if (other !== null && !seen.has(other)) {
+              seen.add(other);
+              queue.push(other);
+            }
           }
         }
+        return seen;
+      };
+      expect(reached(MAINFRAME_ID).size).toBe(nodes.length);
+      for (const p of map) {
+        const kinds = [p.a, p.b].map((id) => nodes.find((n) => n.id === id)!.kind);
+        expect(kinds).toContain('site');
       }
-      expect(seen.has(MAINFRAME_ID)).toBe(true);
+      for (const t of TEAMS) expect(map.filter((p) => p.a === originId(t.id) || p.b === originId(t.id)).length).toBeGreaterThanOrEqual(SITE_DRAW.originLinks);
     }
   });
   it('formats bytes for people', () => {
@@ -200,7 +212,7 @@ describe('the links', () => {
     let world = run(only(newWorld(SEED), ['explorer']), 3);
     const first = world.links[0]!;
     expect(first.health).toBeLessThan(100);
-    expect(first.health).toBeGreaterThan(90);
+    expect(first.health).toBeGreaterThanOrEqual(100 - (100 / RULES.rotSeconds) * 3);
     const frozen = { ...world, bots: [] };
     const gone = run(frozen, RULES.rotSeconds);
     expect(gone.links).toEqual([]);
@@ -210,9 +222,20 @@ describe('the links', () => {
     let world = run(only(newWorld(SEED), ['explorer', 'tester']), 4);
     const cyan = teamState(world, 'cyan');
     expect(cyan.known.links.length).toBeGreaterThan(0);
-    world = run(world, 10);
-    const renewed = world.links.filter((l) => teamState(world, 'cyan').known.links.includes(l.id) && l.health > 95);
-    expect(renewed.length).toBeGreaterThan(0);
+    // Without Testers a link only loses health; one Tester's crossing brings it back to 100.
+    const testers = new Set(world.bots.filter((b) => b.kind === 'tester').map((b) => b.uid));
+    let renewed = 0;
+    for (let i = 0; i < 100; i++) {
+      const later = step(world);
+      for (const l of later.links) {
+        const before = world.links.find((o) => o.id === l.id);
+        if (before && l.health > before.health) renewed += 1;
+      }
+      world = later;
+    }
+    expect(testers.size).toBeGreaterThan(0);
+    expect(renewed).toBeGreaterThan(0);
+    expect(world.links.every((l) => l.health <= 100)).toBe(true);
     const tester = world.bots.find((b) => b.team === 'cyan' && b.kind === 'tester')!;
     expect(tester.node ?? tester.travel).not.toBeNull();
   });
@@ -270,13 +293,15 @@ describe('building bytes', () => {
     const w = withBots(world, [y, put(world, site, 'tester', 'cyan')]);
     expect(rate(w, y, site)).toBe(base(w, site));
   });
-  it('is a Tester\'s on a site its team\'s Anchor holds, and nowhere else', () => {
+  it('is the holding Anchor\'s, and a Tester\'s on a site its team\'s Anchor holds, and nowhere else', () => {
     const { world, site } = ground();
     const t = put(world, site, 'tester', 'cyan');
     expect(rate(withBots(world, [t]), t, site)).toBe(0);
     const held = withBots(world, [put(world, site, 'anchor', 'cyan'), t]);
     expect(rate(held, t, site)).toBe(base(held, site));
-    expect(rate(held, put(world, site, 'anchor', 'cyan'), site)).toBe(0);
+    const anchor = held.bots[0]!;
+    expect(rate(held, anchor, site)).toBe(base(held, site));
+    expect(rate(withBots(world, [anchor, put(world, site, 'anchor', 'magenta', 5)]), put(world, site, 'anchor', 'magenta', 5), site)).toBe(0);
   });
   it('stops when the site is cut off from the origin', () => {
     const { world, site } = ground();
@@ -297,6 +322,22 @@ describe('building bytes', () => {
     expect(heldAgainst(w, 'cyan', site)).toBe(false);
     expect(rate(w, magentaBuilder, site)).toBe(0);
     expect(rate(w, cyanBuilder, site)).toBe(base(w, site));
+  });
+  it('is held for RULES.holdSeconds only: then the Anchor holds and builds nothing, the next Anchor there holds it, and the first moves on', () => {
+    const { world, site } = ground();
+    const hold = RULES.holdSeconds / RULES.tickSeconds;
+    const now = { ...world, tick: world.tick + hold * 2 };
+    const done = put(now, site, 'anchor', 'cyan', now.tick - hold);
+    const fresh = put(now, site, 'anchor', 'magenta', now.tick - hold + 1);
+    const both = withBots(now, [done, fresh]);
+    expect(holderOf(both, site)).toBe('magenta');
+    expect(rate(both, done, site)).toBe(0);
+    expect(rate(both, fresh, site)).toBe(base(both, site));
+    // A tick before its time is up, the first still held it.
+    expect(holderOf(withBots(now, [{ ...done, since: now.tick - hold + 1 }, { ...fresh, since: now.tick - hold + 2 }]), site)).toBe('cyan');
+    // Alone and out of time, it sets off for another site it knows, to hold that one.
+    const alone = run(withBots(now, [done]), 0.5).bots[0]!;
+    expect(alone.travel === null && alone.node === site).toBe(false);
   });
   it('stops at the site\'s size: the last bytes are what is left, then the site is spent, and its bots move on', () => {
     const { world, site } = ground();
@@ -481,5 +522,22 @@ describe('a team\'s own strategy', () => {
     expect(() => parseStrategy(JSON.stringify(looks))).toThrow(/mood/);
     const answers = { name: 'x', decisions: { build: { table: [['=>'], { then: 'dance' }] } } };
     expect(() => parseStrategy(JSON.stringify(answers))).toThrow(/then/);
+  });
+});
+
+describe('the lineup', () => {
+  it('is drawn at random from the presets, no two teams the same', async () => {
+    const { lineup, shuffleLineup } = await import('../src/game/lineup');
+    const seen = new Set<string>();
+    const random = seeded(SEED);
+    for (let i = 0; i < 50; i++) {
+      const drawn = shuffleLineup(random);
+      const ids = TEAMS.map((t) => drawn[t.id].id);
+      expect(new Set(ids).size).toBe(TEAMS.length);
+      for (const id of ids) expect(STRATEGIES.map((s) => s.id)).toContain(id);
+      expect(lineup()).toBe(drawn);
+      seen.add(ids.join(','));
+    }
+    expect(seen.size).toBeGreaterThan(10);
   });
 });

@@ -4,20 +4,22 @@
 // aityx's (strategy.ts, play.ts).
 //
 // The scheme. The map is a hidden graph of SITES joined by LINKS: each
-// team's ORIGIN (its database), nine sites where bytes are BUILT (the
-// ones near the mainframe build twice as fast as the ones near the
-// origins), each up to its size and no further, placed and sized anew
+// team's ORIGIN (its database), twenty-one sites where bytes are BUILT
+// (the ones near the mainframe build twice as fast as the ones farther
+// out), each up to its size and no further, placed, sized and linked anew
 // every game, and the MAINFRAME in the middle, the goal. A team knows only
 // what its Explorer has found. A link has health and rots away with time;
 // a Tester renews every link it crosses. Bots other than the Explorer walk
 // the links only. Builders and Combinators build bytes for their team on
 // the site they stand on, as long as the site is connected to the team's
-// origin by links it knows and no other team's Anchor holds it; a Tester
-// doubles its team's Builders where it stands, or builds itself on a site
-// its team's Anchor holds. Every megabyte a team builds buys a bot, or
-// sends one of its bots to the mainframe for good: there it builds,
-// whatever its kind, and what it builds is its team's hack; the first team to build the
-// hack's price wins.
+// origin by links it knows and no other team's Anchor holds it; so does
+// an Anchor while it holds a site, for a while after it arrives, before
+// it moves on to hold another; a Tester doubles its team's Builders where it
+// stands, or builds itself on a site its team's Anchor holds. Every
+// megabyte a team builds buys a bot, or sends one of its bots to the
+// mainframe for good: there it builds, whatever its kind, and what it
+// builds is its team's hack; the first team to build the hack's price
+// wins.
 
 import { BOTS, botOfKind, type BotId, type BotKind } from './bots';
 import { TEAMS, type TeamId } from './teams';
@@ -35,17 +37,19 @@ export const RULES = {
   /** What a bot costs, and what sending one to the mainframe costs. */
   botCost: MB,
   /** The bytes a team builds at the mainframe to hack it, from 0 to done. */
-  hackCost: 6 * MB,
+  hackCost: 10 * MB,
   /** How fast a node builds: the relays near the origins, the cores near the mainframe, and the mainframe, into the hack. */
   richness: { relay: 1, core: 2, mainframe: 3 },
   /** A link goes from full health to gone in this many seconds. */
-  rotSeconds: 45,
+  rotSeconds: 15,
   /** A link under this health counts as rotting. */
   rottingBelow: 34,
-  /** Bytes a builder (a Builder, a Combinator, a Tester on its team's held site, any bot at the mainframe) builds on a relay, per second; times the node's richness. */
+  /** Bytes a builder (a Builder, a Combinator, an Anchor or a Tester on its team's held site, any bot at the mainframe) builds on a relay, per second; times the node's richness. */
   buildPerSecond: 48 * KB,
   /** A Tester standing with its team's Builders multiplies their building by this (Combinators don't get it). */
   testerBoost: 2,
+  /** How long an Anchor holds a site after it arrives there; then it moves on to hold another. */
+  holdSeconds: 15,
   /** Pixels per second: the Explorer off the links, the others on them. */
   explorerSpeed: 110,
   linkSpeed: 70,
@@ -57,31 +61,34 @@ export const RULES = {
   tickSeconds: 0.1,
 } as const;
 
-/** The map, in stage pixels: the mainframe at its centre, the origins on an ellipse around it. */
+/** The map, in stage pixels: the mainframe at its centre, the origins on a ring around it, all three as far from it. */
 export const MAP = {
   width: 1280,
   height: 720,
   center: { x: 640, y: 404 } as Point,
-  /** The ellipse the three origins sit on: a triangle with one vertex up. */
-  rx: 540,
-  ry: 296,
-  /** The circle the three cores sit on, around the mainframe. */
-  coreRadius: 168,
+  /** The ring the three origins sit on: a triangle with one vertex up. */
+  radius: 296,
 } as const;
 
 /**
- * Each game draws the sites anew, within these bounds: how many bytes a
- * site builds before it is spent, in steps of half a megabyte; where a
- * relay sits, as degrees to its side of its origin and a scale toward the
- * centre on the origins' ellipse; where a core sits, as degrees off its
- * sector boundary and pixels from the mainframe. No two nodes closer than
- * `apart` pixels.
+ * Each game draws the sites anew, within these bounds: in every team's
+ * sector, so many **cores** near the mainframe and so many **relays**
+ * farther out, at a reach from the mainframe (0) to past the origins'
+ * ring (1 is on it), anywhere across the sector but its edges; how
+ * many bytes each builds before it is spent, in steps of half a
+ * megabyte; no two nodes closer than `apart` pixels, and every one
+ * inside `bounds`, clear of the bars.
  */
 export const SITE_DRAW = {
-  size: { relay: [1.5 * MB, 5 * MB], core: [5 * MB, 10 * MB] },
-  relay: { degrees: [28, 50], scale: [0.62, 0.86] },
-  core: { degrees: [-14, 14], radius: [135, 195] },
-  apart: 100,
+  perSector: { core: 3, relay: 4 },
+  reach: { core: [0.3, 0.55], relay: [0.55, 1.35] },
+  /** Degrees off the sector's middle, either way: its edges are 60° off. */
+  spread: 54,
+  size: { relay: [0.5 * MB, 3 * MB], core: [2 * MB, 5 * MB] },
+  apart: 80,
+  /** The fewest links from an origin. */
+  originLinks: 2,
+  bounds: { left: 60, right: 1220, top: 96, bottom: 640 },
 } as const;
 
 /** Where each team's origin is, as an angle from the centre: up, lower right, lower left. */
@@ -198,18 +205,11 @@ export interface World {
 
 const RAD = Math.PI / 180;
 
-/** A point on the origins' ellipse, at `angle` degrees from the centre, scaled toward it. */
+/** A point on the origins' ring, at `angle` degrees from the centre, scaled toward it (or past it). */
 export function onRing(angle: number, scale = 1): Point {
   return {
-    x: MAP.center.x + MAP.rx * scale * Math.cos(angle * RAD),
-    y: MAP.center.y + MAP.ry * scale * Math.sin(angle * RAD),
-  };
-}
-
-function onCoreRing(angle: number, radius: number = MAP.coreRadius): Point {
-  return {
-    x: MAP.center.x + radius * Math.cos(angle * RAD),
-    y: MAP.center.y + radius * Math.sin(angle * RAD),
+    x: MAP.center.x + MAP.radius * scale * Math.cos(angle * RAD),
+    y: MAP.center.y + MAP.radius * scale * Math.sin(angle * RAD),
   };
 }
 
@@ -239,61 +239,69 @@ export function seeded(seed: number): () => number {
 }
 
 /**
- * The hidden map, drawn from a seed. Each team's origin is joined to two
- * **relays**, one to either side of it, toward the mainframe, that build
- * at the plain rate; each relay to the **core** on its side (the cores
- * sit near the sector boundaries, close to the mainframe, and build twice
- * as fast) and to the relay across the boundary, the other team's; each
- * core to the mainframe. So from an origin it is relay, core, mainframe,
- * and every core lies between two teams. Where each site sits, and its
- * size, are drawn within SITE_DRAW's bounds; the graph is always the same.
+ * The hidden map, drawn from a seed. In every team's sector, cores near
+ * the mainframe (twice as fast) and relays farther out (the plain rate),
+ * anywhere within SITE_DRAW's bounds, each its own size: one sector is
+ * drawn, and turned a third and two thirds of the way round for the
+ * others, so every team's sector is the same as the others'. The links are
+ * the map's neighbours (its Gabriel graph: two nodes are joined when no
+ * other node lies in the circle they span), so every site is joined to
+ * the ones around it, across the sectors' edges too, and every origin to
+ * the mainframe by many ways; never an origin straight to another, or to
+ * the mainframe, and every origin with two ways out at least (the nearest
+ * sites, when the neighbours give it one). A new graph every game.
  */
 export function buildMap(seed: number): { nodes: Node[]; map: Pair[] } {
   const random = seeded(seed);
   const between = ([lo, hi]: readonly [number, number]) => lo + random() * (hi - lo);
   const size = (range: readonly [number, number]) => Math.round(between(range) / (MB / 2)) * (MB / 2);
+  const { bounds } = SITE_DRAW;
+  const inside = (p: Point) => p.x >= bounds.left && p.x <= bounds.right && p.y >= bounds.top && p.y <= bounds.bottom;
   const nodes: Node[] = [];
-  const map: Pair[] = [];
-  const join = (a: string, b: string) => map.push({ a, b });
-  /** A point from `draw`, redrawn until it is clear of every node so far; after many tries, `fallback`. */
-  const place = (draw: () => Point, fallback: Point): Point => {
-    for (let i = 0; i < 400; i++) {
-      const at = draw();
-      if (nodes.every((n) => distance(n.at, at) >= SITE_DRAW.apart)) return at;
-    }
-    return fallback;
-  };
-  const norm = (angle: number) => ((angle % 360) + 360) % 360;
-  const coreAt = (angle: number) => `core-${norm(angle)}`;
+  const clear = (at: Point) => inside(at) && nodes.every((n) => distance(n.at, at) >= SITE_DRAW.apart);
   nodes.push({ id: MAINFRAME_ID, kind: 'mainframe', at: MAP.center, team: null, bytes: 0, richness: RULES.richness.mainframe, capacity: 0 });
   for (const team of TEAMS) {
     nodes.push({ id: originId(team.id), kind: 'origin', at: originAt(team.id), team: team.id, bytes: 0, richness: 0, capacity: 0 });
   }
-  for (const team of TEAMS) {
-    const boundary = SECTOR_ANGLES[team.id] + 60;
-    const at = place(() => onCoreRing(boundary + between(SITE_DRAW.core.degrees), between(SITE_DRAW.core.radius)), onCoreRing(boundary));
-    const id = coreAt(boundary);
-    nodes.push({ id, kind: 'site', at, team: null, bytes: 0, richness: RULES.richness.core, capacity: size(SITE_DRAW.size.core) });
-    join(id, MAINFRAME_ID);
-  }
+  // One sector drawn, and turned for the others: a new map every game, the same for every team.
   let n = 0;
-  const relays = new Map<string, string>();
-  for (const team of TEAMS) {
-    for (const side of [-1, 1]) {
-      const angle = SECTOR_ANGLES[team.id];
-      const at = place(() => onRing(angle + side * between(SITE_DRAW.relay.degrees), between(SITE_DRAW.relay.scale)), onRing(angle + side * 40, 0.75));
-      const id = `relay-${++n}`;
-      relays.set(`${team.id}${side}`, id);
-      nodes.push({ id, kind: 'site', at, team: null, bytes: 0, richness: RULES.richness.relay, capacity: size(SITE_DRAW.size.relay) });
-      join(originId(team.id), id);
-      join(id, coreAt(angle + side * 60));
+  for (const kind of ['core', 'relay'] as const) {
+    for (let i = 0; i < SITE_DRAW.perSector[kind]; i++) {
+      const [lo, hi] = SITE_DRAW.reach[kind];
+      let ats: Point[] = [];
+      for (let tries = 0; tries < 20000; tries++) {
+        const offset = between([-SITE_DRAW.spread, SITE_DRAW.spread]);
+        // Even over the area: farther out, more room.
+        const reach = Math.sqrt(lo * lo + random() * (hi * hi - lo * lo));
+        ats = TEAMS.map((t) => onRing(SECTOR_ANGLES[t.id] + offset, reach));
+        if (ats.every(clear) && ats.every((a, j) => ats.every((b, k) => j === k || distance(a, b) >= SITE_DRAW.apart))) break;
+        ats = [];
+      }
+      if (ats.length === 0) continue;
+      const capacity = size(SITE_DRAW.size[kind]);
+      for (const at of ats) nodes.push({ id: `${kind}-${++n}`, kind: 'site', at, team: null, bytes: 0, richness: RULES.richness[kind], capacity });
     }
   }
-  // Across each boundary: a team's relay on the side of the greater angle, to the next team's on its other side.
-  TEAMS.forEach((team, i) => {
-    const next = TEAMS[(i + 1) % TEAMS.length]!;
-    join(relays.get(`${team.id}1`)!, relays.get(`${next.id}-1`)!);
-  });
+  const map: Pair[] = [];
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i]!;
+      const b = nodes[j]!;
+      if (a.kind !== 'site' && b.kind !== 'site') continue;
+      const span = distance(a.at, b.at) ** 2;
+      if (nodes.some((k) => k !== a && k !== b && distance(k.at, a.at) ** 2 + distance(k.at, b.at) ** 2 < span)) continue;
+      map.push({ a: a.id, b: b.id });
+    }
+  }
+  // Every origin at least two ways out: else the nearest sites besides.
+  for (const origin of nodes.filter((o) => o.kind === 'origin')) {
+    const joined = (id: string) => map.some((p) => (p.a === origin.id && p.b === id) || (p.b === origin.id && p.a === id));
+    const near = nodes.filter((o) => o.kind === 'site').sort((a, b) => distance(a.at, origin.at) - distance(b.at, origin.at));
+    for (const site of near) {
+      if (map.filter((p) => p.a === origin.id || p.b === origin.id).length >= SITE_DRAW.originLinks) break;
+      if (!joined(site.id)) map.push({ a: origin.id, b: site.id });
+    }
+  }
   return { nodes, map };
 }
 
@@ -364,36 +372,66 @@ export function knownLinksFrom(world: World, team: TeamState, id: string): { lin
     .map((l) => ({ link: l, other: l.a === id ? l.b : l.a }));
 }
 
+/** The ways a team has from a node: every node it reaches, with the distance and the first link to take. */
+type Ways = Map<string, { distance: number; first: Link | null }>;
+
+/** The ways already searched, per world and team: a world never changes, so neither do they. */
+const searched = new WeakMap<World, WeakMap<TeamState, Map<string, Ways>>>();
+
+/** Every way a team has from a node, by the links it knows: one search (Dijkstra's), kept for the world. */
+function waysFrom(world: World, team: TeamState, from: string): Ways {
+  let byTeam = searched.get(world);
+  if (byTeam === undefined) searched.set(world, (byTeam = new WeakMap()));
+  let byNode = byTeam.get(team);
+  if (byNode === undefined) byTeam.set(team, (byNode = new Map()));
+  const known = byNode.get(from);
+  if (known !== undefined) return known;
+  const at = new Map(world.nodes.map((n) => [n.id, n.at]));
+  const knows = new Set(team.known.links);
+  const next = new Map<string, { link: Link; other: string }[]>();
+  for (const l of world.links) {
+    if (!knows.has(l.id)) continue;
+    for (const [a, b] of [[l.a, l.b], [l.b, l.a]] as const) {
+      const list = next.get(a) ?? [];
+      list.push({ link: l, other: b });
+      next.set(a, list);
+    }
+  }
+  const best: Ways = new Map([[from, { distance: 0, first: null }]]);
+  const done = new Set<string>();
+  const open = new Set([from]);
+  while (open.size) {
+    let current: string | null = null;
+    for (const id of open) if (current === null || best.get(id)!.distance < best.get(current)!.distance) current = id;
+    open.delete(current!);
+    done.add(current!);
+    const here = best.get(current!)!;
+    for (const { link: l, other } of next.get(current!) ?? []) {
+      if (done.has(other)) continue;
+      const d = here.distance + distance(at.get(current!)!, at.get(other)!);
+      const seen = best.get(other);
+      if (seen === undefined || d < seen.distance) {
+        best.set(other, { distance: d, first: here.first ?? l });
+        open.add(other);
+      }
+    }
+  }
+  byNode.set(from, best);
+  return best;
+}
+
 /**
  * The shortest way for a team from one node to another, by the links
  * it knows, as the distance and the first link to take; null when there
  * is no way.
  */
 export function route(world: World, team: TeamState, from: string, to: string): { distance: number; first: Link | null } | null {
-  if (from === to) return { distance: 0, first: null };
-  const best = new Map<string, { distance: number; first: Link | null }>([[from, { distance: 0, first: null }]]);
-  const open = new Set([from]);
-  while (open.size) {
-    let current: string | null = null;
-    for (const id of open) if (current === null || best.get(id)!.distance < best.get(current)!.distance) current = id;
-    open.delete(current!);
-    const here = best.get(current!)!;
-    if (current === to) return here;
-    for (const { link: l, other } of knownLinksFrom(world, team, current!)) {
-      const d = here.distance + distance(node(world, current!).at, node(world, other).at);
-      const known = best.get(other);
-      if (known === undefined || d < known.distance) {
-        best.set(other, { distance: d, first: here.first ?? l });
-        open.add(other);
-      }
-    }
-  }
-  return null;
+  return waysFrom(world, team, from).get(to) ?? null;
 }
 
 /** Whether a site is joined to the team's origin by links it knows: its bytes can flow home. */
 export function connected(world: World, team: TeamState, siteId: string): boolean {
-  return route(world, team, siteId, originId(team.id)) !== null;
+  return route(world, team, originId(team.id), siteId) !== null;
 }
 
 /** The bots standing at a node (not on their way). */
@@ -401,16 +439,22 @@ export function botsAt(world: World, id: string): BotState[] {
   return world.bots.filter((b) => b.node === id && b.travel === null);
 }
 
+/** Whether an Anchor's hold on where it stands is still on: for RULES.holdSeconds after it arrived. */
+export function holding(world: World, b: BotState): boolean {
+  return b.kind === 'anchor' && (world.tick - b.since) * RULES.tickSeconds < RULES.holdSeconds;
+}
+
 /**
  * The team that holds a site: the team of the Anchor that has stood there
- * longest (the first to arrive), if any Anchor stands there. A held site
- * is its team's alone: no other team takes its bytes, and another team's
- * Anchor arriving later holds nothing.
+ * longest (the first to arrive) of those whose hold is still on, if any. A
+ * held site is its team's alone: no other team takes its bytes, and
+ * another team's Anchor arriving later holds nothing until the first
+ * one's time is up.
  */
 export function holderOf(world: World, siteId: string): TeamId | null {
   if (node(world, siteId).kind !== 'site') return null;
   let first: BotState | null = null;
-  for (const b of botsAt(world, siteId)) if (b.kind === 'anchor' && (first === null || b.since < first.since)) first = b;
+  for (const b of botsAt(world, siteId)) if (holding(world, b) && (first === null || b.since < first.since)) first = b;
   return first?.team ?? null;
 }
 
@@ -725,8 +769,9 @@ function act(d: Draft, b: DraftBot, dt: number): void {
  * How fast a bot builds where it stands, in bytes per second: at the
  * mainframe, a bot of any kind sent there, into the hack (one only
  * passing through, or stuck there, builds nothing); on a site, a Builder (twice as fast
- * with a Tester of its team there), a Combinator, or a Tester on a site
- * its team's Anchor holds with no Builder of its team there; nothing on
+ * with a Tester of its team there), a Combinator, an Anchor while it
+ * holds the site, or a Tester on a site its team's Anchor holds with no Builder
+ * of its team there; nothing on
  * a spent site, a site another team holds, or cut off from the team's
  * origin.
  */
@@ -737,6 +782,7 @@ export function buildRate(world: World, b: BotState, here: Node): number {
   let rate = 0;
   if (b.kind === 'builder') rate = mates.some((o) => o.kind === 'tester') ? RULES.testerBoost : 1;
   else if (b.kind === 'combinator') rate = 1;
+  else if (b.kind === 'anchor') rate = holding(world, b) && holderOf(world, here.id) === b.team ? 1 : 0;
   else if (b.kind === 'tester') rate = !mates.some((o) => o.kind === 'builder') && holderOf(world, here.id) === b.team ? 1 : 0;
   if (rate === 0 || !connected(world, teamState(world, b.team), here.id)) return 0;
   return rate * RULES.buildPerSecond * here.richness;
@@ -780,12 +826,14 @@ function wantOf(d: Draft, b: DraftBot, team: DraftTeam, state: TeamState, world:
   };
   switch (b.kind) {
     case 'anchor': {
-      if (isSite) return here.id;
+      // Holds where it stands for its time; then moves on, to hold another site.
+      const over = isSite && !holding(world, b as BotState);
+      if (isSite && !over) return here.id;
       const claimed = claimedBy('anchor');
-      const free = knownSites.filter((n) => !claimed.has(n.id));
+      const free = knownSites.filter((n) => !claimed.has(n.id) && !(over && n.id === here.id));
       // Where the team builds first: hold what is worth holding.
       const builders = claimedBy('builder');
-      return (best(free.filter((n) => builders.has(n.id))) ?? best(free))?.id ?? null;
+      return (best(free.filter((n) => builders.has(n.id))) ?? best(free))?.id ?? (over ? here.id : null);
     }
     case 'builder': {
       if (isSite) return here.id;

@@ -10,8 +10,15 @@ Tron and synthwave: cyan lines, a neon purple sun, scanlines.
 
 [ui/shell.ts](../tatyx_app/src/ui/shell.ts).
 
-- **The bar**, across the top: the logo (the Anchor as an icon), the
-  name; on the map, the match's controls: **Start**
+- **The bar**, across the top: the logo (the board in small: the
+  mainframe, an orange hexagon on black with a smaller one and a site's
+  diamond inside, and the three origins on its corners in the teams'
+  colours, Vice Cyan up, Neon Purple lower right, Sunset Pink lower left, each linked
+  to the core; [public/favicon.svg](../tatyx_app/public/favicon.svg),
+  the tab's icon too) and the
+  name, a link home: a click goes to the title, every time, from the
+  map (ending the match, as **Title** does) or from the title itself
+  (anew); on the map, the match's controls: **Start**
   (then **Pause**, **Resume**, **Play again**; Space does the same) and
   the **speed**, ½×, 1×, 2×, 4× or 8×; on the right, **music**, which
   turns the soundtrack off and on, with the volume slider beside it
@@ -42,8 +49,9 @@ is in [look.ts](../tatyx_app/src/scenes/look.ts).
 - **The title**: the synthwave backdrop, a starfield over a sun of
   purple-to-orange bands setting behind a neon horizon, with a purple
   grid running from the bottom of the stage to the vanishing point;
-  "tatyx" in glowing orange and the line "Build the sites, hack the
-  mainframe"; the roster: the five bots in a row, each bobbing, with its
+  "tatyx" in glowing orange (a click on it draws a new lineup: every
+  team a preset at random, no two the same) and the line "Build the
+  sites, hack the mainframe"; the roster: the five bots in a row, each bobbing, with its
   letter, its name on the line below and its part; under them a card
   per team, in its colour: its strategy's name and tagline, **◀ ▶**
   through the presets, **Download** and **Upload**

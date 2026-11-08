@@ -26,8 +26,8 @@ export const BOTS: readonly Bot[] = [
     id: 'A',
     kind: 'anchor',
     name: 'Anchor',
-    motto: 'Holds a site: while it stands there, only its team builds on it.',
-    part: 'Walks the links to the best site it knows, where its team builds, and stays: while it stands there, only its team builds on the site.',
+    motto: 'Holds a site for a while, and builds there: only its team builds on it.',
+    part: 'Walks the links to the best site it knows, where its team builds, and holds it for a while: only its team builds on the site, the Anchor too; then it moves on to hold another.',
     portrait: 'bots/a-anchor.png',
   },
   {

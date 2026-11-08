@@ -29,3 +29,10 @@ export const game = new Phaser.Game({
 
 // The scenes reach the shell (the calls panel) through the registry.
 game.registry.set('shell', shell);
+
+// The brand in the bar goes home, the title, every time: from the map
+// (the match ends, as with its Title button) or the title itself (anew).
+shell.onHome(() => {
+  const here = game.scene.getScenes(true).find((s) => s.scene.key === 'title' || s.scene.key === 'map');
+  here?.scene.start('title');
+});

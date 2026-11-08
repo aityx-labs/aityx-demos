@@ -508,6 +508,23 @@ export function hackedPct(world: World, team: TeamId): number {
   return Math.min(100, (teamState(world, team).hacked / RULES.hackCost) * 100);
 }
 
+/** A team's match in numbers, for the end: its progress, the bytes it collected (kept, spent on bots and on sending them in), its bots of each kind and those sent in. */
+export interface TeamStats {
+  readonly pct: number;
+  readonly collected: number;
+  readonly bots: Readonly<Record<BotState['kind'], number>>;
+  readonly hackers: number;
+}
+
+export function teamStats(world: World, team: TeamId): TeamStats {
+  const state = teamState(world, team);
+  const own = world.bots.filter((b) => b.team === team);
+  const hackers = own.filter((b) => b.hacker).length;
+  const bots = { anchor: 0, builder: 0, tester: 0, combinator: 0, explorer: 0 };
+  for (const b of own) bots[b.kind] += 1;
+  return { pct: hackedPct(world, team), collected: state.bytes + RULES.botCost * (state.bought + hackers), bots, hackers };
+}
+
 /** Bytes for people: 1.5 MB, 320 KB, 12 B. */
 export function fmtBytes(n: number): string {
   if (n >= MB) return `${(n / MB).toFixed(n >= 10 * MB ? 0 : 1)} MB`;

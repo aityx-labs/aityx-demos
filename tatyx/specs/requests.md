@@ -437,3 +437,15 @@ The feature files hold the current specification; see the
     match's winner) unless an admin is signed in; the tab shows the
     **Wins** column and the bold winners only when they come, and asks
     again on signing in or out ([The leaderboard](leaderboard.md)).
+42. **Show the stats (bytes and robots, how many of each) on the end
+    screen.** The winner's card has a row per team: its progress, the
+    bytes it collected (`teamStats`), its robots of each kind and those
+    sent in ([The game](game.md#the-map-on-screen)).
+43. **Sound and visual effects when a new robot comes into play, when a
+    robot reaches the mainframe, and when the game ends.** A pop and a
+    ring at the origin with a chime; shockwaves and a flaring core with
+    an impact; a flash, a shake and bursts with a fanfare
+    ([The game](game.md#the-map-on-screen), [Sound](sound.md#the-effects)).
+44. **The default zoom a little closer, centred on the mainframe.** The
+    map starts at 1.35 times the whole board's zoom, on the mainframe;
+    **Fit** still shows it all.

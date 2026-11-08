@@ -87,6 +87,20 @@ gain while the song plays and is kept in localStorage (`tatyx.volume`).
 It starts at 50%, quiet enough to sit under the game; its tooltip says
 the percentage.
 
+## The effects
+
+[audio/sfx.ts](../tatyx_app/src/audio/sfx.ts), synthesized as the
+music is, at the music's volume (its slider), whether the music plays
+or not; silent at 0. Start opens the audio, so the first effect is
+heard.
+
+- **A new robot comes into play**: a quick rising chime of three notes,
+  each team on its own pitch.
+- **A robot reaches the mainframe**: a low sine impact, a noise burst and
+  a rising sawtooth zap.
+- **The match ends**: a rising fanfare of five notes over a swell of
+  sawtooth chords and noise.
+
 ## Next
 
 - Sound effects: a byte picked up, a byte dropped home, the hack's

@@ -45,6 +45,26 @@ Future<void> showPlayerRules(
 ) {
   final strategy = controller.strategyOf(seat);
   if (strategy == null) return Future.value();
+  if (strategy.sealed) {
+    // Another player's strategy from the tour: it plays, its rules stay theirs.
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${seat.name} plays ${strategy.name}'),
+        content: Text(
+          '${strategy.tagline}\n\n'
+          "It is another player's strategy in the tour: it plays at your "
+          'table, and its rules are theirs to share.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
   return showDialog<void>(
     context: context,
     builder: (context) => Dialog(

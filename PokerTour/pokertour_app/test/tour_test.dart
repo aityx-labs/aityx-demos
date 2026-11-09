@@ -78,6 +78,10 @@ void main() {
     final table = tableStrategies(strategies);
     expect(table.map((s) => s.id), ['tour-u-1']);
     expect(table.single.tagline, 'In the tour, by Ana. Mine');
+    // Another player's entry plays sealed: no rules, edit or download for it.
+    expect(table.single.sealed, isTrue);
+    expect(tableStrategies(strategies, myOwnerId: 'abc').single.sealed, isFalse);
+    expect(tableStrategies(strategies, myOwnerId: 'someone-else').single.sealed, isTrue);
     expect((await api.me()).admin, isTrue);
     expect(await api.startTournament(), 'queued');
     expect(() => api.withdraw('x'), throwsA(isA<TourException>().having((e) => e.message, 'message', 'nope')));

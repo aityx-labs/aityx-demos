@@ -455,3 +455,12 @@ The feature files hold the current specification; see the
     `TATYX_ALLOWED_DOMAINS` defaults to `*`, any Google account (a list
     of domains still narrows it). The admins are still the aletyx.com
     and aletyx.ai players alone ([Players](players.md)).
+
+## 2026-11-09
+
+46. **Let users upload and download their own strategies, but not
+    download or delete each other's.** `GET /api/strategies` answers
+    the rules of the caller's own entries alone (another's: its name,
+    tagline and owner's alias), and **Your strategies in the tour**
+    has **Download** beside **Withdraw**; withdrawing was the owner's
+    alone already ([The leaderboard](leaderboard.md)).

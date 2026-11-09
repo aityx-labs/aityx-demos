@@ -9,10 +9,10 @@ import Phaser from 'phaser';
 
 import { synthwave } from '../audio/synthwave';
 import { BOTS, type Bot } from '../game/bots';
-import { BadStrategy, cyclePreset, isOwn, lineup, parseStrategy, setStrategy, shuffleLineup, strategyFile } from '../game/lineup';
+import { BadStrategy, cyclePreset, isOwn, lineup, parseStrategy, setStrategy, shuffleLineup } from '../game/lineup';
 import { TEAMS, type Team } from '../game/teams';
 import { auth } from '../ui/auth';
-import { enterInTour } from '../ui/tour';
+import { enterInTour, saveStrategyFile } from '../ui/tour';
 import type { Shell } from '../ui/shell';
 import { button, drawScanlines, drawSynthwave, FONT, PALETTE, setButtonEnabled } from './look';
 
@@ -147,15 +147,7 @@ export class TitleScene extends Phaser.Scene {
   /** The team's strategy as a JSON file, to edit and upload. */
   private download(t: Team): void {
     const s = lineup()[t.id];
-    const blob = new Blob([strategyFile(s)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `tatyx-${t.id}-${s.id}.json`;
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    saveStrategyFile(s, `tatyx-${t.id}-${s.id}.json`);
   }
 
   /** A strategy file from the player's disk, checked, as the team's own. */

@@ -8,7 +8,7 @@
 import { BadStrategy, parseStrategy } from '../game/lineup';
 import { TEAMS } from '../game/teams';
 import { auth } from './auth';
-import { enterInTour, onEntriesChange, tourEntries, withdraw, type Entry } from './tour';
+import { enterInTour, onEntriesChange, saveStrategyFile, tourEntries, withdraw, type Entry } from './tour';
 
 interface Standing {
   strategy: string;
@@ -159,8 +159,16 @@ export function mountLeaderboard(parent: HTMLElement): { visible(on: boolean): v
     entriesList.innerHTML = own.length === 0 ? '<li class="muted">None yet: upload one here, or on the title.</li>' : '';
     for (const e of own) {
       const li = document.createElement('li');
-      li.innerHTML = `${esc(e.name)} <button class="btn" type="button">Withdraw</button>`;
-      li.querySelector('button')!.addEventListener('click', async () => {
+      li.innerHTML = `${esc(e.name)} <button class="btn" type="button" data-act="download">Download</button> <button class="btn" type="button" data-act="withdraw">Withdraw</button>`;
+      const decisions = e.decisions;
+      const download = li.querySelector<HTMLButtonElement>('[data-act="download"]')!;
+      // The server sends the rules of the player's own entries alone.
+      if (decisions === undefined) download.remove();
+      else {
+        const slug = e.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'own';
+        download.addEventListener('click', () => saveStrategyFile({ id: e.id, name: e.name, tagline: e.tagline, decisions }, `tatyx-${slug}.json`));
+      }
+      li.querySelector('[data-act="withdraw"]')!.addEventListener('click', async () => {
         const problem = await withdraw(e.id);
         if (problem !== null) say(`Not withdrawn: ${problem}.`, true);
       });

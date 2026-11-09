@@ -26,8 +26,9 @@
 //   POST   /api/leaderboard/run     a tournament now, queued behind the
 //                                   one being played: admins only
 //   GET    /api/strategies          the strategies entered in the tour,
-//                                   with their rules and whose they are
-//                                   (an alias, never an email); signed in
+//                                   whose they are (an alias, never an
+//                                   email), and the rules of the caller's
+//                                   own alone; signed in
 //   POST   /api/strategies          a strategy file's JSON: entered in the
 //                                   tour (replacing the player's of the
 //                                   same name), and a tournament asked

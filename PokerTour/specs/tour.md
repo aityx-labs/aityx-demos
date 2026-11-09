@@ -91,9 +91,11 @@ calls `POST /api/tournaments` and says "A tournament is starting", "A
 tournament is queued: it starts when the one being played ends" or "A
 tournament you asked for is waiting its turn already". Rows of yours say
 "yours" (matched by an owner id, a short hash of the email the server
-gives `GET /api/me`). Per row: **Download as JSON** (the rules; a preset's from
-the table's own, an entry's from `GET /api/strategies`) and, for yours,
-**Withdraw**.
+gives `GET /api/me`). Per row, for a preset and for yours: **Download as
+JSON** (the rules; a preset's from the table's own, yours from `GET
+/api/strategies`), and for yours **Withdraw**. Another player's entry
+has neither: no one downloads or withdraws a strategy that isn't theirs
+(the server refuses another's withdrawal too: `404`).
 
 ### Aliases
 

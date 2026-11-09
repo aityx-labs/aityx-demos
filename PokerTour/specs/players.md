@@ -15,6 +15,10 @@ during a hand leaves after it.
 
 ## A player's rules
 
+A seat playing another player's strategy from the tour (sealed, below)
+opens no rules: a dialog says which strategy it plays, its tagline, and
+that its rules are its owner's.
+
 Tapping a seat at the table, or a name in the panel, opens the player's
 rules ([rules_sheet.dart](../pokertour_app/lib/players/rules_sheet.dart)):
 the strategy's tagline, then its action table one rule a row, numbered,
@@ -54,13 +58,25 @@ first, then the tour's (the strategies players entered, read from the
 server once signed in, with "In the tour, by <alias or name>" in their
 tagline; not the server's copies of the presets, so no preset is listed,
 or seated by a random tournament, twice),
-then those written in the app (marked "yours"), each with its tagline and
-buttons: **Rules** opens a preset's rules, **Edit** a custom strategy's;
-**Download as JSON** saves any strategy's `name`, `tagline` and
+then those written in the app, each with its tagline and buttons:
+**Rules** opens a preset's rules, **Edit** a custom strategy's;
+**Download as JSON** saves the strategy's `name`, `tagline` and
 `decisions` as a file (`<name>.json`), to start from or to upload; the trophy, on
-one of yours, enters it in the tour ([The tour](tour.md)). **Write one**
+one written in the app, enters it in the tour ([The tour](tour.md)). **Write one**
 starts a new strategy from the first preset, named after it ("My
-Maniac"); a custom strategy can be deleted when no player uses it.
+Maniac"); a custom strategy can be deleted when no player uses it. The
+player's own, written in the app or entered in the tour, are marked
+"yours".
+
+Another player's strategy from the tour is **sealed**
+(`Strategy.sealed`, set by `tableStrategies` in
+[main.dart](../pokertour_app/lib/main.dart) for every entry whose owner
+id isn't the signed-in player's, and for all of them until `GET
+/api/me` has answered): it can be seated and plays like any other, but
+its row has a lock instead of **Edit**, and no download or delete. Its
+rules still reach the browser, since the table runs them on the
+player's key, and every call in the calls sidebar shows them; the app
+just doesn't offer to open or save them.
 Signed in to the tour, **Upload a strategy** beside it picks a strategy
 file and enters it, as Profile's does ([The sidebar and the
 profile](profile.md)).

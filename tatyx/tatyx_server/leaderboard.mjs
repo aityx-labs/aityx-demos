@@ -304,11 +304,17 @@ export function createLeaderboard({ store, seeds = [], runnerPath, settings, own
     };
   }
 
-  /** The entries in the tour, each with its owner's alias and whether it is `email`'s; the rules too. */
+  /**
+   * The entries in the tour, each with its owner's alias and whether it is
+   * `email`'s; the rules of `email`'s own alone: another player's stay theirs.
+   */
   async function listEntries(email) {
     await load();
     return Promise.all(
-      entries.map(async (e) => ({ id: e.id, name: e.name, tagline: e.tagline, decisions: e.decisions, by: await ownerName(e.owner), mine: e.owner === email, enteredAt: e.enteredAt })),
+      entries.map(async (e) => {
+        const mine = e.owner === email;
+        return { id: e.id, name: e.name, tagline: e.tagline, ...(mine ? { decisions: e.decisions } : {}), by: await ownerName(e.owner), mine, enteredAt: e.enteredAt };
+      }),
     );
   }
 

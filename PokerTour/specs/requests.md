@@ -4,6 +4,19 @@ The requests that shaped Poker Tour, oldest first, each with what changed. Up to
 The feature files hold the current specification; see the
 [index](README.md).
 
+## 2026-11-09
+
+21. **"In the index of poker tour show the leaderboard more
+    prominently, without played and best, only wins, and the welcome
+    message to the side with the sign-in button; also pop the Google one
+    click sign-in on the top as usual."** The welcome page puts the
+    leaderboard first, large, in a card of its own, with the welcome and
+    the sign-in in a card beside it on the right (above it on a narrow
+    screen). Its standings show the wins alone, ranked by them, with
+    medals for the first three; the sidebar's are unchanged. Google's One
+    Tap prompt, already asked for as the page opens, is asked for again
+    after a sign-out ([The tour](tour.md)).
+
 ## 2026-11-08
 
 20. **"Access blocked: Poker Tour can only be used within its

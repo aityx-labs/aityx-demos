@@ -13,8 +13,9 @@ notifies when one appears, and shows every call, request and response,
 in a side panel. Conway's rules are on at the start; HighLife's birth with
 six neighbours and Life without death can be switched on from **Rules**.
 Pick a **Random start** (a sparse, medium or dense soup, islands, a glider
-fleet, a zoo with one of each pattern, or a methuselah), press **Play**,
-and set the **Acceleration** from half a generation a second to as fast
+fleet, a zoo with one of each pattern, a glider gun or a methuselah), press **Play**,
+and set the **Acceleration** from one generation every 3 seconds (where
+it starts) to as fast
 as aityx answers.
 
 ## Technology
@@ -72,12 +73,13 @@ or two on a 4-core codespace; the index server serves a new build on the
 next reload.
 
 Pick a **Random start** over the cells in view (soups of three
-densities, islands, a glider fleet, a zoo with one of each pattern, the
-R-pentomino or the acorn), or tap cells to draw; drag to move around the
+densities, islands, a glider fleet, a zoo with one of each pattern,
+Gosper's glider gun, the R-pentomino or the acorn), or tap cells to draw; drag to move around the
 infinite board and scroll to zoom. **Play** runs generations at the
 **Acceleration** you set, **Step** runs one. Each generation is a call
 to aityx, shown in the panel on the right with what it decided and the
-JSON both ways (see [Calls panel](specs/calls-panel.md)); patterns aityx
+JSON both ways, with chips that jump to the key parts (drag the panel's
+left edge to widen it; see [Calls panel](specs/calls-panel.md)); patterns aityx
 recognizes are named on the board, and a notice says when one appears
 (see [Patterns](specs/patterns.md)). **Rules** switches rules on and off
 (see [Rules](specs/rules.md)).

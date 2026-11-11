@@ -162,13 +162,17 @@ class _BoardViewState extends State<BoardView> {
             child: Stack(
               fit: StackFit.expand,
               children: [
+                // Clipped: the cells at the edges are painted whole, and
+                // must not spill onto the calls panel's handle.
                 RepaintBoundary(
-                  child: CustomPaint(
-                    painter: _BoardPainter(
-                      board: widget.board,
-                      labels: widget.labels,
-                      camera: widget.camera,
-                      textScaler: MediaQuery.textScalerOf(context),
+                  child: ClipRect(
+                    child: CustomPaint(
+                      painter: _BoardPainter(
+                        board: widget.board,
+                        labels: widget.labels,
+                        camera: widget.camera,
+                        textScaler: MediaQuery.textScalerOf(context),
+                      ),
                     ),
                   ),
                 ),

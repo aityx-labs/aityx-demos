@@ -376,12 +376,15 @@ void main() {
     }
     await tester.pump();
 
-    // 1 generation/s by default: one every second.
-    expect(find.text('1 generation/s'), findsOneWidget);
+    // One generation every 3 s by default.
+    expect(find.text('1 generation every 3 s'), findsOneWidget);
     await tester.tap(find.text('Play'));
     await tester.pump();
     expect(find.text('Pause'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 2100));
+    await tester.pump();
+    expect(stepper.asked, hasLength(1));
+    await tester.pump(const Duration(milliseconds: 4000));
     await tester.pump();
     expect(stepper.asked.length, inInclusiveRange(2, 3));
 

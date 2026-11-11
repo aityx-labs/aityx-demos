@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/link.dart';
 
 import '../life/board.dart';
 import '../life/generation.dart';
@@ -62,25 +63,99 @@ const patternNames = {
 
 String patternName(String id) => patternNames[id] ?? id;
 
-/// The key parts of the request, by path.
-const requestHighlights = {
-  'state.rules': 'The rules that are on',
-  'state.situations': 'The board\'s situations',
-  'state.clusters': 'The clusters and their shapes',
-  'decision.functions.fate.body': 'The rules of Life',
-  'decision.functions.identify.body': 'The pattern catalogue',
-  'decision.decisions.fates': 'What is asked',
-};
+/// The key parts of the request, as the "Jump to" chips list them: what
+/// changes every generation first (it comes last in the JSON, after the
+/// model), then the model.
+const requestAnchors = [
+  JsonAnchor(
+    'state.situations',
+    'The board\'s situations',
+    'Every distinct situation a cell is in on the board, alive or dead '
+        'and how many live neighbours, with how many cells share it: at '
+        'most 18 rows, however big the board.',
+  ),
+  JsonAnchor(
+    'state.clusters',
+    'The clusters and their shapes',
+    'Every cluster of live cells, with its size and its shape in canonical '
+        'form (o alive, . dead, / a new row), for the catalogue to name.',
+  ),
+  JsonAnchor(
+    'state.rules',
+    'The rules that are on',
+    'Which rules are switched on in Rules: Conway\'s, HighLife\'s birth '
+        'with six neighbours, Life without death.',
+  ),
+  JsonAnchor(
+    'decision.functions.fate.body',
+    'The rules of Life',
+    'The decision table that gives each situation its fate: a row per '
+        'rule, gated by its switch, with why it holds. The response says '
+        'which row fired for each situation.',
+  ),
+  JsonAnchor(
+    'decision.functions.identify.body',
+    'The pattern catalogue',
+    'One row per pattern of the catalogue, per phase and size, matched '
+        'against each cluster\'s shape.',
+  ),
+  JsonAnchor(
+    'decision.functions.kind_of.body',
+    'The kinds of pattern',
+    'What kind each pattern is (still life, oscillator, spaceship, '
+        'methuselah) and what it does.',
+  ),
+  JsonAnchor(
+    'decision.decisions',
+    'What is asked',
+    'The answers aityx works out: the fate of each situation, what is '
+        'alive next, the counts, and what each cluster is.',
+  ),
+];
 
-/// The key parts of the response, by path.
-const responseHighlights = {
-  'answers.fates': 'The fate of each situation',
-  'answers.alive_next': 'Alive next, per situation',
-  'answers.patterns': 'The pattern of each cluster',
-  'answers.population_next': 'Cells alive next',
-  'receipt.functions.fate': 'The rule that fired, per situation',
-  'receipt.functions.identify': 'The catalogue row that matched',
-};
+/// The key parts of the response, in the order they come.
+const responseAnchors = [
+  JsonAnchor(
+    'answers.fates',
+    'The fate of each situation',
+    'Survives, dies of loneliness or crowding, is born or stays empty: '
+        'one per situation, in the order they were sent.',
+  ),
+  JsonAnchor(
+    'answers.alive_next',
+    'Alive next, per situation',
+    'Whether the cells of each situation are alive in the next '
+        'generation: what the app applies to the board.',
+  ),
+  JsonAnchor(
+    'answers.population_next',
+    'Cells alive next',
+    'How many cells are alive in the next generation.',
+  ),
+  JsonAnchor(
+    'answers.patterns',
+    'The pattern of each cluster',
+    'What each cluster is: a pattern of the catalogue, or none.',
+  ),
+  JsonAnchor(
+    'answers.kinds',
+    'The kind of each cluster',
+    'Still life, oscillator, spaceship or methuselah, per cluster.',
+  ),
+  JsonAnchor(
+    'receipt.functions.fate',
+    'The rule that fired, per situation',
+    'For each situation, the row of the rules of Life that decided its '
+        'fate.',
+  ),
+  JsonAnchor(
+    'receipt.functions.identify',
+    'The catalogue row that matched',
+    'For each cluster, the row of the pattern catalogue that matched its '
+        'shape.',
+  ),
+  JsonAnchor('usage', 'Tokens', 'The tokens aityx counted for this call.'),
+];
 
 /// The side panel: the patterns noticed, then every call to aityx,
 /// newest first, each with what it decided and its request and response.
@@ -242,40 +317,80 @@ class _CallsPanelState extends State<CallsPanel> {
   }
 }
 
-/// What the panel says before the first call: what the demo is, and what
-/// aityx does in it. Centered when there is room; scrolls when there
+/// What the panel says before the first call: what the demo is, what
+/// aityx does in it, and a dedication to the game's inventor, linked to
+/// his Wikipedia page. Centered when there is room; scrolls when there
 /// isn't.
 class _Intro extends StatelessWidget {
   const _Intro({this.style});
 
   static const whatItIs =
-      'Conway\'s Game of Life on an infinite board, with the rules of '
-      'birth and death (Conway\'s, HighLife\'s and Life without death, as '
-      'switches) and a catalogue of its patterns, as an aityx decision '
-      'model. The cells take a picture of themselves every generation, '
-      'and aityx says who\'s in it.';
+      'Conway\'s Game of Life on an infinite board. Its rules (Conway\'s, '
+      'HighLife\'s, Life without death) and a catalogue of known patterns '
+      'are an aityx decision model.';
 
   static const whatAityxDoes =
-      'Each generation is one aityx call: the board goes in, and what '
-      'lives, what dies and which clusters are blocks, gliders or pulsars '
-      'come back. Play, or step: the calls show here as they happen.';
+      'Each generation is one aityx call: the board goes in; which cells '
+      'live, die or are born, and which clusters are known patterns, come '
+      'back. The calls show here on Play or Step.';
+
+  static const inMemoryOf = 'In memory of ';
+  static const conway = 'John Horton Conway';
+  static final conwayPage = Uri.parse(
+    'https://en.wikipedia.org/wiki/John_Horton_Conway',
+  );
 
   final TextStyle? style;
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(whatItIs, textAlign: TextAlign.center, style: style),
-          const SizedBox(height: 12),
-          Text(whatAityxDoes, textAlign: TextAlign.center, style: style),
-        ],
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(whatItIs, textAlign: TextAlign.center, style: style),
+            const SizedBox(height: 12),
+            Text(whatAityxDoes, textAlign: TextAlign.center, style: style),
+            const SizedBox(height: 20),
+            Text.rich(
+              TextSpan(
+                children: [
+                  const TextSpan(text: inMemoryOf),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.baseline,
+                    baseline: TextBaseline.alphabetic,
+                    child: Link(
+                      uri: conwayPage,
+                      target: LinkTarget.blank,
+                      builder: (context, followLink) => MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          onTap: followLink,
+                          child: Text(
+                            conway,
+                            style: style?.copyWith(
+                              color: scheme.primary,
+                              decoration: TextDecoration.underline,
+                              decorationColor: scheme.primary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              textAlign: TextAlign.center,
+              style: style?.copyWith(fontStyle: FontStyle.italic),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _NotesCard extends StatelessWidget {
@@ -491,13 +606,13 @@ class CallCard extends StatelessWidget {
                     title: 'REQUEST',
                     subtitle: 'POST /v1/systemone: the rules, and the board',
                     json: call.outcome.aityxRequest,
-                    highlights: requestHighlights,
+                    anchors: requestAnchors,
                   ),
                   CallJsonView(
                     title: 'RESPONSE',
                     subtitle: 'what aityx answered',
                     json: call.outcome.aityxResponse,
-                    highlights: responseHighlights,
+                    anchors: responseAnchors,
                   ),
                 ],
               ),

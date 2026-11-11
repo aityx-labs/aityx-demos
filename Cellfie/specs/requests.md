@@ -223,3 +223,43 @@ The feature files hold the current specification; see the
     same muted centered style, scrolling when the panel is short. Once
     calls arrive the panel shows them as before. See [Calls
     panel](calls-panel.md).
+
+## 2026-11-11
+
+19. **Make the calls panel draggable, to expand it and see the requests;
+    add anchors to the key parts of the request and the response, to
+    navigate to them directly and precisely.** On wide windows the
+    panel's left edge is a handle: drag it to widen the panel (up to all
+    but 320 px of the window) or narrow it (to 360 px), double-click it
+    for the 440 px it starts at, or use the arrow keys on it. Each JSON
+    pane now has a **Jump to** row of chips, one per key part it has
+    (more of them: the kinds of pattern, all of what is asked, the kind
+    of each cluster and the tokens joined the old ones); a chip, or the
+    part's label in the code, scrolls the pane to exactly that value's
+    first row, marks the whole value and says above the pane what it is,
+    its path and its line. The board is now clipped to its own area, so
+    the cells at its edge no longer paint over the handle. See [Calls
+    panel](calls-panel.md#width) and [Anchors](calls-panel.md#anchors).
+20. **Make the game a bit slower by default: one generation every 3
+    seconds.** The Acceleration slider gained a first stop, `1
+    generation every 3 s`, and starts there (it started at 1
+    generation/s); the other stops are as they were. See
+    [Board](board.md#controls).
+21. **Make the intro paragraphs on the sidebar a bit shorter and more
+    objective, and add a final one, "In memory of John Horton Conway",
+    with a link to his Wikipedia page.** The two paragraphs the calls
+    panel shows before the first call now say only what the demo is
+    (the game, its rules and pattern catalogue as an aityx decision
+    model) and what each aityx call sends and gets back; the tagline
+    about the cells' picture left the panel (it stays in the README). A
+    third line, in italics, reads *In memory of John Horton Conway*,
+    his name linking to his Wikipedia page in a new tab, through the new
+    dependency `url_launcher`. See [Calls panel](calls-panel.md).
+22. **Add the "glider gun" to the list of random starts, and remove from
+    that list the number of generations patterns take to settle.**
+    **Random start** gained **Glider gun**, Gosper's gun alone in the
+    middle of the view, between Zoo and R-pentomino. The R-pentomino's
+    and the Acorn's summaries no longer say 1,103 and 5,206
+    generations: *Five cells that grow into chaos before they settle*
+    and *Seven cells that grow into a vast, long-lived pattern*. See
+    [Board](board.md#controls).

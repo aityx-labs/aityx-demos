@@ -4,7 +4,8 @@
 screen: a single row at the top, the title on the left and the
 [controls](#controls) on its right, then the board, and (on windows 1000
 px wide or more) the [calls panel](calls-panel.md) on the right, 440 px
-wide. On narrower windows the panel opens as a drawer from the calls
+wide at the start and as wide as you drag it (see [Calls
+panel](calls-panel.md#width)). On narrower windows the panel opens as a drawer from the calls
 button at the end of the top row (its tooltip `Calls (n)`, the count as a
 badge once there are calls). The app's version isn't shown.
 
@@ -68,14 +69,19 @@ fit (a phone), the row scrolls sideways, starting at **Play**:
     ([seeds.dart](../cellfie_app/lib/life/seeds.dart)), turned or flipped
     at random, placed the same way; a pattern that finds no room in 40
     tries, or doesn't fit the view, is left out;
+  - **Glider gun**: Gosper's glider gun (36 × 9, `gosperGliderGun` in
+    [board.dart](../cellfie_app/lib/life/board.dart)), alone in the
+    middle; it isn't in the catalogue, so aityx doesn't name it, only the
+    gliders it fires;
   - **R-pentomino** and **Acorn**: the seed alone, in the middle.
-  Each item shows a one-line summary.
+  Each item shows a one-line summary of what it does, with no counts of
+  generations.
 - **Clear**: empties the board, generation 0.
 - **Rules (n of 3)**: opens the [Rules](rules.md) dialog.
 - **Acceleration**: a slider (its tooltip *Acceleration*) followed by the
-  speed, `1 generation/s`, with no label before it. Six stops: ½, 1 (the
-  default), 2, 4 and 8 generations per second, and *as fast as aityx
-  answers*. A generation that takes longer than its slot runs late, never
+  speed, `1 generation every 3 s`, with no label before it. Seven stops:
+  one generation every 3 seconds (the default), ½, 1, 2, 4 and 8
+  generations per second, and *as fast as aityx answers*. A generation that takes longer than its slot runs late, never
   twice at once.
 
 The status, `Generation N · M cells · aityx answered in T ms` (or
@@ -87,7 +93,7 @@ without the panel, over the board at the top right.
 Widget tests draw a blinker by tapping, step it through a fake aityx and
 check the request (5 situations, one 1 × 3 cluster, Conway's rules
 alone), the next board, the call in the panel and the notice; switch a
-rule on in the dialog and see it in the next request; play at 1 generation/s until paused;
+rule on in the dialog and see it in the next request; play at one generation every 3 s until paused;
 a failed generation pausing with its message; the app opening on a
 sparse soup, with the buttons as icons, the map buttons and the status
 over the board at 800 px; the random start menu, a soup, and Clear; and

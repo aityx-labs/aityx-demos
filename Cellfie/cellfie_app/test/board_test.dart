@@ -200,6 +200,29 @@ void main() {
       within(r, width: 10, height: 10);
     });
 
+    test('the glider gun sits in the middle and fires a glider', () {
+      final gun = start(StartKind.gliderGun);
+      expect(gun.population, 36);
+      expect(canonicalShape(gun.alive), canonicalShape(cellsOf(gosperGliderGun)));
+      expect(gun.alive.map((c) => c.x).reduce(min), inInclusiveRange(-18, 0));
+      // After a period, it's back, plus a glider on its way.
+      var board = gun;
+      for (var i = 0; i < 30; i++) {
+        // Conway's rules, here instead of aityx.
+        final groups = board.situations;
+        board = board.next(groups, [
+          for (final k in groups.keys) k.neighbours == 3 || (k.alive && k.neighbours == 2),
+        ]);
+      }
+      expect(board.population, 36 + 5);
+    });
+
+    test('no summary counts generations', () {
+      for (final kind in StartKind.values) {
+        expect(kind.summary, isNot(matches(RegExp(r'\d'))), reason: kind.label);
+      }
+    });
+
     test('a shape that does not fit is left out', () {
       final board = start(StartKind.zoo, width: 8, height: 8);
       within(board, width: 8, height: 8);

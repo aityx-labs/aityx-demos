@@ -1,20 +1,35 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'json_layout.dart';
 
+/// A key part of one side of a call: exactly the value at [path]
+/// (`state.situations`, `answers.fates`...), tinted with its [label], and
+/// explained by [why] when jumped to.
+class JsonAnchor {
+  const JsonAnchor(this.path, this.label, this.why);
+
+  final String path;
+  final String label;
+  final String why;
+}
+
 /// One side of an aityx call, pretty-printed with line numbers and colors
-/// in a pane of its own, the key parts (by path) tinted and labeled on
-/// their first row, with a button that copies the exact JSON.
+/// in a pane of its own, with a button that copies the exact JSON. The
+/// [anchors] present in the JSON are tinted and labeled on their first
+/// row; the "Jump to" chips above the pane, and the labels themselves,
+/// scroll the pane to exactly that value, mark all of it and say what it
+/// is.
 class CallJsonView extends StatefulWidget {
   const CallJsonView({
     super.key,
     required this.title,
     required this.json,
     this.subtitle = '',
-    this.highlights = const {},
+    this.anchors = const [],
     this.height = 320,
   });
 
@@ -22,17 +37,17 @@ class CallJsonView extends StatefulWidget {
   final String title;
   final String subtitle;
   final Object? json;
-
-  /// Paths of the key parts (`state.situations`, `answers.fates`...) and
-  /// their labels.
-  final Map<String, String> highlights;
+  final List<JsonAnchor> anchors;
   final double height;
 
   @override
   State<CallJsonView> createState() => _CallJsonViewState();
 }
 
+/// Each row's height: fixed, so a row's offset is exactly
+/// `_topPadding + index * _lineHeight` and a jump lands on it.
 const _lineHeight = 22.0;
+const _topPadding = 4.0;
 const _fontSize = 14.0;
 const _gutterWidth = 44.0;
 
@@ -45,12 +60,17 @@ const _style = TextStyle(
 class _CallJsonViewState extends State<CallJsonView> {
   late JsonLayout _layout;
 
-  /// For each row, the label of the key part starting there, if any, and
-  /// whether it's inside a key part.
-  late List<String?> _labels;
+  /// The anchors this JSON has, and the one last jumped to.
+  late List<JsonAnchor> _anchors;
+  JsonAnchor? _active;
+
+  /// For each row, the anchor starting there, if any, and whether it's
+  /// inside one.
+  late List<JsonAnchor?> _starts;
   late List<bool> _tinted;
   final _vertical = ScrollController();
   final _horizontal = ScrollController();
+  final _paneKey = GlobalKey();
 
   @override
   void initState() {
@@ -61,7 +81,7 @@ class _CallJsonViewState extends State<CallJsonView> {
   @override
   void didUpdateWidget(CallJsonView old) {
     super.didUpdateWidget(old);
-    if (old.json != widget.json || old.highlights != widget.highlights) _lay();
+    if (old.json != widget.json || old.anchors != widget.anchors) _lay();
   }
 
   @override
@@ -73,16 +93,47 @@ class _CallJsonViewState extends State<CallJsonView> {
 
   void _lay() {
     _layout = layoutJson(widget.json);
-    _labels = List.filled(_layout.lines.length, null);
+    _anchors = [
+      for (final a in widget.anchors)
+        if (_layout.ranges.containsKey(a.path)) a,
+    ];
+    if (_active case final active? when !_anchors.contains(active)) {
+      _active = null;
+    }
+    _starts = List.filled(_layout.lines.length, null);
     _tinted = List.filled(_layout.lines.length, false);
-    for (final MapEntry(key: path, value: label) in widget.highlights.entries) {
-      final range = _layout.ranges[path];
-      if (range == null) continue;
-      _labels[range.first] = label;
+    for (final anchor in _anchors) {
+      final range = _layout.ranges[anchor.path]!;
+      _starts[range.first] = anchor;
       for (var i = range.first; i <= range.last; i++) {
         _tinted[i] = true;
       }
     }
+  }
+
+  /// Marks [anchor], brings the pane into view in the panel, and scrolls
+  /// the pane so the value's first row is at the top, under one row of
+  /// context.
+  void _jump(JsonAnchor anchor) {
+    final range = _layout.ranges[anchor.path];
+    if (range == null) return;
+    setState(() => _active = anchor);
+    final pane = _paneKey.currentContext;
+    if (pane != null) {
+      Scrollable.ensureVisible(
+        pane,
+        duration: const Duration(milliseconds: 200),
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+      );
+    }
+    if (!_vertical.hasClients) return;
+    final offset = math.max(0.0, _topPadding + (range.first - 1) * _lineHeight);
+    _vertical.animateTo(
+      math.min(offset, _vertical.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+    );
+    if (_horizontal.hasClients) _horizontal.jumpTo(0);
   }
 
   double _charWidth() {
@@ -105,17 +156,23 @@ class _CallJsonViewState extends State<CallJsonView> {
       JsonToken.punctuation: scheme.onSurfaceVariant,
       JsonToken.space: scheme.onSurface,
     };
+    final active = _active;
+    final activeRange = active == null ? null : _layout.ranges[active.path];
     // Room for the longest line, and for the widest label after it.
     var labelWidth = 0.0;
-    for (final label in widget.highlights.values) {
+    for (final anchor in _anchors) {
       final painter = TextPainter(
-        text: TextSpan(text: label, style: theme.textTheme.labelSmall),
+        text: TextSpan(text: anchor.label, style: _AnchorLabel.style),
         textDirection: TextDirection.ltr,
       )..layout();
       if (painter.width > labelWidth) labelWidth = painter.width;
     }
     final contentWidth =
-        _gutterWidth + 16 + _layout.longestLine * _charWidth() + labelWidth + 48;
+        _gutterWidth +
+        16 +
+        _layout.longestLine * _charWidth() +
+        labelWidth +
+        56;
     // Line numbers; the continuation rows of a wrapped string share their
     // line's number, and show none.
     final numbers = <String>[];
@@ -152,16 +209,93 @@ class _CallJsonViewState extends State<CallJsonView> {
                 icon: const Icon(Icons.copy_outlined, size: 18),
                 onPressed: () => Clipboard.setData(
                   ClipboardData(
-                    text: const JsonEncoder.withIndent(
-                      '  ',
-                    ).convert(widget.json),
+                    text: const JsonEncoder.withIndent('  ')
+                        .convert(widget.json),
                   ),
                 ),
               ),
             ],
           ),
         ),
+        if (_anchors.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 0, 8),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  'Jump to',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                for (final anchor in _anchors)
+                  ChoiceChip(
+                    label: Text(anchor.label),
+                    tooltip: anchor.why,
+                    selected: identical(anchor, active),
+                    showCheckmark: false,
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    labelStyle: theme.textTheme.labelSmall,
+                    labelPadding: const EdgeInsets.only(left: 2, right: 4),
+                    avatar: Icon(
+                      Icons.my_location,
+                      size: 14,
+                      color: identical(anchor, active)
+                          ? scheme.onPrimaryContainer
+                          : scheme.primary,
+                    ),
+                    onSelected: (_) => _jump(anchor),
+                  ),
+              ],
+            ),
+          ),
+        // What the marked part is, in words, above the code.
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: active == null
+              ? const SizedBox(width: double.infinity)
+              : Container(
+                  key: ValueKey(active.path),
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border(
+                      left: BorderSide(color: scheme.primary, width: 3),
+                    ),
+                  ),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '${active.label}  ',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        TextSpan(
+                          text:
+                              '${active.path}, line '
+                              '${numbers.take(activeRange!.first + 1).where((s) => s.isNotEmpty).length}',
+                          style: TextStyle(
+                            fontFamily: 'RobotoMono',
+                            fontSize: 12,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                        TextSpan(text: '\n${active.why}'),
+                      ],
+                    ),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+        ),
         Container(
+          key: _paneKey,
           height: widget.height,
           decoration: BoxDecoration(
             color: scheme.surfaceContainerLowest,
@@ -176,24 +310,38 @@ class _CallJsonViewState extends State<CallJsonView> {
                 controller: _horizontal,
                 scrollDirection: Axis.horizontal,
                 child: SizedBox(
-                  width: contentWidth > constraints.maxWidth
-                      ? contentWidth
-                      : constraints.maxWidth,
+                  width: math.max(contentWidth, constraints.maxWidth),
                   child: ListView.builder(
                     controller: _vertical,
                     itemExtent: _lineHeight,
                     itemCount: _layout.lines.length,
-                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    // Room below the last row, so a value near the end can
+                    // still scroll to the top like any other.
+                    padding: EdgeInsets.only(
+                      top: _topPadding,
+                      bottom: math.max(
+                        _topPadding,
+                        constraints.maxHeight - 3 * _lineHeight,
+                      ),
+                    ),
                     itemBuilder: (context, i) {
                       final line = _layout.lines[i];
-                      final tinted = _tinted[i];
+                      final marked =
+                          activeRange != null &&
+                          i >= activeRange.first &&
+                          i <= activeRange.last;
+                      final tinted = marked || _tinted[i];
                       return Container(
                         decoration: tinted
                             ? BoxDecoration(
-                                color: scheme.primary.withValues(alpha: 0.08),
+                                color: scheme.primary.withValues(
+                                  alpha: marked ? 0.18 : 0.08,
+                                ),
                                 border: Border(
                                   left: BorderSide(
-                                    color: scheme.primary.withValues(alpha: 0.5),
+                                    color: marked
+                                        ? scheme.primary
+                                        : scheme.primary.withValues(alpha: 0.5),
                                     width: 3,
                                   ),
                                 ),
@@ -207,7 +355,9 @@ class _CallJsonViewState extends State<CallJsonView> {
                                 numbers[i],
                                 textAlign: TextAlign.right,
                                 style: _style.copyWith(
-                                  color: scheme.outlineVariant,
+                                  color: marked
+                                      ? scheme.primary
+                                      : scheme.outlineVariant,
                                 ),
                               ),
                             ),
@@ -225,23 +375,12 @@ class _CallJsonViewState extends State<CallJsonView> {
                               style: _style,
                               softWrap: false,
                             ),
-                            if (_labels[i] case final label?) ...[
+                            if (_starts[i] case final anchor?) ...[
                               const SizedBox(width: 12),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 1,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: scheme.primary.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  label,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: scheme.onPrimaryContainer,
-                                  ),
-                                ),
+                              _AnchorLabel(
+                                anchor,
+                                active: identical(anchor, active),
+                                onTap: () => _jump(anchor),
                               ),
                             ],
                           ],
@@ -255,6 +394,46 @@ class _CallJsonViewState extends State<CallJsonView> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// A key part's label at the end of its first row: tap it to mark the
+/// value and read what it is.
+class _AnchorLabel extends StatelessWidget {
+  const _AnchorLabel(this.anchor, {required this.active, required this.onTap});
+
+  static const style = TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600);
+
+  final JsonAnchor anchor;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: anchor.why,
+      waitDuration: const Duration(milliseconds: 300),
+      constraints: const BoxConstraints(maxWidth: 360),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+          decoration: BoxDecoration(
+            color: active ? scheme.primary : scheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: scheme.primary.withValues(alpha: 0.6)),
+          ),
+          child: Text(
+            anchor.label,
+            style: style.copyWith(
+              color: active ? scheme.onPrimary : scheme.onPrimaryContainer,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

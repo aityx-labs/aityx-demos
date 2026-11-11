@@ -36,7 +36,8 @@ and response, in a side panel.
   with a notice when one appears.
 - [Calls panel](calls-panel.md): the side panel with every call to aityx,
   newest first: what it decided, and the request and the response as
-  readable JSON with the key parts labeled; the patterns noticed.
+  readable JSON with the key parts labeled and anchored ("Jump to"); the
+  patterns noticed; widened or narrowed by dragging its edge.
 - [aityx calls](aityx-calls.md): the app calls aityx itself, from the
   browser, on the key the user set on the index page or the index
   server's dev key; the checks, and what a failure says.

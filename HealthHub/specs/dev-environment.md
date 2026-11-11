@@ -62,7 +62,11 @@ process-compose through Docker Compose comes from.
     127.0.0.1:9805 (`HEALTHHUB_KAFKA_REST_PORT`; always 127.0.0.1, like
     Kafka); its health check is `GET /topics`. Consumers left behind by
     an API killed before it could delete them go once nobody has called
-    the proxy for 5 minutes (`KARAPACE_CONSUMER_IDLE_DISCONNECT_TIMEOUT`). The API reaches Kafka only through it
+    the proxy for 5 minutes (`KARAPACE_CONSUMER_IDLE_DISCONNECT_TIMEOUT`).
+    It keeps two malloc arenas (`MALLOC_ARENA_MAX=2`), not eight per
+    processor for its forty-odd threads (librdkafka's), whose fragments
+    grew it until the local Kubernetes cluster killed it at its 384 MB
+    limit after 18 hours. The API reaches Kafka only through it
     (`HEALTHHUB_KAFKA_REST_URL`, http://127.0.0.1:9805 on the host), so it
     needs no Kafka client library. Produce is `POST
     /topics/<topic>` with `application/vnd.kafka.json.v2+json`; a
@@ -81,7 +85,8 @@ process-compose through Docker Compose comes from.
     starts once it is ready; `flink-sql` once the TaskManager has started
     and the API and Kafka are ready, as the job writes the table the API
     makes, and is ready while the job is on the cluster. Their memory is
-    768 MB and 1 GB;
+    768 MB and 1 GB, their JVMs sized for two processors and jemalloc
+    for two arenas ([Admissions per hour](admissions-hourly.md));
   - the web app (`2-flutter-web`, via
     [scripts/flutter-web.sh](../scripts/flutter-web.sh)) on
     http://localhost:9801/app/ (`FLUTTER_WEB_PORT`), bound to 127.0.0.1

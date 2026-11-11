@@ -80,19 +80,22 @@ spec:
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 3
-          # A native executable: it gzips the builds' files in process for
-          # a browser that asks (main.dart.js and CanvasKit, several MB
-          # each) and holds a proxied call's body, 2 MB at most. The Dart
-          # runtime doesn't know this limit and keeps what it has grown
-          # to: about 165 Mi with one browser's six connections, and past
-          # 190 Mi with a few dozen downloads at once, which got it killed
-          # at a limit of 192Mi.
+          # A native executable, in bounded memory whatever arrives at
+          # once (bin/server.dart, "Files, in bounded memory"): a file is
+          # gzipped once and its gzip kept, 32 MB of them at most; files
+          # sent as they are go 16 at a time; a client that stops reading
+          # is cut off after 30 s; 512 connections at most. A burst of 600
+          # downloads of the demos' largest files, 300 at once, peaked at
+          # 107 MB on macOS (298 MB before, with a zlib state per response,
+          # which got it killed at a limit of 192Mi); 2,300 requests
+          # without gzip, 54 MB. 256Mi leaves room for Linux's allocator
+          # and the Dart runtime keeping what it has grown.
           resources:
             requests:
               cpu: 10m
               memory: 48Mi
             limits:
-              memory: 512Mi
+              memory: 256Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

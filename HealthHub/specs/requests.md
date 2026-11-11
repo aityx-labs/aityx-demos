@@ -870,3 +870,17 @@ The feature files hold the current specification; see the
    log that pushed the start out of `kubectl logs`. `flink/submit.sh`
    now submits only once Kafka takes a connection. See [Admissions per
    hour](admissions-hourly.md).
+2. **Fix all the issues.** On the local Kubernetes cluster, overnight,
+   Flink's JobManager was killed at its 768 MB limit twelve times, and
+   Karapace, the REST proxy, once at its 384 MB after 18 hours. Neither
+   leaked: each sized itself by the 15 processors it saw. The JobManager
+   stood at 700 MB within a minute of starting (119 threads, and four
+   jemalloc arenas a processor), Karapace's forty-odd threads spread
+   their fragments over eight glibc arenas a processor. Flink's JVMs now
+   see two processors (`env.java.opts.jobmanager` and `.taskmanager`)
+   and jemalloc keeps two arenas (`MALLOC_CONF`): the JobManager stays
+   near 330 MB, with 67 threads.
+   Karapace keeps two arenas (`MALLOC_ARENA_MAX`). The same settings in
+   `compose.yaml` and `k8s/`. See [Admissions per
+   hour](admissions-hourly.md) and [Development
+   environment](dev-environment.md).

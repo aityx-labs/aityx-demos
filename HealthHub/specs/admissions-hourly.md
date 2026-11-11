@@ -86,7 +86,15 @@ both at once (one Flink statement set).
   and fails to plan without it) and the PostgreSQL driver 42.7.14, each
   downloaded from Maven Central and checked against a pinned SHA-256.
   768 MB for the JobManager, 1 GB for the TaskManager (5% of it managed
-  memory, as the state is on the heap).
+  memory, as the state is on the heap). Their JVMs see two processors
+  (`env.java.opts.jobmanager` and `env.java.opts.taskmanager`:
+  `-XX:ActiveProcessorCount=2`; not `env.java.opts.all`, which holds the
+  `--add-opens` flags Flink's own configuration needs on Java 17) and the
+  image's allocator, jemalloc, keeps two arenas (`MALLOC_CONF`), whatever the
+  machine has: a JVM sizes its GC, compiler and network threads, and
+  jemalloc its arenas, by the processors it sees, and on the local
+  Kubernetes cluster's 15 the JobManager stood at 700 MB of its 768 and
+  was killed about a dozen times a day; with two it stays near 330 MB.
 - **Submission**: the `flink-sql` service runs
   [flink/submit.sh](../flink/submit.sh), which every 30 s
   (`FLINK_SUBMIT_INTERVAL`) asks the JobManager's `/jobs/overview` for a

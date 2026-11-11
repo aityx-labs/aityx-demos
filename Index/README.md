@@ -93,9 +93,10 @@ proxy:
 - answers only this origin's pages: `Sec-Fetch-Site: same-origin` or,
   from a browser that doesn't send it, no `Origin` or one naming this
   host; anything else gets 403 `proxy_cross_site`, and so does, while
-  the server listens on the loopback only (the default), a request whose
-  `Host` isn't this machine (`localhost`, `127.0.0.1`, `[::1]`): a page
-  that reached it through DNS rebinding;
+  the server listens on the loopback only (the default; or, in a
+  container published on the loopback only, `INDEX_LOOPBACK_ONLY=1`), a
+  request whose `Host` isn't this machine (`localhost`, `127.0.0.1`,
+  `[::1]`): a page that reached it through DNS rebinding;
 - takes up to 2 MB and waits up to 120 s for aityx;
 - passes aityx's status and body back unchanged, except a redirect (502
   `proxy_redirect`: `AITYX_URL` may be behind a login) and no answer (502
@@ -163,3 +164,15 @@ devbox run serve              # the same, in the foreground
 ```
 
 or, with Dart on the PATH, `dart bin/server.dart`.
+
+## On the local Kubernetes cluster
+
+From the root of the repository, once `bash k8s/up.sh` has made the
+cluster, `bash k8s/deploy.sh Index` builds one image, `aityx-index`
+([docker/aityx-index.Dockerfile](docker/aityx-index.Dockerfile)): this
+server compiled, [www/](www/), and the six demos' release web builds, each
+made by its own `scripts/build.sh`, one after another. It runs in the
+`aityx` namespace ([k8s/](k8s/)) on **http://localhost:18800/demos/**,
+the dev proxy on `AITYX_API_KEY` and `AITYX_URL` (aityx staging) from the
+cluster's `demo-env` Secret. [k8s/verify.sh](k8s/verify.sh) checks it,
+with a real aityx call through the proxy.

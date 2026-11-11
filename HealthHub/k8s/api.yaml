@@ -1,0 +1,133 @@
+# The API, compose.yaml's api (healthhub_api/Dockerfile, a native
+# executable in an image with no shell). Not published: the web app
+# proxies /api/ to it (web.yaml). It reaches the database, Kafka's REST
+# proxy and the datyx API by their Services, holds the aityx key, and in
+# dev mode runs the simulation of people moving across the map.
+apiVersion: v1
+kind: Service
+metadata:
+  name: healthhub-api
+spec:
+  selector:
+    app.kubernetes.io/name: healthhub-api
+  ports:
+    - name: http
+      port: 9802
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: healthhub-api
+  labels:
+    aityx-demos/build: local
+spec:
+  replicas: 1
+  # One simulation at a time: two APIs would each run one and publish
+  # both into the same topics.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: healthhub-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: healthhub-api
+    spec:
+      enableServiceLinks: false
+      # Time to delete its consumers on the REST proxy and finish the
+      # triages under way (bin/server.dart's _shutdown).
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+      containers:
+        - name: api
+          image: localhost:5001/aityx-demos/healthhub-api:dev
+          imagePullPolicy: Always
+          env:
+            # aityx: the key with its URL, staging's (k8s/secrets.sh), as
+            # a key without its URL would go to production.
+            - name: AITYX_API_KEY
+              valueFrom:
+                secretKeyRef: { name: demo-env, key: AITYX_API_KEY, optional: true }
+            - name: AITYX_URL
+              valueFrom:
+                secretKeyRef: { name: demo-env, key: AITYX_URL, optional: true }
+            - name: HEALTHHUB_TRIAGE
+              value: "on"
+            # The triage's calls through datyx's aityx gateway, with
+            # datyx's service token: on in dev mode, and aityx directly
+            # when datyx can't pass them on.
+            - name: DATYX_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef: { name: demo-env, key: DATYX_SERVICE_TOKEN, optional: true }
+            - name: DATYX_API_URL
+              value: http://datyx-api:9900
+            - name: API_PORT
+              value: "9802"
+            - name: HEALTHHUB_BIND_HOST
+              value: 0.0.0.0
+            # The app's origin on this host, for the API's CORS answers.
+            - name: ALLOWED_ORIGINS
+              value: http://localhost:19801,http://127.0.0.1:19801
+            - name: HEALTHHUB_DB_HOST
+              value: healthhub-postgres
+            - name: HEALTHHUB_DB_PORT
+              value: "5432"
+            - name: HEALTHHUB_DB_NAME
+              value: healthhub
+            - name: HEALTHHUB_DB_USER
+              value: healthhub
+            - name: HEALTHHUB_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: healthhub-db, key: password }
+            # Google sign-in: without a client id it is off.
+            - name: OIDC_ISSUER
+              value: https://accounts.google.com
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: demo-env, key: OIDC_CLIENT_ID, optional: true }
+            # The message stream and the people simulation, compose's
+            # defaults.
+            - name: HEALTHHUB_MODE
+              value: dev
+            - name: HEALTHHUB_KAFKA_REST_URL
+              value: http://healthhub-kafka-rest:8082
+            - name: HEALTHHUB_SIM_PEOPLE
+              value: "80"
+            - name: HEALTHHUB_SIM_TURN_MS
+              value: "2500"
+            - name: HEALTHHUB_SIM_MINUTES_PER_TURN
+              value: "15"
+            - name: HEALTHHUB_HISTORY_DAYS
+              value: "90"
+            - name: HEALTHHUB_ALARM_EVERY_MS
+              value: "5000"
+            - name: HEALTHHUB_ALARM_THRESHOLD
+              value: "0.9"
+          ports:
+            - name: http
+              containerPort: 9802
+          # compose.yaml's health check, /api/health: it answers once the
+          # server is up, the database or not (it says which).
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 4
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 384Mi }

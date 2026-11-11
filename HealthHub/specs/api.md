@@ -98,7 +98,13 @@ such as a refused value, leaves it open; connect timeout 5 s, query
 timeout 10 s, no TLS). The driver sends one statement at a time on it;
 only the migration holds every other call back until it is done, so a
 health check's ping or a read never waits behind an admission being
-retried. At start it runs the migration in the background, retrying every
+retried. The admissions history is the one exception to the shared
+connection: once no migration runs, it is written on a connection of its
+own, with the same settings, closed after, because the shared one
+refuses other statements while a transaction runs on it, and the
+simulation's admissions and the health checks go on during the
+history's transactions ([The history](admissions-hourly.md#the-history)).
+At start the server runs the migration in the background, retrying every
 3 s until the database answers: `CREATE TABLE IF NOT EXISTS greetings`
 and the hello row if the table is empty, and the care centers' table and
 seed. Until then `/api/health` says `"db": false` and `/api/hello`
@@ -150,7 +156,8 @@ the proxy.
 ## Known limitations
 
 - Only the two datyx paths are forwarded; a general proxy isn't wanted.
-- One connection, no pool: enough for the hello world.
+- One shared connection, no pool (the history's own aside, while it is
+  written): enough for the hello world.
 - Every person publishes its own record each turn, one HTTP call each
   (560 a second with the defaults, up to 1,400 at 200 people a city, and
   one more for each admission), over

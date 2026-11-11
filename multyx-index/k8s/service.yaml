@@ -1,0 +1,17 @@
+# The index on its usual port, 9700, in the cluster, and on this host at
+# 19700 through the node port 31700 (k8s/kind/cluster.yaml).
+apiVersion: v1
+kind: Service
+metadata:
+  name: multyx-index
+  labels:
+    app.kubernetes.io/name: multyx-index
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: multyx-index
+  ports:
+    - name: http
+      port: 9700
+      targetPort: http
+      nodePort: 31700

@@ -92,11 +92,18 @@ both at once (one Flink statement set).
   (`FLINK_SUBMIT_INTERVAL`) asks the JobManager's `/jobs/overview` for a
   job named `healthhub-admissions-hourly` that isn't finished, failed or
   canceled, and submits the SQL through Flink's SQL client when there is
-  none. A second `docker compose up` or a restart of the submitter finds
+  none, once Kafka takes a connection at the job's bootstrap address:
+  compose starts the submitter after Kafka, but Kubernetes orders
+  nothing, and a job submitted before the broker answers has its
+  source's admin client retry without a pause (31 MB of JobManager log
+  in the 39 s a new cluster's Kafka took to come up). A second `docker compose up` or a restart of the submitter finds
   the job and leaves it; a JobManager that restarted, and lost it, gets
   it back within 30 s; a job that failed for good is submitted again.
   The script puts `HEALTHHUB_DB_PASSWORD` into the SQL in a file only
-  its user reads, removed after, and logs only the client's verdict (the
+  its user reads, removed after, with Kafka's and the database's
+  addresses: compose's `kafka:19092` and `postgres:5432` unless
+  `HEALTHHUB_KAFKA_BOOTSTRAP`, `HEALTHHUB_DB_HOST` and `HEALTHHUB_DB_PORT`
+  name others (on Kubernetes, `healthhub-kafka` and `healthhub-postgres`), and logs only the client's verdict (the
   job's id or the error), never the statements, which hold the
   password. `submit.sh check` is the service's health check: healthy
   while the job is on the cluster.
@@ -174,7 +181,11 @@ simulated ([lib/history.dart](../healthhub_api/lib/history.dart)).
   CONFLICT DO NOTHING`); the rows of care centers no longer covered are
   deleted. A restart costs that one query; a change of the days or the
   care centers rewrites what changed. With the defaults, the first
-  writing takes well under a minute and 359,962 rows.
+  writing takes well under a minute and 359,962 rows. It runs on a
+  connection of its own, closed after: the API's shared one refuses
+  other statements during a transaction, so the simulation's admissions
+  and the health checks, which go on meanwhile, would fail and close it
+  under the history.
 
 With the defaults, every series spans 2,160 hours (752 to 1,701 of them
 with a row); the mean admissions per care center rise from none at

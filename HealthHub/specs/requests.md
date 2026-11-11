@@ -835,3 +835,38 @@ The feature files hold the current specification; see the
    branch's pace (2500 ms a turn of 15 minutes). See [A care center's
    occupancy per hour](occupancy-timeline.md) and [The
    simulation](simulation.md#the-flow-at-a-care-center).
+
+## 2026-11-09
+
+1. **Run every demo on a local Kubernetes cluster (kind), deployed, up
+   and working.** HealthHub's part: `k8s/`, compose's services as
+   Kubernetes objects in the `datyx` namespace (PostgreSQL and Kafka as
+   StatefulSets, Karapace, Flink's JobManager, TaskManager and
+   submitter, the API, the web app), its images built by `k8s/build.sh`
+   and checked by `k8s/verify.sh`, on http://localhost:19801/app/. The
+   Flink job's SQL names Kafka's and the database's addresses as
+   placeholders, which `flink/submit.sh` fills from
+   `HEALTHHUB_KAFKA_BOOTSTRAP`, `HEALTHHUB_DB_HOST` and
+   `HEALTHHUB_DB_PORT`, compose's `kafka:19092` and `postgres:5432` by
+   default, so compose and devbox run as before. The cluster's fresh
+   database showed a race in the API: the admissions history, written in
+   a transaction per care center on the API's one connection, failed
+   whenever an admission or a health check used the connection meanwhile
+   (the driver refuses a statement outside a running transaction, and the
+   failure closed the connection under the history), so a first start
+   wrote only part of it in its five attempts. The history now has a
+   connection of its own, closed after. See [Development
+   environment](dev-environment.md), [Admissions per
+   hour](admissions-hourly.md), [API](api.md) and [Database](database.md).
+
+## 2026-11-10
+
+1. **Kill every demo and the cluster, start the cluster again with only
+   the Kubernetes demos, and make sure they all deploy correctly.**
+   HealthHub deployed and worked; its part of what the new cluster
+   showed: the Flink job went in 40 s before Kafka had started (its
+   image still being pulled), and until the broker answered the Kafka
+   source's admin client retried without a pause, 31 MB of JobManager
+   log that pushed the start out of `kubectl logs`. `flink/submit.sh`
+   now submits only once Kafka takes a connection. See [Admissions per
+   hour](admissions-hourly.md).

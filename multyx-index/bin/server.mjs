@@ -11,10 +11,14 @@
 //                       process-compose.yaml whose group.id.txt says
 //                       INDEX_GROUP (multyx): its web and API ports (the
 //                       defaults in that file) and whether its web app
-//                       answers right now; for scripts
+//                       answers right now; for scripts. With INDEX_DEMOS,
+//                       exactly the folders it names instead, each with
+//                       its URL and whether that answers right now
 //
 // Settings: INDEX_PORT (default 9700), INDEX_BIND_HOST (127.0.0.1),
-// INDEX_GROUP (multyx).
+// INDEX_GROUP (multyx), INDEX_DEMOS (unset): <folder>=<URL to check>,
+// comma-separated, for where the folders aren't beside this one (an
+// image, on Kubernetes: tatyx=http://tatyx:9710/tatyx/,...).
 
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -28,6 +32,15 @@ const env = process.env;
 const port = Number(env.INDEX_PORT || 9700);
 const host = env.INDEX_BIND_HOST || '127.0.0.1';
 const group = env.INDEX_GROUP || 'multyx';
+// The demos INDEX_DEMOS names, [folder, URL] in folder order; null when
+// it's unset, and the folders beside this one are read instead.
+const listed = env.INDEX_DEMOS
+  ? env.INDEX_DEMOS.split(',')
+      .map((item) => item.trim())
+      .filter((item) => item.includes('='))
+      .map((item) => [item.slice(0, item.indexOf('=')).trim(), item.slice(item.indexOf('=') + 1).trim()])
+      .sort((a, b) => a[0].localeCompare(b[0]))
+  : null;
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -79,6 +92,9 @@ function json(response, status, body) {
 
 /** Every folder of the group, with its ports and whether it answers. */
 async function demos() {
+  if (listed !== null) {
+    return Promise.all(listed.map(async ([folder, url]) => ({ folder, url, up: await answers(url) })));
+  }
   const found = [];
   for (const entry of await readdir(root, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name === basename(here)) continue;
@@ -100,7 +116,7 @@ async function demos() {
   );
 }
 
-/** Whether the URL answers 2xx within 2 s. */
+/** Whether the URL answers 2xx (or 3xx) within 2 s. */
 async function answers(url) {
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(2000), redirect: 'manual' });

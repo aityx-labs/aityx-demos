@@ -1,0 +1,70 @@
+# The multyx index's server: the page, /api/health, and /api/demos, which
+# checks the group's demos through their Services in this namespace (the
+# image has no folders beside it to read, so INDEX_DEMOS names them). The
+# page links to each demo on this page's host at its own port shifted as
+# this page's is: from 19700, tatyx on 19710 and Poker Tour on 19810.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multyx-index
+  labels:
+    app.kubernetes.io/name: multyx-index
+    aityx-demos/build: local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: multyx-index
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: multyx-index
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: localhost:5001/aityx-demos/multyx-index:dev
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 9700
+          env:
+            - name: INDEX_PORT
+              value: "9700"
+            - name: INDEX_BIND_HOST
+              value: 0.0.0.0
+            - name: INDEX_DEMOS
+              value: tatyx=http://tatyx:9710/tatyx/,PokerTour=http://pokertour:9810/pokertour/
+          # As process-compose.yaml's readiness probe: /api/health.
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 1
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

@@ -1,0 +1,58 @@
+# HealthHub on the local cluster (k8s/deploy.sh HealthHub): compose.yaml's
+# services as Kubernetes objects, in the datyx group's namespace, which
+# the datyx API shares, so every name starts with healthhub-.
+#
+#   healthhub-postgres          PostgreSQL 17 (StatefulSet), postgres.yaml
+#   healthhub-kafka             Kafka 4.3, one KRaft node (StatefulSet), kafka.yaml
+#   healthhub-kafka-rest        Karapace's REST proxy, kafka.yaml
+#   healthhub-flink-*           Flink's JobManager, TaskManager and the job's
+#                               submitter, flink.yaml
+#   healthhub-api               the API, api.yaml
+#   healthhub                   the web app, nginx with /api/ proxied to
+#                               the API, web.yaml: http://localhost:19801/app/
+#
+# Flink's web UI is http://localhost:19806 (the JobManager's NodePort).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: datyx
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: healthhub
+    includeSelectors: false
+    includeTemplates: true
+
+resources:
+  - postgres.yaml
+  - kafka.yaml
+  - flink.yaml
+  - api.yaml
+  - web.yaml
+
+# The database's development passwords, compose.yaml's defaults: a local
+# cluster's, reachable only inside it.
+secretGenerator:
+  - name: healthhub-db
+    literals:
+      - admin-password=postgres
+      - password=healthhub
+
+configMapGenerator:
+  # docker/postgres-init.sh, copied here (kustomize reads files only from
+  # this folder): the healthhub database and its owner, on the first start.
+  - name: healthhub-postgres-init
+    files:
+      - 10-healthhub.sh=postgres-init.sh
+  # Makes Kafka's topics, as compose's health check does (kafka-topics.sh).
+  - name: healthhub-kafka-topics
+    files:
+      - topics.sh=kafka-topics.sh
+  # docker/nginx.conf with the API's Service as the upstream.
+  - name: healthhub-web-nginx
+    files:
+      - default.conf=nginx.conf
+  # Flink's settings, compose.yaml's x-flink-properties with the
+  # JobManager's Services as its addresses.
+  - name: healthhub-flink
+    files:
+      - FLINK_PROPERTIES=flink.properties

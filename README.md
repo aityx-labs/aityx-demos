@@ -220,6 +220,50 @@ Nothing that git ignores goes into a Docker image. Run
 [sync-dockerignore.sh](sync-dockerignore.sh) after changing a `.gitignore`
 or adding a Dockerfile.
 
+## Running on Kubernetes
+
+Every demo also runs on a local Kubernetes cluster made with
+[kind](https://kind.sigs.k8s.io), on the same ports plus 10000, so it can
+run beside a local start. See [k8s/](k8s/README.md).
+
+```bash
+brew install kind            # kubectl comes with Docker Desktop
+bash k8s/up.sh               # the cluster, its registry, a namespace per group, the .env's settings
+bash k8s/deploy.sh           # build, deploy and check every demo (or name them: bash k8s/deploy.sh tatyx)
+bash k8s/verify.sh           # check them again
+bash k8s/down.sh             # delete the cluster
+```
+
+The cluster takes about 7 GB of Docker's memory: give Docker Desktop 14 GB
+or more to run it beside a local start (Settings, Resources, Memory).
+
+## Ports
+
+Everything is published on this host only (127.0.0.1). Locally, each demo
+has its own port; on Kubernetes, the same port plus 10000.
+
+| What | Local | Kubernetes |
+|---|---|---|
+| aityx index, the six aityx demos at `/demos/<slug>/` | http://localhost:8800/demos/ | http://localhost:18800/demos/ |
+| multyx index | http://localhost:9700/ | http://localhost:19700/ |
+| tatyx | http://localhost:9710/tatyx/ | http://localhost:19710/tatyx/ |
+| Poker Tour | http://localhost:9810/pokertour/ | http://localhost:19810/pokertour/ |
+| Poker Tour's Floci (local S3 and DynamoDB) | 9811 | in the cluster only |
+| datyx index | http://localhost:9800/ | http://localhost:19800/ |
+| HealthHub | http://localhost:9801/app/ | http://localhost:19801/app/ |
+| HealthHub's API, PostgreSQL, Kafka, Kafka REST | 9802, 9803, 9804, 9805 | in the cluster only |
+| HealthHub's Flink | http://localhost:9806/ | http://localhost:19806/ |
+| datyx API | http://localhost:9900/q/swagger-ui | http://localhost:19900/q/swagger-ui |
+| datyx's PostgreSQL | 9901 | in the cluster only |
+| OpenMetadata (admin@open-metadata.org, admin) | http://localhost:9902/ | http://localhost:19902/ |
+| OpenMetadata's admin port, Elasticsearch | 9903, 9904 | in the cluster only |
+| the datyx API's debugger (`API_MODE=dev`) | 9905 | none: the cluster runs the packaged API |
+| datyx dashboard | http://localhost:9906/app/ | http://localhost:19906/app/ |
+
+The group indexes link to the demos of their own run: the multyx index on
+19700 opens tatyx on 19710. Google sign-in works on both sets of ports;
+[k8s/](k8s/README.md#google-sign-in) lists the clients and their origins.
+
 ## Codespaces
 
 Each group's badge opens its own dev container on a 4-core machine (16 GB),

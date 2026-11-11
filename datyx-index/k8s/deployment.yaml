@@ -1,0 +1,77 @@
+# The index's server (bin/server.dart, compiled; docker/datyx-index.Dockerfile)
+# serving the page and its /api/ on 9800, every address. It has no
+# folders beside it to read, so INDEX_DEMOS names the group's systems
+# /api/demos reports on, each with the in-cluster URL that says it's up:
+# the datyx API's health check, and the dashboard's and HealthHub's web
+# apps. The page's links need nothing here: it shifts every demo's port
+# by its own, 19800 - 9800.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datyx-index
+  labels:
+    app.kubernetes.io/name: datyx-index
+    aityx-demos/build: local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: datyx-index
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: datyx-index
+        aityx-demos/build: local
+    spec:
+      # The namespace's other Services' variables (DATYX_API_PORT, ...) are
+      # of no use to it.
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: index
+          image: localhost:5001/aityx-demos/datyx-index:dev
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 9800
+          env:
+            - name: INDEX_PORT
+              value: "9800"
+            - name: INDEX_BIND_HOST
+              value: 0.0.0.0
+            - name: INDEX_DEMOS
+              value: datyx=http://datyx-api:9900/api/health,datyx-dashboard=http://datyx-dashboard:9906/app/,HealthHub=http://healthhub:9801/app/
+          # process-compose.yaml's readiness probe: /api/health.
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 1
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

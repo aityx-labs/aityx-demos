@@ -1,0 +1,100 @@
+# The index's server (bin/server.dart, compiled), with www/ and the six
+# demos' release web builds in the image, on 8800, every address. Only
+# this machine reaches it, through the NodePort that kind publishes on
+# 127.0.0.1:18800, so INDEX_LOOPBACK_ONLY keeps the dev proxy's check
+# that a request names this machine as its host (a page elsewhere that
+# reached it through DNS rebinding can't spend the key), as on a laptop.
+# The dev proxy lends AITYX_API_KEY to the demos' visitors without a key
+# of their own; AITYX_URL (aityx staging) always goes with it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aityx-index
+  labels:
+    app.kubernetes.io/name: aityx-index
+    aityx-demos/build: local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aityx-index
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: aityx-index
+        aityx-demos/build: local
+    spec:
+      # The namespace's Services' variables are of no use to it.
+      enableServiceLinks: false
+      # The server is the container's PID 1 and has no SIGTERM handler, so
+      # it ignores SIGTERM; it has nothing to finish, so it is killed after
+      # 5 s rather than the default 30.
+      terminationGracePeriodSeconds: 5
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: index
+          image: localhost:5001/aityx-demos/aityx-index:dev
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8800
+          env:
+            - name: INDEX_PORT
+              value: "8800"
+            - name: INDEX_BIND_HOST
+              value: 0.0.0.0
+            - name: INDEX_LOOPBACK_ONLY
+              value: "1"
+            - name: AITYX_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: demo-env
+                  key: AITYX_API_KEY
+                  optional: true
+            - name: AITYX_URL
+              valueFrom:
+                secretKeyRef:
+                  name: demo-env
+                  key: AITYX_URL
+                  optional: true
+          # process-compose.yaml's readiness probe: /demos/api/health.
+          readinessProbe:
+            httpGet:
+              path: /demos/api/health
+              port: http
+            initialDelaySeconds: 1
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /demos/api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # A native executable: it gzips the builds' files in process for
+          # a browser that asks (main.dart.js and CanvasKit, several MB
+          # each) and holds a proxied call's body, 2 MB at most. The Dart
+          # runtime doesn't know this limit and keeps what it has grown
+          # to: about 165 Mi with one browser's six connections, and past
+          # 190 Mi with a few dozen downloads at once, which got it killed
+          # at a limit of 192Mi.
+          resources:
+            requests:
+              cpu: 10m
+              memory: 48Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

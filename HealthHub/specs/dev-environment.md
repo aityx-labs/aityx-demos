@@ -229,6 +229,29 @@ process-compose through Docker Compose comes from.
   environment, else `.env`, and `flink-sql` `HEALTHHUB_DB_PASSWORD`;
   `web` gets none. All but `flink-taskmanager` have health checks (`api`
   runs `/app/bin/server healthcheck`).
+- **Kubernetes** ([k8s/](../k8s)): `bash k8s/deploy.sh HealthHub` from
+  the repository's root runs compose's services on the local kind
+  cluster (`k8s/up.sh` makes it), in the datyx group's namespace,
+  `datyx`, every name starting with `healthhub-`, beside the demos the
+  usual ports serve: the app on http://localhost:19801/app/ and Flink's
+  web UI on http://localhost:19806 (the usual ports plus 10000).
+  [k8s/build.sh](../k8s/build.sh) builds the three images compose builds
+  (the API, the web app, Flink) and pushes them to the cluster's
+  registry; PostgreSQL and Kafka are StatefulSets with a volume each,
+  Kafka's readiness probe makes the topics as compose's health check
+  does ([k8s/kafka-topics.sh](../k8s/kafka-topics.sh)), and the web
+  app's nginx proxies `/api/` to the `healthhub-api` Service
+  ([k8s/nginx.conf](../k8s/nginx.conf), a copy of docker/nginx.conf with
+  that upstream, as k8s/postgres-init.sh is of docker/postgres-init.sh:
+  change both together). The API reaches datyx at
+  http://datyx-api:9900; the aityx settings, datyx's service token and
+  the OAuth client id come from the cluster's `demo-env` secret
+  (`k8s/secrets.sh`). [k8s/verify.sh](../k8s/verify.sh) checks it from
+  the host: the app, the API through the proxy, the moves through
+  Kafka, the Flink job and its counts, a triage through datyx's
+  gateway, and `/api/datyx/*` refusing without a sign-in. Google's
+  sign-in needs http://localhost:19801 among the client's authorized
+  origins.
 - **Dev container**: the datyx group's
   ([.devcontainer/datyx/](../../.devcontainer/datyx)), named **datyx
   demos**, which HealthHub shares with the datyx API (`datyx/`) and the

@@ -530,3 +530,21 @@ The feature files hold the current specification; see the
     and tape wobble with vinyl hiss and crackle over it all; 70 to 84
     BPM, new titles. The player, the controls and the file names are
     unchanged. See [Music](music.md).
+
+## 2026-11-09
+
+18. **Run every demo on a local Kubernetes cluster (kind), deployed, up
+    and working.** Poker Tour runs on the repository's kind cluster
+    (the root's `k8s/`, context `kind-aityx-demos`) in the multyx
+    namespace, at http://localhost:19810/pokertour/: the server as the
+    Deployment `pokertour` (the Dockerfile's image, as compose.yaml
+    builds it), the tour in Floci as the StatefulSet `pokertour-floci`
+    with a volume and the same init hook, from a ConfigMap that
+    [floci/kustomization.yaml](../floci/kustomization.yaml) makes of
+    `floci/init/ready.d/`. [k8s/](../k8s) holds the manifests,
+    `build.sh` and `verify.sh`, which checks the app, the API, the tour
+    in Floci, the sign-in gates and the relay from the host, and with
+    `TOURNAMENT=1` plays a tournament. The `pokertour-web` client lists
+    http://localhost:19810 among its origins, so the Google sign-in
+    works on the cluster too. Local runs are unchanged. See
+    [Development environment](dev-environment.md).

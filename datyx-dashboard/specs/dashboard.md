@@ -392,7 +392,9 @@ reload).
   health check (`/api/health` where the app calls the API: its own
   origin, or `API_BASE_URL`); OpenMetadata's, the URL its check reports
   (the API's view of it, so behind Docker Compose it may be a name only
-  the API resolves); the Dashboard's, this page without its query.
+  the API resolves; on the Kubernetes cluster the API calls OpenMetadata
+  at the host's address for it, http://localhost:19902, so the link
+  opens); the Dashboard's, this page without its query.
 
 - **Profile** (`ProfileTab`): the caller's profile from
   `GET /api/profile`, which the API makes the first time an identity

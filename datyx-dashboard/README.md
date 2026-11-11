@@ -70,6 +70,21 @@ reaches the API whether that runs from devbox or from datyx's own
 `docker compose up`. The container is healthy once the app and the API
 through the proxy both answer.
 
+### On the local Kubernetes cluster
+
+```bash
+bash k8s/deploy.sh datyx-dashboard   # from the repository root: build, apply, check
+```
+
+[k8s/](k8s/) runs the same nginx image on the repository's kind cluster
+(`../k8s/`), in the `datyx` namespace, at http://localhost:19906/app/,
+beside a local run on 9906. It proxies `/api/` and `/q/` to the datyx
+API's Service, `datyx-api:9900` (`bash k8s/deploy.sh datyx`). The
+cluster's API runs with sign-in off, as a local run without a
+`datyx/.env`, so the dashboard opens on the Local profile's data
+(HealthHub's sources, their catalogue and models) without asking for a
+sign-in. `k8s/verify.sh` checks the app and the API through the proxy.
+
 ## The dashboard (datyx_dashboard/)
 
 One screen, five tabs: Data sources, the ones on record with a dialog
@@ -116,6 +131,8 @@ X.Y.Z: X and Y from [version.X.txt](version.X.txt) and
   `make.sh` (the Flutter builds), `health-check.sh`, `env.sh` (settings
   from the environment or `.env`), `version.sh`.
 - [docker/](docker/): the Dockerfile and nginx's config template.
+- [k8s/](k8s/): the dashboard on the local Kubernetes cluster: its
+  manifests, `build.sh` (the image) and `verify.sh` (the checks).
 - [specs/](specs/): the specification and the history of requests.
 
 ## Sign-in

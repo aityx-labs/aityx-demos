@@ -1,0 +1,18 @@
+# Poker Tour on this host at http://localhost:19810/pokertour/: node port
+# 31810, which kind publishes on 127.0.0.1:19810 (k8s/kind/cluster.yaml).
+# In the cluster, http://pokertour:9810 (the multyx index checks it).
+apiVersion: v1
+kind: Service
+metadata:
+  name: pokertour
+  labels:
+    app.kubernetes.io/name: pokertour
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: pokertour
+  ports:
+    - name: http
+      port: 9810
+      targetPort: http
+      nodePort: 31810

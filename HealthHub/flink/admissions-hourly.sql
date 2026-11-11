@@ -2,12 +2,16 @@
 -- healthhub.admissions topic into the healthhub.admissions.hourly topic
 -- and the admissions_hourly table, kept up to date as admissions come in.
 -- Submitted by submit.sh, which puts the database password in place of
--- @@HEALTHHUB_DB_PASSWORD@@. See ../specs/admissions-hourly.md.
+-- @@HEALTHHUB_DB_PASSWORD@@, and Kafka's and the database's addresses in
+-- place of @@HEALTHHUB_KAFKA_BOOTSTRAP@@, @@HEALTHHUB_DB_HOST@@ and
+-- @@HEALTHHUB_DB_PORT@@ (compose's kafka:19092 and postgres:5432 unless
+-- the environment names others). See ../specs/admissions-hourly.md.
 --
--- No event-time windows: the simulated clock runs an hour a real second
--- and starts again from day 1 at every start of the API, so watermarks
--- would drop whole runs as late. A plain GROUP BY keeps a count per key
--- and sends each change downstream, where both sinks upsert by the key.
+-- No event-time windows: the simulated clock runs an hour every 10 real
+-- seconds with the defaults and starts again from day 1 at every start
+-- of the API, so watermarks would drop whole runs as late. A plain
+-- GROUP BY keeps a count per key and sends each change downstream, where
+-- both sinks upsert by the key.
 -- The source reads the topic from its earliest record at every
 -- submission, so the job is a function of what the topic keeps (24 h):
 -- a resubmitted job recounts the same hours and writes the same rows.
@@ -31,7 +35,7 @@ CREATE TEMPORARY TABLE admission_events (
 ) WITH (
   'connector' = 'kafka',
   'topic' = 'healthhub.admissions',
-  'properties.bootstrap.servers' = 'kafka:19092',
+  'properties.bootstrap.servers' = '@@HEALTHHUB_KAFKA_BOOTSTRAP@@',
   'properties.group.id' = 'healthhub-flink-admissions-hourly',
   'scan.startup.mode' = 'earliest-offset',
   'format' = 'json',
@@ -98,7 +102,7 @@ CREATE TEMPORARY TABLE admissions_hourly_topic (
 ) WITH (
   'connector' = 'upsert-kafka',
   'topic' = 'healthhub.admissions.hourly',
-  'properties.bootstrap.servers' = 'kafka:19092',
+  'properties.bootstrap.servers' = '@@HEALTHHUB_KAFKA_BOOTSTRAP@@',
   'key.format' = 'json',
   'key.json.timestamp-format.standard' = 'ISO-8601',
   'value.format' = 'json',
@@ -118,7 +122,7 @@ CREATE TEMPORARY TABLE admissions_hourly_table (
   PRIMARY KEY (run_id, hospital_id, hour_start) NOT ENFORCED
 ) WITH (
   'connector' = 'jdbc',
-  'url' = 'jdbc:postgresql://postgres:5432/healthhub',
+  'url' = 'jdbc:postgresql://@@HEALTHHUB_DB_HOST@@:@@HEALTHHUB_DB_PORT@@/healthhub',
   'table-name' = 'admissions_hourly',
   'username' = 'healthhub',
   'password' = '@@HEALTHHUB_DB_PASSWORD@@',

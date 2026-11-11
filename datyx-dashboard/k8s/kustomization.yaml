@@ -1,0 +1,18 @@
+# The datyx dashboard on the local cluster (k8s/deploy.sh datyx-dashboard):
+# the release web build under nginx, the image docker/web.Dockerfile
+# builds, at http://localhost:19906/app/. It proxies /api/ and /q/ to the
+# datyx API, the datyx/ folder's Service datyx-api in the same namespace,
+# the datyx group's, which HealthHub and the datyx index share.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: datyx
+# On every resource and the pods: deploy.sh finds the demo's workloads by
+# it. The selectors stay as the manifests write them.
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: datyx-dashboard
+    includeSelectors: false
+    includeTemplates: true
+resources:
+  - deployment.yaml
+  - service.yaml

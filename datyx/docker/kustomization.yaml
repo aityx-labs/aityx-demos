@@ -1,0 +1,11 @@
+# PostgreSQL's init script (postgres-init.sh, the one compose.yaml mounts)
+# as a ConfigMap for the Kubernetes manifests: ../k8s/kustomization.yaml
+# takes this folder as a resource. Kustomize reads a file only from below
+# its kustomization's folder, so the generator sits beside the script
+# rather than in k8s/, and both runs share the one script.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+configMapGenerator:
+  - name: datyx-postgres-init
+    files:
+      - 10-datyx.sh=postgres-init.sh

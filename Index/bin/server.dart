@@ -40,9 +40,11 @@
 ///   GET /demos/api/group  {"group": "aityx"}: this index's group
 ///
 /// Settings: INDEX_PORT (default 8800), INDEX_BIND_HOST (127.0.0.1),
-/// INDEX_GROUP (aityx), INDEX_EMBED_ANCESTORS (the pages that may frame
-/// key.html and the demos: the aityx website's dev server, port 4330, by
-/// default), and for dev mode AITYX_API_KEY and AITYX_URL
+/// INDEX_LOOPBACK_ONLY (1: bound to every interface in a container, but
+/// published on this machine's loopback only), INDEX_GROUP (aityx),
+/// INDEX_EMBED_ANCESTORS (the pages that may frame key.html and the
+/// demos: the aityx website's dev server, port 4330, by default), and for
+/// dev mode AITYX_API_KEY and AITYX_URL
 /// (default https://api.aityx.ai), each from the environment, else from
 /// the repo's .env, which is read again at most every 10 s.
 library;
@@ -607,11 +609,15 @@ bool _sameOrigin(HttpRequest request) {
       self.port == from.port;
 }
 
-/// Whether this server listens on the loopback only (INDEX_BIND_HOST, by
-/// default 127.0.0.1: a laptop), where only this machine's browser
-/// reaches it.
+/// Whether only this machine's browser reaches this server: it listens on
+/// the loopback only (INDEX_BIND_HOST, by default 127.0.0.1: a laptop), or
+/// INDEX_LOOPBACK_ONLY=1 says so for a server that listens on every
+/// interface inside a container whose port is published on this machine's
+/// loopback only (the local Kubernetes cluster's, k8s/kind/cluster.yaml).
 final _loopbackBind = () {
-  final host = Platform.environment['INDEX_BIND_HOST'] ?? '127.0.0.1';
+  final env = Platform.environment;
+  if (env['INDEX_LOOPBACK_ONLY'] == '1') return true;
+  final host = env['INDEX_BIND_HOST'] ?? '127.0.0.1';
   return host == 'localhost' ||
       (InternetAddress.tryParse(host)?.isLoopback ?? false);
 }();

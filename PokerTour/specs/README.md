@@ -82,7 +82,8 @@ engine is shared with the server ([poker_core](../poker_core)).
 
 - [Development environment](dev-environment.md): devbox, Floci (the
   local AWS), the server that serves the web build at `/pokertour/` on port
-  9810, the tests, the container and the multyx group's dev container.
+  9810, the tests, the container, the local Kubernetes cluster and the
+  multyx group's dev container.
 
 ## Workflow
 

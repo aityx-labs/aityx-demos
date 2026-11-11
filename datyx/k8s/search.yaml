@@ -1,0 +1,92 @@
+# Elasticsearch, compose.yaml's search service: OpenMetadata's search
+# index, the engine and version its own compose file ships with. One node
+# (single-node discovery skips the production bootstrap checks), no
+# security, as compose.yaml runs it. Smaller, as the cluster has every
+# demo to hold: a 512 MB heap and 128 MB of direct buffers (half the heap
+# by default), thread pools sized for two processors rather than the
+# machine's, and no machine learning, which OpenMetadata doesn't use.
+# Its launcher stays up beside the server, a JVM of its own (100 MB).
+apiVersion: v1
+kind: Service
+metadata:
+  name: datyx-search
+spec:
+  selector:
+    app.kubernetes.io/name: datyx-search
+  ports:
+    - name: http
+      port: 9200
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: datyx-search
+spec:
+  serviceName: datyx-search
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: datyx-search
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: datyx-search
+    spec:
+      enableServiceLinks: false
+      # The image's user, 1000 in group 0, as it runs in Docker.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 0
+      containers:
+        - name: search
+          image: docker.elastic.co/elasticsearch/elasticsearch:9.3.0
+          env:
+            - name: discovery.type
+              value: single-node
+            - name: xpack.security.enabled
+              value: "false"
+            - name: ES_JAVA_OPTS
+              value: -Xms512m -Xmx512m -XX:MaxDirectMemorySize=128m
+            - name: node.processors
+              value: "2"
+            - name: xpack.ml.enabled
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 9200
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          # compose.yaml's healthcheck: the cluster is green or yellow.
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - curl -s http://localhost:9200/_cluster/health | grep -qE '"status":"(green|yellow)"'
+            periodSeconds: 5
+            timeoutSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 20
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 100m, memory: 768Mi }
+            limits: { memory: 1280Mi }
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/elasticsearch/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 2Gi

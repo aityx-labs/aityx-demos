@@ -75,6 +75,18 @@ builds the native executable instead (give Docker 6 GB or more). The API
 is published on 9900, where the dashboard's own `docker compose up`
 reaches it.
 
+### On the local Kubernetes cluster
+
+```bash
+bash k8s/deploy.sh datyx     # from the repository root: build, apply, check
+```
+
+[k8s/](k8s/) runs the same services on the repository's kind cluster
+(`../k8s/`), in the `datyx` namespace: the API at
+http://localhost:19900/api/health and OpenMetadata at
+http://localhost:19902/, beside a local run on the usual ports.
+`k8s/verify.sh` checks them.
+
 ## The API (datyx-api/)
 
 A Quarkus 3 REST API, package `datyx`, built by Maven ([datyx-api/pom.xml](datyx-api/pom.xml),

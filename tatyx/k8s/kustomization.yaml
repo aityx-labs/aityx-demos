@@ -1,0 +1,20 @@
+# tatyx on the local cluster (k8s/up.sh makes it): its server,
+# tatyx_server/server.mjs in the image docker/tatyx.Dockerfile builds,
+# with the tour's files on a volume, and a NodePort Service on
+# http://localhost:19710/tatyx/ (k8s/kind/cluster.yaml). It shares the
+# namespace multyx with Poker Tour and the multyx index, which checks it
+# at http://tatyx:9710/tatyx/. `bash k8s/deploy.sh tatyx` at the
+# repository's root builds, applies and checks it.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: multyx
+labels:
+  # On every resource and its pods, not in the selectors: k8s/deploy.sh
+  # finds the demo's workloads by it.
+  - pairs:
+      app.kubernetes.io/part-of: tatyx
+    includeTemplates: true
+resources:
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml

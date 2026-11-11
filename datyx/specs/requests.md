@@ -2,6 +2,53 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-10: on the cluster, datyx's data in reach and a first deploy that passes
+
+Asked: kill every demo and the cluster, start the cluster again with
+only the Kubernetes demos, and make sure they all deploy correctly.
+
+Found, on the new cluster: `bash k8s/deploy.sh` exited 1 on datyx's
+training check, which gave up a minute after the catalogue's first
+table, 7 s before the first run was queued (the curation tags the
+groups a minute or more after the first table, and the trainer looks
+once a minute). Signed in on the dashboard, nothing showed: the cluster
+turned sign-in on, a Google user's profile is made after the dev data's
+seed (which reaches only the profiles there at start, and the dev
+profile empties the database at every start), so HealthHub's sources,
+their catalogue and models were the Local profile's alone, out of
+anyone's reach, and HealthHub's forecasts found no data source. The
+Health tab's OpenMetadata links named the Service (`openmetadata:8585`),
+which no browser resolves. The API's container exited once at each new
+cluster's start, PostgreSQL not yet listening.
+
+Changed, in `k8s/` only: `api.yaml` gives the API no `OIDC_CLIENT_ID`
+(sign-in off, as a local run without a `datyx/.env`), calls OpenMetadata
+at `http://localhost:19902` through a third port forwarder beside the
+API, and waits for PostgreSQL in an init container. `verify.sh` awaits
+the catalogue's first table (6 minutes at most, with HealthHub's
+database answering), its indexing and the first training run (5 minutes
+after the catalogue), reads the caller's data sources through the API,
+and checks that the address the API reports for OpenMetadata opens from
+this host. Nothing in `datyx-api/` changed: seeding the dev data into a
+profile when it is made, which sign-in on with dev data needs, is still
+to do. [dev-environment.md](dev-environment.md).
+
+## 2026-11-09: datyx on the local Kubernetes cluster
+
+Asked: run every demo on a local Kubernetes cluster (kind), datyx among
+them, up and working, beside the demos running locally.
+
+Changed: `k8s/` (the manifests, `build.sh`, `verify.sh`) runs
+PostgreSQL, Elasticsearch, OpenMetadata and the API in the cluster's
+`datyx` namespace ([dev-environment.md](dev-environment.md));
+`docker/kustomization.yaml` makes the PostgreSQL init script a
+ConfigMap; `docker/api.jvm.Dockerfile` takes `PACKAGE_ARGS`, more
+build-time settings, empty by default (Compose builds as before), which
+the cluster's build uses to put Swagger UI in its dev-profile jar.
+Nothing in `datyx-api/` changed: the cluster reaches HealthHub at the
+dev data's laptop addresses through port forwarders beside the API, and
+sets the host names the API answers in its environment.
+
 ## 2026-11-01: HealthHub's occupancy alarms and forecasts curated
 
 Asked (a review of HealthHub's occupancy alarms merged with the data

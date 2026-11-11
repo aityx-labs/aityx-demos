@@ -17,8 +17,9 @@ may look at the title, the board and the leaderboard.
   in the aletyx.com organization), its consent screen "tatyx",
   *External* and in production, so any Google account can sign in at
   Google's side, and its *Web application* client `tatyx-web`, whose
-  authorized JavaScript origins are `http://localhost:9710` and
-  `http://localhost:9711` (Vite's dev server); add any address it is
+  authorized JavaScript origins are `http://localhost:9710`,
+  `http://localhost:9711` (Vite's dev server) and
+  `http://localhost:19710` (the local cluster); add any address it is
   served from. Its id, which is not a secret, is `TATYX_OIDC_CLIENT_ID`
   in the repository's root `.env`; the client's secret was never
   downloaded, since nothing needs it. Without an id, Profile says

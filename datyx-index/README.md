@@ -15,7 +15,9 @@ a card has them (the dashboard's **Training** and **Inference** tabs), **Source*
   demo); `GET /api/demos` lists every folder beside this one with a
   `process-compose.yaml` whose `group.id.txt` says `datyx`, the web and
   API ports it defaults to, and whether its web app (or its API, for the
-  datyx API, which has no app) answers right now, for scripts.
+  datyx API, which has no app) answers right now, for scripts; or, with
+  `INDEX_DEMOS` set (`<folder>=<URL to check>,...`, for a container,
+  which has no folders beside it), exactly the folders it names.
   `GET /api/health` answers `{"ok": true}`.
 - Port **9800** (`INDEX_PORT`), the first of the datyx group's ports,
   bound to 127.0.0.1 (`INDEX_BIND_HOST`).
@@ -34,3 +36,9 @@ devbox run serve              # the same, in the foreground
 or, with Dart on the PATH, `dart bin/server.dart`. From the root of the
 repository, `./start-datyx.sh` starts it with the group and prints its
 link last; `./stop-datyx.sh` stops it.
+
+On the local Kubernetes cluster (`bash k8s/deploy.sh datyx-index` at the
+root; [k8s/](k8s/), image [docker/datyx-index.Dockerfile](docker/datyx-index.Dockerfile))
+it's on http://localhost:19800/. On that port the cards open every demo
+at its usual port plus 10000, where the cluster publishes it; on any
+other port they open the usual ports, as before.

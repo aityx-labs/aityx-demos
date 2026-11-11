@@ -56,6 +56,47 @@ HealthHub join this stack's network through their `compose.datyx.yaml`
 instead, since a port bound to 127.0.0.1 isn't reachable from the bridge. Data lives in the `postgres-data` and
 `search-data` volumes.
 
+`k8s/` runs the same services on the repository's local Kubernetes
+cluster (kind, `../k8s/`), in the datyx group's namespace, `datyx`:
+`bash k8s/deploy.sh datyx` at the repository root builds the API's image
+(`k8s/build.sh`: `docker/api.jvm.Dockerfile` with the dev profile, plus
+Swagger UI through the Dockerfile's `PACKAGE_ARGS`), applies the
+manifests and runs `k8s/verify.sh`. The StatefulSets `datyx-postgres`
+(its init script is `docker/postgres-init.sh`, a ConfigMap made by
+`docker/kustomization.yaml`) and `datyx-search` (a 512 MB heap), the
+Deployment `openmetadata` (the migration as an init container), and the
+Deployment `datyx-api` (an init container waits for PostgreSQL, as
+compose's `depends_on` does: the API exits when its database doesn't
+answer), the Service `datyx-api:9900` that the dashboard
+and HealthHub call. This host reaches the API on 19900 and OpenMetadata
+on 19902. The API's settings are compose.yaml's with the cluster's hosts;
+the aityx key, its staging URL and the service token come from the root
+`.env` (the Secret `demo-env`). Sign-in is off there, as in a local run
+without a `datyx/.env`: the manifest gives the API no `OIDC_CLIENT_ID`,
+so every call is the Local profile, the one the dev data is seeded into
+at each start. With a client id every Google user would get a new
+profile, made after the seed and so empty (the seed reaches only the
+profiles there when it runs, and the dev profile empties the database
+at every start): no data source, catalogue or model on the dashboard,
+and HealthHub's forecasts without a data source to ask. The
+dev data's HealthHub sources keep their laptop addresses
+(`localhost:9803`, `localhost:9804`): two small containers beside the API
+pass those ports on to HealthHub's Services in the cluster. A third
+does the same for OpenMetadata on 19902, and the API calls it there
+(`DATYX_OPENMETADATA_URL=http://localhost:19902`): `/api/health` reports
+that address and the dashboard's Health tab links to it, so it is the
+one this host's browser opens, not the Service's name. A packaged
+API wants `DATYX_MASTER_KEY`: the root `.env`'s, else one drawn at each
+start, which loses nothing as the dev profile empties the database at
+every start. The dev-profile image answers only the localhost names and
+`host.docker.internal` (`CallbackHostConfigSourceFactory` reads the
+profile's defaults, not the environment), so the manifest lists the
+Service's names in `quarkus.http.host-validation.allowed-hosts` and the
+probes send `Host: localhost`. Training is sized for a shared machine:
+four processors for the JVM, four threads for libtorch and OpenMP, two
+malloc arenas, a 384 MB heap, in 1.5 GB (DeepAR's runs peak near 1 GB,
+plus libtorch's files).
+
 ## Ports and settings
 
 9900 the API, 9901 PostgreSQL, 9902 OpenMetadata (8585 inside), 9903 its

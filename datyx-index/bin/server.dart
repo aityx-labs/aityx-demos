@@ -11,10 +11,15 @@
 ///                       INDEX_GROUP (datyx): its web and API ports (the
 ///                       defaults in that file) and whether its web app,
 ///                       or its API when it has no web app, answers right
-///                       now; for scripts
+///                       now; for scripts. With INDEX_DEMOS set, exactly
+///                       the folders it names instead
 ///
 /// Settings: INDEX_PORT (default 9800), INDEX_BIND_HOST (127.0.0.1),
-/// INDEX_GROUP (datyx).
+/// INDEX_GROUP (datyx), INDEX_DEMOS (unset): for a server with no folders
+/// beside it (a container), a comma-separated list of <folder>=<URL to
+/// check>, e.g. datyx=http://datyx-api:9900/api/health; /api/demos then
+/// lists those folders, each with its URL and whether that answers 2xx
+/// or 3xx within 2 s.
 library;
 
 import 'dart:async';
@@ -27,10 +32,26 @@ final _root = Directory('${_here.path}/..');
 final _group = Platform.environment['INDEX_GROUP'] ?? 'datyx';
 final _client = HttpClient()..connectionTimeout = const Duration(seconds: 2);
 
+/// INDEX_DEMOS, folder by folder: the URL that says whether it's up.
+/// Empty when it's unset: the folders beside this one are listed then.
+final Map<String, String> _listed = _parseDemos(
+  Platform.environment['INDEX_DEMOS'] ?? '',
+);
+
 Future<void> main() async {
   final env = Platform.environment;
   final port = int.parse(env['INDEX_PORT'] ?? '9800');
   final host = env['INDEX_BIND_HOST'] ?? '127.0.0.1';
+  // A malformed INDEX_DEMOS stops the server at start, not at the first
+  // /api/demos.
+  try {
+    if (_listed.isNotEmpty) {
+      stdout.writeln('listing INDEX_DEMOS: ${_listed.keys.join(', ')}');
+    }
+  } on FormatException catch (error) {
+    stderr.writeln(error.message);
+    exit(64);
+  }
   final server = await HttpServer.bind(host, port);
   stdout.writeln('datyx index on http://$host:$port/');
   await for (final request in server) {
@@ -101,8 +122,22 @@ void _json(HttpResponse response, int status, Object body) {
     ..write(jsonEncode(body));
 }
 
-/// Every folder of the group, with its ports and whether it answers.
+/// Every folder of the group, with its ports and whether it answers; or,
+/// with INDEX_DEMOS set, the folders it names, with their URLs.
 Future<List<Map<String, Object?>>> _demos() async {
+  if (_listed.isNotEmpty) {
+    final names = _listed.keys.toList()..sort();
+    return Future.wait(
+      names.map((name) async {
+        final url = _listed[name]!;
+        return {
+          'folder': name,
+          'url': url,
+          'up': await _answers(url, below: 400),
+        };
+      }),
+    );
+  }
   final folders = <Directory>[];
   await for (final entry in _root.list()) {
     if (entry is Directory &&
@@ -141,14 +176,35 @@ Future<Map<String, Object?>> _demo(Directory dir) async {
   return {'folder': name, 'web': web, 'api': api, 'up': up};
 }
 
-/// Whether the URL answers 2xx within 2 s.
-Future<bool> _answers(String url) async {
+/// Whether the URL answers within 2 s with a status from 200 to [below]:
+/// 2xx for the folders beside this one, 2xx or 3xx (400) for INDEX_DEMOS.
+Future<bool> _answers(String url, {int below = 300}) async {
   try {
     final request = await _client.getUrl(Uri.parse(url));
     final response = await request.close().timeout(const Duration(seconds: 2));
     await response.drain<void>().timeout(const Duration(seconds: 2));
-    return response.statusCode >= 200 && response.statusCode < 300;
+    return response.statusCode >= 200 && response.statusCode < below;
   } catch (_) {
     return false;
   }
+}
+
+/// INDEX_DEMOS's <folder>=<URL> pairs, comma-separated. A pair without a
+/// folder or an http(s) URL is a FormatException.
+Map<String, String> _parseDemos(String setting) {
+  final demos = <String, String>{};
+  for (final pair in setting.split(',')) {
+    if (pair.trim().isEmpty) continue;
+    final at = pair.indexOf('=');
+    final folder = at < 0 ? '' : pair.substring(0, at).trim();
+    final url = at < 0 ? '' : pair.substring(at + 1).trim();
+    final scheme = Uri.tryParse(url)?.scheme;
+    if (folder.isEmpty || (scheme != 'http' && scheme != 'https')) {
+      throw FormatException(
+        'INDEX_DEMOS: "$pair" is not <folder>=<http(s) URL to check>',
+      );
+    }
+    demos[folder] = url;
+  }
+  return demos;
 }

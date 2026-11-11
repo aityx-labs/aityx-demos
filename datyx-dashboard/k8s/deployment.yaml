@@ -1,0 +1,125 @@
+# The dashboard: nginx serving the release web build under /app/ and
+# proxying /api/ and /q/ to the datyx API (docker/nginx.conf.template,
+# DATYX_API_URL filled in when the container starts). It holds no data
+# and no secret: the views only, the data and the logic are the API's.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datyx-dashboard
+  labels:
+    app.kubernetes.io/name: datyx-dashboard
+    # The image is built here (k8s/build.sh): deploy.sh restarts this
+    # Deployment after a build, so it pulls the new image.
+    aityx-demos/build: local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: datyx-dashboard
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: datyx-dashboard
+    spec:
+      # nginx as its own user (nginx, 101) instead of root, with nothing
+      # written to the image: the config nginx renders from the template,
+      # its cache, its pid file and temporary files go to the volumes
+      # below. It listens on 8080, so it needs no privilege.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # nginx resolves the API's name once, when it starts, and exits
+        # if it can't. So it starts once the datyx API's Service exists
+        # (the datyx/ folder's, deployed beside this one). The API itself
+        # may still be starting: until it answers, /api/ and /q/ answer
+        # 502 and the dashboard shows the API as down, as it does locally.
+        - name: wait-for-api-service
+          image: localhost:5001/aityx-demos/datyx-dashboard:dev
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - until getent hosts datyx-api >/dev/null; do echo "waiting for the Service datyx-api"; sleep 3; done
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 8Mi
+            limits:
+              memory: 16Mi
+      containers:
+        - name: web
+          image: localhost:5001/aityx-demos/datyx-dashboard:dev
+          imagePullPolicy: Always
+          env:
+            # The datyx API, by its Service in this namespace.
+            - name: DATYX_API_URL
+              value: http://datyx-api:9900
+            # Only DATYX_* variables are substituted in the template, so
+            # nginx's own $host and $uri stay as they are (compose.yaml).
+            - name: NGINX_ENVSUBST_FILTER
+              value: ^DATYX_
+          ports:
+            - name: http
+              containerPort: 8080
+          # The app alone: the dashboard is served, and shows the API as
+          # down, while the API is away (compose.yaml's healthcheck also
+          # needs the API; here that is verify.sh's job, so a restart of
+          # the API doesn't take the dashboard out of its Service).
+          readinessProbe:
+            httpGet:
+              path: /app/
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /app/
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+            - name: cache
+              mountPath: /var/cache/nginx
+            - name: run
+              mountPath: /run
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: conf
+          emptyDir:
+            sizeLimit: 1Mi
+        - name: cache
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: run
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi

@@ -99,13 +99,17 @@
   </main>
 
   <footer>
-    Everything runs locally on its own port, tatyx on 9710 and Poker Tour on 9810: start the group with <code>./start-multyx.sh</code> at the
-    root of the repository, stop it with <code>./stop-multyx.sh</code>.
+    <span id="run">Everything runs locally on its own port, tatyx on 9710 and Poker Tour on 9810: start the group with <code>./start-multyx.sh</code> at the
+    root of the repository, stop it with <code>./stop-multyx.sh</code>.</span>
     Or open the group in a <a href="https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Fmultyx%2Fdevcontainer.json&amp;machine=standardLinux32gb">GitHub codespace</a>.
-    The six aityx demos have an index of their own, on port 8800, at /demos/; the datyx group's is on 9800.
+    <span id="others">The six aityx demos have an index of their own, on port 8800, at /demos/; the datyx group's is on 9800.</span>
   </footer>
 
   <script>
+    // 10000 on the local Kubernetes cluster's port, 19700 (k8s/), where
+    // every demo is at its usual port plus 10000, so tatyx is on 19710; 0
+    // on any other port.
+    const shift = location.port === '19700' ? 10000 : 0;
     // The group's demos, in the order shown. "folder" matches the
     // repository's folders; "port" is the web app's, the FLUTTER_WEB_PORT
     // default in its process-compose.yaml, and "path" what to open there
@@ -114,14 +118,14 @@
       {
         folder: 'tatyx', port: 9710, path: '/tatyx/', name: 'tatyx',
         what: 'Build the sites, hack the mainframe: every megabyte decided on aityx',
-        desc: 'A web game in the look of Tron and the sound of synthwave: three teams race to hack into the mainframe in the middle of the map, each from its own sector, finding the map\'s sites and the links between them and building bytes on the sites over links that rot unless renewed. Every team fields the five bots of aityx (the Anchor, the Builder, the Tester, the Combinator and the Explorer) under a colour tag of its own, and every megabyte it builds is one decision: which bot to deploy, or a megabyte into the hack. Each team\'s strategy is an aityx decision model, one of five presets or its own, uploaded; players sign in with Google, and a leaderboard plays the presets on the server. Phaser 4, TypeScript. Port 9710.',
+        desc: 'A web game in the look of Tron and the sound of synthwave: three teams race to hack into the mainframe in the middle of the map, each from its own sector, finding the map\'s sites and the links between them and building bytes on the sites over links that rot unless renewed. Every team fields the five bots of aityx (the Anchor, the Builder, the Tester, the Combinator and the Explorer) under a colour tag of its own, and every megabyte it builds is one decision: which bot to deploy, or a megabyte into the hack. Each team\'s strategy is an aityx decision model, one of five presets or its own, uploaded; players sign in with Google, and a leaderboard plays the presets on the server. Phaser 4, TypeScript. Port ' + (9710 + shift) + '.',
         chips: ['Game', 'Phaser 4', 'TypeScript', 'Web Audio', 'Node server', 'aityx'],
         icon: 'bot',
       },
       {
         folder: 'PokerTour', port: 9810, path: '/pokertour/', name: 'Poker Tour',
         what: 'PokerFace for a team: sign in, play on the host\'s key, enter the tour',
-        desc: 'The poker simulator of the aityx group, for the people of aletyx: sign in with Google (aletyx.com or aletyx.ai), and the app fetches the host\'s aityx key from S3 with that identity (no API in between) and opens the table. Write a strategy or download a preset to start from, and enter it in the tour: a tournament among the strategies in the tour is played on aityx four times a day, and whenever an admin asks, and the leaderboard follows. One server here; serverless on AWS (S3, CloudFront, Lambda, an EventBridge schedule). Port 9810.',
+        desc: 'The poker simulator of the aityx group, for the people of aletyx: sign in with Google (aletyx.com or aletyx.ai), and the app fetches the host\'s aityx key from S3 with that identity (no API in between) and opens the table. Write a strategy or download a preset to start from, and enter it in the tour: a tournament among the strategies in the tour is played on aityx four times a day, and whenever an admin asks, and the leaderboard follows. One server here; serverless on AWS (S3, CloudFront, Lambda, an EventBridge schedule). Port ' + (9810 + shift) + '.',
         chips: ['Game', 'Flutter', 'Dart server', 'Google sign-in', 'S3 key', 'leaderboard', 'aityx'],
         icon: 'cards',
       },
@@ -138,11 +142,12 @@
     // Where to open one from here. A codespace forwards each port on its
     // own host, https://<codespace>-<port>.app.github.dev/, with no :port:
     // this page's host with its port swapped. Anywhere else, the port on
-    // this host.
+    // this host, plus the cluster's shift (above) when this page is the
+    // cluster's.
     const forwarded = location.hostname.match(/^(.+)-(\d+)\.(app\.github\.dev)$/);
     const appUrl = (port, path = '/app/') => forwarded
       ? 'https://' + forwarded[1] + '-' + port + '.' + forwarded[3] + path
-      : 'http://' + location.hostname + ':' + port + path;
+      : 'http://' + location.hostname + ':' + (port + shift) + path;
     const ext = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M19 14v6H4V5h6"/></svg>';
 
     function card(d) {
@@ -164,6 +169,15 @@
     }
 
     document.getElementById('apps').replaceChildren(...demos.map(card));
+    // The footer names a local run's ports and scripts; on the cluster,
+    // the cluster's.
+    if (shift) {
+      document.getElementById('run').innerHTML =
+        'This copy runs on the local Kubernetes cluster, each demo on its usual port plus 10000, tatyx on 19710 and Poker Tour on 19810: ' +
+        'deploy it with <code>bash k8s/deploy.sh</code> at the root of the repository, delete the whole cluster and its data with <code>bash k8s/down.sh</code>.';
+      document.getElementById('others').textContent =
+        'The six aityx demos have an index of their own, on port 18800, at /demos/; the datyx group\'s is on 19800.';
+    }
   </script>
 </body>
 </html>

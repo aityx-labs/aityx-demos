@@ -43,6 +43,32 @@ nginx's own variables stay). Healthy once `/app/` and `/api/health`
 through the proxy both answer. The API runs from `datyx/`, with devbox or
 its own `docker compose up`.
 
+`k8s/` runs the dashboard on the repository's local Kubernetes cluster
+(kind, `../k8s/`), in the datyx group's namespace, `datyx`: `bash
+k8s/deploy.sh datyx-dashboard` at the repository root builds the image
+(`k8s/build.sh`: `docker/web.Dockerfile` from this folder, the image
+`compose.yaml` runs), applies the manifests and runs `k8s/verify.sh`. The
+Deployment `datyx-dashboard` runs nginx as its own user (101) on 8080,
+with a read-only root filesystem: the rendered config, the cache, the
+pid file and temporary files go to `emptyDir` volumes. `DATYX_API_URL` is
+`http://datyx-api:9900`, the datyx API's Service in the same namespace
+(`datyx/k8s/`). nginx resolves that name once, when it starts, and exits
+if it can't, so an init container waits for the Service to exist; the
+Service's address doesn't change when the API restarts. Until the API
+answers, `/api/` and `/q/` answer 502, as locally. The probes ask for
+`/app/` alone, so a restart of the API doesn't take the dashboard out of
+its Service. The Service `datyx-dashboard` is 9906 in the cluster and
+http://localhost:19906/app/ on this host. The cluster's API runs with
+sign-in off (`datyx/k8s/api.yaml`, as a local run without a
+`datyx/.env`), so the dashboard asks for none and shows the Local
+profile's data: HealthHub's sources, their catalogue and models.
+`k8s/verify.sh` checks the app (the page, its compiled code and loader, a
+tab's address, the redirect from `/`) and the API through the proxy: its
+health, its description and sign-in settings the same as on the API's
+own port, 19900, then what the tabs ask for answering, with HealthHub's
+two sources in the Data sources tab's list (were sign-in on, the
+signed-in paths refusing an anonymous call instead).
+
 ## Ports and settings
 
 9906 the dashboard (`FLUTTER_WEB_PORT`), the port it had inside datyx;
@@ -95,6 +121,7 @@ template).
 
 ## Known limitations
 
-- The Docker image hasn't been built yet; it is HealthHub's web image
-  with the API address as a template variable.
+- The Docker image is built for the local Kubernetes cluster only
+  (`k8s/build.sh`, into the cluster's local registry); nothing publishes
+  it.
 - No release, deploy or CI workflows.

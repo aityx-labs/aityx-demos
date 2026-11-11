@@ -79,9 +79,30 @@ tatyx is one folder with the app, the server and the scripts, in the
   `post-start.sh` starts the group with the index first and makes 9700,
   9710 and 9810 public.
 
+- **On Kubernetes** ([k8s/](../k8s), the repository's local kind
+  cluster, `bash k8s/up.sh` then `bash k8s/deploy.sh tatyx` at its
+  root): one image, [docker/tatyx.Dockerfile](../docker/tatyx.Dockerfile),
+  built from this folder with the shared packages as a second context
+  (`npm ci` and `npm run build` in a Node 22 stage; the server, the
+  build, the runner and [strategies/](../strategies) on `node:22-alpine`,
+  as the image's `node` user, no packages); its allowlist,
+  `tatyx.Dockerfile.dockerignore`, keeps the `.env`, the builds and
+  `data/` out. A Deployment `tatyx` (one replica, `Recreate`) in the
+  namespace `multyx`, with the tour's files (`TATYX_DATA_DIR=/data`) on
+  the volume `tatyx-data`, and the Service `tatyx` on 9710, a node port
+  published at **http://localhost:19710/tatyx/**. Like a local run it is
+  on aityx staging: `AITYX_URL`, `AITYX_API_KEY`,
+  `TATYX_LEADERBOARD_KEY` and `TATYX_OIDC_CLIENT_ID` from the Secret
+  `demo-env` the root `.env` makes (`k8s/secrets.sh`). The `tatyx-web`
+  client lists `http://localhost:19710` among its authorized JavaScript
+  origins, so Google sign-in works on the cluster as it does on 9710
+  (Google can take a while to apply a change to a client's origins).
+  `k8s/verify.sh` checks it from the host: the app, a real decision
+  through the relay on a player's key, the leaderboard's key in the pod,
+  the volume, and the signed-in API refusing a caller who isn't.
+
 ## Known limitations
 
-- No container image (Dockerfile) yet; the datyx group's demos have one.
 - The dev container image doesn't carry this game's build or its
   packages: a codespace runs `npm ci` and the Vite build when created
   (a minute). The image itself is built and pushed by hand; until

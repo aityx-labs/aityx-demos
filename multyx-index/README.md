@@ -34,3 +34,13 @@ devbox run serve              # the same, in the foreground
 or, with Node on the PATH, `node bin/server.mjs`. From the root of the
 repository, `./start-multyx.sh` starts it with the group and prints its
 link last; `./stop-multyx.sh` stops it.
+
+On the local Kubernetes cluster (`k8s/` at the root), `bash
+k8s/deploy.sh multyx-index` builds [docker/multyx-index.Dockerfile](docker/multyx-index.Dockerfile),
+deploys [k8s/](k8s/) in the namespace `multyx`, and checks it
+([k8s/verify.sh](k8s/verify.sh)): the index is on
+http://localhost:19700/. On that port the cards open every demo at its
+usual port plus 10000 (tatyx on 19710, Poker Tour on 19810); on any
+other port they open the usual ports, as before. The
+image has no folders beside it, so `INDEX_DEMOS` names the demos
+`/api/demos` checks, as `<folder>=<URL>,...`.

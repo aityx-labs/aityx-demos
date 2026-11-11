@@ -1,0 +1,17 @@
+# The dashboard on the datyx dashboard's usual port, 9906, in the
+# cluster, and on this host at 19906 through the node port 31906
+# (k8s/kind/cluster.yaml). nginx listens on 8080 in the container, as
+# under Docker Compose.
+apiVersion: v1
+kind: Service
+metadata:
+  name: datyx-dashboard
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: datyx-dashboard
+  ports:
+    - name: http
+      port: 9906
+      targetPort: http
+      nodePort: 31906

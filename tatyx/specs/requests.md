@@ -455,3 +455,15 @@ The feature files hold the current specification; see the
     `TATYX_ALLOWED_DOMAINS` defaults to `*`, any Google account (a list
     of domains still narrows it). The admins are still the aletyx.com
     and aletyx.ai players alone ([Players](players.md)).
+
+## 2026-11-09
+
+46. **Run every demo on a local Kubernetes cluster (kind), deployed and
+    working.** tatyx has an image ([docker/tatyx.Dockerfile](../docker/tatyx.Dockerfile))
+    and manifests ([k8s/](../k8s)): the server in the namespace
+    `multyx`, its files on a volume, at http://localhost:19710/tatyx/,
+    on aityx staging, checked by `k8s/verify.sh`
+    ([Development environment](dev-environment.md)). The `tatyx-web`
+    client lists http://localhost:19710 among its origins, so Google
+    sign-in works on the cluster too ([Players](players.md)). A local
+    run is unchanged.

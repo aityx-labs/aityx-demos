@@ -4,6 +4,46 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-10: on the cluster, the dashboard shows datyx's data
+
+Asked: kill every demo and the cluster, start the cluster again with
+only the Kubernetes demos, and make sure they all deploy correctly.
+
+Found: signed in on the cluster's dashboard, every tab was empty: the
+dev data (HealthHub's sources, their catalogue and models) is the Local
+profile's, and a Google user's profile is made after it is seeded. The
+Health tab's OpenMetadata links named the cluster's Service, which a
+browser can't open. And a page reloaded on the Training tab while signed
+in showed `GET /api/training answered 401` until refreshed: a tab open
+at start asks before the API's sign-in settings arrive, so without a
+token, and nothing asks again when the kept token is restored in the
+same step. That one is the app's, with sign-in on anywhere, and is not
+fixed here.
+
+Changed: nothing in `datyx_dashboard/` or `docker/`. The cluster's API
+runs with sign-in off and reports OpenMetadata at the host's address
+(`../datyx/k8s/api.yaml`), so the dashboard opens on the data and its
+links work. `k8s/verify.sh` takes sign-in off as the cluster's setting
+and checks what the tabs ask for through the proxy, HealthHub's two
+sources in the list; with sign-in on it checks the refusals, as before.
+[dev-environment.md](dev-environment.md), [dashboard.md](dashboard.md),
+README.
+
+## 2026-11-09: the dashboard on the local Kubernetes cluster
+
+Asked: run every demo on a local Kubernetes cluster (kind), the datyx
+dashboard among them, up and working, beside the demos running locally;
+then document it here as datyx's and the datyx index's folders do.
+
+Changed: `k8s/` (the Deployment, the Service, `build.sh`, `verify.sh`)
+runs the image `docker/web.Dockerfile` builds in the cluster's `datyx`
+namespace, at http://localhost:19906/app/, proxying `/api/` and `/q/` to
+the datyx API's Service ([dev-environment.md](dev-environment.md)).
+Sign-in uses the root `.env`'s client, whose origins now include
+:19906. The README says how to deploy it, and the Docker image is no
+longer listed as never built. Nothing in `datyx_dashboard/` or
+`docker/` changed.
+
 ## 2026-11-01: an aityx tab with the calls routed to aityx
 
 Asked: in the datyx dashboard, add an aityx tab showing the requests

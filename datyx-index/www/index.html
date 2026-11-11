@@ -114,13 +114,16 @@
   </main>
 
   <footer>
-    Everything runs locally on its own port, 9800 to 9906: start the group with <code>./start-datyx.sh</code> at the
-    root of the repository, stop it with <code>./stop-datyx.sh</code>; or <code>docker compose up</code> in each folder.
+    <span id="run">Everything runs locally on its own port, 9800 to 9906: start the group with <code>./start-datyx.sh</code> at the
+    root of the repository, stop it with <code>./stop-datyx.sh</code>; or <code>docker compose up</code> in each folder.</span>
     Or open the group in a <a href="https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Fdatyx%2Fdevcontainer.json&amp;machine=standardLinux32gb">GitHub codespace</a>.
-    The six aityx demos have an index of their own, on port 8800, at /demos/; the multyx group's, Poker Tour and tatyx, is on 9700.
+    <span id="others">The six aityx demos have an index of their own, on port 8800, at /demos/; the multyx group's, Poker Tour and tatyx, is on 9700.</span>
   </footer>
 
   <script>
+    // 10000 on the local Kubernetes cluster's port, 19800 (k8s/), where
+    // every demo is at its usual port plus 10000; 0 on any other port.
+    const shift = location.port === '19800' ? 10000 : 0;
     // The group's systems, in the order shown. "folder" matches the
     // repository's folders; "port" is the web app's, the FLUTTER_WEB_PORT
     // default in its process-compose.yaml, or the server's for one with
@@ -130,8 +133,8 @@
       {
         folder: 'datyx-dashboard', port: 9906, name: 'datyx dashboard',
         what: 'The views of datyx: an app that calls the datyx API',
-        desc: 'A web app, like every demo\'s, that invokes the datyx API and shows what it answers: the data sources on record, the catalogue and its tags for DeepAR and XGBoost, the models datyx trains with their results and every run, the account of the calls to them (inference), an audit of every request and response, the health of the API, PostgreSQL and OpenMetadata, and your profile. Views only; the data and the logic are the API\'s. Sign in with Google.',
-        chips: ['Dashboard', 'calls the datyx API', 'Training', 'Inference', 'Google sign-in'],
+        desc: 'A web app, like every demo\'s, that invokes the datyx API and shows what it answers: the data sources on record, the catalogue and its tags for DeepAR and XGBoost, the models datyx trains with their results and every run, the account of the calls to them (inference), an audit of every request and response, the health of the API, PostgreSQL and OpenMetadata, and your profile. Views only; the data and the logic are the API\'s. ' + (shift ? 'No sign-in on the cluster: it opens on the Local profile\'s data.' : 'Sign in with Google.'),
+        chips: ['Dashboard', 'calls the datyx API', 'Training', 'Inference', ...(shift ? [] : ['Google sign-in'])],
         icon: 'data',
         links: [
           { label: 'Training', path: '/app/?tab=training' },
@@ -141,14 +144,14 @@
       {
         folder: 'datyx', port: 9900, path: '/q/swagger-ui', name: 'datyx API',
         what: 'A Quarkus API with PostgreSQL and OpenMetadata',
-        desc: 'REST on Quarkus and GraalVM with Hibernate and Panache over PostgreSQL: the data sources users add, each in the profile of whoever added it, with its access details encrypted with that profile\'s key; users signed in with Google through OpenID Connect. Its health check, /api/health, covers PostgreSQL and OpenMetadata, the catalogue it registers data in (its own UI on 9902: admin@open-metadata.org, password admin). It trains the groups tagged for XGBoost there itself, with XGBoost4J, at start and as often as their table says, and scores series with them on demand, accounting for every call. API only: Open shows its Swagger UI. Ports 9900 to 9905.',
+        desc: 'REST on Quarkus and GraalVM with Hibernate and Panache over PostgreSQL: the data sources users add, each in the profile of whoever added it, with its access details encrypted with that profile\'s key; users signed in with Google through OpenID Connect. Its health check, /api/health, covers PostgreSQL and OpenMetadata, the catalogue it registers data in (its own UI on ' + (9902 + shift) + ': admin@open-metadata.org, password admin). It trains the groups tagged for XGBoost there itself, with XGBoost4J, at start and as often as their table says, and scores series with them on demand, accounting for every call. API only: Open shows its Swagger UI. ' + (shift ? 'Ports 19900 and 19902.' : 'Ports 9900 to 9905.'),
         chips: ['Quarkus API', 'PostgreSQL', 'OpenMetadata', 'XGBoost', 'OpenID Connect'],
         icon: 'api',
       },
       {
         folder: 'HealthHub', port: 9801, name: 'HealthHub',
         what: 'The app of the datyx group, with a database of its own',
-        desc: 'An app, an API and PostgreSQL. The page you open is a map of where you are, with a welcome over it; signing in with Google leads home, a dashboard whose one tile is the same map, and its API reaches datyx with the same identity. Ports 9801 to 9803.',
+        desc: 'An app, an API and PostgreSQL. The page you open is a map of where you are, with a welcome over it; signing in with Google leads home, a dashboard whose one tile is the same map, and its API reaches datyx with the same identity. ' + (shift ? 'Port 19801.' : 'Ports 9801 to 9803.'),
         chips: ['App', 'API', 'PostgreSQL', 'Google sign-in'],
         icon: 'heart',
       },
@@ -166,11 +169,12 @@
     // Where to open one from here. A codespace forwards each port on its
     // own host, https://<codespace>-<port>.app.github.dev/, with no :port:
     // this page's host with its port swapped. Anywhere else, the port on
-    // this host.
+    // this host, plus the cluster's shift (above) when this page is the
+    // cluster's.
     const forwarded = location.hostname.match(/^(.+)-(\d+)\.(app\.github\.dev)$/);
     const appUrl = (port, path = '/app/') => forwarded
       ? 'https://' + forwarded[1] + '-' + port + '.' + forwarded[3] + path
-      : 'http://' + location.hostname + ':' + port + path;
+      : 'http://' + location.hostname + ':' + (port + shift) + path;
     const ext = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M19 14v6H4V5h6"/></svg>';
 
     function card(d) {
@@ -194,6 +198,15 @@
     }
 
     document.getElementById('apps').replaceChildren(...demos.map(card));
+    // The footer names a local run's ports and scripts; on the cluster,
+    // the cluster's.
+    if (shift) {
+      document.getElementById('run').innerHTML =
+        'This copy runs on the local Kubernetes cluster, each demo on its usual port plus 10000, 19800 to 19906: ' +
+        'deploy it with <code>bash k8s/deploy.sh</code> at the root of the repository, delete the whole cluster and its data with <code>bash k8s/down.sh</code>.';
+      document.getElementById('others').textContent =
+        'The six aityx demos have an index of their own, on port 18800, at /demos/; the multyx group\'s, Poker Tour and tatyx, is on 19700.';
+    }
   </script>
 </body>
 </html>

@@ -1,0 +1,28 @@
+# Poker Tour on the local cluster (k8s/kind/cluster.yaml), in the multyx
+# group's namespace, which it shares with tatyx and the multyx index:
+#
+#   pokertour        the server (the Dockerfile's image, as compose.yaml
+#                    runs it): the app at http://localhost:19810/pokertour/,
+#                    the API at /api/, and the leaderboard's tournaments
+#   pokertour-floci  Floci, the local AWS: the tour's bucket and table
+#                    (S3 and DynamoDB), in a volume, for the server alone
+#
+# `bash k8s/deploy.sh PokerTour` at the repository's root builds, applies
+# and checks it (build.sh, then verify.sh).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: multyx
+# On every resource and its pods (k8s/deploy.sh finds the workloads by
+# it), never in the selectors, so it can't change under a running one.
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: pokertour
+    includeSelectors: false
+    includeTemplates: true
+resources:
+  # The ConfigMap pokertour-floci-init, Floci's init hook (floci/init/
+  # ready.d/), made in that folder: see floci/kustomization.yaml.
+  - ../floci
+  - floci.yaml
+  - deployment.yaml
+  - service.yaml

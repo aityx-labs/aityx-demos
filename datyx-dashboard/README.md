@@ -79,11 +79,12 @@ bash k8s/deploy.sh datyx-dashboard   # from the repository root: build, apply, c
 [k8s/](k8s/) runs the same nginx image on the repository's kind cluster
 (`../k8s/`), in the `datyx` namespace, at http://localhost:19906/app/,
 beside a local run on 9906. It proxies `/api/` and `/q/` to the datyx
-API's Service, `datyx-api:9900` (`bash k8s/deploy.sh datyx`). The
-cluster's API runs with sign-in off, as a local run without a
-`datyx/.env`, so the dashboard opens on the Local profile's data
-(HealthHub's sources, their catalogue and models) without asking for a
-sign-in. `k8s/verify.sh` checks the app and the API through the proxy.
+API's Service, `datyx-api:9900` (`bash k8s/deploy.sh datyx`). Sign in
+with Google (the root `.env`'s `OIDC_CLIENT_ID`, HealthHub's client): your
+profile is made with HealthHub's sources, shown at once, and their
+catalogue and models follow within minutes. Without a client id sign-in
+is off and the dashboard opens on the Local profile's data.
+`k8s/verify.sh` checks the app and the API through the proxy.
 
 ## The dashboard (datyx_dashboard/)
 

@@ -58,16 +58,20 @@ Service's address doesn't change when the API restarts. Until the API
 answers, `/api/` and `/q/` answer 502, as locally. The probes ask for
 `/app/` alone, so a restart of the API doesn't take the dashboard out of
 its Service. The Service `datyx-dashboard` is 9906 in the cluster and
-http://localhost:19906/app/ on this host. The cluster's API runs with
-sign-in off (`datyx/k8s/api.yaml`, as a local run without a
-`datyx/.env`), so the dashboard asks for none and shows the Local
-profile's data: HealthHub's sources, their catalogue and models.
-`k8s/verify.sh` checks the app (the page, its compiled code and loader, a
-tab's address, the redirect from `/`) and the API through the proxy: its
-health, its description and sign-in settings the same as on the API's
-own port, 19900, then what the tabs ask for answering, with HealthHub's
-two sources in the Data sources tab's list (were sign-in on, the
-signed-in paths refusing an anonymous call instead).
+http://localhost:19906/app/ on this host. The cluster's API signs its
+users in with Google when the root `.env` has an `OIDC_CLIENT_ID`
+(`datyx/k8s/api.yaml`, the `healthhub` client, whose origins list
+http://localhost:19906): the dashboard asks for a sign-in, and a user's
+profile, made at their first sign-in, has HealthHub's sources at once,
+their catalogue and models within minutes (the API's development data,
+`../datyx/specs/data-sources.md`). Without a client id sign-in is off and
+the dashboard shows the Local profile's data. `k8s/verify.sh` checks the
+app (the page, its compiled code and loader, a tab's address, the
+redirect from `/`) and the API through the proxy: its health, its
+description and sign-in settings the same as on the API's own port,
+19900, then, with sign-in on, the signed-in paths refusing an anonymous
+call (signing in wants a browser), or, with it off, what the tabs ask for
+answering, with HealthHub's two sources in the Data sources tab's list.
 
 ## Ports and settings
 

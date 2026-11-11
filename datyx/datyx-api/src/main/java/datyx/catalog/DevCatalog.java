@@ -9,8 +9,10 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,7 +44,15 @@ import org.jboss.logging.Logger;
  * the stale ones removed) and run, one line logging how many and how
  * many failed; then again every {@code datyx.dev-catalog.every} (10
  * minutes), so profiles and checks follow the simulation; until the
- * first success, every half minute. The first waits, at most
+ * first success, every half minute. A profile made between two passes
+ * (someone's first sign-in, which gives it the seeded sources:
+ * ProfileMaker) doesn't wait for the next: its sources are synced and
+ * curated at the next half minute, alone. Nor does a source whose Kafka
+ * didn't answer (HealthHub's Kafka still starting when a new stack's
+ * first pass came): its topics are tried again every half minute, for
+ * {@code datyx.dev-catalog.rows-wait} after the first miss, and synced
+ * and curated as soon as Kafka answers; past that, at the passes. The
+ * first pass waits, at most
  * {@code datyx.dev-catalog.rows-wait} (5 minutes), for the tables whose
  * checks want rows to have some (a new HealthHub's admissions, Flink's
  * first counts), so a fresh start doesn't judge empty tables. After each, OpenMetadata's Data Insights run, so its
@@ -84,22 +94,48 @@ public class DevCatalog {
     private Instant lastDone = Instant.EPOCH;
     private String waiting;
 
+    /** The seeded databases a pass has been through, by data source id: any other is new, and doesn't wait. */
+    private final Set<Long> seen = new HashSet<>();
+
+    /**
+     * The seeded databases whose Kafka didn't answer, by data source id,
+     * with when it first didn't: tried again between passes until it
+     * answers, or {@link #rowsWait} has gone by.
+     */
+    private final Map<Long, Instant> streamMissed = new HashMap<>();
+
     private record Pair(long databaseId, String databaseName, String databaseDescription,
             DatabaseAccess database, Long kafkaId, String kafkaName, String kafkaDescription, KafkaAccess kafka) {
     }
 
     @Scheduled(every = "30s", delayed = "10s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     void tick() {
-        if (!enabled || Instant.now().isBefore(lastDone.plus(every))) {
+        if (!enabled) {
             return;
         }
+        boolean due = !Instant.now().isBefore(lastDone.plus(every));
+        List<Pair> pairs = List.of();
         try {
             if (doc == null) {
                 try (InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream(DOCUMENT)) {
                     doc = json.readValue(in, Curation.Doc.class);
                 }
             }
-            List<Pair> pairs = pairs();
+            pairs = pairs();
+            if (!due) {
+                // Between two passes: only the sources of profiles made
+                // since, and those whose Kafka is to be tried again.
+                Instant now = Instant.now();
+                pairs = pairs.stream().filter(pair -> !seen.contains(pair.databaseId())
+                    || retryStream(pair, now)).toList();
+                if (pairs.isEmpty()) {
+                    return;
+                }
+                long fresh = pairs.stream().filter(pair -> !seen.contains(pair.databaseId())).count();
+                if (fresh > 0) {
+                    LOG.infof("dev catalogue: %d new profile(s) with HealthHub's sources, synced and curated now", fresh);
+                }
+            }
             for (Pair pair : pairs) {
                 String notReady = notReady(pair.database());
                 if (notReady != null) {
@@ -130,15 +166,30 @@ public class DevCatalog {
                 }
             }
             waiting = null;
+            int curated = 0;
             for (Pair pair : pairs) {
-                Catalog.Synced synced = catalog.sync(pair.databaseId(), pair.databaseName(), pair.databaseDescription(),
-                    pair.database());
+                // A source curated already, here for its Kafka only: its
+                // topics first, and nothing more while Kafka is silent.
+                boolean retry = !due && seen.contains(pair.databaseId());
                 String stream = null;
-                if (pair.kafka() != null) {
+                if (retry) {
                     try {
                         stream = catalog.syncStream(pair.kafkaId(), pair.kafkaName(), pair.kafkaDescription(), pair.kafka()).service();
                     } catch (StreamReader.Unreadable e) {
-                        LOG.infof("dev catalogue: %s can't be read, curated without its topics: %s", pair.kafkaName(), e.getMessage());
+                        continue;
+                    }
+                    LOG.infof("dev catalogue: %s answers now: its topics synced, and curated with %s", pair.kafkaName(),
+                        pair.databaseName());
+                }
+                Catalog.Synced synced = catalog.sync(pair.databaseId(), pair.databaseName(), pair.databaseDescription(),
+                    pair.database());
+                if (!retry && pair.kafka() != null) {
+                    try {
+                        stream = catalog.syncStream(pair.kafkaId(), pair.kafkaName(), pair.kafkaDescription(), pair.kafka()).service();
+                    } catch (StreamReader.Unreadable e) {
+                        boolean first = streamMissed.putIfAbsent(pair.databaseId(), Instant.now()) == null;
+                        LOG.infof("dev catalogue: %s can't be read, curated without its topics%s: %s", pair.kafkaName(),
+                            first ? " (tried again every half minute for " + rowsWait + ")" : "", e.getMessage());
                     }
                 }
                 Curation.Applied applied = curation.apply(doc, synced, pair.database(), stream);
@@ -148,9 +199,18 @@ public class DevCatalog {
                     + "test cases %d new, %d changed, %d removed), %d passed (or aborted, nothing to judge), %d failed", pair.databaseName(), checks,
                     synced.tests(), applied.checks(), synced.testsCreated() + applied.testsCreated(),
                     synced.testsUpdated() + applied.testsUpdated(), applied.testsRemoved(), checks - failed, failed);
+                seen.add(pair.databaseId());
+                // Read and curated with its topics: no more tries. (A
+                // failure before here leaves the tries as they were.)
+                if (stream != null) {
+                    streamMissed.remove(pair.databaseId());
+                }
+                curated++;
             }
-            lastDone = Instant.now();
-            if (!pairs.isEmpty()) {
+            if (due) {
+                lastDone = Instant.now();
+            }
+            if (curated > 0) {
                 catalog.runInsights();
             }
         } catch (SQLException e) {
@@ -159,8 +219,22 @@ public class DevCatalog {
             LOG.infof("dev catalogue: OpenMetadata can't be reached or refused a call, tried again in half a minute: %s", e.getMessage());
         } catch (IOException | RuntimeException e) {
             LOG.warnf(e, "dev catalogue: failed");
-            lastDone = Instant.now();
+            if (due) {
+                lastDone = Instant.now();
+            }
+            // The sources this pass didn't get through wait for the next
+            // pass, as everyone's: a profile's aren't taken for new.
+            pairs.forEach(pair -> {
+                seen.add(pair.databaseId());
+                streamMissed.remove(pair.databaseId());
+            });
         }
+    }
+
+    /** Whether [pair]'s Kafka, which didn't answer, is to be tried again now. */
+    private boolean retryStream(Pair pair, Instant now) {
+        Instant missed = streamMissed.get(pair.databaseId());
+        return pair.kafka() != null && missed != null && now.isBefore(missed.plus(rowsWait));
     }
 
     /** Each profile's seeded HealthHub database, and its Kafka cluster when it has one, decrypted. */

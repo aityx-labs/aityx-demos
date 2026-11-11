@@ -102,12 +102,13 @@ spec:
             - name: DATYX_DB_PASSWORD
               valueFrom:
                 secretKeyRef: { name: datyx-passwords, key: DATYX_DB_PASSWORD }
-            # OpenMetadata at the address this host's browser opens it:
-            # /api/health reports this URL and the dashboard's Health tab
-            # links to it, which the Service's name (openmetadata:8585)
-            # would make dead links. The openmetadata-port container below
-            # passes the port on to the Service.
+            # OpenMetadata: its Service, for the API's calls; and where
+            # this host's browser opens it, which /api/health reports and
+            # the dashboard's Health tab links to (the Service's name would
+            # make dead links).
             - name: DATYX_OPENMETADATA_URL
+              value: http://openmetadata:8585
+            - name: DATYX_OPENMETADATA_PUBLIC_URL
               value: http://localhost:19902
             # The catalogue's sign-in to OpenMetadata: its built-in admin.
             - name: DATYX_OPENMETADATA_EMAIL
@@ -119,14 +120,28 @@ spec:
             # Service. The secret it signs with is drawn at each start.
             - name: DATYX_OPENMETADATA_CALLBACK_URL
               value: http://datyx-api:9900/api/catalog/openmetadata-events
-            # Authentication off (no OIDC_CLIENT_ID), as a local run without
-            # a datyx/.env: every call is the Local profile, the one the dev
-            # data is seeded into at each start (HealthHub's sources, and
-            # with them their catalogue and models). With a client id every
-            # Google user gets a new profile, made after the seed and so
-            # empty: the dashboard would show nothing and HealthHub's
-            # forecasts would find no data source. HealthHub still signs its
-            # users in; their tokens aren't asked for here.
+            # The dev profile's data sources, HealthHub's PostgreSQL and
+            # Kafka, at their Services (a laptop's defaults are the ports
+            # HealthHub publishes there, localhost:9803 and :9804): what
+            # the catalogue and the training read. The database's password
+            # is HealthHub's development one, the API's default.
+            - name: DATYX_HEALTHHUB_DB_HOST
+              value: healthhub-postgres
+            - name: DATYX_HEALTHHUB_DB_PORT
+              value: "5432"
+            - name: DATYX_HEALTHHUB_KAFKA
+              value: healthhub-kafka:19092
+            # Google sign-in with the root .env's client, HealthHub's, whose
+            # origins list the dashboard's (http://localhost:19906): without
+            # a client id it is off, and every call the Local profile. Each
+            # Google user gets a profile of their own, made with the dev
+            # data's sources (HealthHub's), which the API then catalogues
+            # and trains on as it does the Local profile's.
+            - name: OIDC_ISSUER
+              value: https://accounts.google.com
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: demo-env, key: OIDC_CLIENT_ID, optional: true }
             # aityx: datyx's key and aityx staging's URL, always together
             # (the guard above), and the token services present.
             - name: AITYX_API_KEY
@@ -142,8 +157,10 @@ spec:
               valueFrom:
                 secretKeyRef: { name: demo-env, key: DATYX_MASTER_KEY, optional: true }
             # A 384 MB heap; the rest of the limit is libtorch's and
-            # XGBoost's native memory (DeepAR's training peaks near 1 GB in
-            # all, with libtorch's 300 MB of files on top), and the JVM's own.
+            # XGBoost's native memory (DeepAR's training peaks near 1.2 GB
+            # in all, with libtorch's 300 MB of files on top, which count
+            # too: at 1536Mi the container stood at its limit), and the
+            # JVM's own.
             # Training sized for a machine every demo shares rather than one
             # thread per CPU: four processors for the JVM (XGBoost takes
             # half), four threads for libtorch and OpenMP, and two malloc
@@ -186,28 +203,4 @@ spec:
             failureThreshold: 6
           resources:
             requests: { cpu: 100m, memory: 512Mi }
-            limits: { memory: 1536Mi }
-        # The dev profile's data sources are HealthHub's PostgreSQL and
-        # Kafka at localhost:9803 and localhost:9804, their ports on a
-        # laptop (db/devdata); these pass those ports on to HealthHub's
-        # Services, so the catalogue and the training read them here too.
-        - name: healthhub-postgres-port
-          image: alpine/socat:1.8.0.3
-          args: ["TCP-LISTEN:9803,fork,reuseaddr", "TCP:healthhub-postgres:5432"]
-          resources:
-            requests: { cpu: 10m, memory: 8Mi }
-            limits: { memory: 32Mi }
-        - name: healthhub-kafka-port
-          image: alpine/socat:1.8.0.3
-          args: ["TCP-LISTEN:9804,fork,reuseaddr", "TCP:healthhub-kafka:19092"]
-          resources:
-            requests: { cpu: 10m, memory: 8Mi }
-            limits: { memory: 32Mi }
-        # OpenMetadata, at the port this host publishes it on (19902), for
-        # DATYX_OPENMETADATA_URL above.
-        - name: openmetadata-port
-          image: alpine/socat:1.8.0.3
-          args: ["TCP-LISTEN:19902,fork,reuseaddr", "TCP:openmetadata:8585"]
-          resources:
-            requests: { cpu: 10m, memory: 8Mi }
-            limits: { memory: 32Mi }
+            limits: { memory: 2Gi }

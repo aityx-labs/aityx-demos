@@ -4,6 +4,20 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-10: on the cluster, sign in and see your data
+
+Asked: fix the issues the cluster's deploy had left open.
+
+Changed: the cluster's API signs its users in again
+(`../datyx/k8s/api.yaml`, the root `.env`'s client, which lists
+http://localhost:19906), and a user's profile is now made with
+HealthHub's sources, their catalogue and models following within minutes
+(`../datyx/specs/requests.md`), so the dashboard shows them from the
+first sign-in. `k8s/verify.sh` takes sign-in on as the cluster's setting
+again. [dev-environment.md](dev-environment.md),
+[dashboard.md](dashboard.md) (the Health tab's OpenMetadata link),
+README.
+
 ## 2026-11-10: on the cluster, the dashboard shows datyx's data
 
 Asked: kill every demo and the cluster, start the cluster again with

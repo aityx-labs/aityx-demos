@@ -99,33 +99,28 @@
   </main>
 
   <footer>
-    <span id="run">Everything runs locally on its own port, tatyx on 9710 and Poker Tour on 9810: start the group with <code>./start-multyx.sh</code> at the
-    root of the repository, stop it with <code>./stop-multyx.sh</code>.</span>
+    <span id="run"></span>
     Or open the group in a <a href="https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Fmultyx%2Fdevcontainer.json&amp;machine=standardLinux32gb">GitHub codespace</a>.
-    <span id="others">The six aityx demos have an index of their own, on port 8800, at /demos/; the datyx group's is on 9800.</span>
+    <span id="others"></span>
   </footer>
 
   <script>
-    // 10000 on the local Kubernetes cluster's port, 19700 (k8s/), where
-    // every demo is at its usual port plus 10000, so tatyx is on 19710; 0
-    // on any other port.
-    const shift = location.port === '19700' ? 10000 : 0;
-    // The group's demos, in the order shown. "folder" matches the
-    // repository's folders; "port" is the web app's, the FLUTTER_WEB_PORT
-    // default in its process-compose.yaml, and "path" what to open there
+    // The group's demos, in the order shown, for the ports "p" of this
+    // index's settings (below). "folder" matches the repository's
+    // folders; "port" is the web app's, and "path" what to open there
     // (/app/ unless set).
-    const demos = [
+    const demos = (p) => [
       {
-        folder: 'tatyx', port: 9710, path: '/tatyx/', name: 'tatyx',
+        folder: 'tatyx', port: p.TATYX_PORT, path: '/tatyx/', name: 'tatyx',
         what: 'Build the sites, hack the mainframe: every megabyte decided on aityx',
-        desc: 'A web game in the look of Tron and the sound of synthwave: three teams race to hack into the mainframe in the middle of the map, each from its own sector, finding the map\'s sites and the links between them and building bytes on the sites over links that rot unless renewed. Every team fields the five bots of aityx (the Anchor, the Builder, the Tester, the Combinator and the Explorer) under a colour tag of its own, and every megabyte it builds is one decision: which bot to deploy, or a megabyte into the hack. Each team\'s strategy is an aityx decision model, one of five presets or its own, uploaded; players sign in with Google, and a leaderboard plays the presets on the server. Phaser 4, TypeScript. Port ' + (9710 + shift) + '.',
+        desc: 'A web game in the look of Tron and the sound of synthwave: three teams race to hack into the mainframe in the middle of the map, each from its own sector, finding the map\'s sites and the links between them and building bytes on the sites over links that rot unless renewed. Every team fields the five bots of aityx (the Anchor, the Builder, the Tester, the Combinator and the Explorer) under a colour tag of its own, and every megabyte it builds is one decision: which bot to deploy, or a megabyte into the hack. Each team\'s strategy is an aityx decision model, one of five presets or its own, uploaded; players sign in with Google, and a leaderboard plays the presets on the server. Phaser 4, TypeScript. Port ' + p.TATYX_PORT + '.',
         chips: ['Game', 'Phaser 4', 'TypeScript', 'Web Audio', 'Node server', 'aityx'],
         icon: 'bot',
       },
       {
-        folder: 'PokerTour', port: 9810, path: '/pokertour/', name: 'Poker Tour',
+        folder: 'PokerTour', port: p.POKERTOUR_WEB_PORT, path: '/pokertour/', name: 'Poker Tour',
         what: 'PokerFace for a team: sign in, play on the host\'s key, enter the tour',
-        desc: 'The poker simulator of the aityx group, for the people of aletyx: sign in with Google (aletyx.com or aletyx.ai), and the app fetches the host\'s aityx key from S3 with that identity (no API in between) and opens the table. Write a strategy or download a preset to start from, and enter it in the tour: a tournament among the strategies in the tour is played on aityx four times a day, and whenever an admin asks, and the leaderboard follows. One server here; serverless on AWS (S3, CloudFront, Lambda, an EventBridge schedule). Port ' + (9810 + shift) + '.',
+        desc: 'The poker simulator of the aityx group, for the people of aletyx: sign in with Google (aletyx.com or aletyx.ai), and the app fetches the host\'s aityx key from S3 with that identity (no API in between) and opens the table. Write a strategy or download a preset to start from, and enter it in the tour: a tournament among the strategies in the tour is played on aityx four times a day, and whenever an admin asks, and the leaderboard follows. One server here; serverless on AWS (S3, CloudFront, Lambda, an EventBridge schedule). Port ' + p.POKERTOUR_WEB_PORT + '.',
         chips: ['Game', 'Flutter', 'Dart server', 'Google sign-in', 'S3 key', 'leaderboard', 'aityx'],
         icon: 'cards',
       },
@@ -142,12 +137,12 @@
     // Where to open one from here. A codespace forwards each port on its
     // own host, https://<codespace>-<port>.app.github.dev/, with no :port:
     // this page's host with its port swapped. Anywhere else, the port on
-    // this host, plus the cluster's shift (above) when this page is the
-    // cluster's.
+    // this host. The port is the one the settings say, never worked out
+    // from this page's own.
     const forwarded = location.hostname.match(/^(.+)-(\d+)\.(app\.github\.dev)$/);
     const appUrl = (port, path = '/app/') => forwarded
       ? 'https://' + forwarded[1] + '-' + port + '.' + forwarded[3] + path
-      : 'http://' + location.hostname + ':' + (port + shift) + path;
+      : 'http://' + location.hostname + ':' + port + path;
     const ext = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M19 14v6H4V5h6"/></svg>';
 
     function card(d) {
@@ -168,16 +163,37 @@
       return el;
     }
 
-    document.getElementById('apps').replaceChildren(...demos.map(card));
-    // The footer names a local run's ports and scripts; on the cluster,
-    // the cluster's.
-    if (shift) {
-      document.getElementById('run').innerHTML =
-        'This copy runs on the local Kubernetes cluster, each demo on its usual port plus 10000, tatyx on 19710 and Poker Tour on 19810: ' +
-        'deploy it with <code>bash k8s/deploy.sh</code> at the root of the repository, delete the whole cluster and its data with <code>bash k8s/down.sh</code>.';
+    // The cards and the footer, from this index's settings: the port
+    // each demo is published on in this run, by the name of its setting
+    // (bin/server.mjs lists them, each with its usual port as the
+    // default), and whether this copy runs on the local Kubernetes
+    // cluster (k8s/), whose footer names its own scripts.
+    function render({ cluster, ports: p }) {
+      document.getElementById('apps').replaceChildren(...demos(p).map(card));
+      const where = 'tatyx on ' + p.TATYX_PORT + ' and Poker Tour on ' + p.POKERTOUR_WEB_PORT;
+      document.getElementById('run').innerHTML = cluster
+        ? 'This copy runs on the local Kubernetes cluster, ' + where + ': ' +
+          'deploy it with <code>bash k8s/deploy.sh</code> at the root of the repository, delete the whole cluster and its data with <code>bash k8s/down.sh</code>.'
+        : 'Everything runs locally on its own port, ' + where + ': start the group with <code>./start-multyx.sh</code> at the ' +
+          'root of the repository, stop it with <code>./stop-multyx.sh</code>.';
       document.getElementById('others').textContent =
-        'The six aityx demos have an index of their own, on port 18800, at /demos/; the datyx group\'s is on 19800.';
+        'The six aityx demos have an index of their own, on port ' + p.AITYX_INDEX_PORT + ', at /demos/; the datyx group\'s is on ' + p.DATYX_INDEX_PORT + '.';
     }
+
+    // The settings are the server's (GET /api/settings), so the same page
+    // is right on a local run, on the cluster and in a codespace. Without
+    // them there is no telling where anything is: no cards, and why.
+    fetch('/api/settings', { cache: 'no-store' })
+      .then(response => {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.json();
+      })
+      .then(render, error => {
+        const note = document.createElement('p');
+        note.className = 'desc';
+        note.textContent = 'This index could not read its settings (/api/settings: ' + error.message + '), so it has no links to show. Is its server, bin/server.mjs, the one serving this page?';
+        document.getElementById('apps').replaceChildren(note);
+      });
   </script>
 </body>
 </html>

@@ -1,0 +1,227 @@
+# The message stream: compose.yaml's kafka (Apache Kafka, one node in
+# KRaft mode) and kafka-rest (Karapace's REST proxy, through which the API
+# produces and consumes).
+#
+# Kafka's listeners: INTERNAL, advertised as the Service
+# (healthhub-kafka:19092), for the REST proxy and Flink; CONTROLLER, the
+# node's own quorum, on localhost; LOCAL, advertised as localhost:9092,
+# for a client inside the pod: the readiness probe, which makes the topics
+# (kafka-topics.sh), and `kubectl port-forward`.
+apiVersion: v1
+kind: Service
+metadata:
+  name: healthhub-kafka
+spec:
+  selector:
+    app.kubernetes.io/name: healthhub-kafka
+  ports:
+    - name: kafka
+      port: 19092
+      targetPort: kafka
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: healthhub-kafka
+spec:
+  serviceName: healthhub-kafka
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: healthhub-kafka
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: healthhub-kafka
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: kafka
+          image: apache/kafka:4.3.2
+          env:
+            - name: KAFKA_NODE_ID
+              value: "1"
+            - name: KAFKA_PROCESS_ROLES
+              value: broker,controller
+            # A fixed id, so the volume's data stays valid across restarts.
+            - name: CLUSTER_ID
+              value: hEaLtHhUbKaFkA0000001w
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: 1@localhost:19093
+            - name: KAFKA_CONTROLLER_LISTENER_NAMES
+              value: CONTROLLER
+            - name: KAFKA_LISTENERS
+              value: INTERNAL://:19092,CONTROLLER://:19093,LOCAL://:9092
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: INTERNAL://healthhub-kafka:19092,LOCAL://localhost:9092
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,LOCAL:PLAINTEXT
+            - name: KAFKA_INTER_BROKER_LISTENER_NAME
+              value: INTERNAL
+            - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+              value: "true"
+            - name: KAFKA_NUM_PARTITIONS
+              value: "1"
+            # One node: every internal topic has one replica.
+            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+              value: "1"
+            - name: KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR
+              value: "1"
+            - name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS
+              value: "0"
+            # A demo's stream: a day of moves is plenty.
+            - name: KAFKA_LOG_RETENTION_HOURS
+              value: "24"
+            - name: KAFKA_LOG_DIRS
+              value: /var/lib/kafka/data
+            # A small heap: the stream is a few hundred small records a
+            # second. Smaller than compose's 512m, to fit the limit below
+            # with the probe's client beside it.
+            - name: KAFKA_HEAP_OPTS
+              value: -Xms256m -Xmx384m
+          ports:
+            - name: kafka
+              containerPort: 19092
+          readinessProbe:
+            exec:
+              command: ["/bin/bash", "/healthhub/topics.sh"]
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 30
+          livenessProbe:
+            tcpSocket:
+              port: kafka
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 768Mi }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/kafka/data
+            - name: topics
+              mountPath: /healthhub
+              readOnly: true
+      volumes:
+        - name: topics
+          configMap:
+            name: healthhub-kafka-topics
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 1Gi
+---
+# Kafka over HTTP: Karapace's REST proxy (Confluent REST Proxy v2
+# compatible), as compose.yaml's kafka-rest. Only the REST proxy, not the
+# schema registry: the records are plain JSON.
+apiVersion: v1
+kind: Service
+metadata:
+  name: healthhub-kafka-rest
+spec:
+  selector:
+    app.kubernetes.io/name: healthhub-kafka-rest
+  ports:
+    - name: http
+      port: 8082
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: healthhub-kafka-rest
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: healthhub-kafka-rest
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: healthhub-kafka-rest
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 0
+      containers:
+        - name: kafka-rest
+          image: ghcr.io/aiven-open/karapace:6.2.4
+          command: ["python3", "-m", "karapace.kafka_rest_apis"]
+          env:
+            - name: KARAPACE_KARAPACE_REST
+              value: "true"
+            - name: KARAPACE_HOST
+              value: 0.0.0.0
+            - name: KARAPACE_PORT
+              value: "8082"
+            - name: KARAPACE_ADVERTISED_HOSTNAME
+              value: healthhub-kafka-rest
+            - name: KARAPACE_BOOTSTRAP_URI
+              value: healthhub-kafka:19092
+            # The topics' metadata cached for 5 s (Karapace's default),
+            # where compose asks Kafka for it before every record (0): the
+            # API produces each move with a request of its own, a couple of
+            # hundred a second, and on a busy node those blocking
+            # metadata calls slowed the proxy past the API's 10 s timeout.
+            # A topic not cached yet is still asked for at once, and the
+            # topics exist before the proxy is used (kafka-topics.sh).
+            - name: KARAPACE_ADMIN_METADATA_MAX_AGE
+              value: "5"
+            # A backstop for consumers an API left behind: all of them go
+            # once nobody has called the proxy for 5 minutes.
+            - name: KARAPACE_CONSUMER_IDLE_DISCONNECT_TIMEOUT
+              value: "300"
+            - name: KARAPACE_LOG_LEVEL
+              value: WARNING
+            - name: KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED
+              value: "true"
+            # Two malloc arenas, not eight per processor for its 40-odd
+            # threads (librdkafka's): their fragments grew it until it was
+            # killed at its limit after 18 hours.
+            - name: MALLOC_ARENA_MAX
+              value: "2"
+          ports:
+            - name: http
+              containerPort: 8082
+          # compose.yaml's health check: it lists the topics, which needs
+          # the broker too.
+          readinessProbe:
+            httpGet:
+              path: /topics
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          # About 150 MB at work; more while its consumers catch up on a
+          # backlog (after Kafka or the proxy restarted), when 256 MB ran
+          # out.
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 384Mi }

@@ -2,6 +2,114 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-10: every profile has HealthHub's data, and its addresses come from the environment
+
+Asked: pass the ports as environment variables, so the same build works
+locally and on Kubernetes, and fix the issues the cluster's deploy had
+left open.
+
+Found: with Google sign-in on, a user's profile was empty (no data
+source, catalogue nor model), because the development data reached only
+the profiles there when the Flyway migration ran, so the cluster ran with
+sign-in off. HealthHub's addresses were written into that migration
+(`localhost:9803`, `localhost:9804`), which on the cluster took two port
+forwarders in the API's pod, and `/api/health` reported OpenMetadata at
+the address the API calls, a Service name a browser can't open, which
+took a third. The container also stood at its 1536 MiB memory limit
+while DeepAR trained.
+
+Changed:
+
+- The development data (`DevData`) takes HealthHub's addresses from
+  `DATYX_HEALTHHUB_DB_HOST`, `DATYX_HEALTHHUB_DB_PORT`,
+  `DATYX_HEALTHHUB_DB_PASSWORD` and `DATYX_HEALTHHUB_KAFKA` (a laptop's
+  ports by default), and a profile made later, at someone's first
+  sign-in, is made with HealthHub's two sources too (`ProfileMaker`), so
+  every profile has them, as [data-sources.md](data-sources.md) says.
+- The dev catalogue syncs and curates a new profile's sources at its next
+  half-minute tick instead of the next pass, up to 10 minutes later, and
+  the trainer picks them up from there: a user sees their sources at
+  once, the catalogue and the models within minutes. A Kafka that didn't
+  answer (HealthHub's still starting on a new cluster, which left the
+  topics out of the catalogue for 10 minutes) is tried again every half
+  minute for 5 minutes. A pass that fails on something unexpected no
+  longer has its sources taken for new profiles half a minute later.
+- `DATYX_OPENMETADATA_PUBLIC_URL` is the address `/api/health` reports
+  for OpenMetadata, the dashboard's links (the address the API calls when
+  unset); Docker Compose sets it to this host's port.
+- On the cluster (`k8s/api.yaml`): sign-in back on, with the root `.env`'s
+  client; HealthHub and OpenMetadata at their Services, the three
+  forwarders gone; 2 GiB of memory. `k8s/verify.sh` checks HealthHub's
+  sources in every profile, HealthHub reached at the API's addresses,
+  and its topics catalogued.
+- `DevDataProfileTest`: a first sign-in's profile has the two sources at
+  the configured addresses, each person their own.
+
+[data-sources.md](data-sources.md), [profiles.md](profiles.md),
+[curation.md](curation.md), [api.md](api.md),
+[dev-environment.md](dev-environment.md), README, `.env.example`,
+`compose.yaml`, the scripts.
+
+## 2026-11-10: on the cluster, a model of each algorithm from HealthHub's first start
+
+Asked (HealthHub's request): make HealthHub's initial data set enough
+for predictions of both XGBoost and DeepAR.
+
+Changed, in datyx: nothing in the API. HealthHub now writes a simulated
+year of its people's visits at start, so `patient_days` and
+`occupancy_hourly` train at datyx's first runs, where the XGBoost group
+`care` failed for hours on a new cluster. `k8s/verify.sh` now awaits a
+succeeded model of XGBoost (`patient_days`) and of DeepAR
+(`occupancy_hourly`, `admissions_hourly`) of the Local profile's source,
+up to 12 minutes, and checks that none of their first runs failed.
+
+## 2026-11-10: on the cluster, datyx's data in reach and a first deploy that passes
+
+Asked: kill every demo and the cluster, start the cluster again with
+only the Kubernetes demos, and make sure they all deploy correctly.
+
+Found, on the new cluster: `bash k8s/deploy.sh` exited 1 on datyx's
+training check, which gave up a minute after the catalogue's first
+table, 7 s before the first run was queued (the curation tags the
+groups a minute or more after the first table, and the trainer looks
+once a minute). Signed in on the dashboard, nothing showed: the cluster
+turned sign-in on, a Google user's profile is made after the dev data's
+seed (which reaches only the profiles there at start, and the dev
+profile empties the database at every start), so HealthHub's sources,
+their catalogue and models were the Local profile's alone, out of
+anyone's reach, and HealthHub's forecasts found no data source. The
+Health tab's OpenMetadata links named the Service (`openmetadata:8585`),
+which no browser resolves. The API's container exited once at each new
+cluster's start, PostgreSQL not yet listening.
+
+Changed, in `k8s/` only: `api.yaml` gives the API no `OIDC_CLIENT_ID`
+(sign-in off, as a local run without a `datyx/.env`), calls OpenMetadata
+at `http://localhost:19902` through a third port forwarder beside the
+API, and waits for PostgreSQL in an init container. `verify.sh` awaits
+the catalogue's first table (6 minutes at most, with HealthHub's
+database answering), its indexing and the first training run (5 minutes
+after the catalogue), reads the caller's data sources through the API,
+and checks that the address the API reports for OpenMetadata opens from
+this host. Nothing in `datyx-api/` changed: seeding the dev data into a
+profile when it is made, which sign-in on with dev data needs, is still
+to do. [dev-environment.md](dev-environment.md).
+
+## 2026-11-09: datyx on the local Kubernetes cluster
+
+Asked: run every demo on a local Kubernetes cluster (kind), datyx among
+them, up and working, beside the demos running locally.
+
+Changed: `k8s/` (the manifests, `build.sh`, `verify.sh`) runs
+PostgreSQL, Elasticsearch, OpenMetadata and the API in the cluster's
+`datyx` namespace ([dev-environment.md](dev-environment.md));
+`docker/kustomization.yaml` makes the PostgreSQL init script a
+ConfigMap; `docker/api.jvm.Dockerfile` takes `PACKAGE_ARGS`, more
+build-time settings, empty by default (Compose builds as before), which
+the cluster's build uses to put Swagger UI in its dev-profile jar.
+Nothing in `datyx-api/` changed: the cluster reaches HealthHub at the
+dev data's laptop addresses through port forwarders beside the API, and
+sets the host names the API answers in its environment.
+
 ## 2026-11-01: HealthHub's occupancy alarms and forecasts curated
 
 Asked (a review of HealthHub's occupancy alarms merged with the data

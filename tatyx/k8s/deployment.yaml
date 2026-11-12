@@ -1,0 +1,109 @@
+# The tatyx server, one process on one port as scripts/serve.sh runs it:
+# the app under /tatyx/, /api/ (the config, the Google sign-in, the
+# leaderboard), and the relay to aityx at /aityx/, which passes each
+# player's own key on and never adds one. Like a local run it is on aityx
+# staging: AITYX_URL from the Secret demo-env (k8s/secrets.sh) always
+# comes with its keys. The leaderboard plays on TATYX_LEADERBOARD_KEY
+# (else AITYX_API_KEY, as server.mjs reads them), which never leaves the
+# server. TATYX_PLAYER_KEY is not given to it: the server lends no key,
+# every player brings their own.
+#
+# One replica that keeps its files on a volume (tatyx-data): Recreate, so
+# the old pod lets go of the volume before the new one mounts it, and
+# never two servers playing the same tour.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tatyx
+  labels:
+    app.kubernetes.io/name: tatyx
+    aityx-demos/build: local
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tatyx
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tatyx
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: localhost:5001/aityx-demos/tatyx:dev
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 9710
+          env:
+            # The image's defaults, said again: every interface, the
+            # usual port, the tour's files on the volume.
+            - name: TATYX_PORT
+              value: "9710"
+            - name: TATYX_BIND_HOST
+              value: 0.0.0.0
+            - name: TATYX_DATA_DIR
+              value: /data
+            # V8's heap under the container's memory limit.
+            - name: NODE_OPTIONS
+              value: --max-old-space-size=160
+            - name: AITYX_URL
+              valueFrom:
+                secretKeyRef: { name: demo-env, key: AITYX_URL, optional: true }
+            - name: AITYX_API_KEY
+              valueFrom:
+                secretKeyRef: { name: demo-env, key: AITYX_API_KEY, optional: true }
+            - name: TATYX_LEADERBOARD_KEY
+              valueFrom:
+                secretKeyRef: { name: demo-env, key: TATYX_LEADERBOARD_KEY, optional: true }
+            - name: TATYX_OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef: { name: demo-env, key: TATYX_OIDC_CLIENT_ID, optional: true }
+            - name: TATYX_ALLOWED_DOMAINS
+              valueFrom:
+                secretKeyRef: { name: demo-env, key: TATYX_ALLOWED_DOMAINS, optional: true }
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          # As process-compose.yaml's readiness probe: /api/health.
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 1
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: tatyx-data

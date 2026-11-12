@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Nothing but this origin's own script runs here, and it may talk only
-       to this origin and aityx: the page holds the user's aityx key. Keep it
-       the same as bin/server.dart's header (which can forbid framing too). -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.aityx.ai; base-uri 'none'; form-action 'none'">
+  <!-- Nothing but this origin's own script runs here, and it talks only to
+       this origin. Keep it the same as bin/server.dart's header (which can
+       forbid framing too). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="same-origin">
   <title>aityx demos</title>
-  <meta name="description" content="The aityx demos, games and apps: what each shows, where to open it, and your aityx key for all of them.">
+  <meta name="description" content="The aityx demos, games and apps: what each shows, and where to open it.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <style>
     :root {
@@ -66,9 +66,6 @@
       border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px;
     }
     .chip.aityx { color: var(--orange-light); border-color: rgba(227, 103, 66, .5); }
-    .status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-top: auto; }
-    .status[hidden] { display: none; }
-    .status:not([hidden]) + .actions { margin-top: 0; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
     .btn {
       display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
@@ -83,42 +80,6 @@
     .btn:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--orange-light); outline-offset: 2px; }
     h3.section { margin: 36px 0 12px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
     footer { max-width: 1100px; margin: 40px auto 0; color: var(--muted); font-size: 13.5px; border-top: 1px solid var(--border); padding-top: 18px; }
-    .aityx-status { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; color: var(--muted); }
-    .aityx-status:focus-visible { outline: 2px solid var(--orange-light); outline-offset: 3px; border-radius: 4px; }
-    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--dim); flex: none; }
-    .dot.ok { background: var(--green); box-shadow: 0 0 0 3px rgba(76, 195, 138, .2); }
-    .dot.bad { background: var(--red); }
-
-    /* Your aityx key */
-    .key {
-      background: var(--bg1); border: 1px solid var(--border); border-radius: 12px;
-      padding: 18px; display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 24px;
-    }
-    .key h2 { margin: 0 0 6px; font-size: 18px; }
-    .key p { margin: 0 0 10px; font-size: 14.5px; }
-    .key .now { color: var(--fg); }
-    .key .now strong { color: var(--fg0); }
-    .key form { display: flex; flex-direction: column; gap: 10px; }
-    .key label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
-    .key input[type=password], .key input[type=url] {
-      font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg);
-      background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; width: 100%;
-    }
-    .key fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; }
-    .key fieldset legend { padding: 0; margin-bottom: 4px; font-size: 13px; color: var(--muted); }
-    .key details { font-size: 14px; }
-    .key summary { cursor: pointer; color: var(--muted); }
-    .key details label.field { margin-top: 8px; }
-    .key .buttons { display: flex; flex-wrap: wrap; gap: 8px; }
-    .key [hidden] { display: none; }
-    .key .result { font-size: 14px; min-height: 1.5em; margin: 0; }
-    .key .result.ok { color: var(--green); }
-    .key .result.bad { color: var(--red); }
-    #key-check.bad { color: var(--red); }
-    .key ol { margin: 0; padding-left: 20px; font-size: 14px; color: var(--fg); }
-    .key ol li { margin-bottom: 6px; }
-    .key .note { color: var(--muted); font-size: 13px; }
-    @media (max-width: 760px) { .key { grid-template-columns: minmax(0, 1fr); } }
     @media (max-width: 600px) { header { padding-top: 24px; } .meta { text-align: left; } }
   </style>
 </head>
@@ -135,57 +96,11 @@
       </div>
     </div>
     <div class="meta">
-      <div><a class="aityx-status" id="aityx-status" href="#aityx-key" role="status" title="Checking aityx…"><span class="dot" aria-hidden="true"></span><span class="label">aityx: checking…</span></a></div>
       <a href="https://github.com/aityx-labs/aityx-demos" target="_blank" rel="noopener">github.com/aityx-labs/aityx-demos</a>
     </div>
   </header>
 
   <main>
-    <section class="key" id="aityx-key" aria-labelledby="aityx-key-title">
-      <div>
-        <h2 id="aityx-key-title">Your aityx key</h2>
-        <p class="now" id="key-now">Looking for a key…</p>
-        <!-- With a key in use, these instead of the form: the form comes back
-             only after "Forget key" (or "Use my own key" over the dev key). -->
-        <div class="buttons" id="key-actions" hidden>
-          <button class="btn" type="button" id="key-forget" hidden>Forget key</button>
-          <button class="btn" type="button" id="key-own" hidden>Use my own key</button>
-        </div>
-        <form id="key-form" autocomplete="off" novalidate hidden>
-          <label class="field">API key
-            <input type="password" id="key-input" name="key" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="aityx_sk_…" required>
-          </label>
-          <fieldset>
-            <legend>Keep it</legend>
-            <label><input type="radio" name="keep" value="device" checked> Remember on this device</label>
-            <label><input type="radio" name="keep" value="session"> Only this session</label>
-          </fieldset>
-          <details id="key-advanced">
-            <summary>Advanced</summary>
-            <label class="field">aityx URL
-              <input type="url" id="url-input" name="url" spellcheck="false" autocapitalize="off" placeholder="https://api.aityx.ai">
-            </label>
-          </details>
-          <div class="buttons">
-            <button class="btn primary" type="submit" id="key-save">Check and save</button>
-            <button class="btn" type="button" id="key-cancel" hidden>Cancel</button>
-          </div>
-        </form>
-        <p class="result" id="key-result" role="status" aria-live="polite"></p>
-      </div>
-      <div id="key-help">
-        <p><strong>No key yet?</strong></p>
-        <ol>
-          <li>Sign up at <a href="https://aityx.ai" target="_blank" rel="noopener">aityx.ai</a>.</li>
-          <li>In the <a href="https://console.aityx.ai" target="_blank" rel="noopener">aityx console</a>, open <strong>API keys</strong> and create one.</li>
-          <li>Paste it here and choose <strong>Check and save</strong>.</li>
-        </ol>
-        <p class="note">The key stays in this browser, for the demos on this address: each calls aityx with it,
-          straight from the page. <strong>Check and save</strong> makes one empty call to aityx, which runs no model.
-          Use <strong>Only this session</strong> on a shared computer.</p>
-      </div>
-    </section>
-
     <h3 class="section" id="games-title">Games</h3>
     <div class="grid" id="games" aria-labelledby="games-title"></div>
     <h3 class="section" id="apps-title">Apps</h3>
@@ -193,10 +108,10 @@
   </main>
 
   <footer>
-    The six demos run beside this page, each under its own path (/demos/riverrace/, ...): start them with
+    The demos run beside this page, each under its own path (/demos/riverrace/, ...): start them with
     <code>./start-aityx.sh</code> at the root of the repository, stop them with <code>./stop-aityx.sh</code>.
-    Each uses the key above. Or open them in a GitHub codespace from a card, or
-    <a href="https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Faityx%2Fdevcontainer.json&amp;machine=standardLinux32gb" target="_blank" rel="noopener">all six at once</a>.
+    Or open them in a GitHub codespace from a card, or
+    <a href="https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Faityx%2Fdevcontainer.json&amp;machine=standardLinux32gb" target="_blank" rel="noopener">all of them at once</a>.
   </footer>
 
   <script src="index.js"></script>

@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:aityx_web/aityx_web.dart'
+    show AityxDemosLink, AityxKeyPrompt;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -292,7 +294,17 @@ class _RaceScreenState extends State<RaceScreen>
     return _onKey(event) == KeyEventResult.handled;
   }
 
+  /// Whether a text field has the keyboard (the key form above the river,
+  /// the key panel over the app): then the keys are for typing, a key with
+  /// a W or a P in it included, and none starts the race or flies the
+  /// plane.
+  bool get _typing =>
+      FocusManager.instance.primaryFocus?.context
+          ?.findAncestorWidgetOfExactType<EditableText>() !=
+      null;
+
   KeyEventResult _onKey(KeyEvent event) {
+    if (_typing) return KeyEventResult.ignored;
     if (event is KeyRepeatEvent) return KeyEventResult.ignored;
     final down = event is KeyDownEvent;
     final key = event.logicalKey;
@@ -347,7 +359,8 @@ class _RaceScreenState extends State<RaceScreen>
   /// doesn't keep the plane steering or firing.
   void _syncControls() {
     final held = HardwareKeyboard.instance.logicalKeysPressed;
-    final on = mounted && (ModalRoute.of(context)?.isCurrent ?? true);
+    final on =
+        mounted && (ModalRoute.of(context)?.isCurrent ?? true) && !_typing;
     bool any(Set<LogicalKeyboardKey> keys) => on && keys.any(held.contains);
     _race.controls
       ..left = any(_left)
@@ -391,6 +404,12 @@ class _RaceScreenState extends State<RaceScreen>
               children: _controls(),
             ),
           ),
+        // Without an aityx key, a small form for it, above the race aityx
+        // flies; else nothing. Once saved, the keys fly the plane again.
+        AityxKeyPrompt(
+          padding: const EdgeInsets.only(bottom: 8),
+          onSaved: _focus.requestFocus,
+        ),
         if (_error case final error?)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -443,7 +462,14 @@ class _RaceScreenState extends State<RaceScreen>
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
-        title: const Text(AppVersion.title, overflow: TextOverflow.ellipsis),
+        title: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(AppVersion.title, overflow: TextOverflow.ellipsis),
+            AityxDemosLink(),
+          ],
+        ),
         actions: [
           if (inBar)
             for (final control in _controls())

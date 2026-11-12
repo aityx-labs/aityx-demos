@@ -97,6 +97,32 @@ functions on AWS, [On AWS](aws.md)):
   `additional_contexts`), for aityx_web. `docker compose up` runs it on
   9810. `.dockerignore` carries the git-ignore rules
   (`sync-dockerignore.sh`).
+- **The local cluster** ([k8s/](../k8s)): the repository's kind
+  cluster (the root's `k8s/`: `bash k8s/up.sh`, then `bash k8s/deploy.sh
+  PokerTour`) runs it in the multyx namespace beside tatyx and the
+  multyx index, at **http://localhost:19810/pokertour/** (the node port
+  31810; the usual port plus 10000, so it runs beside a laptop's).
+  `build.sh` builds the Dockerfile's image as compose.yaml does and
+  pushes it to the cluster's registry; the Deployment `pokertour` runs
+  it with compose.yaml's settings, the keys and Poker Tour's Google
+  client id from the Secret `demo-env` (the root `.env`, staging), and
+  `AITYX_URL` required, so staging's key never goes to production; one
+  server at a time (`Recreate`), as a server takes itself for its
+  table's only player. Floci is the StatefulSet `pokertour-floci`, the
+  same image, persistent in a volume, with the same init hook from a
+  ConfigMap that [floci/kustomization.yaml](../floci/kustomization.yaml)
+  makes (kustomize reads no files outside a kustomization's folder), and
+  the hook's timeout raised for a busy node; the Service
+  `pokertour-floci:4566` is for the server alone, the app never calling
+  AWS. The `pokertour-web` client lists `http://localhost:19810` among
+  its authorized JavaScript origins, so the Google sign-in works on the
+  cluster as it does on 9810 (Google can take a while to apply a change
+  to a client's origins). `verify.sh` checks, from the host, the app,
+  the API, the tour in Floci's bucket and table (the history the API
+  answers is the bucket's), the signed-in calls refusing a caller
+  without a Google token and the relay reaching aityx staging;
+  `TOURNAMENT=1` also plays a tournament, queued in Floci's table as
+  the API would queue it, since only a signed-in admin can ask for one.
 - **Tests**: `dart test` in `poker_core/` (the engine, the table logic),
   `aws_lite/` (the signer) and `pokertour_api/` (the leaderboard, the
   store and the table, the runner on a fake aityx, the routes, the

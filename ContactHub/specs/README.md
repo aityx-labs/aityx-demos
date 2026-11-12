@@ -39,6 +39,8 @@ by Jev and aityx.
   of every screen, the aityx demos' shared light, green when aityx accepts
   the key, red when there is no key or aityx doesn't work, with why in its
   tooltip.
+- [The key form](aityx-key.md): without an aityx key, a small form
+  for it where the app calls aityx; with one, nothing.
 - [Theme](theme.md): the aityx dark palette.
 - [App icon](app-icon.md): an orange speech bubble with a route that
   branches three ways, the chosen branch lit; the favicon and every

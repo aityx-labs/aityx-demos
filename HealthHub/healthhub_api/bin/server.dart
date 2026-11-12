@@ -146,9 +146,12 @@
 ///   HEALTHHUB_KAFKA_REST_URL  Kafka's REST proxy (default
 ///                         http://127.0.0.1:9805)
 ///   HEALTHHUB_SIM_*       the simulation (see lib/simulation.dart)
-///   HEALTHHUB_HISTORY_DAYS  in dev mode, the days of admissions history
-///                         written at start (default 90; 0 for none; see
-///                         lib/history.dart)
+///   HEALTHHUB_HISTORY_DAYS  in dev mode, the days of admissions per
+///                         hour drawn at start (default 90; 0 for none;
+///                         see lib/history.dart)
+///   HEALTHHUB_SIM_HISTORY_DAYS  in dev mode, the days of the people's
+///                         visits simulated ahead at start (default 365;
+///                         0 for none; see lib/simulated_history.dart)
 ///   HEALTHHUB_ALARM_EVERY_MS  real milliseconds between two occupancy
 ///                         alarm checks at least (default 5000; 0: off)
 ///   HEALTHHUB_ALARM_THRESHOLD  the share of a care center's capacity
@@ -173,6 +176,7 @@ import 'package:healthhub_api/history.dart';
 import 'package:healthhub_api/kafka_rest.dart';
 import 'package:healthhub_api/occupancy_alarms.dart';
 import 'package:healthhub_api/routes.dart';
+import 'package:healthhub_api/simulated_history.dart';
 import 'package:healthhub_api/simulation.dart';
 import 'package:healthhub_api/triage.dart';
 
@@ -235,8 +239,10 @@ Future<void> main(List<String> args) async {
     );
   }
   final int historyDays;
+  final int simulatedDays;
   try {
     historyDays = historyDaysFromEnvironment(env);
+    simulatedDays = simulatedDaysFromEnvironment(env);
   } on FormatException catch (error) {
     stderr.writeln('error: ${error.message}');
     exit(1);
@@ -282,7 +288,7 @@ Future<void> main(List<String> args) async {
   // The tables, once the database answers: retried in the background, so
   // the server is up (and /api/health says db: false) meanwhile. The
   // simulation needs the care centers, so it starts after.
-  unawaited(_migrate(db).then((_) => live.dev ? _simulate(db, live, historyDays) : null));
+  unawaited(_migrate(db).then((_) => live.dev ? _simulate(db, live, historyDays, simulatedDays) : null));
   live.watchKafka();
   // Stopped by process-compose, a rebuild, Docker or Ctrl-C: delete the
   // feed's consumers on the proxy, or each restart leaves them behind.
@@ -439,12 +445,14 @@ Future<void> _migrate(Db db) async {
   }
 }
 
-/// Dev mode: reads the care centers (retried like the migration), starts
-/// the feed and the simulation, and writes [historyDays] days of
-/// admissions history in the background ([_history]). Neither waits for
-/// Kafka: the people keep moving and retry publishing, the feed retries
-/// connecting.
-Future<void> _simulate(Db db, _Live live, int historyDays) async {
+/// Dev mode: reads the care centers (retried like the migration), writes
+/// [simulatedDays] days of the people's visits simulated ahead
+/// ([_simulated]: before the live run, so its admissions are recorded
+/// after the history's), starts the feed and the simulation, and writes
+/// [historyDays] days of admissions per hour in the background
+/// ([_history]). Neither waits for Kafka: the people keep moving and retry
+/// publishing, the feed retries connecting.
+Future<void> _simulate(Db db, _Live live, int historyDays, int simulatedDays) async {
   final settings = SimulationSettings.fromEnvironment();
   List<Place> places;
   for (var attempt = 1; ; attempt++) {
@@ -470,6 +478,14 @@ Future<void> _simulate(Db db, _Live live, int historyDays) async {
   if (people.isEmpty) {
     stderr.writeln('simulation: no hospitals with a location, so nobody to move');
     return;
+  }
+  if (simulatedDays > 0) {
+    final admissions = simulateHistory(places, settings.peoplePerCity, settings.minutesPerTurn, simulatedDays, conditionSeed);
+    // One try before the live run starts; a database that fails it gets
+    // the rest in the background, and the live run doesn't wait.
+    if (!await _simulated(db, admissions, simulatedDays, attempts: 1)) {
+      unawaited(_simulated(db, admissions, simulatedDays, attempts: 5));
+    }
   }
   if (historyDays > 0) unawaited(_history(db, historyCenters(people, conditionSeed), historyDays));
   final random = Random();
@@ -584,6 +600,27 @@ Future<void> _history(Db db, List<Place> centers, int days) async {
       await Future<void>.delayed(const Duration(seconds: 5));
     }
   }
+}
+
+/// Writes the simulated history's [admissions], [days] days of the
+/// people's visits (lib/simulated_history.dart): tried [attempts] times,
+/// 5 s apart, each failure logged. Whether it was written.
+Future<bool> _simulated(Db db, List<Map<String, Object?>> admissions, int days, {required int attempts}) async {
+  for (var attempt = 1; attempt <= attempts; attempt++) {
+    if (attempt > 1) await Future<void>.delayed(const Duration(seconds: 5));
+    try {
+      final written = await db.writeSimulated(admissions);
+      stdout.writeln(
+        'simulated history: run $simulatedRun, $days days, ${written.admissions} admissions '
+        '(${written.written ? 'written' : 'up to date'}), ${written.hours} hours of admissions_hourly '
+        '(${written.hoursWritten ? 'counted from them' : 'up to date'})',
+      );
+      return true;
+    } catch (error) {
+      stderr.writeln('simulated history: not written (attempt $attempt): $error');
+    }
+  }
+  return false;
 }
 
 /// 0 when the server on this machine answers /api/health with ok, else 1.

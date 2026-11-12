@@ -4,6 +4,19 @@ The requests that shaped Poker Tour, oldest first, each with what changed. Up to
 The feature files hold the current specification; see the
 [index](README.md).
 
+## 2026-11-09
+
+21. **"In the index of poker tour show the leaderboard more
+    prominently, without played and best, only wins, and the welcome
+    message to the side with the sign-in button; also pop the Google one
+    click sign-in on the top as usual."** The welcome page puts the
+    leaderboard first, large, in a card of its own, with the welcome and
+    the sign-in in a card beside it on the right (above it on a narrow
+    screen). Its standings show the wins alone, ranked by them, with
+    medals for the first three; the sidebar's are unchanged. Google's One
+    Tap prompt, already asked for as the page opens, is asked for again
+    after a sign-out ([The tour](tour.md)).
+
 ## 2026-11-08
 
 20. **"Access blocked: Poker Tour can only be used within its
@@ -533,7 +546,22 @@ The feature files hold the current specification; see the
 
 ## 2026-11-09
 
-18. **Let users upload and download their own strategies, but not
+18. **Run every demo on a local Kubernetes cluster (kind), deployed, up
+    and working.** Poker Tour runs on the repository's kind cluster
+    (the root's `k8s/`, context `kind-aityx-demos`) in the multyx
+    namespace, at http://localhost:19810/pokertour/: the server as the
+    Deployment `pokertour` (the Dockerfile's image, as compose.yaml
+    builds it), the tour in Floci as the StatefulSet `pokertour-floci`
+    with a volume and the same init hook, from a ConfigMap that
+    [floci/kustomization.yaml](../floci/kustomization.yaml) makes of
+    `floci/init/ready.d/`. [k8s/](../k8s) holds the manifests,
+    `build.sh` and `verify.sh`, which checks the app, the API, the tour
+    in Floci, the sign-in gates and the relay from the host, and with
+    `TOURNAMENT=1` plays a tournament. The `pokertour-web` client lists
+    http://localhost:19810 among its origins, so the Google sign-in
+    works on the cluster too. Local runs are unchanged. See
+    [Development environment](dev-environment.md).
+19. **Let users upload and download their own strategies, but not
     download or delete each other's; the calls panel may still show
     them, just don't make them easy to copy.** Another player's entry
     is sealed at the table: it plays, but tapping its seat says whose it

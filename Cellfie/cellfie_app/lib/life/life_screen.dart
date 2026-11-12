@@ -7,17 +7,31 @@ import 'package:flutter/material.dart';
 import '../aityx/generation_stepper.dart';
 import '../app_version.dart';
 import '../calls/calls_panel.dart';
+import '../calls/resizable_side_panel.dart';
 import '../theme.dart';
 import 'board.dart';
 import 'board_view.dart';
 import 'generation.dart';
 import 'rules.dart';
 
+/// One generation every three seconds: the slowest acceleration, and the
+/// one the game starts at.
+const oneEveryThreeSeconds = 1 / 3;
+
 /// The accelerations: generations per second, the last as fast as aityx
 /// answers.
-const accelerations = [0.5, 1.0, 2.0, 4.0, 8.0, double.infinity];
+const accelerations = [
+  oneEveryThreeSeconds,
+  0.5,
+  1.0,
+  2.0,
+  4.0,
+  8.0,
+  double.infinity,
+];
 
 String accelerationLabel(double perSecond) => switch (perSecond) {
+  oneEveryThreeSeconds => '1 generation every 3 s',
   0.5 => '½ generation/s',
   1.0 => '1 generation/s',
   double.infinity => 'as fast as aityx answers',
@@ -71,7 +85,9 @@ class _LifeScreenState extends State<LifeScreen> {
   int _playbackRevision = 0;
   int _boardRevision = 0;
   int _nextCallId = 0;
-  int _acceleration = 1;
+
+  /// Which of the [accelerations]: one generation every three seconds.
+  int _acceleration = 0;
   final _calls = <CallRecord>[];
   final _notes = <PatternNote>[];
   var _labels = const <BoardLabel>[];
@@ -179,18 +195,10 @@ class _LifeScreenState extends State<LifeScreen> {
         _stepping = false;
         _playing = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.message),
-          // Without a key: the index page's key section, in this tab.
-          action: error.noKey
-              ? SnackBarAction(
-                  label: 'Set your key',
-                  onPressed: () => openAityxKeyPage(),
-                )
-              : null,
-        ),
-      );
+      // Without a key, the form for it is on the screen, above the board.
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
       return;
     }
     if (!mounted) return;
@@ -390,7 +398,11 @@ class _LifeScreenState extends State<LifeScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            const Text(AppVersion.title),
+            const Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [Text(AppVersion.title), AityxDemosLink()],
+            ),
             const SizedBox(width: 16),
             Expanded(
               child: _Controls(
@@ -437,6 +449,12 @@ class _LifeScreenState extends State<LifeScreen> {
       body: Column(
         children: [
           const Divider(height: 1),
+          // Without an aityx key, a small form for it, just under Play,
+          // whose every generation is an aityx call; else nothing.
+          const AityxKeyPrompt(
+            padding: EdgeInsets.fromLTRB(12, 10, 12, 8),
+            alignment: Alignment.centerLeft,
+          ),
           Expanded(
             child: Row(
               children: [
@@ -503,10 +521,11 @@ class _LifeScreenState extends State<LifeScreen> {
                     ],
                   ),
                 ),
-                if (wide) ...[
-                  const VerticalDivider(width: 1),
-                  SizedBox(width: 440, child: panel),
-                ],
+                if (wide)
+                  ResizableSidePanel(
+                    availableWidth: MediaQuery.sizeOf(context).width,
+                    child: panel,
+                  ),
               ],
             ),
           ),

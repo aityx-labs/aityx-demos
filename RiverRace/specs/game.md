@@ -86,9 +86,16 @@ score, bridge and losses, and **Race again** starts on a new river.
   over (after a second and a half, so the banner can be read), starts
   another on a new river; not Tab, Esc or a modifier alone, nor a
   shortcut with Cmd, Ctrl or Alt.
-- The controls sit in the top bar, right of the title, which stands
-  alone there (the frame and how long aityx took to answer are on each
-  call's card in the calls panel), so the game starts right under it:
+- The controls sit in the top bar, right of the title, which has
+  nothing beside it (the frame and how long aityx took to answer are on
+  each call's card in the calls panel) and, under it, the way back: a
+  left arrow and **aityx demos**, a small, muted link, primary and
+  underlined under the pointer, which opens the index page (`/demos/`
+  on the page's origin: https://aityx.ai/demos/ on the aityx website)
+  in the same tab and isn't shown embedded (`?embed=1`);
+  `AityxDemosLink`, from the shared
+  [aityx_web](../../packages/aityx_web/README.md) package. The game
+  starts right under the bar. The controls:
   **Start**/**Pause**, **Restart** (same river) and
   **New river** (icons, named on hover), **You fly**, **Sound** and
   **Speed** (½×, 1× by default, 1½×, 2×). In a window narrower than

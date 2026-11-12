@@ -94,8 +94,9 @@ the table and the data and code buckets stay.
 
 Poker Tour's Google client is its own: the project `aletyxcode-pokertour`
 (aletyx.com organization), an *Internal* consent screen, and the web
-client `pokertour-web` with the origins `https://d2qns5tf435v11.cloudfront.net`
-and `http://localhost:9810`. `deploy.sh` passes its id,
+client `pokertour-web` with the origins `https://d2qns5tf435v11.cloudfront.net`,
+`http://localhost:9810` and `http://localhost:19810` (the local
+cluster). `deploy.sh` passes its id,
 `POKERTOUR_OIDC_CLIENT_ID` from `.env`, to the stack, which publishes it
 in `GET /api/config`; the API verifies the tokens against it. The
 client's downloaded JSON stays in `PokerTour/.secrets/` (git- and

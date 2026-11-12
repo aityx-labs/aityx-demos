@@ -11,13 +11,13 @@ aityx can decide: an 8 px dot, slightly transparent, with no label.
 |---|---|---|
 | Grey | a check is running | `aityx: checking` |
 | Green | aityx accepts the key | `aityx: ready — the key works with <aityx URL>` |
-| Red | no key, the user's or a dev key | `aityx: no key — set yours on the index page` |
+| Red | no key, the user's or a dev key | `aityx: no key — set yours here` |
 | Red | aityx refuses the key | `aityx: key rejected — <why>` |
 | Red | aityx doesn't answer | `aityx: not reachable — <why>` |
 | Red | aityx answers something else | `aityx: not working — <why>` |
 
-The tooltip is also the dot's screen-reader label. A tap opens the index
-page's key section (`/demos/#aityx-key`) in the same tab.
+The tooltip is also the dot's screen-reader label. A tap opens the key
+panel, over the app (see [The key form](aityx-key.md#changing-the-key)).
 
 The check uses the key the decisions use ([aityx calls](api.md)): it posts
 an empty request, `{}`, to aityx's `/v1/systemone`, which checks the key

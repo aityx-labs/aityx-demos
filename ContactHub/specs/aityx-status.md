@@ -13,13 +13,13 @@ so every screen has it; no screen has a control in that corner.
 |---|---|---|
 | Grey | a check is running | `aityx: checking` |
 | Green | aityx accepts the key | `aityx: ready — the key works with <url>` |
-| Red | no key | `aityx: no key — set yours on the index page` |
+| Red | no key | `aityx: no key — set yours here` |
 | Red | aityx refused the key | `aityx: key rejected — <detail>` |
 | Red | no answer (network, CORS, a blocker, or the dev proxy couldn't reach aityx) | `aityx: not reachable — <detail>` |
 | Red | another answer | `aityx: not working — <detail>` |
 
-The tooltip is also the dot's screen reader label. A tap opens the index
-page's key section, `/demos/#aityx-key` on the origin, in the same tab.
+The tooltip is also the dot's screen reader label. A tap opens the key
+panel, over the app (see [The key form](aityx-key.md#changing-the-key)).
 
 The key is found as routing finds it (see
 [Routing](routing.md#calling-aityx)): yours, set on the index page and
@@ -34,13 +34,10 @@ of your quota.
 
 ## Known limitations
 
-- Your key lives in the browser's `localStorage` ("remember on this
-  device") or `sessionStorage` ("only this session") for the index
-  server's origin, readable by any script on it: the build keeps
+- Your key lives in the browser's `localStorage` for the index
+  server's origin, until **Forget key** on the index page, readable by any script on it: the build keeps
   Flutter's own resources on the origin (`--no-web-resources-cdn`), but
   the voice input's worker loads transformers.js from jsDelivr (see
   [Request box](request.md#known-limitations)).
-- `sessionStorage` is per tab: a key saved "only this session" reaches the
-  app opened in the same tab, not in a new one.
 - The Android, iOS and Linux builds have no index page and no dev proxy:
   their key store is in memory only, so the light stays red there.

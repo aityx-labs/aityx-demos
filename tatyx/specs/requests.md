@@ -458,9 +458,29 @@ The feature files hold the current specification; see the
 
 ## 2026-11-09
 
-46. **Let users upload and download their own strategies, but not
+46. **Run every demo on a local Kubernetes cluster (kind), deployed and
+    working.** tatyx has an image ([docker/tatyx.Dockerfile](../docker/tatyx.Dockerfile))
+    and manifests ([k8s/](../k8s)): the server in the namespace
+    `multyx`, its files on a volume, at http://localhost:19710/tatyx/,
+    on aityx staging, checked by `k8s/verify.sh`
+    ([Development environment](dev-environment.md)). The `tatyx-web`
+    client lists http://localhost:19710 among its origins, so Google
+    sign-in works on the cluster too ([Players](players.md)). A local
+    run is unchanged.
+47. **Let users upload and download their own strategies, but not
     download or delete each other's.** `GET /api/strategies` answers
     the rules of the caller's own entries alone (another's: its name,
     tagline and owner's alias), and **Your strategies in the tour**
     has **Download** beside **Withdraw**; withdrawing was the owner's
     alone already ([The leaderboard](leaderboard.md)).
+
+## 2026-11-11
+
+48. **Tag tatyx's AWS resources by project, in the running stack and in the
+    deploy script.** The stack had no tags, so its costs showed as
+    untagged: `deploy/deploy.sh` now passes `project=tatyx` and
+    `tenancy=$TATYX_TENANCY` (default `GA`) as the stack's tags, which
+    CloudFormation copies to its resources, and tags the code bucket it
+    makes, as Poker Tour does ([Deployment](deploy.md)). The live stack
+    was updated with the same template and parameters to add the tags.
+

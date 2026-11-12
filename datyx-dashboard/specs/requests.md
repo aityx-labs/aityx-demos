@@ -4,6 +4,106 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-10: a reload while signed in shows the data, not a 401
+
+Asked: fix the dashboard: with Google sign-in on, a page reloaded while
+signed in, on a tab that loads what the API secures (seen on Training,
+`GET /api/training answered 401`), showed the 401 until refreshed.
+
+Found: a start-up race. The tabs were built, and asked, before
+`GET /api/auth/config` answered: sign-in looked off, so the calls went
+out with no token and the API refused them. The answer then turned
+sign-in on and restored the kept token in the same step, so no tab ever
+saw itself locked and then unlocked, which is what makes one ask again.
+The screen's own refresh had the same flaw for the data sources and the
+profile on every tab, and skipped the refresh that signing in asks for
+when one was already under way.
+
+Changed: fixed, in the app's start-up rather than tab by tab.
+`AuthController` takes the API's answer and the kept session in one
+step, tells its listeners once, and says when who calls is known
+(`settled`). Until then `DashboardScreen` asks only the health, builds
+only the Audit and Health tabs, and shows the others as waiting for the
+sign-in settings; once settled each tab is built as whoever is signed
+in, so its first call carries the token. With sign-in off the tabs load
+with no token as soon as the API says so; signed out they say to sign
+in, as before; a 401 mid-session still renews the token silently and
+retries. A change of who calls during a refresh is followed by another
+round of the secured calls. `DatyxDashApp` takes the tab to open, for
+tests.
+
+Two reviews of the fix found four more things, fixed in
+`dashboard_screen.dart`: a tab polling a training run went on asking
+(without a token) after a sign-out; the next user to sign in on the page
+first saw the last one's data sources and tabs; an answer on its way at
+a sign-out (the data sources, the profile, whom the API sees) was still
+kept, so the next user could see the last one's sources, or the Health
+tab name the last one for a whole session, and the round went on asking
+without a token; and the API's "did not answer" line stayed above the
+data once the API came back after being down at start. Each secured tab
+is now made anew when who calls changes (keyed on the caller), a
+sign-out empties the data sources, an answer asked for by an earlier
+caller is dropped and its round stops, and the status is asked again
+when the sign-in settles after it failed.
+
+Tests: `test/sign_in_start_test.dart` (19, 59 in all): the 14 on the
+start and the 3 on the reviews' findings fail without the fix, the 2 on
+the 401's retry hold what was already there. [dashboard.md](dashboard.md).
+
+## 2026-11-10: on the cluster, sign in and see your data
+
+Asked: fix the issues the cluster's deploy had left open.
+
+Changed: the cluster's API signs its users in again
+(`../datyx/k8s/api.yaml`, the root `.env`'s client, which lists
+http://localhost:19906), and a user's profile is now made with
+HealthHub's sources, their catalogue and models following within minutes
+(`../datyx/specs/requests.md`), so the dashboard shows them from the
+first sign-in. `k8s/verify.sh` takes sign-in on as the cluster's setting
+again. [dev-environment.md](dev-environment.md),
+[dashboard.md](dashboard.md) (the Health tab's OpenMetadata link),
+README.
+
+## 2026-11-10: on the cluster, the dashboard shows datyx's data
+
+Asked: kill every demo and the cluster, start the cluster again with
+only the Kubernetes demos, and make sure they all deploy correctly.
+
+Found: signed in on the cluster's dashboard, every tab was empty: the
+dev data (HealthHub's sources, their catalogue and models) is the Local
+profile's, and a Google user's profile is made after it is seeded. The
+Health tab's OpenMetadata links named the cluster's Service, which a
+browser can't open. And a page reloaded on the Training tab while signed
+in showed `GET /api/training answered 401` until refreshed: a tab open
+at start asks before the API's sign-in settings arrive, so without a
+token, and nothing asks again when the kept token is restored in the
+same step. That one is the app's, with sign-in on anywhere, and is not
+fixed here.
+
+Changed: nothing in `datyx_dashboard/` or `docker/`. The cluster's API
+runs with sign-in off and reports OpenMetadata at the host's address
+(`../datyx/k8s/api.yaml`), so the dashboard opens on the data and its
+links work. `k8s/verify.sh` takes sign-in off as the cluster's setting
+and checks what the tabs ask for through the proxy, HealthHub's two
+sources in the list; with sign-in on it checks the refusals, as before.
+[dev-environment.md](dev-environment.md), [dashboard.md](dashboard.md),
+README.
+
+## 2026-11-09: the dashboard on the local Kubernetes cluster
+
+Asked: run every demo on a local Kubernetes cluster (kind), the datyx
+dashboard among them, up and working, beside the demos running locally;
+then document it here as datyx's and the datyx index's folders do.
+
+Changed: `k8s/` (the Deployment, the Service, `build.sh`, `verify.sh`)
+runs the image `docker/web.Dockerfile` builds in the cluster's `datyx`
+namespace, at http://localhost:19906/app/, proxying `/api/` and `/q/` to
+the datyx API's Service ([dev-environment.md](dev-environment.md)).
+Sign-in uses the root `.env`'s client, whose origins now include
+:19906. The README says how to deploy it, and the Docker image is no
+longer listed as never built. Nothing in `datyx_dashboard/` or
+`docker/` changed.
+
 ## 2026-11-01: an aityx tab with the calls routed to aityx
 
 Asked: in the datyx dashboard, add an aityx tab showing the requests

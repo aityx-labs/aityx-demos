@@ -25,7 +25,8 @@
 # sign-in; without it nobody can sign in), AITYX_PROD_URL and
 # TATYX_PROD_LEADERBOARD_KEY (production's aityx), TATYX_ALLOWED_DOMAINS,
 # TATYX_SCHEDULE_HOURS, TATYX_MAX_ENTRIES; and TATYX_STACK (default
-# tatyx), AWS_REGION (default the CLI's), LAMBDA_ARCH (arm64, the
+# tatyx), TATYX_TENANCY (the account's tenancy tag: GA, the default, RC
+# or shared), AWS_REGION (default the CLI's), LAMBDA_ARCH (arm64, the
 # default, or x86_64). Needs the AWS CLI with credentials for the
 # account, and zip.
 set -euo pipefail
@@ -60,6 +61,10 @@ if [[ -z "$region" ]]; then
   exit 1
 fi
 arch="${LAMBDA_ARCH:-arm64}"
+# The account's tag standard: every resource names its project and its
+# tenancy. The stack's tags reach every resource of it that takes tags.
+tenancy="${TATYX_TENANCY:-GA}"
+tags=("project=tatyx" "tenancy=$tenancy")
 account="$(aws sts get-caller-identity --query Account --output text)"
 code_bucket="${stack}-code-${account}-${region}"
 out="$root/deploy/out"
@@ -99,6 +104,8 @@ if ! aws s3api head-bucket --bucket "$code_bucket" --region "$region" >/dev/null
   aws s3api put-public-access-block --bucket "$code_bucket" --region "$region" \
     --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 fi
+aws s3api put-bucket-tagging --bucket "$code_bucket" --region "$region" \
+  --tagging "TagSet=[{Key=project,Value=tatyx},{Key=tenancy,Value=$tenancy}]"
 if ! aws s3api head-object --bucket "$code_bucket" --key "$code_key" --region "$region" >/dev/null 2>&1; then
   aws s3 cp --quiet "$out/lambda.zip" "s3://$code_bucket/$code_key" --region "$region"
 fi
@@ -118,7 +125,7 @@ echo "deploy: the stack (a first deployment takes a few minutes: CloudFront)"
 aws cloudformation deploy --region "$region" --stack-name "$stack" \
   --template-file "$root/deploy/template.yaml" \
   --capabilities CAPABILITY_NAMED_IAM --no-fail-on-empty-changeset \
-  --parameter-overrides "${params[@]}"
+  --parameter-overrides "${params[@]}" --tags "${tags[@]}"
 
 output() {
   aws cloudformation describe-stacks --region "$region" --stack-name "$stack" \

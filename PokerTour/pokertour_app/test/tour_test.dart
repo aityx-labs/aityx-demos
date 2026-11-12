@@ -124,6 +124,15 @@ void main() {
     // Wins, no points; no "latest tournaments"; a preset is a template strategy.
     expect(find.text('Points'), findsNothing);
     expect(find.textContaining('#3: 1. Ana One'), findsNothing);
+    // The welcome page's leaderboard has the wins alone, and the welcome
+    // with the sign-in is beside it, on the right.
+    expect(find.text('Wins'), findsOneWidget);
+    expect(find.text('Played'), findsNothing);
+    expect(find.text('Best'), findsNothing);
+    final board = tester.getRect(find.byKey(const Key('leaderboard-card')));
+    final welcome = tester.getRect(find.byKey(const Key('welcome')));
+    expect(welcome.left, greaterThan(board.right));
+    expect(board.width, greaterThan(welcome.width));
     expect(find.byKey(const Key('owner-u-1')), findsOneWidget);
     expect(tester.widget<Text>(find.byKey(const Key('owner-rock'))).data, 'template strategy');
     expect(tester.widget<Text>(find.byKey(const Key('owner-u-1'))).data, 'Ana');

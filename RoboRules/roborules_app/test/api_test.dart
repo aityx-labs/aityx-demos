@@ -296,7 +296,7 @@ void main() {
       );
     });
 
-    test('no key: set it on the index page, without calling aityx', () async {
+    test('no key: set it with the light, without calling aityx', () async {
       var calls = 0;
       final none = AityxBattleApi(
         client: AityxClient(
@@ -311,11 +311,11 @@ void main() {
       );
       await expectLater(
         none.turns(robots, start, 5),
-        failsWith('aityx is not set up: set your key on the index page'),
+        failsWith('aityx is not set up: set your key (the light, top right)'),
       );
       await expectLater(
         none.score(start),
-        failsWith('aityx is not set up: set your key on the index page'),
+        failsWith('aityx is not set up: set your key (the light, top right)'),
       );
       expect(calls, 0);
     });

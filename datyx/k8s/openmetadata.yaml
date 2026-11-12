@@ -1,0 +1,122 @@
+# OpenMetadata, compose.yaml's openmetadata-migrate and openmetadata: the
+# schema migration (minutes on a first start) as an init container, then
+# the server, its UI and API on 8585, published on this host at
+# http://localhost:19902/ (sign in as admin@open-metadata.org / admin),
+# and its admin port, 8586, with /healthcheck for the probes.
+apiVersion: v1
+kind: Service
+metadata:
+  name: openmetadata
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: openmetadata
+  ports:
+    - name: http
+      port: 8585
+      targetPort: http
+      nodePort: 31902
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openmetadata
+spec:
+  replicas: 1
+  # One server at a time: two would migrate the same schema, and the
+  # cluster has no room for a second one.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openmetadata
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openmetadata
+    spec:
+      # Kubernetes' Docker-link variables (OPENMETADATA_PORT for this very
+      # Service, and the like) would sit beside the server's own settings.
+      enableServiceLinks: false
+      # The image's openmetadata user.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      initContainers:
+        # compose.yaml's depends_on: PostgreSQL ready (its Service answers
+        # once both databases are there) and Elasticsearch green or yellow.
+        - name: wait-for-stores
+          image: docker.getcollate.io/openmetadata/server:2.0.7
+          command: ["bash", "-c"]
+          args:
+            - |
+              until (exec 3<>/dev/tcp/datyx-postgres/5432) 2>/dev/null &&
+                wget -q -O - http://datyx-search:9200/_cluster/health 2>/dev/null | grep -qE '"status":"(green|yellow)"'; do
+                echo "waiting for datyx-postgres and datyx-search"
+                sleep 3
+              done
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+        # Creates or upgrades the schema, then exits; quick once it's done.
+        - name: migrate
+          image: docker.getcollate.io/openmetadata/server:2.0.7
+          args: ["./bootstrap/openmetadata-ops.sh", "migrate"]
+          envFrom:
+            - configMapRef:
+                name: openmetadata-env
+          env:
+            - name: DB_USER_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: datyx-passwords, key: OPENMETADATA_DB_PASSWORD }
+            # The script sets no heap of its own: most of the limit.
+            - name: JAVA_TOOL_OPTIONS
+              value: -XX:MaxRAMPercentage=70
+          resources:
+            requests: { cpu: 100m, memory: 512Mi }
+            limits: { memory: 1Gi }
+      containers:
+        - name: openmetadata
+          image: docker.getcollate.io/openmetadata/server:2.0.7
+          envFrom:
+            - configMapRef:
+                name: openmetadata-env
+          env:
+            - name: DB_USER_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: datyx-passwords, key: OPENMETADATA_DB_PASSWORD }
+            # compose.yaml gives it 1 GB from the start; here it starts
+            # smaller and grows to that.
+            - name: OPENMETADATA_HEAP_OPTS
+              value: -Xms512m -Xmx1g
+          ports:
+            - name: http
+              containerPort: 8585
+            - name: admin
+              containerPort: 8586
+          # compose.yaml's healthcheck, the admin port's /healthcheck: up
+          # to 15 minutes for the server's start, as process-compose.yaml
+          # allows (minutes when the machine is busy).
+          startupProbe:
+            httpGet:
+              path: /healthcheck
+              port: admin
+            periodSeconds: 5
+            failureThreshold: 180
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: admin
+            periodSeconds: 10
+            timeoutSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthcheck
+              port: admin
+            periodSeconds: 20
+            timeoutSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 100m, memory: 1Gi }
+            limits: { memory: 1536Mi }

@@ -18,7 +18,10 @@
 ///   GET /demos/<slug>/... a demo's release web build: every folder beside
 ///                         this one in this index's group (its group.id.txt
 ///                         says INDEX_GROUP, aityx) with a <slug>_app/
-///                         package, the slug being the folder's name in
+///                         (a Flutter package, a static page in
+///                         <slug>_app/web/, or a web app with a
+///                         package.json, built with Vite into the same
+///                         build/web), the slug being the folder's name in
 ///                         lower case: /demos/mortgagehub/ is
 ///                         MortgageHub/mortgagehub_app/build/web. A path
 ///                         that isn't a file gets the build's index.html
@@ -40,16 +43,28 @@
 ///   GET /demos/api/group  {"group": "aityx"}: this index's group
 ///
 /// Settings: INDEX_PORT (default 8800), INDEX_BIND_HOST (127.0.0.1),
-/// INDEX_GROUP (aityx), INDEX_EMBED_ANCESTORS (the pages that may frame
-/// key.html and the demos: the aityx website's dev server, port 4330, by
-/// default), and for dev mode AITYX_API_KEY and AITYX_URL
+/// INDEX_LOOPBACK_ONLY (1: bound to every interface in a container, but
+/// published on this machine's loopback only), INDEX_GROUP (aityx),
+/// INDEX_EMBED_ANCESTORS (the pages that may frame key.html and the
+/// demos: the aityx website's dev server, port 4330, by default), and for
+/// dev mode AITYX_API_KEY and AITYX_URL
 /// (default https://api.aityx.ai), each from the environment, else from
 /// the repo's .env, which is read again at most every 10 s.
+///
+/// Memory stays small however many requests arrive at once (see "Files,
+/// in bounded memory" below): a file is gzipped once and its gzip kept,
+/// up to 32 MB of them, for every browser that takes gzip; a file sent as
+/// it is (an image, a video's range, a client without gzip) is read and
+/// sent by at most 16 requests at a time, the rest waiting their turn; a
+/// client that doesn't take a 64 KB piece within 30 s is cut off; and at
+/// most 512 connections are open at once, the rest waiting to be taken.
 library;
 
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' show min;
 import 'dart:typed_data';
 
 final _here = Directory.fromUri(Platform.script.resolve('..'));
@@ -66,10 +81,18 @@ Future<void> main() async {
   final env = Platform.environment;
   final port = int.parse(env['INDEX_PORT'] ?? '8800');
   final host = env['INDEX_BIND_HOST'] ?? '127.0.0.1';
-  final server = await HttpServer.bind(host, port);
-  // main.dart.js and CanvasKit are several MB: gzip them for a browser
-  // that asks (a codespace's forwarded port is a long way off).
-  server.autoCompress = true;
+  // No autoCompress: it gives every response being written a zlib state
+  // of its own (a few hundred KB, held outside the Dart heap), so memory
+  // grew with the requests in flight: 264 downloads at once, or 2,000 of
+  // the small JSON answers, took it past 250 MB. The files are gzipped
+  // once each instead (_gzipped); the JSON answers go as they are.
+  late final HttpServer server;
+  server = HttpServer.listenOn(
+    _Door(
+      await ServerSocket.bind(host, port),
+      () => server.connectionsInfo().total >= _maxConnections,
+    ),
+  );
   stdout.writeln('index on http://$host:$port$_prefix');
   await for (final request in server) {
     unawaited(_handle(request));
@@ -128,7 +151,12 @@ Future<void> _handle(HttpRequest request) async {
       // Headers already sent: nothing more to say.
     }
   } finally {
-    await response.close();
+    try {
+      await response.close();
+    } catch (_) {
+      // The client left, or was cut off (_taken), with a file half sent:
+      // there is nothing to finish, and nobody to tell.
+    }
   }
 }
 
@@ -228,13 +256,18 @@ Future<void> _page(HttpRequest request, String name) async {
 }
 
 /// [file], with its type, revalidated on every load (nothing here is
-/// fingerprinted), 304 when the browser's copy is current.
+/// fingerprinted), 304 when the browser's copy is current. Gzipped for a
+/// client that takes gzip, from the gzip kept of it (_gzipped), unless it
+/// is a video, of a type that is compressed already, or tiny; else as it
+/// is, in its turn (_stream). Either way with its length.
 Future<void> _send(HttpRequest request, File file) async {
   final response = request.response;
   final stat = await file.stat();
   final modified = stat.modified.toUtc();
   final dot = file.path.lastIndexOf('.');
   final type = dot < 0 ? null : _types[file.path.substring(dot)];
+  final video = type != null && type.startsWith('video/');
+  final gzips = !video && !_packed.contains(type) && stat.size >= _gzipMin;
   // The type on a 304 too: with nosniff and no type, Chrome's opaque
   // response blocking refuses the revalidated file to a page of another
   // origin (an image of the aityx website's blueprint pages), every other
@@ -243,6 +276,9 @@ Future<void> _send(HttpRequest request, File file) async {
     ..set(HttpHeaders.cacheControlHeader, 'no-cache')
     ..set(HttpHeaders.lastModifiedHeader, HttpDate.format(modified))
     ..set(HttpHeaders.contentTypeHeader, type ?? 'application/octet-stream');
+  // What is sent depends on the request's Accept-Encoding: a cache between
+  // the two must not hand the gzip to a client that didn't ask for it.
+  if (gzips) response.headers.set(HttpHeaders.varyHeader, 'Accept-Encoding');
   final since = request.headers.ifModifiedSince;
   // The header has whole seconds; the file's time, milliseconds.
   if (since != null &&
@@ -252,17 +288,29 @@ Future<void> _send(HttpRequest request, File file) async {
     return;
   }
   response.statusCode = 200;
-  if (type != null && type.startsWith('video/')) {
-    return _sendRange(request, file, stat.size);
+  if (video) return _sendRange(request, file, stat.size);
+  final zipped = gzips && _acceptsGzip(request)
+      ? await _gzipped(file, stat)
+      : null;
+  if (zipped != null) {
+    try {
+      response.headers.set(HttpHeaders.contentEncodingHeader, 'gzip');
+      response.contentLength = zipped.length;
+      if (request.method == 'HEAD') return;
+      await _sendGzip(response, zipped);
+    } finally {
+      _release(zipped);
+    }
+    return;
   }
-  if (request.method == 'HEAD') return;
-  await response.addStream(file.openRead());
+  response.contentLength = stat.size;
+  if (request.method == 'HEAD' || stat.size == 0) return;
+  await _stream(response, file, 0, stat.size);
 }
 
 /// A video, whole or the one byte range asked for (`Range: bytes=a-b`,
-/// `a-` or `-n`): Safari plays a video only from ranges. Its length is
-/// set, which also keeps it out of autoCompress (gzip would break ranges,
-/// and saves nothing on a video).
+/// `a-` or `-n`): Safari plays a video only from ranges. Never gzipped
+/// (gzip would break ranges, and saves nothing on a video).
 Future<void> _sendRange(HttpRequest request, File file, int length) async {
   final response = request.response;
   response.headers.set(HttpHeaders.acceptRangesHeader, 'bytes');
@@ -293,7 +341,347 @@ Future<void> _sendRange(HttpRequest request, File file, int length) async {
   }
   response.contentLength = length == 0 ? 0 : end - start + 1;
   if (request.method == 'HEAD' || length == 0) return;
-  await response.addStream(file.openRead(start, end + 1));
+  await _stream(response, file, start, end + 1);
+}
+
+// Files, in bounded memory ----------------------------------------------------
+//
+// What the server holds must not add up with the requests in flight: a
+// burst of a few hundred downloads got it killed at its memory limit when
+// each response gzipped its file for itself (autoCompress) while reading
+// it. So:
+//
+//  - a file is gzipped once, by one request at a time, and its gzip kept
+//    (_gzipped): every response of it then shares the same bytes and
+//    holds nothing of its own;
+//  - a file sent as it is, is read and sent by at most [_maxStreams]
+//    requests at a time, the rest waiting in line (_stream);
+//  - a response is written a piece at a time, each when the client's
+//    connection has taken the one before (_taken), and a client that
+//    doesn't take a piece within [_stallAfter] is cut off, so it holds
+//    neither a turn nor a gzip for longer;
+//  - at most [_maxConnections] connections are open at once (_Door): the
+//    HTTP server's own state for each is the one thing left that adds up.
+
+/// The types never gzipped: compressed already. A video isn't either (it
+/// goes by ranges), nor a file under [_gzipMin] bytes (nothing to save).
+const _packed = {
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'font/woff',
+  'font/woff2',
+};
+const _gzipMin = 1024;
+
+/// The gzips kept: [_gzipMax] bytes in all, counting those a response is
+/// still sending, and one file's at most [_gzipFileMax]. One browser's
+/// six demos are about 17 MB of gzip (main.dart.js and one CanvasKit
+/// each); every file of the six builds, 85 MB, so the least recently used
+/// go first.
+const _gzipMax = 32 * 1024 * 1024;
+const _gzipFileMax = 8 * 1024 * 1024;
+
+/// How many files are read and sent as they are at once.
+const _maxStreams = 16;
+
+/// How many connections are open at once: each costs the HTTP server
+/// some 30 KB, whatever it asks for.
+const _maxConnections = 512;
+
+/// A response goes out [_piece] bytes at a time, and a client that doesn't
+/// take the whole of a piece within [_stallAfter] is cut off: about 2 KB a
+/// second at least.
+const _piece = 64 * 1024;
+const _stallAfter = Duration(seconds: 30);
+
+/// Turns, a few at once: the rest wait in line, first come, first served.
+class _Turns {
+  _Turns(this._free);
+
+  int _free;
+  final _line = Queue<Completer<void>>();
+
+  /// [work], once there is a turn for it.
+  Future<T> take<T>(Future<T> Function() work) async {
+    if (_free > 0) {
+      _free--;
+    } else {
+      final turn = Completer<void>();
+      _line.add(turn);
+      await turn.future;
+    }
+    try {
+      return await work();
+    } finally {
+      // To the next in line, if any: the turn goes straight to it.
+      if (_line.isEmpty) {
+        _free++;
+      } else {
+        _line.removeFirst().complete();
+      }
+    }
+  }
+}
+
+final _streams = _Turns(_maxStreams);
+final _gzipping = _Turns(1);
+
+/// The server's port, for the HTTP server: while [_full] says so, no
+/// connection is taken, and the new ones wait in the kernel's queue until
+/// one of those open closes (looked at every 20 ms).
+class _Door extends Stream<Socket> implements ServerSocket {
+  _Door(this._port, this._full);
+
+  final ServerSocket _port;
+  final bool Function() _full;
+
+  @override
+  InternetAddress get address => _port.address;
+
+  @override
+  int get port => _port.port;
+
+  @override
+  Future<ServerSocket> close() async {
+    await _port.close();
+    return this;
+  }
+
+  @override
+  StreamSubscription<Socket> listen(
+    void Function(Socket socket)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) {
+    late final StreamSubscription<Socket> taking;
+    Timer? waiting;
+    taking = _port.listen(
+      (socket) {
+        onData?.call(socket);
+        if (waiting != null || !_full()) return;
+        taking.pause();
+        waiting = Timer.periodic(const Duration(milliseconds: 20), (timer) {
+          if (_full()) return;
+          timer.cancel();
+          waiting = null;
+          taking.resume();
+        });
+      },
+      onError: onError,
+      onDone: onDone,
+      cancelOnError: cancelOnError,
+    );
+    return taking;
+  }
+}
+
+/// Whether the request's Accept-Encoding takes gzip (`gzip`, `x-gzip`,
+/// not `gzip;q=0`).
+bool _acceptsGzip(HttpRequest request) {
+  final values = request.headers[HttpHeaders.acceptEncodingHeader];
+  for (final value in values ?? const <String>[]) {
+    for (final item in value.split(',')) {
+      final parts = item.split(';').map((part) => part.trim().toLowerCase());
+      if (parts.first != 'gzip' && parts.first != 'x-gzip') continue;
+      final q = parts.skip(1).where((part) => part.startsWith('q='));
+      return q.isEmpty || (double.tryParse(q.first.substring(2)) ?? 0) > 0;
+    }
+  }
+  return false;
+}
+
+/// Waits until the client's connection has taken what was written to
+/// [response] so far, so nothing piles up here for a slow client. False
+/// when the client left, or took nothing for [_stallAfter] and was cut
+/// off.
+Future<bool> _taken(HttpResponse response) async {
+  final flushed = response.flush();
+  try {
+    await flushed.timeout(_stallAfter);
+  } on TimeoutException {
+    // A deadline that has passed drops the connection, which ends the
+    // write; the wait after it is bounded all the same.
+    response.deadline = Duration.zero;
+    await flushed.timeout(const Duration(seconds: 5), onTimeout: () {});
+    return false;
+  }
+  // After the client leaves, writes are dropped without an error: only
+  // the connection tells.
+  return response.connectionInfo != null;
+}
+
+/// The bytes of [file] from [start] up to [end], as they are, in this
+/// request's turn: [_maxStreams] files are read and sent at once, the
+/// rest wait. Each holds one block, read into again once the client's
+/// connection has taken the piece before. The reads are synchronous (as
+/// the gzip of a block always was): an asynchronous read allocates a
+/// block of its own each time, outside the Dart heap, and tens of MB of
+/// them pile up before the collector looks.
+Future<void> _stream(HttpResponse response, File file, int start, int end) =>
+    _streams.take(() async {
+      final from = await file.open();
+      try {
+        final block = Uint8List(min(_piece, end - start));
+        from.setPositionSync(start);
+        for (var at = start; at < end;) {
+          final read = from.readIntoSync(block, 0, min(block.length, end - at));
+          if (read <= 0) break;
+          at += read;
+          response.add(
+            read == block.length ? block : Uint8List.sublistView(block, 0, read),
+          );
+          if (!await _taken(response)) break;
+        }
+      } finally {
+        await from.close();
+      }
+    });
+
+/// [zipped], a [_piece] or so at a time.
+Future<void> _sendGzip(HttpResponse response, _Gzip zipped) async {
+  var pending = 0;
+  for (final chunk in zipped.chunks) {
+    response.add(chunk);
+    pending += chunk.length;
+    if (pending < _piece) continue;
+    pending = 0;
+    if (!await _taken(response)) return;
+  }
+  if (pending > 0) await _taken(response);
+}
+
+/// A file's gzip, and the size and time of the file it was made from.
+/// With no [chunks]: a file not worth it (its gzip no smaller, or over
+/// [_gzipFileMax]), remembered so it isn't gzipped again.
+class _Gzip {
+  _Gzip(this.path, this.size, this.modified, this.chunks, this.length);
+
+  final String path;
+  final int size;
+  final DateTime modified;
+  final List<Uint8List> chunks;
+  final int length;
+
+  /// The responses sending it now: it is not dropped under them.
+  int users = 0;
+
+  bool of(FileStat stat) => size == stat.size && modified == stat.modified;
+}
+
+/// The gzips kept, by path, the least recently used first; their bytes,
+/// with those of the ones replaced or dropped while a response still
+/// sends them ([_gzipMax] at most); the bytes of those being sent, which
+/// can't make room; and the files being gzipped now.
+final _gzips = <String, _Gzip>{};
+var _gzipBytes = 0;
+var _gzipSending = 0;
+final _gzipJobs = <String, Future<_Gzip?>>{};
+
+/// The gzip of [file] as [stat] found it, to send now and [_release]
+/// after: the one kept or, the first time (and after the file changes),
+/// made now, one file at a time, the requests for the same file waiting
+/// for the one that makes it. Null when there is none to send: the file
+/// isn't worth it, changed meanwhile, or no room could be made for its
+/// gzip (every one kept is being sent); then the file goes as it is.
+Future<_Gzip?> _gzipped(File file, FileStat stat) async {
+  final path = file.path;
+  var kept = _gzips[path];
+  if (kept == null || !kept.of(stat)) {
+    var job = _gzipJobs[path];
+    if (job == null) {
+      // Not gzipped for nothing: with this much being sent (to clients
+      // that read slowly, or not at all), there may be no room for it.
+      if (_gzipSending + min(stat.size, _gzipFileMax) > _gzipMax) return null;
+      job = _gzipJobs[path] = _gzip(file, stat).whenComplete(() {
+        _gzipJobs.remove(path);
+      });
+    }
+    kept = await job;
+    if (kept == null || !kept.of(stat)) return null;
+  }
+  // Dropped since (the wait above): not one to count on.
+  if (!identical(_gzips[path], kept)) return null;
+  // The most recently used: last.
+  _gzips.remove(path);
+  _gzips[path] = kept;
+  if (kept.chunks.isEmpty) return null;
+  if (kept.users++ == 0) _gzipSending += kept.length;
+  return kept;
+}
+
+/// A response is done with [sent]: one replaced or dropped meanwhile goes
+/// with its last response.
+void _release(_Gzip sent) {
+  if (--sent.users > 0) return;
+  _gzipSending -= sent.length;
+  if (!identical(_gzips[sent.path], sent)) _gzipBytes -= sent.length;
+}
+
+/// Gzips [file] and keeps the result, when there is room for it: null
+/// when there isn't, or when the file changed while it was read.
+Future<_Gzip?> _gzip(File file, FileStat stat) => _gzipping.take(() async {
+  final out = _GzipOut();
+  final encoder = gzip.encoder.startChunkedConversion(out);
+  final from = await file.open();
+  try {
+    // Block by block (one block, read into again: see _stream), giving
+    // way to the other requests between two, and no further once the
+    // gzip is over the most kept.
+    final block = Uint8List(_piece);
+    while (out.length <= _gzipFileMax) {
+      final read = from.readIntoSync(block);
+      if (read <= 0) break;
+      encoder.addSlice(block, 0, read, false);
+      await Future<void>.delayed(Duration.zero);
+    }
+  } finally {
+    await from.close();
+  }
+  encoder.close();
+  final now = await file.stat();
+  if (now.size != stat.size || now.modified != stat.modified) return null;
+  final worth = out.length <= _gzipFileMax && out.length < stat.size;
+  final made = worth
+      ? _Gzip(file.path, stat.size, stat.modified, out.chunks, out.length)
+      : _Gzip(file.path, stat.size, stat.modified, const [], 0);
+  return _keep(made) ? made : null;
+});
+
+/// What the encoder puts out, piece by piece.
+class _GzipOut implements Sink<List<int>> {
+  final chunks = <Uint8List>[];
+  int length = 0;
+
+  @override
+  void add(List<int> chunk) {
+    chunks.add(chunk is Uint8List ? chunk : Uint8List.fromList(chunk));
+    length += chunk.length;
+  }
+
+  @override
+  void close() {}
+}
+
+/// Keeps [made] in place of the file's older gzip, dropping the least
+/// recently used that no response is sending until it fits. False, and
+/// not kept, when it still doesn't.
+bool _keep(_Gzip made) {
+  final old = _gzips.remove(made.path);
+  if (old != null && old.users == 0) _gzipBytes -= old.length;
+  for (final path in _gzips.keys.toList()) {
+    if (_gzipBytes + made.length <= _gzipMax) break;
+    final kept = _gzips[path]!;
+    if (kept.users > 0) continue;
+    _gzips.remove(path);
+    _gzipBytes -= kept.length;
+  }
+  if (_gzipBytes + made.length > _gzipMax) return false;
+  _gzips[made.path] = made;
+  _gzipBytes += made.length;
+  return true;
 }
 
 void _json(
@@ -367,7 +755,13 @@ Future<Map<String, _Demo>> _demos() async {
     final folder = _name(entry);
     final slug = folder.toLowerCase();
     if (await _groupOf(entry) != _group) continue;
-    if (!await File('${entry.path}/${slug}_app/pubspec.yaml').exists()) {
+    // A Flutter app (its pubspec.yaml), a static page (its web/index.html,
+    // copied as it is into build/web by the demo's scripts/build.sh: Outpost,
+    // HealthPlan), or a web app (its package.json, built with Vite into
+    // build/web: Holiday Split).
+    if (!await File('${entry.path}/${slug}_app/pubspec.yaml').exists() &&
+        !await File('${entry.path}/${slug}_app/web/index.html').exists() &&
+        !await File('${entry.path}/${slug}_app/package.json').exists()) {
       continue;
     }
     // Never one of this server's own paths under the prefix.
@@ -607,11 +1001,15 @@ bool _sameOrigin(HttpRequest request) {
       self.port == from.port;
 }
 
-/// Whether this server listens on the loopback only (INDEX_BIND_HOST, by
-/// default 127.0.0.1: a laptop), where only this machine's browser
-/// reaches it.
+/// Whether only this machine's browser reaches this server: it listens on
+/// the loopback only (INDEX_BIND_HOST, by default 127.0.0.1: a laptop), or
+/// INDEX_LOOPBACK_ONLY=1 says so for a server that listens on every
+/// interface inside a container whose port is published on this machine's
+/// loopback only (the local Kubernetes cluster's, k8s/kind/cluster.yaml).
 final _loopbackBind = () {
-  final host = Platform.environment['INDEX_BIND_HOST'] ?? '127.0.0.1';
+  final env = Platform.environment;
+  if (env['INDEX_LOOPBACK_ONLY'] == '1') return true;
+  final host = env['INDEX_BIND_HOST'] ?? '127.0.0.1';
   return host == 'localhost' ||
       (InternetAddress.tryParse(host)?.isLoopback ?? false);
 }();

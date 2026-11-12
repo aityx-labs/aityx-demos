@@ -121,9 +121,14 @@ profiles and contracts follow the simulation:
    table that should have rows fails.
 2. For each profile's seeded HealthHub sources
    ([data-sources.md](data-sources.md)), it syncs the database (profiles
-   and schema checks included) and the Kafka cluster (when it can't be
-   read, the curation goes on without its topics), then applies the
-   document.
+   and schema checks included) and the Kafka cluster, then applies the
+   document. When Kafka can't be read (HealthHub's still starting when
+   a new stack's first pass comes) the curation goes on without its
+   topics, and Kafka is tried again at each half-minute tick for
+   `datyx.dev-catalog.rows-wait` (5 minutes): once it answers its topics
+   are synced and the document applied again, `dev catalogue: HealthHub
+   Kafka answers now: its topics synced, and curated with HealthHub`;
+   past that, it waits for the passes.
 3. It logs one line per pass: `dev catalogue: HealthHub's checks set in
    OpenMetadata and run: 269 (101 of the schema, 168 of the document;
    test cases 0 new, 1 changed, 1 removed), 267 passed (or aborted,
@@ -131,9 +136,20 @@ profiles and contracts follow the simulation:
 4. It runs OpenMetadata's Data Insights (`DataInsightsApplication`), so
    the coverage reports (descriptions, owners, tiers) count the curation.
 
+A profile made between two passes (someone's first sign-in, which gives
+it the seeded sources, [data-sources.md](data-sources.md#development-data))
+doesn't wait for the next, up to 10 minutes away: `DevCatalog` keeps the
+ids of the database sources a pass has been through, and at each
+half-minute tick syncs and curates the ones it hasn't, alone, as steps 2
+to 4 do, logging `dev catalogue: 1 new profile(s) with HealthHub's
+sources, synced and curated now`. The passes' schedule stays as it was.
+The trainer, which looks at every source of every profile once a minute,
+then queues the new profile's initial runs ([training.md](training.md)).
+
 OpenMetadata unreachable, or refusing a call, is logged and tried again
-in half a minute; another failure is logged and waits for the next
-pass. `datyx.dev-catalog.enabled=false` turns it off.
+in half a minute, a new profile's sources too; another failure is logged
+and waits for the next pass, as does a new profile's source that fails
+that way. `datyx.dev-catalog.enabled=false` turns it off.
 
 With HealthHub's document, OpenMetadata shows: the Healthcare domain
 and the HealthHub data product holding every asset; the HealthHub Data

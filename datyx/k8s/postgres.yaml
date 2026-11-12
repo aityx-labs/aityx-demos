@@ -1,0 +1,110 @@
+# PostgreSQL, compose.yaml's postgres service: the datyx database (the
+# API's) and openmetadata_db (OpenMetadata's), made with their owners by
+# docker/postgres-init.sh on the first start of an empty volume.
+apiVersion: v1
+kind: Service
+metadata:
+  name: datyx-postgres
+spec:
+  selector:
+    app.kubernetes.io/name: datyx-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: datyx-postgres
+spec:
+  serviceName: datyx-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: datyx-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: datyx-postgres
+    spec:
+      # No Docker-link variables for the namespace's Services (DATYX_*_PORT
+      # and the like): nothing here reads them, some read names like them.
+      enableServiceLinks: false
+      # The image's postgres user, which owns everything it writes.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:17
+          # OpenMetadata's migrations like a bit more working memory than
+          # the default 4MB.
+          args: ["-c", "work_mem=10MB"]
+          env:
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: datyx-passwords, key: DATYX_DB_ADMIN_PASSWORD }
+            # Read by the init script: the two databases' owners.
+            - name: DATYX_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: datyx-passwords, key: DATYX_DB_PASSWORD }
+            - name: OPENMETADATA_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: datyx-passwords, key: OPENMETADATA_DB_PASSWORD }
+            # A folder inside the volume, which the image's user can make.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - name: postgres
+              containerPort: 5432
+          # The first start makes the databases with a server on the socket
+          # alone; the checks ask over TCP, so they pass only once the real
+          # server is up, after the init script.
+          startupProbe:
+            exec:
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+            periodSeconds: 3
+            failureThreshold: 60
+          # compose.yaml's healthcheck: both databases exist.
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -h 127.0.0.1 -U postgres -d datyx && psql -U postgres -d openmetadata_db -tAc 'select 1' >/dev/null
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 384Mi }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: init
+          configMap:
+            name: datyx-postgres-init
+            defaultMode: 0555
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 2Gi

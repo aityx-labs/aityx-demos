@@ -1,0 +1,83 @@
+# The web app, compose.yaml's web (docker/web.Dockerfile): the app's
+# release web build served by nginx under /app/, with /api/ proxied to the
+# API. Published on the node (31801), the host's
+# http://localhost:19801/app/.
+apiVersion: v1
+kind: Service
+metadata:
+  name: healthhub
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: healthhub
+  ports:
+    - name: http
+      port: 9801
+      targetPort: http
+      nodePort: 31801
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: healthhub
+  labels:
+    aityx-demos/build: local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: healthhub
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: healthhub
+    spec:
+      enableServiceLinks: false
+      # nginx as its own user: its pid file and caches in the folders
+      # below rather than the image's root-owned ones.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+      containers:
+        - name: web
+          image: localhost:5001/aityx-demos/healthhub-web:dev
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          # compose.yaml's health check: the app, and the API through the
+          # proxy.
+          readinessProbe:
+            exec:
+              command: ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/app/", "http://127.0.0.1:8080/api/health"]
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            timeoutSeconds: 5
+          # Alive while nginx serves the app, whatever the API does.
+          livenessProbe:
+            httpGet:
+              path: /app/
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+          volumeMounts:
+            - name: conf
+              mountPath: /etc/nginx/conf.d
+              readOnly: true
+            - name: cache
+              mountPath: /var/cache/nginx
+            - name: run
+              mountPath: /run
+      volumes:
+        - name: conf
+          configMap:
+            name: healthhub-web-nginx
+        - name: cache
+          emptyDir: {}
+        - name: run
+          emptyDir: {}

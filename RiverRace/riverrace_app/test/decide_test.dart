@@ -152,7 +152,7 @@ void main() {
         isA<DecideException>().having(
           (e) => e.message,
           'message',
-          'aityx is not set up: set your key on the index page',
+          'aityx is not set up: set your key (the light, top right)',
         ),
       ),
     );

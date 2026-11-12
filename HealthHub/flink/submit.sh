@@ -3,9 +3,9 @@
 # flink-sql service of ../compose.yaml: every FLINK_SUBMIT_INTERVAL
 # seconds (30) it asks the JobManager for its jobs and submits
 # admissions-hourly.sql when none of that name is running (or starting,
-# restarting...). So a second `docker compose up`, or this container's
-# restart, never doubles the job, and a JobManager that restarted, and
-# lost its jobs, gets it back.
+# restarting...), once Kafka takes a connection. So a second
+# `docker compose up`, or this container's restart, never doubles the job,
+# and a JobManager that restarted, and lost its jobs, gets it back.
 #
 #   submit.sh          the loop
 #   submit.sh check    exits 0 when the job is on the cluster (the
@@ -29,19 +29,42 @@ on_cluster() {
         | grep -qvE '"state":"(FINISHED|FAILED|CANCELED)"'
 }
 
+# kafka_up: 0 when Kafka takes a connection at the job's bootstrap address
+# (the first, if several). Compose starts this service once Kafka is
+# healthy; on Kubernetes nothing orders the two, and a job submitted before
+# the broker answers has its source's admin client retry without a pause,
+# thousands of log lines a second in the JobManager, until it does.
+kafka_up() {
+    local first="${HEALTHHUB_KAFKA_BOOTSTRAP:-kafka:19092}"
+    first="${first%%,*}"
+    timeout 5 bash -c 'exec 3<>"/dev/tcp/$1/$2"' _ "${first%:*}" "${first##*:}" 2>/dev/null
+}
+
 # submit: runs the SQL with the database password in place, through the
 # SQL client, which returns once the job is submitted. The rendered file
 # is private to this user and removed after. The client echoes every
 # statement, the password's too, so only its verdicts are logged (the
 # job's id, or the error), with the password masked should one quote it.
+# Kafka's and the database's addresses are compose's (kafka:19092,
+# postgres:5432) unless HEALTHHUB_KAFKA_BOOTSTRAP, HEALTHHUB_DB_HOST and
+# HEALTHHUB_DB_PORT name others (on Kubernetes, k8s/).
 submit() {
-    local text password rendered output status quote="'"
+    local text password kafka db_host db_port rendered output status quote="'"
     text="$(<"$sql")"
     password="${HEALTHHUB_DB_PASSWORD:-healthhub}"
+    kafka="${HEALTHHUB_KAFKA_BOOTSTRAP:-kafka:19092}"
+    db_host="${HEALTHHUB_DB_HOST:-postgres}"
+    db_port="${HEALTHHUB_DB_PORT:-5432}"
     # A quote doubles inside the SQL string; & is literal in the replacement.
     shopt -u patsub_replacement 2>/dev/null
     password="${password//$quote/$quote$quote}"
+    kafka="${kafka//$quote/$quote$quote}"
+    db_host="${db_host//$quote/$quote$quote}"
+    db_port="${db_port//$quote/$quote$quote}"
     text="${text//@@HEALTHHUB_DB_PASSWORD@@/$password}"
+    text="${text//@@HEALTHHUB_KAFKA_BOOTSTRAP@@/$kafka}"
+    text="${text//@@HEALTHHUB_DB_HOST@@/$db_host}"
+    text="${text//@@HEALTHHUB_DB_PORT@@/$db_port}"
     rendered="$(mktemp /tmp/admissions-hourly.XXXXXX.sql)"
     printf '%s\n' "$text" >"$rendered"
     output="$("$FLINK_HOME/bin/sql-client.sh" -f "$rendered" 2>&1)"
@@ -76,6 +99,10 @@ while true; do
             running) echo "flink-sql: $name is on the cluster" ;;
             unreachable) echo "flink-sql: the JobManager at $jobmanager doesn't answer yet" ;;
         esac
+    fi
+    if [[ "$state" == absent ]] && ! kafka_up; then
+        state=waiting
+        [[ "$last" != waiting ]] && echo "flink-sql: Kafka doesn't answer yet; $name is submitted once it does"
     fi
     if [[ "$state" == absent ]]; then
         echo "flink-sql: $name isn't running; submitting it"

@@ -6,6 +6,12 @@ credentials, as the CloudFormation stack `tatyx`
 `bash deploy/deploy.sh` (`--key` to put the leaderboard's key again,
 `--no-build` to deploy the build there is).
 
+Every resource is tagged for cost allocation with the account's standard,
+`project=tatyx` and `tenancy` (`TATYX_TENANCY`: `GA`, the default, `RC` or
+`shared`): the deploy passes them as the stack's tags, which CloudFormation
+copies to every resource that takes tags, and puts them on the code bucket
+it makes outside the stack.
+
 ## What runs where
 
 - **CloudFront**, one address (`https://<id>.cloudfront.net`):

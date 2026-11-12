@@ -8,6 +8,8 @@ import 'package:http/http.dart' as http;
 import 'body.dart';
 import 'connection.dart';
 import 'key_store.dart';
+import 'platform/platform_vm.dart'
+    if (dart.library.js_interop) 'platform/platform_web.dart';
 import 'settings.dart';
 
 /// What a check found.
@@ -47,7 +49,7 @@ class AityxState {
     key: false,
     source: AityxSource.none,
     url: null,
-    detail: 'set yours on the index page',
+    detail: 'set yours with the light, top right',
     kind: AityxStateKind.noKey,
     whose: 'no key',
   );
@@ -78,7 +80,7 @@ class AityxState {
       url == null || url!.isEmpty
           ? 'aityx: ready — the key works'
           : 'aityx: ready — the key works with $url',
-    AityxStateKind.noKey => 'aityx: no key — set yours on the index page',
+    AityxStateKind.noKey => 'aityx: no key — set yours here',
     AityxStateKind.rejected => 'aityx: key rejected — $detail',
     AityxStateKind.unreachable => 'aityx: not reachable — $detail',
     AityxStateKind.failing => 'aityx: not working — $detail',
@@ -110,6 +112,23 @@ Future<AityxState> checkAityx({
           store: store,
         );
     if (to.source == AityxSource.none) return AityxState.noKey;
+    if (to.source == AityxSource.bridge) {
+      // Framed by the console with no origin of its own: the check goes the
+      // same way every other call does, through the page around the app.
+      final answered = await askParent('{}', timeout);
+      if (answered.status == 0) {
+        return _state(
+          to,
+          AityxStateKind.unreachable,
+          'no answer from the aityx console in ${spoken(timeout)}',
+        );
+      }
+      return classifyAityx(
+        status: answered.status,
+        body: answered.body,
+        connection: to,
+      );
+    }
     try {
       final answer = await asker
           .post(to.systemone, headers: to.headers(), body: '{}')
@@ -162,7 +181,7 @@ AityxState classifyAityx({
       connection,
       AityxStateKind.rejected,
       connection.source == AityxSource.user
-          ? 'aityx answered $said: set a new key on the index page'
+          ? 'aityx answered $said: set a new key (the light, top right)'
           : 'aityx answered $said',
     );
   }

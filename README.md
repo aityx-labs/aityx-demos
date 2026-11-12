@@ -23,15 +23,20 @@ No key ships with this repository. To get one:
 3. Open the aityx index (http://localhost:8800/demos/ or your codespace),
    paste the key in **Your aityx key** and choose **Check and save**.
 
-The key stays in your browser, and every aityx demo uses it. tatyx asks
+The key stays in your browser, and every aityx demo uses it. A demo opened
+without a key asks for it itself, in a small form where it calls aityx (the
+key, optionally the aityx URL, and a link to the console): a key saved there
+is the same key, for the index page and every other demo. With a key set,
+the form isn't there. tatyx asks
 for a key in its own **Your aityx key** panel. Poker Tour plays on the
 host's key, and HealthHub's server holds its own. To skip this step, give
 the servers a dev key (see [A dev key](#a-dev-key)).
 
 ## aityx
 
-Six Flutter web apps that call aityx from the browser, all served by the
-[index](Index/) under `/demos/`.
+Nine web apps that call aityx from the browser (six in Flutter; Outpost and
+Health Plan, static pages; Holiday Split, plain JavaScript built with Vite),
+all served by the [index](Index/) under `/demos/`.
 
 [![Open the aityx demos in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Faityx%2Fdevcontainer.json&machine=standardLinux32gb)
 
@@ -39,9 +44,12 @@ Six Flutter web apps that call aityx from the browser, all served by the
 |---|---|---|
 | [Mortgage Hub](MortgageHub/) | `/demos/mortgagehub/` | A mortgage application, checked against US lending rules by a decision model |
 | [Contact Hub](ContactHub/) | `/demos/contacthub/` | A request, typed or dictated, routed to the right department or person |
+| [Health Plan](HealthPlan/) | `/demos/healthplan/` | Which 2027 health plan costs a family less, read from their own words and priced by rules |
+| [Holiday Split](HolidaySplit/) | `/demos/holidaysplit/` | Who owes what after a holiday trip: the group chat read on the device, settled by house rules |
 | [Cellfie](Cellfie/) | `/demos/cellfie/` | Conway's Game of Life, with aityx naming the patterns on the board |
 | [RiverRace](RiverRace/) | `/demos/riverrace/` | The 1982 Atari river shooter, with two planes flown by aityx and one by you |
 | [RoboRules](RoboRules/) | `/demos/roborules/` | Robocode-style tank battles, each robot a decision model |
+| [Outpost](Outpost/) | `/demos/outpost/` | Keep a growing city's lights on, each night run by aityx on your rules |
 | [PokerFace](PokerFace/) | `/demos/pokerface/` | No-limit hold'em where every player is a set of rules |
 
 Run them with `./start-aityx.sh` (or `./start-aityx.sh MortgageHub` for one)
@@ -64,6 +72,25 @@ Ask anything and get routed to the right department or person. In one aityx
 call, Jev classifies and checks the message, and a decision model picks the
 department, the person and the priority. The app shows why, with the JSON
 behind each item. [README](ContactHub/README.md)
+
+### Health Plan
+
+![Health Plan: a family's year in their own words, the three plans priced by aityx, and a receipt for each](Index/www/healthplan.gif)
+
+Which 2027 health plan will actually cost you less? Describe your family's
+year in plain words. In one aityx call, Jev reads each person's care and any
+pregnancy, and the plan rules price Bronze, Silver and Gold for that year.
+A receipt per plan shows every number and where it came from, and what-if
+switches show the winner change. [README](HealthPlan/README.md)
+### Holiday Split
+
+![Holiday Split: a family's Christmas trip, read and settled by aityx, with everyone's receipt](Index/www/holidaysplit.gif)
+
+Who owes what after a holiday trip. Write the family's group chat, and
+aityx reads who comes, for how many nights, what was spent, who isn't
+paying and who doesn't drink; the house rules, a decision model on aityx,
+say who pays whom, how much and by when, with a receipt for everyone.
+From Thanksgiving at Mom's to New Year's at the lake with fifteen people. [README](HolidaySplit/README.md)
 
 ### Cellfie
 
@@ -92,6 +119,16 @@ Tanks fight until one is left. Each robot's rules decide how it drives,
 aims and fires, based on what it senses. aityx plays the battle itself, up
 to 50 turns per call. Pick Robocode's sample robots or random ones, and edit
 any robot's rules. [README](RoboRules/README.md)
+
+### Outpost
+
+![Outpost: a recorded game, each night run hour by hour by aityx, the houses lit and the hospital kept on](Index/www/outpost.gif)
+
+A city grows every night. By day you build a solar panel, a battery or a
+wind turbine; before night you write the rules for what goes dark first.
+Each night is one aityx call that runs it hour by hour, and the page draws
+only what aityx answers, with a receipt that gives the rule behind every
+number. How many nights can your city survive? [README](Outpost/README.md)
 
 ### PokerFace
 
@@ -219,6 +256,50 @@ key runs each demo's `scripts/model-test.sh`.
 Nothing that git ignores goes into a Docker image. Run
 [sync-dockerignore.sh](sync-dockerignore.sh) after changing a `.gitignore`
 or adding a Dockerfile.
+
+## Running on Kubernetes
+
+Every demo also runs on a local Kubernetes cluster made with
+[kind](https://kind.sigs.k8s.io), on the same ports plus 10000, so it can
+run beside a local start. See [k8s/](k8s/README.md).
+
+```bash
+brew install kind            # kubectl comes with Docker Desktop
+bash k8s/up.sh               # the cluster, its registry, a namespace per group, the .env's settings
+bash k8s/deploy.sh           # build, deploy and check every demo (or name them: bash k8s/deploy.sh tatyx)
+bash k8s/verify.sh           # check them again
+bash k8s/down.sh             # delete the cluster
+```
+
+The cluster takes about 7 GB of Docker's memory: give Docker Desktop 14 GB
+or more to run it beside a local start (Settings, Resources, Memory).
+
+## Ports
+
+Everything is published on this host only (127.0.0.1). Locally, each demo
+has its own port; on Kubernetes, the same port plus 10000.
+
+| What | Local | Kubernetes |
+|---|---|---|
+| aityx index, the six aityx demos at `/demos/<slug>/` | http://localhost:8800/demos/ | http://localhost:18800/demos/ |
+| multyx index | http://localhost:9700/ | http://localhost:19700/ |
+| tatyx | http://localhost:9710/tatyx/ | http://localhost:19710/tatyx/ |
+| Poker Tour | http://localhost:9810/pokertour/ | http://localhost:19810/pokertour/ |
+| Poker Tour's Floci (local S3 and DynamoDB) | 9811 | in the cluster only |
+| datyx index | http://localhost:9800/ | http://localhost:19800/ |
+| HealthHub | http://localhost:9801/app/ | http://localhost:19801/app/ |
+| HealthHub's API, PostgreSQL, Kafka, Kafka REST | 9802, 9803, 9804, 9805 | in the cluster only |
+| HealthHub's Flink | http://localhost:9806/ | http://localhost:19806/ |
+| datyx API | http://localhost:9900/q/swagger-ui | http://localhost:19900/q/swagger-ui |
+| datyx's PostgreSQL | 9901 | in the cluster only |
+| OpenMetadata (admin@open-metadata.org, admin) | http://localhost:9902/ | http://localhost:19902/ |
+| OpenMetadata's admin port, Elasticsearch | 9903, 9904 | in the cluster only |
+| the datyx API's debugger (`API_MODE=dev`) | 9905 | none: the cluster runs the packaged API |
+| datyx dashboard | http://localhost:9906/app/ | http://localhost:19906/app/ |
+
+The group indexes link to the demos of their own run: the multyx index on
+19700 opens tatyx on 19710. Google sign-in works on both sets of ports;
+[k8s/](k8s/README.md#google-sign-in) lists the clients and their origins.
 
 ## Codespaces
 

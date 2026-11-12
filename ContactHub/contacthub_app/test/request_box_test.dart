@@ -197,7 +197,14 @@ void main() {
     await tester.pumpWidget(ContactHubApp(voice: FakeVoice(), router: router));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), 'Change my address');
+    // The request's field: without a key, the key form has fields too.
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(RequestBox),
+        matching: find.byType(TextField),
+      ),
+      'Change my address',
+    );
     await tester.pump();
     await tester.tap(find.text('Send'));
     await tester.pump();

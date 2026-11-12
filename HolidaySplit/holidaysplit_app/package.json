@@ -1,0 +1,20 @@
+{
+  "name": "holidaysplit-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Holiday Split: who owes what for the holidays, settled by aityx; the group chat read on the device by a small LLM (transformers.js) and by Jev.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "aityx-js": "file:../../packages/aityx_js"
+  },
+  "devDependencies": {
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  }
+}

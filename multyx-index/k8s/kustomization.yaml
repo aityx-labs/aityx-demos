@@ -1,0 +1,18 @@
+# The multyx index on the local cluster (k8s/up.sh makes it): its server,
+# bin/server.mjs in the image docker/multyx-index.Dockerfile builds, and a
+# NodePort Service on http://localhost:19700/ (k8s/kind/cluster.yaml).
+# It shares the namespace multyx with the demos it lists, tatyx and Poker
+# Tour. `bash k8s/deploy.sh multyx-index` at the repository's root builds,
+# applies and checks it.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: multyx
+labels:
+  # On every resource and its pods, not in the selectors: k8s/deploy.sh
+  # finds the demo's workloads by it.
+  - pairs:
+      app.kubernetes.io/part-of: multyx-index
+    includeTemplates: true
+resources:
+  - deployment.yaml
+  - service.yaml

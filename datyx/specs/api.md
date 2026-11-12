@@ -26,14 +26,17 @@ a folder of its own) only calls it.
   profile adds `db/devdata`, the
   development data: Java migrations in package `db.devdata`, which
   prod never runs. So far `R__HealthHub_data_source`, a repeatable
-  migration that adds HealthHub's PostgreSQL (localhost, 9803, database
-  `healthhub`, user `healthhub`, HealthHub's development defaults) as a
-  data source named HealthHub, and its Kafka (`localhost:9804`, plain
-  text) as one named HealthHub Kafka, to every profile lacking one of the
-  name, the local
+  migration that adds the development data's two sources (`DevData`:
+  HealthHub's PostgreSQL as a data source named HealthHub, its Kafka as
+  one named HealthHub Kafka, at the addresses the settings give,
+  [data-sources.md](data-sources.md#development-data)) to every profile
+  lacking one of the name, the local
   profile included (made when missing), encrypted as the API stores it
   (`AccessCodec`); it runs again when its `VERSION` constant changes, and
   skips, with a warning, a profile whose key another master key wrapped.
+  A profile made after it ran gets the same two as it is made
+  (`ProfileMaker`, with `datyx.devdata.enabled`, true in the dev profile
+  alone; [profiles.md](profiles.md)).
 - `javax.crypto` (AES-256-GCM) for encryption at rest, see
   [profiles.md](profiles.md).
 - Hibernate Validator: request bodies are validated, a 400 on failure.
@@ -63,7 +66,14 @@ a folder of its own) only calls it.
     or native executable), `image` (`jvm` or `native`) and `startedAt`.
   - `Database connections health check`, the datasource's readiness check.
   - `OpenMetadata` (`OpenMetadataHealthCheck`), a readiness check, UP
-    with the server's version and URL, DOWN with the error.
+    with the server's version and URL, DOWN with the error. The URL is
+    where a browser opens OpenMetadata, since the dashboard links to it:
+    `DATYX_OPENMETADATA_PUBLIC_URL` (`datyx.openmetadata.public-url`)
+    when set, else the URL the API calls (`DATYX_OPENMETADATA_URL`). The
+    two differ where the API reaches OpenMetadata by a name only its
+    network knows: `http://openmetadata:8585` in Docker Compose and on
+    the Kubernetes cluster, reported as `http://localhost:9902` and
+    `http://localhost:19902`.
 
   The API is ready only with the database and OpenMetadata, as
   process-compose and `compose.yaml` already start it after OpenMetadata.
@@ -112,7 +122,8 @@ Every setting reads an environment variable (`application.properties`):
 `DATYX_API_PORT` (9900), `DATYX_BIND_HOST` (localhost in dev, every
 interface otherwise), `DATYX_DB_URL` (`jdbc:postgresql://localhost:9901/datyx`),
 `DATYX_DB_USER`, `DATYX_DB_PASSWORD`, `DATYX_OPENMETADATA_URL`
-(`http://localhost:9902`), `OIDC_CLIENT_ID`, `OIDC_ISSUER`,
+(`http://localhost:9902`), `DATYX_OPENMETADATA_PUBLIC_URL` (empty: the
+URL before it; what `/api/health` reports), `OIDC_CLIENT_ID`, `OIDC_ISSUER`,
 `OIDC_EXTRA_AUDIENCES` ([auth.md](auth.md)), `DATYX_MASTER_KEY`
 ([profiles.md](profiles.md); tests use a fixed one), and
 `DATYX_OPENMETADATA_TOKEN`, `DATYX_OPENMETADATA_EMAIL`,
@@ -128,7 +139,12 @@ signing secret; drawn at start when unset; tests use a fixed one) and
 (`https://api.aityx.ai`), `DATYX_SERVICE_TOKEN` and
 `DATYX_AITYX_SHARE_SERVICE_CALLS` (empty: true in dev mode only)
 ([aityx.md](aityx.md); tests have no key, no token and aityx on a
-closed port, unless a test profile sets them). Tests set no database URL
+closed port, unless a test profile sets them), and the development
+data's HealthHub, `DATYX_HEALTHHUB_DB_HOST` (`localhost`),
+`DATYX_HEALTHHUB_DB_PORT` (9803), `DATYX_HEALTHHUB_DB_PASSWORD`
+(HealthHub's development one) and `DATYX_HEALTHHUB_KAFKA`
+(`localhost:9804`), each its default when empty
+([data-sources.md](data-sources.md#development-data)). Tests set no database URL
 and get a Postgres test container from Dev Services, and point the
 OpenMetadata client at a closed port (`localhost:1`) so its check fails
 predictably whether or not the stack runs; Quarkus's own compose Dev
@@ -146,6 +162,8 @@ Services and Keycloak Dev Services are off.
 `TrainingTest` ([training.md](training.md)), `InferenceTest`
 ([inference.md](inference.md)), `AityxGatewayTest`, `AityxAuthTest` and
 `AityxNoKeyTest` ([aityx.md](aityx.md)), `ProfileTest` and
-`CryptoTest` ([profiles.md](profiles.md)), and `DevDataTest`, which adds
-`db/devdata` to the test's locations and reads the HealthHub data source
-back through the API.
+`CryptoTest` ([profiles.md](profiles.md)), `DevDataTest`, which adds
+`db/devdata` to the test's locations and reads the local profile's two
+HealthHub data sources back through the API, at their default
+addresses, and `DevDataProfileTest`, the same data in a profile made by
+a first sign-in ([profiles.md](profiles.md)).

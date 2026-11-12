@@ -1,20 +1,22 @@
 # Index
 
 The aityx demos on one origin, under `/demos/`: the index page, in the
-aityx palette, with a card for each of the six, in two groups, Games
-(Cellfie, PokerFace, RoboRules, RiverRace) and Apps (Mortgage Hub,
-Contact Hub): an animation of the app, what it shows, its technology,
-**Open**, **Source** on GitHub, and **Codespace**; the six apps
+aityx palette, with a card for each of the nine, in two groups, Games
+(Cellfie, Outpost, PokerFace, RoboRules, RiverRace) and Apps (Mortgage Hub,
+Contact Hub, Health Plan, Holiday Split): an animation of the app, what it shows, its technology,
+**Open**, **Source** on GitHub, and **Codespace**; the nine apps
 themselves, each under its own path; and "Your aityx key". The datyx
 group has its own index, [../datyx-index/](../datyx-index/), and so has
 the multyx group, [../multyx-index/](../multyx-index/).
 
-Every demo is a Flutter web app that calls aityx from the browser, with
+Every demo is a web app (Flutter, or for Holiday Split plain JavaScript
+built with Vite) that calls aityx from the browser, with
 the key the user sets once on this page: the page and the apps share one
 origin, so they share the browser's storage. A card's picture and **Open**
-open the app in a new tab that keeps its opener (`rel="opener"`), so a
-key kept "only this session" (sessionStorage) is copied into it; with
-noopener the new tab would start empty. Every other link on the page
+open the app in a new tab without an opener (`rel="noopener"`), so a key
+still in the tab's sessionStorage (saved "only this session" before the
+page dropped that choice) isn't copied into it, where it would outlive the
+page's **Check and save** and **Forget key**. Every other link on the page
 (aityx.ai, the console, GitHub, Codespaces) opens a new tab too.
 
 ## What it serves
@@ -27,10 +29,13 @@ noopener the new tab would start empty. Every other link on the page
 | `/demos/<slug>.mp4` | the same recording as a video, `www/<slug>.mp4`, made by [scripts/make-videos.sh](scripts/make-videos.sh), for the website's blueprint pages; served in byte ranges, as Safari needs |
 | `/demos/mortgagehub/` | `MortgageHub/mortgagehub_app/build/web` |
 | `/demos/contacthub/` | `ContactHub/contacthub_app/build/web` |
+| `/demos/holidaysplit/` | `HolidaySplit/holidaysplit_app/build/web` (a Vite app, not Flutter) |
 | `/demos/pokerface/` | `PokerFace/pokerface_app/build/web` |
 | `/demos/roborules/` | `RoboRules/roborules_app/build/web` |
 | `/demos/cellfie/` | `Cellfie/cellfie_app/build/web` |
 | `/demos/riverrace/` | `RiverRace/riverrace_app/build/web` |
+| `/demos/outpost/` | `Outpost/outpost_app/build/web`, a static page (no Flutter) copied by its `scripts/build.sh` |
+| `/demos/healthplan/` | `HealthPlan/healthplan_app/build/web`, a static page (no Flutter) copied by its `scripts/build.sh` |
 | `GET /demos/aityx/config` | dev mode: whether this server holds a key |
 | `POST /demos/aityx/v1/systemone` | dev mode: aityx, with that key |
 | `GET /demos/api/health` | `{"ok": true}` |
@@ -46,10 +51,13 @@ apps fall back to the user's key.
 
 [bin/server.dart](bin/server.dart) is plain Dart, no packages. A demo is
 every folder beside this one whose `group.id.txt` says `aityx`
-(`INDEX_GROUP`) with a `<slug>_app/` package, the slug being the folder's
+(`INDEX_GROUP`) with a `<slug>_app/` package (a Flutter app; a static page in
+`<slug>_app/web/`, as Outpost and Health Plan; or a web app with a
+`package.json`, as Holiday Split), the slug being the folder's
 name in lower case. Its release build (each demo's `scripts/build.sh`:
 `flutter build web --release --base-href /demos/<slug>/
---no-web-resources-cdn`)
+--no-web-resources-cdn`, the static page copied as it is, or Holiday
+Split's `vite build` with the same base, all into `<slug>_app/build/web`)
 is served with `Cache-Control: no-cache`, and any path that isn't a file
 gets its `index.html` (the app routes it); a path that tries to leave the
 build is refused. A demo that isn't built answers 503 with a page that
@@ -61,12 +69,23 @@ The page's **Your aityx key** section (`/demos/#aityx-key`, which each app's
 status light opens) takes the user's key, checks it with one empty call
 to `<url>/v1/systemone` from the browser (aityx answers 400
 `invalid_request` once it accepts the key, so no model runs) and only
-then saves it: in `localStorage` ("Remember on this device") or
-`sessionStorage` ("Only this session"), as `aityx.key`, with `aityx.url`
-(by default `https://api.aityx.ai`, under **Advanced**). **Forget key**
-removes it. Once saved, the key is not shown again, only its last four
+then saves it, always on the device: in `localStorage`, as `aityx.key`,
+with `aityx.url` (by default `https://api.aityx.ai`, under **Advanced**),
+where it stays until **Forget key** removes it. There is no "only this
+session" choice; a key left in `sessionStorage` by an earlier version of
+the page is still read first, as the apps read it, and is cleared by the
+next save or **Forget key**. Once saved, the key is not shown again, only its last four
 characters. Every app reads it from there
 ([packages/aityx_web](../packages/aityx_web/)) and calls aityx itself.
+
+A demo opened with no key (none saved here, and no dev key) asks for it
+itself: a small form where it calls aityx, with the key, optionally the
+aityx URL, **Save** and a link to the aityx console
+(`AityxKeyPrompt` in [packages/aityx_web](../packages/aityx_web/README.md#the-key-form);
+Outpost and Health Plan, static pages, have their own). It checks the key the same way and
+saves it in the same `localStorage` entries, so this page then shows it
+as set, and every other demo uses it. With a key set, here or there, the
+form isn't shown.
 
 A link can carry the key, in the fragment only:
 `/demos/#AITYX_API_KEY=<key>`, with `AITYX_URL` beside it if the key is
@@ -93,9 +112,10 @@ proxy:
 - answers only this origin's pages: `Sec-Fetch-Site: same-origin` or,
   from a browser that doesn't send it, no `Origin` or one naming this
   host; anything else gets 403 `proxy_cross_site`, and so does, while
-  the server listens on the loopback only (the default), a request whose
-  `Host` isn't this machine (`localhost`, `127.0.0.1`, `[::1]`): a page
-  that reached it through DNS rebinding;
+  the server listens on the loopback only (the default; or, in a
+  container published on the loopback only, `INDEX_LOOPBACK_ONLY=1`), a
+  request whose `Host` isn't this machine (`localhost`, `127.0.0.1`,
+  `[::1]`): a page that reached it through DNS rebinding;
 - takes up to 2 MB and waits up to 120 s for aityx;
 - passes aityx's status and body back unchanged, except a redirect (502
   `proxy_redirect`: `AITYX_URL` may be behind a login) and no answer (502
@@ -132,7 +152,7 @@ aityx.ai itself `'self'` already covers the website) or
 `http://localhost:4330`, by default):
 
 - [www/key.html](www/key.html): "Your aityx key" alone, with this page's
-  script. It has no "Only this session": the key is kept in `localStorage`,
+  script: the key is kept in `localStorage`, as on the index page,
   and the form asks for a key made for testing. Framed, it posts its height to the page around it
   (`{type: "aityx:key-height"}`) and, after each check, whether a working
   key is set (`{type: "aityx:key-state", ready: true|false}`, never the
@@ -163,3 +183,39 @@ devbox run serve              # the same, in the foreground
 ```
 
 or, with Dart on the PATH, `dart bin/server.dart`.
+
+## Serving files in bounded memory
+
+The demos' builds are large (`main.dart.js` and CanvasKit are several MB
+each), and the server's memory doesn't grow with the requests in flight:
+
+- a browser that takes gzip gets each file's gzip, made once and kept,
+  32 MB of them at most, the least recently used dropped first (a
+  browser's six demos are about 17 MB); what is compressed already (PNG,
+  JPEG, GIF and WebP images, WOFF and WOFF2 fonts) and videos go as they
+  are, and so does a file under 1 KB;
+- a file sent as it is (to a client without gzip, a video's range) is
+  read and sent by at most 16 requests at a time, the rest waiting their
+  turn;
+- a response goes out 64 KB at a time, each once the client has taken
+  the one before, and a client that doesn't take a whole piece within
+  30 s (about 2 KB a second) is cut off;
+- at most 512 connections are open at once; the others wait to be taken.
+
+A burst of 600 downloads of the six demos' largest files, 300 at once,
+peaked at 107 MB (298 MB with Dart's own `autoCompress`, which gives every
+response a zlib state of its own) and took 8 s instead of 69 s; every
+response decompressed to its file.
+
+## On the local Kubernetes cluster
+
+From the root of the repository, once `bash k8s/up.sh` has made the
+cluster, `bash k8s/deploy.sh Index` builds one image, `aityx-index`
+([docker/aityx-index.Dockerfile](docker/aityx-index.Dockerfile)): this
+server compiled, [www/](www/), and the six demos' release web builds, each
+made by its own `scripts/build.sh`, one after another. It runs in the
+`aityx` namespace ([k8s/](k8s/)) on **http://localhost:18800/demos/**,
+the dev proxy on `AITYX_API_KEY` and `AITYX_URL` (aityx staging) from the
+cluster's `demo-env` Secret, within a 256 MB memory limit.
+[k8s/verify.sh](k8s/verify.sh) checks it, with a real aityx call through
+the proxy.

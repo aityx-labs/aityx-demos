@@ -248,3 +248,17 @@ The feature files hold the current specification; see the
    DeepAR: datyx reads the table through OpenMetadata. See [Admissions
    per hour](admissions-hourly.md), [Database](database.md) and
    [Development environment](dev-environment.md).
+
+## 2026-11-01
+
+1. **In HealthHub's data initialization, add the metadata OpenMetadata
+   needs to rate the data assets' quality and health; the descriptions
+   were missing there.** Every table and column of the schema now says
+   what it is, as a PostgreSQL comment that the migration sets at every
+   start (`COMMENT ON`, from `schemaComments` in
+   [lib/schema_comments.dart](../healthhub_api/lib/schema_comments.dart)).
+   HealthHub still knows nothing of datyx: datyx's schema read carries a
+   database's comments into OpenMetadata as the descriptions of its
+   tables and columns. A test checks against a live database that every
+   column has its comment, so a column added without one fails. See
+   [Database](database.md).

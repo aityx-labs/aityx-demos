@@ -13,6 +13,7 @@ import 'care_centers_seed.dart';
 import 'conditions.dart';
 import 'conditions_seed.dart';
 import 'routes.dart' show Bbox;
+import 'schema_comments.dart';
 import 'simulation.dart' show LatLon, Place;
 
 /// Where the database is, from the environment (scripts/api.sh and
@@ -281,6 +282,8 @@ class Db {
         PRIMARY KEY (run_id, hospital_id, hour_start)
       )
     ''');
+    // What each table and column is, for a catalogue reading the schema.
+    await commentSchema(c);
   }
 
   /// Makes medical_conditions and complaint_templates hold exactly

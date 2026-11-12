@@ -228,32 +228,31 @@ pre .hot.soft .n{font-weight:500}
 .rtag{font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:99px;color:var(--muted);border:1px solid var(--line)}
 .rcol.best .rtag{color:var(--ink);background:var(--acc);border-color:var(--acc);font-weight:600}
 .rcol .ghost{align-self:center}
-.connmain,.connside{display:flex;flex-direction:column;gap:14px;min-width:0}
+.connside{display:flex;flex-direction:column;gap:14px;min-width:0}
 @media (max-width:999px){.rcol.best{order:-1}}
 @media (max-width:620px){.hero{padding:14px}.hero-diff{padding:10px}.diff th:nth-child(3),.diff td:nth-child(3){display:none}.diff td,.diff th{padding:6px 4px;font-size:13.5px}}
 @media (min-width:1000px){
   .wrap{grid-template-columns:repeat(2,minmax(0,1fr))}
   .wrap>*{grid-column:1/-1}
   .wrap>.half{grid-column:auto}
-  #connpanel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:24px;align-items:start}
+  #connpanel{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px 32px;align-items:start}
+  #connpanel>h2{grid-column:1/-1}
   .hero{grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:24px;align-items:center}
   .duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}
   .receipts{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 .dview{margin-top:4px;border-radius:12px}.dview summary{padding:12px 16px;font-size:14.5px}.dview pre{margin:0 16px 16px;white-space:pre}
 .connect{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
-.connect .field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);flex:1 1 220px;min-width:0}
-.connbar{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:12px;background:var(--card2);border:1px solid var(--line)}
+.connect .field{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);flex:1 1 100%;min-width:0}
+.connbar{display:flex;gap:12px;align-items:flex-start}
 .connbar .dot{width:12px;height:12px;border-radius:50%;background:var(--muted);flex:none;margin-top:6px}
 .connbar b{display:block;font:600 17px var(--display)}
 .connbar .t{display:block;font-size:14px;color:var(--muted)}
 #connpanel[data-state="connecting"] .dot{background:var(--fg);animation:pulse 1s ease-in-out infinite}
 #connpanel[data-state="ok"]{border-color:rgba(127,200,169,.5)}
-#connpanel[data-state="ok"] .connbar{background:rgba(127,200,169,.10);border-color:rgba(127,200,169,.45)}
 #connpanel[data-state="ok"] .dot{background:var(--ok);box-shadow:0 0 0 4px rgba(127,200,169,.2)}
 #connpanel[data-state="ok"] .connbar b{color:var(--ok)}
 #connpanel[data-state="fail"]{border-color:var(--acc)}
-#connpanel[data-state="fail"] .connbar{background:rgba(var(--acc-rgb),.10);border-color:var(--acc)}
 #connpanel[data-state="fail"] .dot{background:var(--acc2);box-shadow:0 0 0 4px rgba(var(--acc-rgb),.2)}
 #connpanel[data-state="fail"] .connbar b{color:var(--acc2)}
 .proto[data-state="ok"]{color:var(--ok);border-color:var(--ok)}
@@ -287,7 +286,6 @@ pre .hot.soft .n{font-weight:500}
 /* The key form: only while there is no key at all (idle); with a key that fails, the link to the aityx demos page and Check again instead. */
 /* The key form: while there is no key at all (idle), and while the key is being changed (data-changing). */
 #connpanel:not([data-state="idle"]):not([data-changing]) .connect .field,#connpanel:not([data-state="idle"]):not([data-changing]) #keysave,#connpanel[data-state="idle"] #setkey,#connpanel[data-state="idle"] #recheck,#connpanel[data-changing] #setkey,#connpanel[data-changing] #recheck,#connpanel:not([data-changing]) #keyforget,#connpanel:not([data-changing]) #keycancel,#keyforget[hidden]{display:none}
-.connect .urlfield{flex:0 1 190px}
 .connect #keysave{padding:9px 18px;font-size:15px}
 #keymsg:empty{display:none}
 #connpanel[hidden]{display:none}

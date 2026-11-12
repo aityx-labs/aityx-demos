@@ -140,11 +140,18 @@ const Aityx = (() => {
     return { kind: 'failing', detail: `aityx answered HTTP ${r.status}${detail ? `: ${detail}` : ''}` };
   }
 
+  // Removes the user's key and URL from the browser, for every demo.
+  function forget() {
+    for (const store of ['sessionStorage', 'localStorage']) {
+      try { window[store].removeItem(KEY_NAME); window[store].removeItem(URL_NAME); } catch (_) {}
+    }
+  }
+
   // The index page's key section, in the same tab; embedded, the page around asks.
   function openKeyPage() {
     if (embedded) { window.parent.postMessage('aityx:key', '*'); return; }
     location.href = keyPage();
   }
 
-  return { NONE, resolve, check, userConnection, cleanUrl, save, keyPage, openKeyPage, embedded, KEY_NAME, URL_NAME };
+  return { NONE, resolve, check, userConnection, cleanUrl, save, forget, keyPage, openKeyPage, embedded, KEY_NAME, URL_NAME };
 })();

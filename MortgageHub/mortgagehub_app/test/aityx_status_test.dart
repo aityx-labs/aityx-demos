@@ -37,7 +37,7 @@ void main() {
   testWidgets('red, saying where to set the key, without one', (tester) async {
     await pumpApp(tester, AityxKeyStore.memory());
     expect(find.byType(AityxStatusLight), findsOneWidget);
-    expect(tip(tester), 'aityx: no key — set yours on the index page');
+    expect(tip(tester), 'aityx: no key — set yours here');
   });
 
   testWidgets('green when aityx accepts the user\'s key', (tester) async {

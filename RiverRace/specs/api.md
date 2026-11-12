@@ -62,7 +62,7 @@ call's card:
 
 | When | Message |
 |---|---|
-| No key at all | `aityx is not set up: set your key on the index page` |
+| No key at all | `aityx is not set up: set your key (the light, top right)` |
 | aityx answers 401 or 403 | `aityx rejected the key` |
 | No answer (network, CORS, the timeout; or the dev proxy's 502 `proxy_unreachable`) | `aityx did not answer` |
 | Another status | `aityx could not decide: aityx answered HTTP n: <aityx's detail> (<its problems' messages>).`, a cell aityx can't read, for instance |

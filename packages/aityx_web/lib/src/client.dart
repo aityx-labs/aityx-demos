@@ -16,7 +16,7 @@ class AityxNoKey implements Exception {
   const AityxNoKey();
 
   /// What to show people.
-  static const message = 'aityx is not set up: set your key on the index page';
+  static const message = 'aityx is not set up: set your key (the light, top right)';
 
   @override
   String toString() => message;

@@ -196,7 +196,7 @@ void main() {
       );
       await expectLater(
         poker.act(_rock, situation()),
-        fails('aityx is not set up: set your key on the index page'),
+        fails('aityx is not set up: set your key (the light, top right)'),
       );
       expect(asked, isEmpty);
     });

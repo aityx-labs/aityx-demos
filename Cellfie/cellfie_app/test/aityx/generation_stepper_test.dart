@@ -209,7 +209,7 @@ void main() {
     final error = await failure(stepper);
     expect(
       error.message,
-      'aityx is not set up: set your key on the index page.',
+      'aityx is not set up: set your key (the light, top right).',
     );
     expect(error.noKey, isTrue);
     expect(calls, 0);

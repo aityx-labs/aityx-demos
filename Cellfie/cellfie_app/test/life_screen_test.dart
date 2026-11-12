@@ -500,7 +500,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final stepper = FakeStepper()
-      ..failWith = 'aityx is not set up: set your key on the index page.'
+      ..failWith = 'aityx is not set up: set your key (the light, top right).'
       ..noKey = true;
     await tester.pumpWidget(
       MaterialApp(home: LifeScreen(stepper: stepper, start: null)),
@@ -513,7 +513,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(
-      find.text('aityx is not set up: set your key on the index page.'),
+      find.text('aityx is not set up: set your key (the light, top right).'),
       findsOneWidget,
     );
     // No button on the notice: the key form is on the screen.

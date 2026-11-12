@@ -8,6 +8,7 @@ export 'src/client.dart';
 export 'src/connection.dart';
 export 'src/demos_link.dart';
 export 'src/key_page.dart';
+export 'src/key_panel.dart';
 export 'src/key_prompt.dart';
 export 'src/key_store.dart';
 export 'src/paths.dart';

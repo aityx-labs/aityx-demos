@@ -125,7 +125,7 @@ function jevQuestions(){
   return q;
 }
 
-/* ---------- live calls, on the aityx key set on the aityx demos page (aityx.js) ---------- */
+/* ---------- live calls, on the aityx key set here or on the aityx demos page (aityx.js) ---------- */
 let REC_MODE=/record/i.test(location.hash+location.search); // team only: add #record to the address to see the recording buttons
 addEventListener("hashchange",()=>{ REC_MODE=/record/i.test(location.hash+location.search); connectUI(); });
 // conn: where calls go and on whose key (Aityx.resolve): the user's key, the index server's dev key, or none.
@@ -142,7 +142,7 @@ function okText(){
     :`Your key works${c.url&&c.url!=="https://api.aityx.ai"?` with ${c.url}`:""}. Every answer on this page now comes from a live aityx call.`;
 }
 const failText=(c,d)=>{ const why=d&&d.detail?`: ${d.detail}`:"";
-  return c===401||c===403?`aityx rejected ${LIVE.conn.whose}${why}. Check it in the aityx console and set it again on the aityx demos page.`
+  return c===401||c===403?`aityx rejected ${LIVE.conn.whose}${why}. Check it in the aityx console and change it here.`
     :c===502&&LIVE.conn.source==="dev"?`The dev proxy couldn't reach aityx${why}.`
     :`aityx answered with HTTP ${c}${why}. Try again in a moment.`; };
 const MODE_TEXT={idle:"No key",connecting:"Checking key…",ok:"Live · aityx",fail:"Key problem"};
@@ -151,12 +151,27 @@ function setConn(state,detail){
   const [t,x]=state==="fail"?["Connection failed",detail]:state==="ok"?[LIVE.conn.source==="dev"?"Connected to aityx, on the dev key":"Connected to aityx",okText()]
     :state==="idle"?["No aityx key yet",NO_KEY_TEXT]:["Checking your aityx key…","One quick call to aityx, no AI."];
   $("conn-title").textContent=t; $("conn-text").textContent=x;
-  $("mode").title=`aityx: ${t}. ${x} Click to set your key.`;
+  $("mode").title=`aityx: ${t}. ${x} Click to set or change your key.`;
   $("setkey").textContent=LIVE.conn.source==="user"?"Change your key":LIVE.conn.source==="dev"?"Set your own key":"Set your aityx key";
-  // With a working key the panel has nothing to ask or say: gone (the pill at the top says it is live).
-  $("connpanel").hidden=state==="ok"&&$("recall").hidden;
+  showConnPanel();
 }
-// The key form's Save, shown only while there is no key at all: one empty call checks the key with aityx
+// With a working key the panel has nothing to ask or say: gone (the pill at the top says it is live),
+// unless the key is being changed.
+let CHANGING=false;
+function showConnPanel(){
+  const p=$("connpanel");
+  if(CHANGING) p.dataset.changing="1"; else delete p.dataset.changing;
+  $("keyforget").hidden=LIVE.conn.source!=="user";
+  p.hidden=CONN.state==="ok"&&$("recall").hidden&&!CHANGING;
+}
+// Changing the key, here: the pill at the top and "Change your key" open the key form in the panel, with
+// Forget key (the user's own) and Cancel. With no key at all the form is there already.
+function changeKey(on){
+  CHANGING=on&&CONN.state!=="idle"; $("keymsg").textContent=""; if(!on){ $("keyin").value=""; $("urlin").value=""; }
+  showConnPanel();
+  if(on){ $("connpanel").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"center"}); $("keyin").focus({preventScroll:true}); }
+}
+// The key form's Save, shown while there is no key at all or the key is being changed: one empty call checks the key with aityx
 // (no model runs), and only a key aityx accepts is saved, on this device, where the aityx demos page and
 // every aityx demo read it. Then the usual check goes live.
 let savingKey=false;
@@ -171,10 +186,13 @@ async function saveKey(){
     const st=await Aityx.check(Aityx.userConnection(key,url));
     if(st.kind!=="ready") return say((st.kind==="rejected"?"aityx rejected the key":st.kind==="unreachable"?"aityx did not answer (the network, or the URL is wrong)":st.detail)+". Not saved.");
     if(!Aityx.save(key,url)) return say("aityx accepts the key, but this browser could not save it.");
-    $("keyin").value=""; refreshConnection();
+    $("keyin").value=""; $("urlin").value=""; CHANGING=false; refreshConnection();
   } finally{ savingKey=false; $("keysave").disabled=false; $("keysave").textContent="Save"; }
 }
 $("connect").addEventListener("submit",e=>{ e.preventDefault(); saveKey(); });
+$("keycancel").addEventListener("click",()=>changeKey(false));
+// Forget key: out of the browser, for every aityx demo; then the dev key, or the recorded calls.
+$("keyforget").addEventListener("click",()=>{ Aityx.forget(); changeKey(false); refreshConnection(); });
 async function post(body){
   const conn=LIVE.conn, n=++CONN.seq, mine=()=>n===CONN.seq&&LIVE.conn===conn;
   if(CONN.state!=="ok") setConn("connecting");
@@ -202,7 +220,7 @@ async function refreshConnection(){
   setConn("connecting");
   const st=await Aityx.check(conn); if(n!==CONN.seq) return;
   setConn(st.kind==="ready"?"ok":"fail",
-    st.kind==="rejected"?`aityx rejected ${conn.whose} (${st.detail}). Check it in the aityx console and set it again on the aityx demos page.`
+    st.kind==="rejected"?`aityx rejected ${conn.whose} (${st.detail}). Check it in the aityx console and change it here.`
     :st.kind==="unreachable"?`We couldn't reach aityx: ${st.detail}.`:`${st.detail}. Try again in a moment.`);
 }
 addEventListener("storage",e=>{ if(e.key===null||e.key===Aityx.KEY_NAME||e.key===Aityx.URL_NAME) refreshConnection(); });
@@ -385,7 +403,7 @@ function lockInputs(){
 }
 function connectUI(){
   $("recall").hidden=!(live()&&REC_MODE);
-  $("connpanel").hidden=CONN.state==="ok"&&$("recall").hidden;
+  showConnPanel();
   if(S){ setNote(); lockInputs(); updateGo(); renderWhatIf(); renderCall(); }
 }
 
@@ -571,8 +589,10 @@ let toastT;
 function toast(m){ let t=document.querySelector(".toast"); if(!t){t=document.createElement("div");t.className="toast";t.setAttribute("role","status");document.body.appendChild(t);} t.textContent=m; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,1800); }
 async function copy(txt){ try{ await navigator.clipboard.writeText(txt); toast("Copied"); }catch(e){ const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy");toast("Copied");}catch(_){toast("Select and copy the text");} ta.remove(); } }
 
-// The key lives on the aityx demos page. Embedded in the aityx website, the page around asks for it instead.
-document.addEventListener("click",e=>{ const a=e.target.closest("a.keylink"); if(a&&Aityx.embedded){ e.preventDefault(); Aityx.openKeyPage(); } });
+// The key is set and changed here: the pill at the top and "Change your key" open the key form in the
+// panel, without leaving for the aityx demos page. Embedded in the aityx website, the page around asks for it instead.
+document.addEventListener("click",e=>{ const a=e.target.closest("a.keylink"); if(!a) return; e.preventDefault();
+  if(Aityx.embedded) Aityx.openKeyPage(); else changeKey(true); });
 document.addEventListener("click",e=>{
   const b=e.target.closest("button"); if(!b||b.disabled) return;
   if(b.dataset.what){ toggleWhat(b.dataset.what); return; }

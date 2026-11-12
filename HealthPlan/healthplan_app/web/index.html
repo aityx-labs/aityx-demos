@@ -28,11 +28,13 @@
   <div class="connbar" role="status" aria-live="polite"><span class="dot" aria-hidden="true"></span><div><b id="conn-title">Checking your aityx key…</b><span class="t" id="conn-text">One quick call to aityx, no AI.</span></div></div>
   </div>
   <div class="connside">
-  <!-- No key anywhere: the key, optionally the aityx URL, Save. A key that fails: the link to the aityx demos page and Check again. -->
+  <!-- No key anywhere, or changing it (the pill at the top, "Change your key"): the key, optionally the aityx URL, Save; changing, Forget key and Cancel too. A key that fails: "Change your key" and Check again. -->
   <form class="connect" id="connect" autocomplete="off" novalidate>
     <label class="field keyfield"><input type="password" id="keyin" name="key" aria-label="Your aityx key" placeholder="Your aityx key" autocomplete="off" spellcheck="false" autocapitalize="off"></label>
     <label class="field urlfield"><input type="url" id="urlin" name="url" aria-label="aityx URL (optional)" placeholder="URL (optional)" spellcheck="false" autocapitalize="off"></label>
     <button class="go" type="submit" id="keysave">Save</button>
+    <button class="ghost" type="button" id="keyforget" hidden>Forget key</button>
+    <button class="ghost" type="button" id="keycancel">Cancel</button>
     <a class="go keylink" id="setkey" href="../#aityx-key">Set your aityx key</a>
     <button class="ghost" type="button" id="recheck">Check again</button>
     <button class="ghost" type="button" id="recall" hidden>Record all examples</button>

@@ -28,7 +28,7 @@ void main() {
     await tester.pump();
     expect(find.byType(AityxStatusLight), findsOneWidget);
     expect(find.text('Cellfie'), findsOneWidget);
-    expect(tooltip(tester), 'aityx: no key — set yours on the index page');
+    expect(tooltip(tester), 'aityx: no key — set yours here');
   });
 
   testWidgets('green when aityx accepts the user\'s key', (tester) async {

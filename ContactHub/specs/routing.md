@@ -175,7 +175,7 @@ screen says when it fails:
 | When | It says |
 |---|---|
 | The message is empty or over 2000 characters | `Could not route it: message is empty.` (or `... is longer than 2000 characters.`), without calling aityx |
-| No key | `aityx is not set up: set your key on the index page.`, with the [key form](aityx-key.md) above **Try again**; saving a key routes the request again |
+| No key | `aityx is not set up: set your key (the light, top right).`, with the [key form](aityx-key.md) above **Try again**; saving a key routes the request again |
 | aityx refuses the key (401, 403) | `Could not route it: aityx rejected the key.` |
 | Another HTTP status | `Could not route it: aityx answered HTTP n: <aityx's detail>.` (in dev mode, also the index server's 502 when aityx redirects it, as to a login) |
 | No answer (network, CORS, a blocker, or in dev mode the index server's 502 `proxy_unreachable`), or none in 100 s | `aityx did not answer.`, or `aityx did not answer in time.` |

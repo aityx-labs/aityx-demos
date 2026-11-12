@@ -37,7 +37,7 @@ void main() {
         user,
         AityxStateKind.rejected,
         'aityx: key rejected — aityx answered HTTP 401: invalid API key: '
-            'set a new key on the index page',
+            'set a new key (the light, top right)',
       ),
       (
         403,
@@ -45,7 +45,7 @@ void main() {
         user,
         AityxStateKind.rejected,
         'aityx: key rejected — aityx answered HTTP 403: '
-            'set a new key on the index page',
+            'set a new key (the light, top right)',
       ),
       (
         401,
@@ -118,7 +118,7 @@ void main() {
         '{"code":"invalid_request"}',
         AityxConnection.none,
         AityxStateKind.noKey,
-        'aityx: no key — set yours on the index page',
+        'aityx: no key — set yours here',
       ),
     ];
     for (final (status, body, connection, kind, tooltip) in table) {
@@ -215,7 +215,7 @@ void main() {
       expect(state.kind, AityxStateKind.noKey);
       expect(state.key, isFalse);
       expect(state.url, isNull);
-      expect(state.tooltip, 'aityx: no key — set yours on the index page');
+      expect(state.tooltip, 'aityx: no key — set yours here');
     });
 
     test('no answer: not reachable', () async {

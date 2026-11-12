@@ -55,3 +55,20 @@ no button of its own, since the form is on the screen.
 
 The key is never shown, logged or put in a URL, and it is sent only to
 the aityx URL of the form.
+
+## Changing the key
+
+A tap on the [status light](aityx-status.md), top right, opens **Your aityx key**, a
+panel over the app (`openAityxKey`, of `aityx_web`), whether or not there
+is a key: which key is in use (the user's, by its last four characters,
+never the key itself; or the server's dev key; or none), a field for a new
+key and, optionally, its aityx URL, **Check and save**, **Forget key**,
+**Close**, and a link to the aityx console. **Check and save** asks aityx
+whether it accepts the key (one empty call, which runs no model) and saves
+only one it accepts, in the browser's storage, where the index page and
+every aityx demo read it; a key kept for this session only stays so. The
+panel then closes, and the light turns green. **Forget key** removes the
+user's key from the browser, for every demo. **Close**, Escape or a tap
+outside closes the panel. Nothing leaves the app for the index page.
+Embedded in the aityx website (`?embed=1`), there is no panel: the app asks
+the page around it for the key.

@@ -180,7 +180,7 @@ void main() {
       expect(calls, 0);
     });
 
-    test('without a key, says to set one on the index page', () {
+    test('without a key, says to set one with the light', () {
       final noKey = AityxRequestRouter(
         aityx: AityxClient(
           client: MockClient((_) async => fail('no call without a key')),
@@ -191,7 +191,7 @@ void main() {
       expect(
         noKey.route(message),
         fails(
-          'aityx is not set up: set your key on the index page.',
+          'aityx is not set up: set your key (the light, top right).',
           noKey: true,
         ),
       );
@@ -567,13 +567,13 @@ void main() {
         tester,
         FakeRouter(
           const RoutingException(
-            'aityx is not set up: set your key on the index page.',
+            'aityx is not set up: set your key (the light, top right).',
             noKey: true,
           ),
         ),
       );
       expect(
-        find.text('aityx is not set up: set your key on the index page.'),
+        find.text('aityx is not set up: set your key (the light, top right).'),
         findsOneWidget,
       );
       // The key form: the key, the URL, Save and the console's link.

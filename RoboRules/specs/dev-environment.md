@@ -26,7 +26,7 @@ order:
    index server forwards it to aityx with its key, which never reaches
    the browser.
 3. **None**: the [light](window.md) is red and a battle says "aityx is not
-   set up: set your key on the index page".
+   set up: set your key (the light, top right)".
 
 The aityx call viewer shows the request's body, never its headers, which
 carry the key.

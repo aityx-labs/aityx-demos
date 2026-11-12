@@ -30,7 +30,7 @@ requests and responses), so a visitor sees the game before setting a key.
 ## The key
 
 As in every aityx demo ([packages/aityx_web](../packages/aityx_web/README.md)),
-the key is set once on the index page (**Your aityx key**,
+the key is set once, here or on the index page (**Your aityx key**,
 `/demos/#aityx-key`), and the page reads it from the origin's storage:
 `sessionStorage`, else `localStorage`, `aityx.key` with `aityx.url`. It calls
 `<url>/v1/systemone` itself. With no key there, it asks the index server's
@@ -44,17 +44,20 @@ key in the aityx console**. **Save** checks the key with one empty call to
 aityx, which runs no model, and saves only a key aityx accepts, in
 `localStorage`, where the index page and every other aityx demo read it; the
 game then goes live. With a working key the strip isn't there at all: the
-pill and the light at the top right say the game is live, and a click on the
-light opens the index page's key section, to change the key. A key aityx
-rejects, or an aityx that doesn't answer, brings the strip back with why and
-a link to the index page. The page never shows or logs a key.
+pill and the light at the top right say the game is live. A click on the
+light brings the strip back to change the key, without leaving for the index
+page: the same form, with **Forget key** (which removes the user's key from
+the browser, for every demo) and **Cancel**. A key aityx rejects, or an aityx
+that doesn't answer, brings the strip back with why and **Change key**. The
+page never shows or logs a key.
 
 The status light at the top right is the same as the Flutter demos': grey
 while it checks, green when aityx accepts the key, red otherwise. The check
 POSTs `{}` (a working key gets 400 `invalid_request` and no model runs), on
 start, when the index page saves or forgets the key in another tab, and when
 the window regains focus, at most once every 30 s. A tap opens the key
-section; embedded (`?embed=1`), it posts `"aityx:key"` to the page around it.
+form, in the strip; embedded (`?embed=1`), it posts `"aityx:key"` to the
+page around it.
 
 In the header, beside the name, **aityx demos** behind a left arrow is the
 way back to the index page (`/demos/`: https://aityx.ai/demos/ on the aityx

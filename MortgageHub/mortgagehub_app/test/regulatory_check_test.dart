@@ -261,7 +261,7 @@ void main() {
           isA<ProposalCheckException>().having(
             (e) => e.message,
             'message',
-            'aityx is not set up: set your key on the index page',
+            'aityx is not set up: set your key (the light, top right)',
           ),
         ),
       );
@@ -363,7 +363,7 @@ void main() {
     expect(
       find.text(
         "Couldn't run the check: aityx is not set up: "
-        'set your key on the index page',
+        'set your key (the light, top right)',
       ),
       findsOneWidget,
     );

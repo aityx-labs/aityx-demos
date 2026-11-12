@@ -82,10 +82,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.byType(AityxStatusLight), findsOneWidget);
-    expect(
-      find.byTooltip('aityx: no key — set yours on the index page'),
-      findsOneWidget,
-    );
+    expect(find.byTooltip('aityx: no key — set yours here'), findsOneWidget);
     final light = tester.getTopRight(find.byType(AityxStatusLight));
     expect(light.dx, greaterThan(1500));
     expect(light.dy, lessThan(20));
@@ -159,6 +156,21 @@ void main() {
       tester.getBottomLeft(find.byType(AityxKeyPrompt)).dy,
       lessThan(tester.getTopLeft(find.byTooltip('Remove the rule').first).dy),
     );
+  });
+
+  testWidgets('typing a key starts no race and flies no plane', (tester) async {
+    await pumpApp(tester, FakeDecider(), key: false);
+    await tester.pump();
+    await tester.pump();
+    // In the key form above the river: W, P and the rest are letters.
+    await tester.tap(find.byKey(const ValueKey('aityx-key-field')));
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyW);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pump();
+    expect(find.text('Start'), findsOneWidget);
+    expect(find.text('Pause'), findsNothing);
   });
 
   testWidgets('with an aityx key, shows no key form at all', (tester) async {

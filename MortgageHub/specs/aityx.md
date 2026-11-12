@@ -56,9 +56,10 @@ the app calls aityx itself, through the shared
   (`withAityxStatus`): grey while it checks, green when aityx accepts the
   key, red otherwise. Its tooltip, also its screen reader label, says why:
   `aityx: ready — the key works with <url>`,
-  `aityx: no key — set yours on the index page`, `aityx: key
+  `aityx: no key — set yours here`, `aityx: key
   rejected — ...`, `aityx: not reachable — ...` or `aityx: not working —
-  ...`. A tap opens the index page's key section in the same tab. The
+  ...`. A tap opens the key panel, over the app, where the key is set,
+  changed or forgotten (see [The key form](aityx-key.md#changing-the-key)). The
   check posts `{}` to `/v1/systemone`, which aityx answers 400
   `invalid_request` when it accepts the key and 401 when it doesn't,
   without running a model. It checks on start, when the key changes (the

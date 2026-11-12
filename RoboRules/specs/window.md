@@ -10,7 +10,7 @@ Robocode-style battles, every turn played by aityx".
   [aityx_web](../../packages/aityx_web) package, in `MaterialApp.builder`):
   an 8 px dot, grey while checking, green when aityx accepts the key the
   app calls it with, red otherwise; its tooltip says why ("aityx: ready — the key works with
-  https://api.aityx.ai", "aityx: no key — set yours on the index page", "aityx: key
+  https://api.aityx.ai", "aityx: no key — set yours here", "aityx: key
   rejected — …", "aityx: not reachable — …", "aityx: not working — …").
   The key is the user's, saved on the index page or in the window's own
   key form (below), else the index server's
@@ -20,7 +20,7 @@ Robocode-style battles, every turn played by aityx".
   start, when the key is saved or forgotten on the index page, and when the
   window regains focus, at most once every 30 s there; no timer polling,
   since each check spends a request of the user's quota. A tap opens the
-  index page's key section (`/demos/#aityx-key`) in the same tab.
+  key panel, over the window (see [The key form](aityx-key.md#changing-the-key)).
 - **Menu bar**: **Battle** (New…, Start, Pause/Resume, Stop, Results…),
   **Robot** (Add a robot…, Upload robots…, Download all robots; adding and
   uploading only between battles; see [Robot files](robots.md#robot-files);

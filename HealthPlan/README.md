@@ -46,7 +46,7 @@ It is not insurance or medical advice.
 ## The key
 
 As in every aityx demo ([packages/aityx_web](../packages/aityx_web/README.md)),
-the key is set once on the index page (**Your aityx key**,
+the key is set once, here or on the index page (**Your aityx key**,
 `/demos/#aityx-key`), and the page reads it from the origin's storage:
 `sessionStorage`, else `localStorage`, `aityx.key` with `aityx.url`. It calls
 `<url>/v1/systemone` itself. With no key there, it asks the index server's
@@ -65,11 +65,17 @@ The pill at the top right says whether aityx accepts the key, and so does
 the **Run it with aityx** panel, which is there only while something is
 missing or wrong: with a working key it isn't shown at all, and a key aityx
 rejects, or an aityx that doesn't answer, brings it back with why,
-**Set your aityx key** and **Check again**. The check POSTs `{}` (a working key gets 400
+**Change your key** and **Check again**. The check POSTs `{}` (a working key gets 400
 `invalid_request` and no model runs), on start, when the index page saves or
 forgets the key in another tab, and when the window regains focus, at most
-once every 30 s. **Set your aityx key** opens the index page's key section;
-embedded (`?embed=1`), it posts `"aityx:key"` to the page around it.
+once every 30 s.
+
+The key is changed here too, without leaving for the index page: the pill at
+the top right, like **Change your key** in the panel, opens the key form in
+the **Run it with aityx** panel, with **Forget key** (which removes the
+user's key from the browser, for every demo) and **Cancel**. **Save** checks
+and saves the new key as above, and the page prices again on it. Embedded
+(`?embed=1`), the pill posts `"aityx:key"` to the page around it instead.
 
 Only this origin's files run on the page (no CDN: the fonts are served from
 [healthplan_app/web/](healthplan_app/web)), and its content security policy

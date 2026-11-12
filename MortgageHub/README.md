@@ -39,7 +39,7 @@ Without a key of yours, the app uses the index server's **dev key**, when
 it has one (`AITYX_API_KEY` in its environment or in the repository's
 `.env`, see [../.env.example](../.env.example)), through the server's own
 proxy, so that key never reaches the browser. Without either, the light at
-the top right is red ("aityx: no key — set yours on the index page"), and
+the top right is red ("aityx: no key — set yours here"), and
 the app asks for your key itself, in a small form above **Request
 proposal** (the key, optionally the aityx URL, and a link to the aityx
 console); with a key, the form isn't there.

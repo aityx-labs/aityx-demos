@@ -313,3 +313,12 @@ The feature files hold the current specification; see the
     again**, in place of the **Set your key** button that opened the index
     page; saving a key routes the request again. A key set on the index
     page is read as before. See [The key form](aityx-key.md).
+
+23. **In this and all demos, let the key be changed without going back to
+    the index, inside the demo itself, with the same mechanism, so the key
+    works for all demos.** A tap on the status light now opens the key
+    panel over the app instead of the index page's key section: the key in
+    use, a field for a new one, **Check and save**, **Forget key** and
+    **Close** ([The key form](aityx-key.md#changing-the-key)). It saves
+    where the index page does, so every demo uses the key. The messages
+    that sent people to the index page now point to the light.

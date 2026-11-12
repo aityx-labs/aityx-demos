@@ -72,7 +72,8 @@ the aityx console. With a key, the form isn't there.
 
 The light at the top right of the window says which it is: green when
 aityx accepts the key (yours, or the dev key), red with why otherwise, and
-a tap on it opens the index page's key section.
+a tap on it opens the key panel, over the app, to set, change or forget
+the key.
 
 ## Run it locally
 

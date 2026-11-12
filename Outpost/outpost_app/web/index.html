@@ -137,7 +137,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .connect{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
 .connect label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);flex:1 1 180px;min-width:0}
 .connect input{background:var(--ink);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:500 14px var(--mono);width:100%}
-body:not(.locked) .connect label,body:not(.locked) .connect button[type="submit"]{display:none}
+body:not(.locked):not(.keychange) .connect label,body:not(.locked):not(.keychange) .connect button[type="submit"]{display:none}
 
 .livedot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:6px;box-shadow:0 0 0 3px rgba(166,214,183,.18)}
 #liveplay{display:flex;flex-direction:column;gap:18px}
@@ -432,14 +432,15 @@ body:not(.locked) .keystrip .connect{flex:0 0 auto}
 @media (max-width:700px){.brief .phases{order:0;flex:1 1 100%;flex-wrap:nowrap;max-width:100%}.brief .meters{order:1;flex:1 1 100%;min-width:0;max-width:100%}.brief .head{order:2}.brief .facts{order:3;min-width:0;max-width:100%;flex-wrap:wrap}.brief .nstars{display:none}}
 
 /* The aityx status light, as in every aityx demo (packages/aityx_web): 8 px, top right; grey while it checks,
-   green when aityx accepts the key, red otherwise. A tap opens the key on the demos page. */
+   green when aityx accepts the key, red otherwise. A tap opens the key form, here. */
 .aityx-light{position:fixed;top:3px;right:3px;z-index:80;width:20px;height:20px;padding:6px;border:0;background:none;cursor:pointer}
 .aityx-light::after{content:"";display:block;width:8px;height:8px;border-radius:50%;background:#47474D;opacity:.8}
 .aityx-light[data-conn="ok"]::after{background:#4CC38A}
 .aityx-light[data-conn="none"]::after,.aityx-light[data-conn="invalid"]::after,.aityx-light[data-conn="error"]::after{background:#F0506E}
 .keystrip .connect a.button{text-decoration:none;display:inline-flex;align-items:center}
-/* the key form: only while there is no key at all (data-conn="none"); with one, the link to the demos page instead */
-body:not([data-conn="none"]) .connect label,body:not([data-conn="none"]) .connect button[type="submit"],body[data-conn="none"] #setkey{display:none}
+/* the key form: while there is no key at all (data-conn="none"), and while the key is being changed (body.keychange),
+   with Forget key and Cancel then; otherwise "Change key", which opens it */
+body:not([data-conn="none"]):not(.keychange) .connect label,body:not([data-conn="none"]):not(.keychange) .connect button[type="submit"],body[data-conn="none"] #setkey,body.keychange #setkey,body:not(.keychange) #keyforget,body:not(.keychange) #keycancel,#keyforget[hidden]{display:none}
 .keystrip .connect .urlin{flex:0 1 190px}
 .keystrip #keymsg{flex:1 1 100%;margin-top:-4px}.keystrip #keymsg:empty{display:none}
 body:not(.locked) #setkey{font-size:13px;padding:6px 11px;border-radius:9px;background:transparent;border-color:var(--line);color:var(--fg)}
@@ -458,11 +459,13 @@ body:not(.locked) #setkey{font-size:13px;padding:6px 11px;border-radius:9px;back
 </header>
 <section class="keystrip keycard" id="keystrip" aria-labelledby="h-key">
           <h3 id="h-key"><span aria-hidden="true">🔑</span> To play your own city, set your aityx key</h3>
-          <!-- No key anywhere: the key, optionally the aityx URL, Save. With a key, only "Change key" (the demos page). -->
+          <!-- No key anywhere, or changing it (the light, "Change key"): the key, optionally the aityx URL, Save; changing, Forget key and Cancel too. -->
           <form class="connect" id="connect" autocomplete="off" novalidate>
             <label class="keyin"><input type="password" id="keyin" name="key" aria-label="Your aityx key" placeholder="Your aityx key" autocomplete="off" spellcheck="false" autocapitalize="off"></label>
             <label class="urlin"><input type="url" id="urlin" name="url" aria-label="aityx URL (optional)" placeholder="URL (optional)" spellcheck="false" autocapitalize="off"></label>
             <button class="button primary" type="submit" id="keysave">Save</button>
+            <button class="button sm" type="button" id="keyforget" hidden>Forget key</button>
+            <button class="button sm" type="button" id="keycancel">Cancel</button>
             <a class="button primary" id="setkey" href="/demos/#aityx-key">Set your aityx key</a>
             <button class="button sm" type="button" id="recall" hidden>Record 2 games</button>
           </form>

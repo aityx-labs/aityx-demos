@@ -24,7 +24,7 @@ aityx_web's order, in the browser:
    origin and the index server adds the key. The key never reaches the
    browser.
 3. **None**: no call is made, and the generation says
-   `aityx is not set up: set your key on the index page.` The
+   `aityx is not set up: set your key (the light, top right).` The
    [key form](aityx-key.md) is on the screen, above the board, to set
    one without leaving the app.
 
@@ -60,7 +60,7 @@ A snackbar says why, and playback pauses:
 
 | When | Notice |
 |---|---|
-| no key | `aityx is not set up: set your key on the index page.` (the [key form](aityx-key.md) is above the board) |
+| no key | `aityx is not set up: set your key (the light, top right).` (the [key form](aityx-key.md) is above the board) |
 | the board fails a check | `Could not run the generation: <the check>.` |
 | aityx answers 401 or 403 | `Could not run the generation: aityx rejected the key.` |
 | no answer (network, CORS, a blocker) | `Could not run the generation: aityx did not answer.` |

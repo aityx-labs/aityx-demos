@@ -26,7 +26,7 @@ the key in this order:
    on its own origin, and the server adds the key. The key never reaches
    the browser.
 3. **None**: every decision fails with "aityx is not set up: set your key
-   on the index page", [the aityx light](aityx-status.md) is red, and
+   (the light, top right)", [the aityx light](aityx-status.md) is red, and
    the [key form](aityx-key.md) shows above the controls.
 
 ## The presets
@@ -68,7 +68,7 @@ on aityx** show:
 
 | When | Message |
 |---|---|
-| no key | `aityx is not set up: set your key on the index page` |
+| no key | `aityx is not set up: set your key (the light, top right)` |
 | aityx answers 401 or 403 | `aityx rejected the key` |
 | no answer in 30 s, a network or CORS error, or the dev proxy can't reach aityx (502 `proxy_unreachable`) | `aityx did not answer` |
 | any other status | `aityx answered HTTP n`, then aityx's code, detail and first errors' paths and messages (`: invalid_decision; ...; decision.decisions.action: ...`), so a custom strategy's mistake reaches the editor; left out if they somehow hold the user's key |

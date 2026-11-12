@@ -27,7 +27,7 @@ page or in any demo, works in every demo.
    key. Calls then go to `<origin>/demos/aityx/v1/systemone`, with no Authorization
    header: the server adds the key, so it never reaches the browser.
 3. **None**: `{"available": false}`, a 404, an HTML page (a static host), or no
-   answer. The light is red ("aityx: no key — set yours on the index page") and
+   answer. The light is red ("aityx: no key — set yours here") and
    calls throw `AityxNoKey`.
 
 Off the web (the VM in `flutter test`, native builds) the key store is in memory
@@ -64,7 +64,7 @@ try {
   if (!answer.ok) throw MyError(answer.problem!); // "aityx rejected the key", "aityx answered HTTP 500: ..."
   use(answer.json, answer.took);
 } on AityxNoKey catch (e) {
-  show('$e'); // "aityx is not set up: set your key on the index page"
+  show('$e'); // "aityx is not set up: set your key (the light, top right)"
 } on AityxUnreachable catch (e) {
   show('$e'); // "aityx did not answer"; e.cause says why ("timed out after 90 s")
 }
@@ -86,8 +86,22 @@ working key gets 400 `invalid_request` without running a model, and a bad one 40
 It checks on start, right away when the key store changes (the index page, in
 another tab, saves or forgets the key), and when the window regains focus at most
 once every 30 s. There's no polling timer: each check spends a request of the
-user's quota. A tap opens the index page's key section (`/demos/#aityx-key`) in the same
-tab.
+user's quota. A tap opens the key panel over the app (below), unless the light is given
+its own `onTap`.
+
+## The key panel
+
+`openAityxKey(context)` opens **Your aityx key** over the app, in its topmost `Overlay` (the
+light sits above the app's `Navigator`, so the panel needs none), and completes when it
+closes. The light opens it on a tap; an app can too, from a button of its own. The panel
+(`AityxKeyPanel`) says which key is in use (the user's, by its last four characters, never
+the key; the server's dev key; or none), and has a field for a new key, its aityx URL
+(optional), **Check and save**, **Forget key**, **Close** and a link to the aityx console.
+**Check and save** checks the key as the key form does and saves only one aityx accepts, in
+the same storage entries, so the index page and every demo use it; a key kept for this
+session only stays so. **Forget key** removes the user's key from the browser. Escape or a
+tap outside closes it. Embedded in another page (`?embed=1`), nothing opens: the app posts
+`"aityx:key"` to the page around it, which has its own key panel.
 
 ## The link back
 

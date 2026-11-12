@@ -12,7 +12,7 @@
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="fonts.css">
 <style>
-/* App shell: top HUD (nights + meters), the city as the stage with its controls bar, a tabbed dock (Play, Why, City rules, Developers). The page never scrolls; only the dock does. */
+/* App shell: top HUD (nights + meters), the city as the stage with its controls bar, a tabbed dock (Play, Why, City rules, Code). The page never scrolls; only the dock does. */
 :root{--ink:#0d1219;--card:#141b25;--card2:#1b2430;--line:#2a3646;--fg:#eff2f4;--muted:#93a0af;--acc:#e36742;--acc2:#f07a52;--ok:#a6d6b7;--sun:#f2c14e;--sky:#9ab3eb;--bad:#ef6b6b;
   --chrome:#0f151e;--dock-w:392px;
   --display:'Poppins',ui-sans-serif,system-ui,sans-serif;--mono:'Red Hat Mono',ui-monospace,Menlo,monospace;color-scheme:dark}
@@ -160,8 +160,12 @@ body.locked .lockline{display:block}
 /* receipt */
 .rules p{margin:0;font-size:14px;line-height:1.6;color:var(--fg)}
 .rules p+p{margin-top:2px}
+.rules dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:7px 12px;margin:0;font-size:13.5px;line-height:1.45}
+.rules dt{font:600 10.5px/1.9 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.rules dd{margin:0;color:var(--fg)}
+.rules .note{font-size:12.5px;line-height:1.5;color:var(--muted)}
 
-/* developers */
+/* code */
 details{border:1px solid var(--line);border-radius:12px;background:var(--card)}
 summary{cursor:pointer;padding:10px 14px;font:500 14px var(--display);display:flex;justify-content:space-between;gap:10px}
 .inner{padding:0 14px 14px;display:flex;flex-direction:column;gap:12px}
@@ -308,7 +312,7 @@ body:not(.locked) .keystrip .connect{flex:0 0 auto}
 .htab th:first-child,.htab td:first-child{text-align:left}
 .htab .off{color:var(--bad)}.htab .on{color:var(--ok)}
 
-/* developers: JSON viewer */
+/* code: JSON viewer */
 .jvhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
 .jvtools{display:flex;gap:4px}
 .jvb{font:500 10.5px var(--mono);color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:7px;padding:3px 7px;cursor:pointer}
@@ -531,7 +535,7 @@ body:not(.locked) #setkey{font-size:13px;padding:6px 11px;border-radius:9px;back
       <button class="tab" role="tab" id="tab-play" data-tab="play" aria-controls="pane-play" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>Play</button>
       <button class="tab" role="tab" id="tab-why" data-tab="why" aria-controls="pane-why" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Why</button>
       <button class="tab" role="tab" id="tab-rules" data-tab="rules" aria-controls="pane-rules" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></svg>City rules</button>
-      <button class="tab" role="tab" id="tab-dev" data-tab="dev" aria-controls="pane-dev" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg>Developers</button>
+      <button class="tab" role="tab" id="tab-dev" data-tab="dev" aria-controls="pane-dev" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg>Code</button>
     </div>
 
     <div class="pane" id="pane-play" role="tabpanel" aria-labelledby="tab-play">
@@ -565,18 +569,26 @@ body:not(.locked) #setkey{font-size:13px;padding:6px 11px;border-radius:9px;back
     </div>
 
     <div class="pane" id="pane-rules" role="tabpanel" aria-labelledby="tab-rules" hidden>
-      <div class="pane-head"><h2>The rules of the city</h2><p>The numbers aityx uses.</p></div>
+      <div class="pane-head"><h2>The rules of the city</h2><p>What aityx computes each night.</p></div>
       <div class="card rules">
-        <p>Each house uses 2 energy per hour of night, streetlights 3, the hospital 4, the factory 6. At dusk the battery holds what your panels made by day (panels × sunlight × 4), up to its capacity. Turbines add wind every hour.</p>
-        <p>Every house-hour in the dark costs 3 points of approval, every hour of dark streetlights costs 1. You pass a night if the hospital never goes dark and approval stays at 50% or more. 90% and up is three stars.</p>
-        <p>From night 6 the city keeps growing: a market, a school, a pharmacy, a fire station and a library open, one per night. Each uses as much energy as a house and counts like one. After night 10 every night has a little less sun. There is no last night: the game is how many nights your city survives.</p>
-        <p>aityx runs all of this as a readable model: same city, same rules, same night, every time. This page draws the result. It calculates nothing.</p>
-        <p>On the map, the glowing lines on the ground show the idea of the grid: sun and wind feed the battery yard, a main line runs along the main road, and branches reach the houses, the hospital, the factory and the streetlights. Their colours follow what aityx says happened each hour. The model counts energy for the whole city; it does not route individual wires.</p>
+        <dl>
+          <dt>Night</dt><dd>6 hours, 8 PM to 6 AM. Hours from 2 AM on are after midnight.</dd>
+          <dt>Use per hour</dt><dd>House 2 · Streetlights 3 · Hospital 4 · Factory 6</dd>
+          <dt>Battery</dt><dd>At dusk: panels × sunlight × 4, up to capacity. A battery build adds 30 capacity.</dd>
+          <dt>Wind</dt><dd>Turbines × the hour's wind, added every hour.</dd>
+          <dt>Who gets power</dt><dd>The hospital first, then the others; your order says which goes dark first.</dd>
+          <dt>Factory</dt><dd>Spare power only: never what the others need before morning. +5 capacity per hour it runs.</dd>
+          <dt>Approval</dt><dd>Starts at 100. −3 per house per hour in the dark, −1 per hour of dark streetlights. Streetlights you switch off after midnight cost nothing.</dd>
+          <dt>Pass</dt><dd>The hospital never goes dark and approval at dawn is 50% or more.</dd>
+          <dt>Stars</dt><dd>★★★ 90%+ · ★★ 70%+ · ★ passed</dd>
+          <dt>Growth</dt><dd>Nights 1–5: 5 to 10 houses, the hospital on night 2, the factory on night 3. Nights 6–10: one public building a night, counted as a house. After night 10: less sun.</dd>
+        </dl>
+        <p class="note">aityx computes every number: same inputs, same night. The page only draws it. The grid lines on the map are an illustration; the model counts energy for the whole city per hour, not per wire.</p>
       </div>
     </div>
 
     <div class="pane" id="pane-dev" role="tabpanel" aria-labelledby="tab-dev" hidden>
-      <div class="pane-head"><h2>For developers: the aityx call</h2><p>POST /v1/systemone, one per night.</p></div>
+      <div class="pane-head"><h2>Code: the aityx call</h2><p>POST /v1/systemone, one per night.</p></div>
       <div class="json">
         <div><div class="jvhead"><span class="mono">Response</span><span class="jvtools"><button class="jvb" type="button" data-jv="res" data-act="open">Expand all</button><button class="jvb" type="button" data-jv="res" data-act="close">Collapse</button><button class="jvb" type="button" data-jv="res" data-act="copy">Copy</button></span></div><div class="jv" id="res"><span class="jc">// Nothing runs without aityx.</span></div></div>
         <div><div class="jvhead"><span class="mono">Request</span><span class="jvtools"><button class="jvb" type="button" data-jv="req" data-act="open">Expand all</button><button class="jvb" type="button" data-jv="req" data-act="close">Collapse</button><button class="jvb" type="button" data-jv="req" data-act="copy">Copy</button></span></div><div class="jv" id="req"><span class="jc">// Play a night to see the request.</span></div></div>

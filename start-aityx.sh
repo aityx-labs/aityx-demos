@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Starts the aityx demos: Mortgage Hub, Contact Hub, Holiday Split,
-# PokerFace, RoboRules, Cellfie and RiverRace: every folder whose group.id.txt says
+# Starts the nine aityx demos: Mortgage Hub, Contact Hub, Health Plan, Holiday Split,
+# PokerFace, RoboRules, Cellfie, RiverRace and Outpost: every folder whose group.id.txt says
 # `aityx`, through start-all.sh, which builds each one's web app if it is
 # stale and starts the index (Index/), which serves them all on one
 # origin: http://localhost:8800/demos/ and

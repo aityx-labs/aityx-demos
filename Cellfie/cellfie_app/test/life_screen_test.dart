@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:aityx_web/aityx_web.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:cellfie_app/calls/calls_panel.dart';
@@ -119,6 +120,12 @@ void main() {
 
     expect(find.byType(LifeScreen), findsOneWidget);
     expect(find.text('Cellfie'), findsOneWidget);
+    // The way back to the index page, under the title.
+    expect(find.text('aityx demos'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('aityx demos')).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(find.text('Cellfie')).dy),
+    );
     expect(find.byType(BoardView), findsOneWidget);
     // 800 px leaves no room for the labels: the buttons are icons.
     expect(find.byTooltip('Play'), findsOneWidget);
@@ -484,10 +491,11 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Play'), findsOneWidget);
-    expect(find.text('Set your key'), findsNothing);
   });
 
-  testWidgets('without a key, the notice offers to set it', (tester) async {
+  testWidgets('without a key, the notice says so, by the key form', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -508,7 +516,46 @@ void main() {
       find.text('aityx is not set up: set your key on the index page.'),
       findsOneWidget,
     );
-    expect(find.text('Set your key'), findsOneWidget);
+    // No button on the notice: the key form is on the screen.
+    expect(find.byType(SnackBarAction), findsNothing);
+    expect(find.byKey(const ValueKey('aityx-key-field')), findsOneWidget);
+  });
+
+  testWidgets('without an aityx key, asks for it above the board', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1800, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(home: LifeScreen(stepper: FakeStepper(), start: null)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('aityx-key-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('aityx-url-field')), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
+    expect(find.text('Get a key in the aityx console'), findsOneWidget);
+    expect(
+      tester.getBottomLeft(find.byType(AityxKeyPrompt)).dy,
+      lessThanOrEqualTo(tester.getTopLeft(find.byType(BoardView)).dy),
+    );
+  });
+
+  testWidgets('with an aityx key, shows no key form at all', (tester) async {
+    tester.view.physicalSize = const Size(1800, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    AityxSettings.store = AityxKeyStore.memory(local: {'aityx.key': 'k'});
+    addTearDown(() => AityxSettings.store = AityxKeyStore.memory());
+    await tester.pumpWidget(
+      MaterialApp(home: LifeScreen(stepper: FakeStepper(), start: null)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('aityx-key-field')), findsNothing);
+    expect(find.text('Get a key in the aityx console'), findsNothing);
+    expect(tester.getSize(find.byType(AityxKeyPrompt)).height, 0);
   });
 
   testWidgets('on a phone the calls open from the app bar', (tester) async {

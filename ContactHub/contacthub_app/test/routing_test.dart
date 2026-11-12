@@ -553,7 +553,7 @@ void main() {
       );
       await pump(tester, router);
       expect(find.text('aityx did not answer.'), findsOneWidget);
-      expect(find.text('Set your key'), findsNothing);
+      expect(find.byType(AityxKeyPrompt), findsNothing);
 
       router.answer = null;
       await tester.tap(find.text('Try again'));
@@ -562,7 +562,7 @@ void main() {
       expect(router.asked.length, 2);
     });
 
-    testWidgets('without a key, offers the index page', (tester) async {
+    testWidgets('without a key, asks for it above Try again', (tester) async {
       await pump(
         tester,
         FakeRouter(
@@ -576,8 +576,16 @@ void main() {
         find.text('aityx is not set up: set your key on the index page.'),
         findsOneWidget,
       );
-      expect(find.text('Set your key'), findsOneWidget);
+      // The key form: the key, the URL, Save and the console's link.
+      expect(find.byKey(const ValueKey('aityx-key-field')), findsOneWidget);
+      expect(find.byKey(const ValueKey('aityx-url-field')), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
+      expect(find.text('Get a key in the aityx console'), findsOneWidget);
       expect(find.text('Try again'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byType(AityxKeyPrompt)).dy,
+        lessThan(tester.getTopLeft(find.text('Try again')).dy),
+      );
     });
   });
 }

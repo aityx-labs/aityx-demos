@@ -3,9 +3,9 @@
 // files serve from the index server (Index/bin/server.dart) and from a
 // static host's /demos/ (the aityx website).
 // The key is kept the way every demo reads it (packages/aityx_web), on this
-// origin: localStorage or, for this session only, sessionStorage, under
-// aityx.key, with aityx.url beside it. Never in a URL, in a log, or on the
-// page once saved (only its last four characters).
+// origin: always in localStorage, until "Forget key", under aityx.key, with
+// aityx.url beside it. Never in a URL, in a log, or on the page once saved
+// (only its last four characters).
 'use strict';
 
 // The demos, in the order shown, in two groups: "kind" is 'game' (under
@@ -45,6 +45,20 @@ const demos = [
     icon: 'plane', codespace: 'aityx',
   },
   {
+    kind: 'game', folder: 'Outpost', name: 'Outpost',
+    what: 'Keep a growing city’s lights on, one aityx call per night',
+    desc: 'Run the power of a city that grows every night. By day, build a solar panel, a battery or a wind turbine; before night, write the rules for what goes dark first. aityx runs the whole night, hour by hour, as a decision model, and the page only draws it: every number on the map and every line of the receipt, with the rule behind it. How many nights can your city survive?',
+    chips: ['aityx', 'simulation', 'game', 'user playable'],
+    icon: 'bulb', codespace: 'aityx',
+  },
+  {
+    kind: 'app', folder: 'HealthPlan', name: 'Health Plan',
+    what: 'Which 2027 health plan will actually cost you less?',
+    desc: 'Describe your family’s year in plain words. In one aityx call, Jev reads each person’s care and any pregnancy from the message, and the plan rules price Bronze, Silver and Gold for that year: premium plus what you pay for care, after deductibles, coinsurance and the family cap. A receipt per plan gives every number and where it came from, and what-if switches show the winner change.',
+    chips: ['aityx', 'natural language processing', 'accountable results'],
+    icon: 'health', codespace: 'aityx',
+  },
+  {
     kind: 'app', folder: 'MortgageHub', name: 'Mortgage Hub',
     what: 'A mortgage application, from request to verdict',
     desc: 'A buyer fills in a proposal request, and a regulatory check says whether a lender can process it under current US rules: Fannie Mae’s eligibility matrix, the 2026 FHFA and FHA limits, FHA, VA and USDA rules and DTI limits, executed as a decision model on aityx.',
@@ -69,11 +83,13 @@ const demos = [
 ];
 const icons = {
   home: '<path d="M4 11 L12 4 L20 11 V20 H14 V14 H10 V20 H4 Z"/>',
+  health: '<path d="M12 2 L20 5 V11 C20 16 16.5 20 12 22 C7.5 20 4 16 4 11 V5 Z M10.75 7.5 V10.75 H7.5 V13.25 H10.75 V16.5 H13.25 V13.25 H16.5 V10.75 H13.25 V7.5 Z" fill-rule="evenodd"/>',
   chat: '<path d="M4 5 H20 V16 H10 L6 20 V16 H4 Z"/>',
   grid: '<path d="M4 4h4v4H4zM10 4h4v4h-4zM16 4h4v4h-4zM4 10h4v4H4zM16 10h4v4h-4zM4 16h4v4H4zM10 16h4v4h-4zM16 16h4v4h-4z"/>',
   robot: '<path d="M5 9 H19 V19 H5 Z M8 12 H10 V14 H8 Z M14 12 H16 V14 H14 Z M11 4 H13 V9 H11 Z M2 12 H5 V17 H2 Z M19 12 H22 V17 H19 Z"/>',
   cards: '<path d="M7 3 H17 A2 2 0 0 1 19 5 V19 A2 2 0 0 1 17 21 H7 A2 2 0 0 1 5 19 V5 A2 2 0 0 1 7 3 Z M12 7 C13 9 16 10 16 13 C16 14.5 14.7 15.5 13.4 14.8 L14 17 H10 L10.6 14.8 C9.3 15.5 8 14.5 8 13 C8 10 11 9 12 7 Z" fill-rule="evenodd"/>',
   receipt: '<path d="M5 2 H19 V21 L17 19.5 L15 21 L13 19.5 L11 21 L9 19.5 L7 21 L5 19.5 Z M8 6 V8 H16 V6 Z M8 10 V12 H14 V10 Z M8 14 V16 H15 V14 Z" fill-rule="evenodd"/>',
+  bulb: '<path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2Z M9 18.5h6V20H9Z M10 21h4v1h-4Z"/>',
   plane: '<path d="M12 2 L13.5 8 L21 12 V14 L13.5 12 L13 18 L16 20 V21.5 L12 20.5 L8 21.5 V20 L11 18 L10.5 12 L3 14 V12 L10.5 8 Z"/>',
 };
 const github = 'https://github.com/aityx-labs/aityx-demos/tree/main/';
@@ -82,12 +98,13 @@ const codespaces = (d) =>
   encodeURIComponent('.devcontainer/' + d.codespace + '/devcontainer.json') +
   '&machine=standardLinux32gb';
 // A demo's app: beside this page (/demos/<slug>/), on this origin, so it
-// reads the key saved here. Opened in a new tab, with an opener: a key
-// kept "only this session" lives in this tab's sessionStorage, which the
-// browser copies into a new tab only when the tab keeps its opener. With
-// noopener (the default for target="_blank" since Chrome 88) the new tab
-// starts with an empty one and the demo would open without the key. The
-// app is on this origin, so the opener is no risk.
+// reads the key saved here. Opened in a new tab, with an opener: this page
+// keeps the key in localStorage, which every tab shares, but a key in this
+// tab's sessionStorage (one saved "only this session" before the page
+// dropped that choice; the demos still read it first) is copied into a new
+// tab only when the tab keeps its opener. With noopener (the default for
+// target="_blank" since Chrome 88) the new tab starts with an empty one.
+// The app is on this origin, so the opener is no risk.
 const appPath = (d) => d.folder.toLowerCase() + '/';
 const appTab = 'target="_blank" rel="opener"';
 const ext = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M19 14v6H4V5h6"/></svg>';
@@ -100,8 +117,9 @@ function card(d) {
   // Its animation, www/<slug>.gif (a recording of the app, 720 px wide),
   // opens the app too.
   el.innerHTML =
+    (d.gif === false ? '' :
     '<a class="shot" href="' + appPath(d) + '" ' + appTab + ' tabindex="-1" aria-hidden="true">' +
-    '<img src="' + d.folder.toLowerCase() + '.gif" alt="" width="720" height="362" loading="lazy" decoding="async"></a>' +
+    '<img src="' + d.folder.toLowerCase() + '.gif" alt="" width="720" height="362" loading="lazy" decoding="async"></a>') +
     '<div class="head"><div class="icon"><svg viewBox="0 0 24 24" fill="currentColor">' + icons[d.icon] + '</svg></div>' +
     '<div><h2>' + d.name + '</h2><p class="what">' + d.what + '</p></div></div>' +
     '<p class="desc">' + d.desc + '</p>' +
@@ -180,16 +198,14 @@ function userKey() {
   return null;
 }
 
-function saveKey(key, url, sessionOnly) {
-  const [to, other] = sessionOnly ? [session, local] : [local, session];
-  if (!to) throw new Error(sessionOnly ? 'this browser keeps no session storage' : 'this browser keeps no local storage');
-  for (const s of [other, to]) {
-    if (!s) continue;
-    s.removeItem('aityx.key');
-    s.removeItem('aityx.url');
-  }
-  to.setItem('aityx.key', key);
-  to.setItem('aityx.url', url);
+// Always on the device, in localStorage: the page has no "only this
+// session". A key in sessionStorage (one saved there before, which would
+// win over this one) is cleared.
+function saveKey(key, url) {
+  if (!local) throw new Error('this browser keeps no local storage');
+  forgetKey();
+  local.setItem('aityx.key', key);
+  local.setItem('aityx.url', url);
 }
 
 function forgetKey() {
@@ -342,10 +358,6 @@ document.getElementById('key-form').addEventListener('submit', async (event) => 
   const input = document.getElementById('key-input');
   const key = input.value.trim();
   const url = cleanUrl(document.getElementById('url-input').value);
-  // The index page offers "Only this session"; key.html (the website's
-  // modal) has no choice and keeps the key on the device, in localStorage.
-  const keep = document.querySelector('input[name=keep]:checked');
-  const sessionOnly = !!keep && keep.value === 'session';
   if (!key) return result('Paste your key first.', false);
   if (/\s/.test(key)) return result('That doesn’t look like a key: it has spaces in it.', false);
   if (!url) {
@@ -360,15 +372,14 @@ document.getElementById('key-form').addEventListener('submit', async (event) => 
     const answer = await check(url, key);
     if (!answer.ok) return result(answer.detail + '. Not saved.', false);
     try {
-      saveKey(key, url, sessionOnly);
+      saveKey(key, url);
     } catch (error) {
       return result('aityx accepts the key, but it could not be saved: ' + error.message + '.', false);
     }
     input.value = '';
     wantOwn = false;
     lastCheckResult = null;
-    result('aityx accepts the key ' + last4(key) + ': saved ' +
-      (sessionOnly ? 'for this session.' : 'on this device.'), true);
+    result('aityx accepts the key ' + last4(key) + ': saved on this device.', true);
     await describeKey();
     checkAityx(true);
   } finally {

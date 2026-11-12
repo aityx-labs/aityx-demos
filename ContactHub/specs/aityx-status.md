@@ -34,13 +34,10 @@ of your quota.
 
 ## Known limitations
 
-- Your key lives in the browser's `localStorage` ("remember on this
-  device") or `sessionStorage` ("only this session") for the index
-  server's origin, readable by any script on it: the build keeps
+- Your key lives in the browser's `localStorage` for the index
+  server's origin, until **Forget key** on the index page, readable by any script on it: the build keeps
   Flutter's own resources on the origin (`--no-web-resources-cdn`), but
   the voice input's worker loads transformers.js from jsDelivr (see
   [Request box](request.md#known-limitations)).
-- `sessionStorage` is per tab: a key saved "only this session" reaches the
-  app opened in the same tab, not in a new one.
 - The Android, iOS and Linux builds have no index page and no dev proxy:
   their key store is in memory only, so the light stays red there.

@@ -43,8 +43,10 @@ http://localhost:8800/demos/contacthub/. The key stays in your browser, and
 every demo on that page uses it. With no key of yours, the index server
 lends its dev key, `AITYX_API_KEY` in the repository's `.env` (see
 [../.env.example](../.env.example)), through its own proxy: the key never
-reaches the browser. Without either, the app runs, but **Send** says to
-set your key.
+reaches the browser. Without either, the app runs and asks for your key
+itself, in a small form above the request box (the key, optionally the
+aityx URL, and a link to the aityx console); with a key, the form isn't
+there.
 
 Type a request, or press the microphone beside the field and say it: the
 browser asks for the microphone the first time, and Chrome or Edge install

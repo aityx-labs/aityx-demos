@@ -16,7 +16,8 @@ page, on one origin, under `/demos/`: RiverRace at `/demos/riverrace/`
 so the key a user sets once on the index page reaches every demo.
 `AityxClient` looks, in this order:
 
-1. **The user's key**, set on the index page ("Your aityx key"):
+1. **The user's key**, set on the index page ("Your aityx key") or in
+   the app's own [key form](aityx-key.md):
    `sessionStorage['aityx.key']` ("only this session"), else
    `localStorage['aityx.key']` ("remember on this device"), with its
    `aityx.url` (default `https://api.aityx.ai`). The app calls
@@ -29,7 +30,8 @@ so the key a user sets once on the index page reaches every demo.
    `Authorization` header, and the index server adds the key. That key
    never reaches the browser.
 3. **None**: decisions fail with *aityx is not set up: set your key on the
-   index page*, and the [status light](aityx-status.md) is red.
+   index page*, the [status light](aityx-status.md) is red, and the
+   [key form](aityx-key.md) shows above the river.
 
 The key the user sets lives in the browser: anything running on the
 origin can read it. The build keeps CanvasKit on the origin

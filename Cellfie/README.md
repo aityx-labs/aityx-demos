@@ -47,8 +47,10 @@ Every generation is a call to aityx on a key:
    own proxy. It never reaches the browser.
 
 Without either, the board works, but a generation says
-`aityx is not set up: set your key on the index page.` The dot at the top
-right says which key is in use and whether aityx accepts it; tap it to
+`aityx is not set up: set your key on the index page.`, and a small form
+above the board takes your key (and, optionally, the aityx URL) without
+leaving the app; with a key, the form isn't there. The dot at the top
+right says whether aityx accepts the key in use; tap it to
 open the index page's key section.
 
 ## Run it locally

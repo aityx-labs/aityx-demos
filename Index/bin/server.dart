@@ -18,10 +18,11 @@
 ///   GET /demos/<slug>/... a demo's release web build: every folder beside
 ///                         this one in this index's group (its group.id.txt
 ///                         says INDEX_GROUP, aityx) with a <slug>_app/
-///                         package (a Flutter app's pubspec.yaml, or a
-///                         web app's package.json, built with Vite into
-///                         the same build/web), the slug being the
-///                         folder's name in lower case: /demos/mortgagehub/ is
+///                         (a Flutter package, a static page in
+///                         <slug>_app/web/, or a web app with a
+///                         package.json, built with Vite into the same
+///                         build/web), the slug being the folder's name in
+///                         lower case: /demos/mortgagehub/ is
 ///                         MortgageHub/mortgagehub_app/build/web. A path
 ///                         that isn't a file gets the build's index.html
 ///                         (the app routes it); a missing build, 503
@@ -369,9 +370,12 @@ Future<Map<String, _Demo>> _demos() async {
     final folder = _name(entry);
     final slug = folder.toLowerCase();
     if (await _groupOf(entry) != _group) continue;
-    // A Flutter app (pubspec.yaml) or a web app (package.json, Holiday
-    // Split), each built into <slug>_app/build/web.
+    // A Flutter app (its pubspec.yaml), a static page (its web/index.html,
+    // copied as it is into build/web by the demo's scripts/build.sh: Outpost,
+    // HealthPlan), or a web app (its package.json, built with Vite into
+    // build/web: Holiday Split).
     if (!await File('${entry.path}/${slug}_app/pubspec.yaml').exists() &&
+        !await File('${entry.path}/${slug}_app/web/index.html').exists() &&
         !await File('${entry.path}/${slug}_app/package.json').exists()) {
       continue;
     }

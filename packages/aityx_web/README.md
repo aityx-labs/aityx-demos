@@ -2,18 +2,20 @@
 
 aityx from the browser, shared by the six aityx demos (MortgageHub, ContactHub,
 PokerFace, RoboRules, Cellfie, RiverRace). It finds the key, calls aityx's
-`/v1/systemone`, and draws the status light at the top right of every screen.
+`/v1/systemone`, draws the status light at the top right of every screen, and
+asks for the key in the app while there is none.
 There's no per-demo API: the Flutter web app calls aityx itself.
 
 All the demos and the index page are served from one origin (the index server,
-`Index/bin/server.dart`, port 8800), so a key the user sets once on the index
-page works in every demo.
+`Index/bin/server.dart`, port 8800), so a key the user sets once, on the index
+page or in any demo, works in every demo.
 
 ## Where the key comes from
 
 `AityxSettings.resolve()` follows this order, in the browser:
 
-1. **The user's key**, set on the index page ("Your aityx key"):
+1. **The user's key**, set on the index page ("Your aityx key") or in a demo's
+   own small form ([The key form](#the-key-form)):
    `sessionStorage['aityx.key']` ("only this session"), else
    `localStorage['aityx.key']` ("remember on this device"). The URL comes from
    `aityx.url` in the same storage, defaulting to `https://api.aityx.ai`. The app
@@ -87,6 +89,52 @@ once every 30 s. There's no polling timer: each check spends a request of the
 user's quota. A tap opens the index page's key section (`/demos/#aityx-key`) in the same
 tab.
 
+## The link back
+
+`AityxDemosLink`: a left arrow and "aityx demos" (`aityxDemosLabel`), the way
+back from a demo to the index page. Small, in the muted colour of the app's
+secondary text (the theme's `bodySmall` in `onSurfaceVariant`), the primary
+colour and underlined under the pointer; `style` and `hoverColor` change that.
+A tap opens `aityxDemosPage()`, `/demos/` on the page's origin
+(https://aityx.ai/demos/ on the aityx website), in the same tab. Each app
+places it once, where its name is: under the title in the top bar (Cellfie,
+RiverRace, PokerFace), at the end of the menu bar (RoboRules), on the welcome
+page (Mortgage Hub, Contact Hub).
+
+```dart
+const Column(
+  mainAxisSize: MainAxisSize.min,
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [Text('Cellfie'), AityxDemosLink()],
+)
+```
+
+## The key form
+
+`AityxKeyPrompt`: a small form for the user's key, for an app to put where it
+calls aityx (just above the button that calls it, or on its opening screen).
+
+```dart
+const AityxKeyPrompt(padding: EdgeInsets.only(bottom: 16))
+AityxKeyPrompt(onSaved: retry) // run the call that needed the key
+```
+
+It takes no room at all while there is a key, the user's or the index server's
+dev key: with a key in the store it asks nothing, and without one it asks only
+`/demos/aityx/config` (never aityx, so nothing of the user's quota). With no key
+anywhere it shows the key (never as typed), the aityx URL (optional: empty is
+`https://api.aityx.ai`, else an https URL on a host under aityx.ai,
+`cleanAityxUrl`), **Save**, and under them **Get a key in the aityx console**,
+which opens `https://console.aityx.ai` in a new tab.
+
+**Save** checks the key with aityx the way the index page does (one empty call,
+which runs no model) and saves only a key aityx accepts, in `localStorage`, where
+the index page and every demo read it; the
+form then goes away and `onSaved` runs. A key aityx rejects, or one it didn't
+answer for, isn't saved, and the form says why. The form also goes away when
+the key is set elsewhere (the index page, in another tab) and comes back when
+it is forgotten there.
+
 ## Embedded
 
 The aityx website's blueprint pages open an app in a frame, at
@@ -94,8 +142,9 @@ The aityx website's blueprint pages open an app in a frame, at
 `/demos/key.html`). With `embed=1` (read once, from the URL the app loaded with)
 `aityxEmbedded` is true and a tap on the light posts `aityxKeyMessage`
 (`"aityx:key"`) to the page around the app instead of leaving for the index page;
-the page shows its key form. An app with links of its own to the index page
-hides them when `aityxEmbedded`, so the user stays on the blueprint page.
+the page shows its key form. `AityxDemosLink` takes no room
+when `aityxEmbedded`, and an app with links of its own to the index page
+hides them too, so the user stays on the blueprint page.
 
 ## Tests in the apps
 
@@ -122,6 +171,11 @@ MaterialApp(
       light: AityxStatusLight(client: mock, store: AityxKeyStore.memory())),
 )
 AityxStatusLight(check: () async => AityxState.noKey)
+
+// The link back, without leaving the page:
+AityxDemosLink(onTap: () => opened++)
+// The key form, with its own client and store:
+AityxKeyPrompt(client: mock, store: AityxKeyStore.memory())
 
 // Or a default store for everything that isn't given one:
 AityxSettings.store = AityxKeyStore.memory();

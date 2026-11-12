@@ -81,6 +81,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('PokerFace'), findsOneWidget);
+    // The way back to the index page, under the title.
+    expect(find.text('aityx demos'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('aityx demos')).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(find.text('PokerFace')).dy),
+    );
     expect(find.text('Rocky'), findsOneWidget);
     expect(find.text('Max'), findsOneWidget);
     expect(find.text('Press play to deal.'), findsOneWidget);
@@ -91,6 +97,39 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.bySemanticsLabel(RegExp('aityx: no key')), findsOneWidget);
+  });
+
+  testWidgets('without an aityx key, asks for it above the controls', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(PokerFaceApp(api: FakeApi()));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('aityx-key-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('aityx-url-field')), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
+    expect(find.text('Get a key in the aityx console'), findsOneWidget);
+    expect(
+      tester.getBottomLeft(find.byType(AityxKeyPrompt)).dy,
+      lessThanOrEqualTo(tester.getTopLeft(find.byKey(const Key('play'))).dy),
+    );
+  });
+
+  testWidgets('with an aityx key, shows no key form at all', (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    AityxSettings.store = AityxKeyStore.memory(local: {'aityx.key': 'k'});
+    addTearDown(() => AityxSettings.store = AityxKeyStore.memory());
+    await tester.pumpWidget(PokerFaceApp(api: FakeApi()));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('aityx-key-field')), findsNothing);
+    expect(find.text('Get a key in the aityx console'), findsNothing);
+    expect(tester.getSize(find.byType(AityxKeyPrompt)).height, 0);
   });
 
   testWidgets('a step deals, the next asks aityx and plays the answer', (

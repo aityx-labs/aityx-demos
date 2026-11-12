@@ -6,6 +6,9 @@ import 'paths.dart';
 /// The production aityx: where a user's key goes unless they set a URL.
 const aityxDefaultUrl = 'https://api.aityx.ai';
 
+/// The aityx console, where a user makes a key.
+const aityxConsoleUrl = 'https://console.aityx.ai';
+
 /// The storage entries the index page writes (localStorage, or
 /// sessionStorage for "only this session").
 const aityxKeyName = 'aityx.key';
@@ -132,4 +135,27 @@ String normalizeAityxUrl(String? url) {
     return aityxDefaultUrl;
   }
   return trimmed;
+}
+
+/// [text] as the aityx URL a user typed, the way the index page takes it:
+/// the default when empty, else an https URL on a host under aityx.ai,
+/// without a query, a fragment or a user, and without trailing slashes.
+/// Null when it isn't one: a pasted key goes nowhere else.
+String? cleanAityxUrl(String? text) {
+  final value = (text ?? '').trim();
+  if (value.isEmpty) return aityxDefaultUrl;
+  final parsed = Uri.tryParse(value);
+  if (parsed == null ||
+      !parsed.isScheme('https') ||
+      parsed.hasQuery ||
+      parsed.hasFragment ||
+      parsed.userInfo.isNotEmpty ||
+      !parsed.host.toLowerCase().endsWith('.aityx.ai')) {
+    return null;
+  }
+  var path = parsed.path;
+  while (path.endsWith('/')) {
+    path = path.substring(0, path.length - 1);
+  }
+  return '${parsed.origin}$path';
 }

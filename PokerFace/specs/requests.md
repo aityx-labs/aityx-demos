@@ -193,3 +193,30 @@ The feature files hold the current specification; see the
     the rule; the calls show here as they happen). The entries, once
     calls arrive, are as they were. See [The table](table.md) and [The
     aityx calls](calls.md).
+
+## 2026-11-12
+
+14. **Make sure each demo has a link back to "aityx demos"
+    (https://aityx.ai/demos), visible but discreet; add it where it is
+    missing.** PokerFace had none. The app bar gained it under the title: a
+    left arrow and *aityx demos*, small and muted, primary and underlined
+    under the pointer. A tap opens the index page, `/demos/` on the page's
+    origin (https://aityx.ai/demos/ on the aityx website, the local index in
+    development), in the same tab; embedded (`?embed=1`) it isn't shown. It
+    is `AityxDemosLink`, new in the shared `aityx_web` package. See [The
+    table](table.md).
+15. **In each demo, make sure the key can be set on the index page and
+    read in the demo; but when it isn't set there, let the user set it in
+    the demo: where the demo already asks for it, or just above the aityx
+    call, or on the opening page. With a key set, show nothing at all;
+    without one, a small, discreet form with the key and optionally the
+    URL, and at the bottom a link to the aityx console to make one.** The
+    shared package gained `AityxKeyPrompt`, a form that shows only while
+    there is no key (neither the user's nor the index server's dev key)
+    and takes no room otherwise: the key, the URL (optional), **Save**,
+    and **Get a key in the aityx console**. **Save** checks the key with
+    aityx as the index page does and saves only one aityx accepts, in the
+    same `localStorage` entries, so the index page and every other demo
+    use it too. The table screen shows it just above the controls bar. A
+    key set on the index page is read as before. See [The key
+    form](aityx-key.md).

@@ -13,10 +13,11 @@ the app calls aityx itself, through the shared
 
 - **Where the key comes from**, in this order (`AityxSettings.resolve`):
   1. **The user's key**, set once on the index page's **Your aityx key**
-     (`/demos/#aityx-key`) and kept in the browser:
-     `sessionStorage['aityx.key']` ("Only this session") or
-     `localStorage['aityx.key']` ("Remember on this device"), the
-     session's first, with `aityx.url` beside it (default
+     (`/demos/#aityx-key`) or in the app's own
+     [key form](aityx-key.md), and kept in the browser, on the device:
+     `localStorage['aityx.key']`, until **Forget key** (a key an older
+     index page left in `sessionStorage` is read first), with
+     `aityx.url` beside it (default
      `https://api.aityx.ai`). The index and every aityx demo are served
      from one origin (the index server, port 8800: the index page at
      `/demos/`, this app at `/demos/mortgagehub/`), so they share it. The
@@ -30,7 +31,8 @@ the app calls aityx itself, through the shared
      no Authorization header: the server adds the key, which never
      reaches the browser.
   3. **None**: the check says *aityx is not set up: set your key on the
-     index page* and sends nothing.
+     index page* and sends nothing; the [key form](aityx-key.md) shows
+     above **Request proposal** and above the check's **Try again**.
 
   The key is never compiled into the app (no `--dart-define`), never in a
   URL or a log, and never in what the app shows: the request under **Show
@@ -73,5 +75,3 @@ the app calls aityx itself, through the shared
 ## Known limitations
 
 - `jq` comes from the host, not devbox.
-- A key saved for "Only this session" lives in that tab's
-  `sessionStorage`: a demo opened in a new tab may not see it.

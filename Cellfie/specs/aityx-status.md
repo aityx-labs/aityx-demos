@@ -29,8 +29,3 @@ It checks at start, at once when the key changes (the index page, in
 another tab, saves or forgets it), and when the window regains focus, at
 most once every 30 s. There's no polling: each check spends a request of
 the key's quota.
-
-## Known limitations
-
-- A key set as "only this session" lives in that tab's sessionStorage: a
-  demo opened in a new tab doesn't see it.

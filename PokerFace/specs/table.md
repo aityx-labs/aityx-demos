@@ -5,7 +5,13 @@ one screen: the table with its controls, and beside it, on a window at
 least 1100 px wide, the sidebar of [aityx calls](calls.md); narrower, the
 sidebar opens from the app bar's receipt icon as a bottom sheet. The app
 bar says **PokerFace**, alone beside its icon, and on the right the
-build's version when the build sets `POKERFACE_VERSION`.
+build's version when the build sets `POKERFACE_VERSION`. Under the title,
+the way back: a left arrow and **aityx demos**, a small, muted link,
+primary and underlined under the pointer. A tap opens the index page
+(`/demos/` on the page's origin: https://aityx.ai/demos/ on the aityx
+website) in the same tab; embedded (`?embed=1`) it isn't shown. It is
+`AityxDemosLink`, from the shared
+[aityx_web](../../packages/aityx_web/README.md) package.
 
 ## What the table shows
 

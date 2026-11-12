@@ -11,7 +11,8 @@ makes the call.
 
 aityx_web's order, in the browser:
 
-1. **The user's key**, set once on the index page ("Your aityx key"),
+1. **The user's key**, set once on the index page ("Your aityx key") or
+   in the app's own [key form](aityx-key.md),
    which every demo shares, since the index server serves them all on one
    origin (the index page at `/demos/`, Cellfie at `/demos/cellfie/`):
    the app calls `<url>/v1/systemone` directly (`https://api.aityx.ai`
@@ -23,9 +24,9 @@ aityx_web's order, in the browser:
    origin and the index server adds the key. The key never reaches the
    browser.
 3. **None**: no call is made, and the generation says
-   `aityx is not set up: set your key on the index page.`, with a
-   **Set your key** button that opens the index page's key section in
-   the same tab.
+   `aityx is not set up: set your key on the index page.` The
+   [key form](aityx-key.md) is on the screen, above the board, to set
+   one without leaving the app.
 
 ## A generation
 
@@ -59,7 +60,7 @@ A snackbar says why, and playback pauses:
 
 | When | Notice |
 |---|---|
-| no key | `aityx is not set up: set your key on the index page.` (with **Set your key**) |
+| no key | `aityx is not set up: set your key on the index page.` (the [key form](aityx-key.md) is above the board) |
 | the board fails a check | `Could not run the generation: <the check>.` |
 | aityx answers 401 or 403 | `Could not run the generation: aityx rejected the key.` |
 | no answer (network, CORS, a blocker) | `Could not run the generation: aityx did not answer.` |

@@ -195,18 +195,10 @@ class _LifeScreenState extends State<LifeScreen> {
         _stepping = false;
         _playing = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.message),
-          // Without a key: the index page's key section, in this tab.
-          action: error.noKey
-              ? SnackBarAction(
-                  label: 'Set your key',
-                  onPressed: () => openAityxKeyPage(),
-                )
-              : null,
-        ),
-      );
+      // Without a key, the form for it is on the screen, above the board.
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
       return;
     }
     if (!mounted) return;
@@ -406,7 +398,11 @@ class _LifeScreenState extends State<LifeScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            const Text(AppVersion.title),
+            const Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [Text(AppVersion.title), AityxDemosLink()],
+            ),
             const SizedBox(width: 16),
             Expanded(
               child: _Controls(
@@ -453,6 +449,12 @@ class _LifeScreenState extends State<LifeScreen> {
       body: Column(
         children: [
           const Divider(height: 1),
+          // Without an aityx key, a small form for it, just under Play,
+          // whose every generation is an aityx call; else nothing.
+          const AityxKeyPrompt(
+            padding: EdgeInsets.fromLTRB(12, 10, 12, 8),
+            alignment: Alignment.centerLeft,
+          ),
           Expanded(
             child: Row(
               children: [

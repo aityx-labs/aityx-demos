@@ -1,3 +1,4 @@
+import 'package:aityx_web/aityx_web.dart';
 import 'package:faker/faker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,6 +45,29 @@ void main() {
   testWidgets('the welcome page opens the proposal form', (tester) async {
     await openForm(tester);
     expect(find.byType(ProposalFormScreen), findsOneWidget);
+  });
+
+  testWidgets('without an aityx key, asks for it above Request proposal', (
+    tester,
+  ) async {
+    await openForm(tester);
+    expect(find.byKey(const ValueKey('aityx-key-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('aityx-url-field')), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
+    expect(find.text('Get a key in the aityx console'), findsOneWidget);
+    expect(
+      tester.getBottomLeft(find.byType(AityxKeyPrompt)).dy,
+      lessThanOrEqualTo(tester.getTopLeft(find.text('Request proposal')).dy),
+    );
+  });
+
+  testWidgets('with an aityx key, shows no key form at all', (tester) async {
+    AityxSettings.store = AityxKeyStore.memory(local: {'aityx.key': 'k'});
+    addTearDown(() => AityxSettings.store = AityxKeyStore.memory());
+    await openForm(tester);
+    expect(find.byKey(const ValueKey('aityx-key-field')), findsNothing);
+    expect(find.text('Get a key in the aityx console'), findsNothing);
+    expect(tester.getSize(find.byType(AityxKeyPrompt)).height, 0);
   });
 
   testWidgets('an empty form shows what is required', (tester) async {

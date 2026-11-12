@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 
 import 'package:aityx_web/aityx_web.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:riverrace_app/game/race.dart';
 import 'package:riverrace_app/main.dart';
@@ -30,10 +31,20 @@ class FakeDecider implements Decider {
   }
 }
 
-Future<void> pumpApp(WidgetTester tester, Decider decider) async {
+/// The app, with an aityx key in the browser unless [key] is false:
+/// without one the key form shows above the river and takes its room.
+Future<void> pumpApp(
+  WidgetTester tester,
+  Decider decider, {
+  bool key = true,
+}) async {
   tester.view.physicalSize = const Size(1600, 1400);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+  AityxSettings.store = AityxKeyStore.memory(
+    local: {if (key) 'aityx.key': 'test-key'},
+  );
+  addTearDown(() => AityxSettings.store = AityxKeyStore.memory());
   await tester.pumpWidget(
     RiverRaceApp(
       decider: decider,
@@ -58,6 +69,12 @@ void main() {
     expect(find.text('Careful'), findsWidgets);
     expect(find.text('Daredevil'), findsWidgets);
     expect(find.text('You'), findsOneWidget);
+    // The way back to the index page, under the title.
+    expect(find.text('aityx demos'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('aityx demos')).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(find.text('RiverRace')).dy),
+    );
   });
 
   testWidgets('the aityx status light is top right, with why', (tester) async {
@@ -125,6 +142,36 @@ void main() {
     expect(find.text('Pause'), findsOneWidget);
     await tester.tap(find.text('Pause'));
     await tester.pump();
+  });
+
+  testWidgets('without an aityx key, asks for it above the river', (
+    tester,
+  ) async {
+    await pumpApp(tester, FakeDecider(), key: false);
+    await tester.pump();
+    await tester.pump();
+    expect(find.byKey(const ValueKey('aityx-key-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('aityx-url-field')), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
+    expect(find.text('Get a key in the aityx console'), findsOneWidget);
+    // Above the two pilots' cards, which are under the river.
+    expect(
+      tester.getBottomLeft(find.byType(AityxKeyPrompt)).dy,
+      lessThan(tester.getTopLeft(find.byTooltip('Remove the rule').first).dy),
+    );
+  });
+
+  testWidgets('with an aityx key, shows no key form at all', (tester) async {
+    await pumpApp(tester, FakeDecider());
+    await tester.pump();
+    await tester.pump();
+    expect(find.byKey(const ValueKey('aityx-key-field')), findsNothing);
+    expect(find.text('Get a key in the aityx console'), findsNothing);
+    // In the list, a child that takes no room counts as off stage.
+    expect(
+      tester.getSize(find.byType(AityxKeyPrompt, skipOffstage: false)).height,
+      0,
+    );
   });
 
   testWidgets('a rule can be removed and added', (tester) async {

@@ -34,6 +34,8 @@ app, can be added at any time.
 - [The aityx light](aityx-status.md): the dot, top right, that says
   whether there is an aityx key (the user's, or the dev key) and aityx
   accepts it.
+- [The key form](aityx-key.md): without an aityx key, a small form
+  for it where the app calls aityx; with one, nothing.
 - [Theme](theme.md): the aityx dark palette, and the felt.
 - [App icon](app-icon.md): an orange ace of spades with a chip.
 

@@ -82,3 +82,11 @@ feature files in this folder describe the software as it is now.
    moved, Thanksgiving's included. Every story's call was recorded again
    with the new text, with the same results
    ([The page](page.md#the-samples)).
+6. **In this and all demos, let the key be changed without going back to
+   the index, inside the demo itself, with the same mechanism, so the key
+   works for all demos.** The light and **Set your key** now open a key
+   dialog over the page ([The aityx key](key.md#the-key-dialog)): the
+   shared key form of `aityx-js`, which checks a key with aityx, saves only
+   one it accepts, in the entries every aityx demo and the demos page read,
+   and can forget it. (The Flutter demos get the same through `aityx_web`,
+   in their own change.)

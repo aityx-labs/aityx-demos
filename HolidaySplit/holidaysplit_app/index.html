@@ -36,10 +36,10 @@
   <h2 id="h-live"><span class="num">1</span>Connect aityx</h2>
   <div class="connect">
     <div class="keystat" id="keystat" role="status"></div>
-    <a class="go" id="setkey" href="../#aityx-key">Set your key</a>
+    <button class="go" type="button" id="setkey">Set your key</button>
     <button class="ghost" type="button" id="recall" hidden>Record all examples</button>
   </div>
-  <div class="note">Every aityx demo uses the key you set once on the <a href="../#aityx-key" id="keylink" style="color:var(--acc)">demos page</a> (get one in the <a href="https://console.aityx.ai" target="_blank" rel="noopener" style="color:var(--acc)">aityx console</a>). It stays in your browser and goes only to aityx. Without a key nothing runs: you see a real aityx call we recorded, and the rules stay locked.</div>
+  <div class="note">One key for every aityx demo: set or change it here, and it works in all of them (get one in the <a href="https://console.aityx.ai" target="_blank" rel="noopener" style="color:var(--acc)">aityx console</a>). It stays in your browser and goes only to aityx. Without a key nothing runs: you see a real aityx call we recorded, and the rules stay locked.</div>
 </section>
 
 <section class="panel" aria-labelledby="h-trip">
@@ -103,6 +103,12 @@
 </footer>
 </div>
 
+<dialog class="keydialog" id="keydialog" aria-labelledby="keydialog-title">
+  <div class="keydialog-title" id="keydialog-title" role="heading" aria-level="2">Your aityx key</div>
+  <p class="keydialog-note">One key for every aityx demo: it's kept in this browser, where they all read it, and goes only to aityx. Get one in the <a href="https://console.aityx.ai" target="_blank" rel="noopener">aityx console</a>, under API keys.</p>
+  <div id="keyform"></div>
+  <button class="keydialog-close" type="button" id="keyclose">Close</button>
+</dialog>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>

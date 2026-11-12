@@ -56,9 +56,11 @@ proxy, and the key never reaches the browser. Without either, the app
 shows real aityx calls recorded for each sample, and the lists and the
 rules stay locked.
 
-The light at the top right says whether aityx accepts the key; a click
-opens the demos page's key section. **Set your key** in step 1 does the
-same.
+The light at the top right says whether aityx accepts the key. A click on
+it, or **Set your key** in step 1, opens the key dialog in the app itself:
+set, change or forget the key there, without going back to the index page.
+It's the same key, in the same place in the browser, so it works in every
+aityx demo.
 
 To write your own trip, edit the group chat in step 2 and press **Split
 it**. The first time, the model is downloaded, once: by Chrome itself for

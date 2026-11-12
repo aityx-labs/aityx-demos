@@ -1,16 +1,18 @@
 // aityx for Holiday Split, the way every aityx demo reaches it (aityx-js,
 // the twin of packages/aityx_web):
 //
-// 1. the user's key, set once on the demos page (../#aityx-key) and kept in
-//    this origin's storage, sent straight to aityx;
+// 1. the user's key, set or changed here, in the key dialog (or on the demos
+//    page), and kept in this origin's storage, where every aityx demo reads
+//    it, sent straight to aityx;
 // 2. else the index server's dev key, through its proxy at ../aityx/
 //    (/demos/aityx/ here), which adds the key so it never reaches the page;
 // 3. else none: the page shows the recorded calls and keeps the rules locked.
 //
-// The status light, top right, says which, and opens the demos page's key
-// section; embedded (?embed=1, the aityx website), it asks the page around
-// it for the key instead, as the Flutter demos do.
-import { AityxClient, browserKeyStore, mountStatusLight } from 'aityx-js';
+// The status light, top right, says which, and opens the key dialog: the
+// shared key form (aityx-js), which checks a key with aityx and saves only
+// one aityx accepts. Embedded (?embed=1, the aityx website), it asks the page
+// around it for the key instead, as the Flutter demos do.
+import { AityxClient, browserKeyStore, mountKeyForm, mountStatusLight } from 'aityx-js';
 
 const store = browserKeyStore();
 // The demos' root (/demos/), from this app's base href (/demos/holidaysplit/).
@@ -20,12 +22,25 @@ const client = new AityxClient({ store, proxyPath });
 
 const embedded = new URLSearchParams(location.search).get('embed') === '1' && window.parent !== window;
 
-/** The demos page's key section, or, embedded, a request to the page around it. */
-export function openKeyPage() {
-  if (embedded) window.parent.postMessage('aityx:key', '*');
-  else location.assign(new URL('#aityx-key', demosRoot).href);
+let dialog = null;
+let form = null;
+
+/** Puts the key form in `dialog` (a <dialog>), inside `slot`; `close` (a button) and a click outside close it. */
+export function mountKey(dialogElement, slot, close) {
+  dialog = dialogElement;
+  // A moment to read "Saved", then back to the page, which is live by then.
+  form = mountKeyForm(slot, { store, onSaved: () => setTimeout(() => dialog.close(), 900) });
+  close.addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
 }
-export const keyPageHref = new URL('#aityx-key', demosRoot).href;
+
+/** Opens the key dialog, showing the key in use; embedded, asks the page around the app instead. */
+export function openKey() {
+  if (embedded) return window.parent.postMessage('aityx:key', '*');
+  if (!dialog || dialog.open) return;
+  form.reset();
+  dialog.showModal();
+}
 
 let light = null;
 const listeners = [];
@@ -33,7 +48,7 @@ let last = null;
 
 /** Mounts the light in `parent`; `listener` gets every check's AityxState. */
 export function mountLight(parent) {
-  light = mountStatusLight(parent, { store, proxyPath, onClick: openKeyPage });
+  light = mountStatusLight(parent, { store, proxyPath, onClick: openKey });
   // The light has no event of its own: watch what it shows.
   const seen = () => {
     const st = light.state();

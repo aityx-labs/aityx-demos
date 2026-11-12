@@ -145,8 +145,8 @@ const QUESTIONS={"host_not_paying":{"type":"noul","instructions":"Does message s
 
 let REC_MODE=/record/i.test(location.hash+location.search); // team only: add #record to the address to see the recording buttons
 addEventListener("hashchange",()=>{ REC_MODE=/record/i.test(location.hash+location.search); connectUI(); });
-// The key: the one every aityx demo shares, set on the demos page (../#aityx-key)
-// and kept in this origin's storage, else the index server's dev key through
+// The key: the one every aityx demo shares, set or changed here (or on the demos
+// page) and kept in this origin's storage, else the index server's dev key through
 // its proxy (aityx-js, as packages/aityx_web does for the Flutter demos). The
 // page never sees a key: aityx.js makes the calls and the status light checks.
 const LIVE={seq:0,timer:0,call:null,state:null};
@@ -156,8 +156,8 @@ function keyStatus(){
   const st=LIVE.state, n=$("keystat");
   const msg=!st?"Checking the aityx key…"
     :st.kind==="ready"?`Connected to aityx with ${st.whose}${st.url?` (${hostOf(st.url)})`:""}.`
-    :st.kind==="noKey"?"No aityx key yet. Set yours on the demos page: every aityx demo uses it."
-    :st.kind==="rejected"?`aityx didn't accept ${st.whose}: ${st.detail}. Set another on the demos page.`
+    :st.kind==="noKey"?"No aityx key yet. Set yours here: every aityx demo uses it."
+    :st.kind==="rejected"?`aityx didn't accept ${st.whose}: ${st.detail}. Set another here.`
     :`aityx isn't answering: ${st.detail}.`;
   n.hidden=false; n.className="keystat "+(st?KEYSTAT[st.kind]||"bad":"wait"); n.textContent=msg;
   $("mode").classList.toggle("on",live()); $("setkey").textContent=st&&st.kind==="ready"&&st.source==="user"?"Change key":"Set your key";
@@ -334,7 +334,8 @@ async function readLive(){
 }
 function queueLive(){ clearTimeout(LIVE.timer); LIVE.timer=setTimeout(()=>settleLive(false),350); }
 aityx.mountLight($("light"));
-for(const id of ["setkey","keylink"]) $(id).addEventListener("click",e=>{ e.preventDefault(); aityx.openKeyPage(); });
+aityx.mountKey($("keydialog"),$("keyform"),$("keyclose"));
+$("setkey").addEventListener("click",()=>aityx.openKey());
 $("version").textContent="v"+__APP_VERSION__;
 // The key changed (here, on the demos page, or in another tab), or the light
 // checked again: unlock or lock, and once it works, run the trip on aityx.

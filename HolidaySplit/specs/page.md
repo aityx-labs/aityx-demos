@@ -5,7 +5,8 @@ One calm column ([index.html](../holidaysplit_app/index.html),
 [src/style.css](../holidaysplit_app/src/style.css)), from the original
 prototype, in five numbered steps:
 
-1. **Connect aityx**: whether aityx accepts the key, and **Set your key**
+1. **Connect aityx**: whether aityx accepts the key, and **Set your key**,
+   which opens the key dialog
    (see [The aityx key](key.md)).
 2. **Pick the trip**: a tab per holiday (Thanksgiving, Christmas, New
    Year's), **Fill random** and a menu of that holiday's stories, the

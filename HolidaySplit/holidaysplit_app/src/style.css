@@ -247,6 +247,13 @@ details.jx pre{margin:0 16px 16px}
    and "Set your key", which open the demos page) and the trip reader. */
 .top .lightslot{display:inline-flex;align-items:center;margin-left:8px}
 .connect{align-items:center}
-.connect a.go{text-decoration:none;display:inline-flex;align-items:center}
+/* The key, set or changed here: a dialog in aityx's own dark palette, whatever the holiday's. */
+.keydialog{width:min(440px,calc(100% - 32px));padding:22px;border:1px solid #37333C;border-radius:14px;background:#201E24;color:#EFF2F4;font:400 15px/1.5 var(--display);color-scheme:dark}
+.keydialog::backdrop{background:rgba(10,8,12,.6)}
+.keydialog-title{font:600 19px var(--display);margin:0 0 6px}
+.keydialog-note{margin:0 0 16px;font-size:13.5px;color:#A9ACB6}
+.keydialog-note a{color:#F07A52}
+.keydialog-close{display:block;margin:16px 0 0 auto;font:600 13.5px var(--display);cursor:pointer;border-radius:8px;padding:7px 14px;border:1px solid #37333C;color:#EFF2F4;background:none}
+.keydialog-close:focus-visible{outline:2px solid #EB7B58;outline-offset:1px}
 .readnote{margin-top:6px}
 .readnote.ok{color:var(--ok)}

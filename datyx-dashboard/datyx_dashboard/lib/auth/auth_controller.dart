@@ -49,6 +49,12 @@ class AuthController extends ChangeNotifier {
   /// The API's answer, once it came.
   AuthConfig? get config => _config;
 
+  /// Whether it is known who calls the API: its answer came ([start]) and,
+  /// with authentication on, the session kept from before a reload was
+  /// restored or dropped. Until then nobody can tell whether a call needs
+  /// a token, so none that the API secures is made.
+  bool get settled => _config != null;
+
   /// Whether the API wants a signed-in user.
   bool get enabled => _config?.enabled ?? false;
 
@@ -64,15 +70,18 @@ class AuthController extends ChangeNotifier {
 
   /// Takes the API's answer and, when authentication is on, initializes the
   /// client and tries to sign in without interaction (a previous session).
+  ///
+  /// The answer and the session kept from before a reload are taken in one
+  /// step, and listeners hear of both at once: nobody sees sign-in on with
+  /// the kept session not restored yet ([settled]).
   Future<void> start(AuthConfig config) async {
-    _config = config;
-    notifyListeners();
     final clientId = config.clientId;
-    if (!config.enabled || clientId == null || clientId.isEmpty) {
-      _forget();
-      return;
-    }
-    final restored = _restore(clientId);
+    final on = config.enabled && clientId != null && clientId.isNotEmpty;
+    _config = config;
+    final restored = on && _restore(clientId);
+    if (!on) _forget();
+    notifyListeners();
+    if (!on) return;
     try {
       await _signIn.initialize(
         clientId: clientId,
@@ -180,7 +189,8 @@ class AuthController extends ChangeNotifier {
   }
 
   /// Signs in with the token kept from before a reload, when it is still
-  /// fresh and was issued for [clientId]; whether it did.
+  /// fresh and was issued for [clientId]; whether it did. [start] tells the
+  /// listeners.
   bool _restore(String clientId) {
     final token = _store.read(_key);
     final claims = token == null ? null : _claims(token);
@@ -197,7 +207,6 @@ class AuthController extends ChangeNotifier {
       email: claims['email'] as String?,
       picture: claims['picture'] as String?,
     );
-    notifyListeners();
     return true;
   }
 

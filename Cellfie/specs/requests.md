@@ -263,3 +263,15 @@ The feature files hold the current specification; see the
     generations: *Five cells that grow into chaos before they settle*
     and *Seven cells that grow into a vast, long-lived pattern*. See
     [Board](board.md#controls).
+
+## 2026-11-12
+
+23. **Make sure each demo has a link back to "aityx demos"
+    (https://aityx.ai/demos), visible but discreet; add it where it is
+    missing.** Cellfie had none. The top row gained it under the title: a
+    left arrow and *aityx demos*, small and muted, primary and underlined
+    under the pointer. A tap opens the index page, `/demos/` on the page's
+    origin (https://aityx.ai/demos/ on the aityx website, the local index in
+    development), in the same tab; embedded (`?embed=1`) it isn't shown. It
+    is `AityxDemosLink`, new in the shared `aityx_web` package. See
+    [Board](board.md#the-way-back).

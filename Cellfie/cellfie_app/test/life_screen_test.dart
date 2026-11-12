@@ -119,6 +119,12 @@ void main() {
 
     expect(find.byType(LifeScreen), findsOneWidget);
     expect(find.text('Cellfie'), findsOneWidget);
+    // The way back to the index page, under the title.
+    expect(find.text('aityx demos'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('aityx demos')).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(find.text('Cellfie')).dy),
+    );
     expect(find.byType(BoardView), findsOneWidget);
     // 800 px leaves no room for the labels: the buttons are icons.
     expect(find.byTooltip('Play'), findsOneWidget);

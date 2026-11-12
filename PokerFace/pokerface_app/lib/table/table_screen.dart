@@ -1,3 +1,4 @@
+import 'package:aityx_web/aityx_web.dart' show AityxDemosLink;
 import 'package:flutter/material.dart' hide Step;
 
 import '../app_version.dart';
@@ -67,7 +68,11 @@ class _TableScreenState extends State<TableScreen> {
           children: [
             Icon(Icons.style, color: scheme.primary),
             const SizedBox(width: 10),
-            const Text(AppVersion.title),
+            const Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [Text(AppVersion.title), AityxDemosLink()],
+            ),
           ],
         ),
         actions: [

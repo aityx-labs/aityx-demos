@@ -193,3 +193,15 @@ The feature files hold the current specification; see the
     the rule; the calls show here as they happen). The entries, once
     calls arrive, are as they were. See [The table](table.md) and [The
     aityx calls](calls.md).
+
+## 2026-11-12
+
+14. **Make sure each demo has a link back to "aityx demos"
+    (https://aityx.ai/demos), visible but discreet; add it where it is
+    missing.** PokerFace had none. The app bar gained it under the title: a
+    left arrow and *aityx demos*, small and muted, primary and underlined
+    under the pointer. A tap opens the index page, `/demos/` on the page's
+    origin (https://aityx.ai/demos/ on the aityx website, the local index in
+    development), in the same tab; embedded (`?embed=1`) it isn't shown. It
+    is `AityxDemosLink`, new in the shared `aityx_web` package. See [The
+    table](table.md).

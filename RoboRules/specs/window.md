@@ -27,6 +27,12 @@ Robocode-style battles, every turn played by aityx".
   [rules](robots.md#the-rules-editor)), **Options** (speeds: 2, 5, 10, 20 or
   30 turns a second, or as fast as aityx; and **Sound: on (turn it off)**
   or **Sound: off (turn it on)**), **Help** (the last aityx call, About).
+  At the right end of the bar, the way back: a left arrow and **aityx
+  demos**, in the menus' type, blue and underlined under the pointer. A
+  tap opens the index page (`/demos/` on the page's origin:
+  https://aityx.ai/demos/ on the aityx website) in the same tab; embedded
+  (`?embed=1`) it isn't shown (`AityxDemosLink`, from the shared
+  [aityx_web](../../packages/aityx_web) package).
 - **Battlefield** ([painter.dart](../roborules_app/lib/battle/painter.dart)),
   800 × 600 scaled to fit: dark ground with a faint speckle and grid;
   tanks with two treads (moving with the tank), a body in the robot's color

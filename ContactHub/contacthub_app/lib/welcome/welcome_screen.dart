@@ -1,3 +1,4 @@
+import 'package:aityx_web/aityx_web.dart' show AityxDemosLink;
 import 'package:flutter/material.dart';
 
 import '../app_version.dart';
@@ -61,8 +62,10 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 32),
+                  const AityxDemosLink(),
                   if (AppVersion.version.isNotEmpty) ...[
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 8),
                     Text(
                       AppVersion.version,
                       style: theme.textTheme.bodySmall?.copyWith(

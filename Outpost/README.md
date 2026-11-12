@@ -45,6 +45,10 @@ start, when the index page saves or forgets the key in another tab, and when
 the window regains focus, at most once every 30 s. A tap opens the key
 section; embedded (`?embed=1`), it posts `"aityx:key"` to the page around it.
 
+In the header, beside the name, **aityx demos** behind a left arrow is the
+way back to the index page (`/demos/`: https://aityx.ai/demos/ on the aityx
+website), small and muted; embedded (`?embed=1`), it isn't shown.
+
 Only this origin's files run on the page (no CDN: the fonts are served from
 [outpost_app/web/](outpost_app/web)), and its content security policy lets it
 connect only to this origin and `https://*.aityx.ai`.

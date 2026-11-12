@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:aityx_web/aityx_web.dart' show AityxDemosLink;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -443,7 +444,14 @@ class _RaceScreenState extends State<RaceScreen>
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
-        title: const Text(AppVersion.title, overflow: TextOverflow.ellipsis),
+        title: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(AppVersion.title, overflow: TextOverflow.ellipsis),
+            AityxDemosLink(),
+          ],
+        ),
         actions: [
           if (inBar)
             for (final control in _controls())

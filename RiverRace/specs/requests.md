@@ -202,3 +202,15 @@ The feature files hold the current specification; see the
     press **Start** and the calls show here as they happen), scrolling
     when the panel is short. Once calls arrive the panel shows them as
     before (see [Calls panel](calls-panel.md) and [Game](game.md)).
+
+## 2026-11-12
+
+22. **Make sure each demo has a link back to "aityx demos"
+    (https://aityx.ai/demos), visible but discreet; add it where it is
+    missing.** RiverRace had none. The top bar gained it under the title: a
+    left arrow and *aityx demos*, small and muted, primary and underlined
+    under the pointer. A tap opens the index page, `/demos/` on the page's
+    origin (https://aityx.ai/demos/ on the aityx website, the local index in
+    development), in the same tab; embedded (`?embed=1`) it isn't shown. It
+    is `AityxDemosLink`, new in the shared `aityx_web` package. See
+    [Game](game.md).

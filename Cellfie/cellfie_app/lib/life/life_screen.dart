@@ -406,7 +406,11 @@ class _LifeScreenState extends State<LifeScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            const Text(AppVersion.title),
+            const Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [Text(AppVersion.title), AityxDemosLink()],
+            ),
             const SizedBox(width: 16),
             Expanded(
               child: _Controls(

@@ -58,6 +58,12 @@ void main() {
     expect(find.text('Careful'), findsWidgets);
     expect(find.text('Daredevil'), findsWidgets);
     expect(find.text('You'), findsOneWidget);
+    // The way back to the index page, under the title.
+    expect(find.text('aityx demos'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('aityx demos')).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(find.text('RiverRace')).dy),
+    );
   });
 
   testWidgets('the aityx status light is top right, with why', (tester) async {

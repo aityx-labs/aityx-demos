@@ -7,8 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../persist/session_store.dart';
 import '../tour/tour_api.dart' show AuthConfig;
 
-/// Who is signed in, as Google says, and the ID token the server verifies
-/// and the key fetch presents to AWS.
+/// Who is signed in, as Google says, and the ID token the server verifies.
 class SignedInUser {
   const SignedInUser({required this.email, this.name, this.picture, this.hostedDomain});
 

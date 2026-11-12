@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:test/test.dart';
 import 'package:poker_core/table.dart';
 
@@ -212,6 +214,18 @@ void main() {
       expect(
         () => toAction(sent, {'answers': {}, 'receipt': {}}),
         throwsA(isA<DecisionFailed>()),
+      );
+    });
+
+    test('fails on a raise_to past the range of a number', () {
+      final sent = actRequest(models, models.strategies['rock']!, situation());
+      // 1E+600 in aityx's JSON decodes as Infinity.
+      final answer = jsonDecode(
+        '{"answers": {"action": {"choice": "raise"}, "raise_to": {"number": 1E+600}}, "receipt": {}}',
+      ) as Map<String, Object?>;
+      expect(
+        () => toAction(sent, answer),
+        throwsA(isA<DecisionFailed>().having((e) => e.message, 'message', contains('finite'))),
       );
     });
 

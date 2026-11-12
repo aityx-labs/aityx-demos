@@ -105,17 +105,36 @@ Four ways in, all through `POST /api/strategies` with the ID token:
 the tour** in the strategy editor (which saves the rules as yours
 first), and the trophy button on a strategy of yours in the players
 panel. Profile lists **Your strategies in the tour**, each with a remove
-button. The server checks it
-is a strategy (a name of up to 60 characters, `decisions.action` and
-`decisions.raise_to`), that the name isn't a preset's, that the player
-has fewer than three (`POKERTOUR_MAX_ENTRIES`; an entry of the same name
-is replaced, with a fresh record), then runs it on aityx on the sample
-situation (A♥ K♦ on K♠ 7♣ 2♦; `422` with aityx's reason when it refuses
-the rules), enters it, and asks for a tournament (below), where it sits
-first, having played none; the answer's `tournament` says what asking
-did (`started`, `queued`, `waiting`; null when the leaderboard is off),
-and the app's message after an upload says so. `DELETE
-/api/strategies/{id}` withdraws one of yours.
+button. The server checks it is a strategy within the limits (`400`
+otherwise, before any aityx call): a name of up to 60 characters, plain
+text on one line (no control characters, nor the invisible ones that
+could make it pass for another: zero-width, direction overrides, line
+separators), not a preset's; a tagline of up to 200; `decisions.action`
+and `decisions.raise_to`, at most 24 decisions and 16 KB of them (every
+decision a strategy makes sends all of it to aityx on the host's key;
+the Shark's are about 4 KB). The same rules as the player's entry of
+that name (name, tagline and decisions) answer `200` with it, changing
+nothing, spending nothing. Otherwise a player asks at most once a minute
+(`429` with how long to wait; the time of the last ask is on their
+`PLAYER` item, so withdrawing doesn't reset it), and has fewer than three
+entries (`POKERTOUR_MAX_ENTRIES`, `409`; an entry of the same name is
+replaced by one with a new id, so its record starts afresh and a
+tournament still playing the old rules records nothing on the new).
+Then the server runs it on aityx on the sample situation (A♥ K♦ on K♠
+7♣ 2♦): `422` with aityx's reason when it refuses the rules, `503` when
+aityx can't say (no key, the key rejected, no answer, too busy): nothing
+goes in unchecked. Then it enters it and asks for a tournament (below),
+where it sits first, having played none; the answer's `tournament` says
+what asking did (`started`, `queued`, `waiting`; null when the
+leaderboard is off; "not asked for" when that failed, the reason in the
+server's log), and the app's message after an upload says so. `DELETE
+/api/strategies/{id}` withdraws one of yours (`400` for an id that isn't
+one).
+
+Answers carry aityx's reasons, never AWS's: an AWS error (which names
+roles and accounts) goes to the server's log, and the answer says only
+what failed. aityx's own messages are scrubbed of the key before they
+go to an answer, the live state or the standings.
 
 Every call that enters or reads strategies, or starts a tournament,
 needs a bearer token Google issued for the server's client id
@@ -138,6 +157,11 @@ when asked (`POKERTOUR_RUN=on` and a key), by three sources:
 - an **admin**'s **Play a tournament now**;
 - a player's **new strategy**, every entry (a replacement too).
 
+Players and admins ask for tournaments, and each is hundreds of calls on
+the host's key: past `POKERTOUR_MAX_DAILY_TOURNAMENTS` (12) finished in
+the last 24 hours, theirs are dropped when their turn comes, with the
+runner's state saying the next is the schedule's, which always plays.
+
 Never two at once: a tournament asked for is **queued**
 ([queue.dart](../pokertour_api/lib/queue.dart)) in the tour's table
 and played when the one being played ends, the oldest first. At most one
@@ -148,9 +172,11 @@ tournaments sit first). The queue is played by whoever holds the
 runner's **lock**, an item of the same table taken with a conditional
 write (free, its holder's, or lapsed): the laptop's server, or on AWS
 the runner function, one tournament per invocation, which invokes
-itself again while more wait. A lock lapses sixteen minutes after it
-was taken, longer than a tournament may run, so a holder that died (a
-function out of time, a server killed) holds nothing for long; a
+itself again while more wait, even when its tournament failed. The
+laptop's lock lapses sixteen minutes after it was taken, longer than a
+tournament may run; a runner function's, five seconds after the
+function's own deadline, past which it can't run. So a holder that died
+(a function out of time, a server killed) holds nothing for long; a
 laptop's server, its table's only player, also lets its last process's
 lock go when it starts, and plays what that one left in the queue.
 
@@ -164,14 +190,20 @@ lock go when it starts, and plays what that one left in the queue.
   time is up (fourteen minutes, a Lambda function's limit, on a laptop
   too): then the chips decide the places of those still in. Out of time
   before a hand is played, nothing is recorded.
-- A strategy aityx refuses (a 4xx about the model, or no action in the
-  answer) is marked broken with the reason, folds for the rest of that
+- A strategy aityx refuses (a 4xx about the model, but not 408, 425 or
+  429, which say aityx is busy; or no action in the answer; or an answer
+  the table can't take, such as a raise to a number past a double's
+  range) is marked broken with the reason, folds for the rest of that
   tournament, and sits out until it is replaced by a new entry of the
   same name; a preset plays again after a restart. aityx not answering
-  is retried after 30 s, doubling to five minutes, while there is time,
-  with the runner's state saying so; a rejected key ends the tournament
-  at once, unrecorded, with "the leaderboard cannot play until the host
-  sets a working key".
+  (or busy) is retried after 30 s, doubling to five minutes, while there
+  is time, with the runner's state saying so; but when it fails twice in
+  a row on the same seat, that seat folds the decision, and after three
+  such folds sits out the rest of the tournament (recorded nowhere: the
+  next asks it again), so one strategy aityx can't answer doesn't stall
+  the table. A rejected key ends the tournament at once, unrecorded,
+  with "the leaderboard cannot play until the host sets a working
+  key".
 - At the end, places become points: the winner of a table of n gets
   n − 1, the last 0; wins, best and latest place are kept. The standings
   are by points, then wins, then fewer tournaments, then name. The

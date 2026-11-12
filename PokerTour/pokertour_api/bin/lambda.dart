@@ -30,7 +30,7 @@
 ///                             the executable)
 ///   AITYX_URL, OIDC_ISSUER, OIDC_CLIENT_ID, POKERTOUR_ALLOWED_DOMAINS,
 ///   POKERTOUR_SCHEDULE_HOURS,
-///   POKERTOUR_MAX_HANDS, POKERTOUR_MAX_ENTRIES  as bin/server.dart's
+///   POKERTOUR_MAX_HANDS, POKERTOUR_MAX_ENTRIES, POKERTOUR_MAX_DAILY_TOURNAMENTS  as bin/server.dart's
 library;
 
 import 'dart:async';
@@ -68,6 +68,11 @@ Future<void> main() async {
   }
   final urlText = (env['AITYX_URL'] ?? '').isEmpty ? 'https://api.aityx.ai' : env['AITYX_URL']!;
   final url = Uri.parse(urlText);
+  // The host's key goes there, and the players' are sent there by the app.
+  if (url.scheme != 'https' || url.host.isEmpty) {
+    stderr.writeln('error: AITYX_URL must be an https URL');
+    exit(1);
+  }
   final Models models;
   try {
     models = await loadModelsFrom(Directory((env['POKERTOUR_MODELS'] ?? '').isEmpty ? 'models' : env['POKERTOUR_MODELS']!));
@@ -94,6 +99,7 @@ Future<void> main() async {
     schedule: Schedule.fromEnvironment(env),
     runnerFunction: env['POKERTOUR_RUNNER_FUNCTION'] ?? '',
     maxHands: int.tryParse(env['POKERTOUR_MAX_HANDS'] ?? '') ?? 300,
+    maxDaily: int.tryParse(env['POKERTOUR_MAX_DAILY_TOURNAMENTS'] ?? '') ?? 12,
   );
   stdout.writeln('pokertour $role: data in s3://$bucket, region $region');
   await runLambda(role == 'runner' ? tour.runner : tour.api);
@@ -113,6 +119,7 @@ class _Tour {
     required this.schedule,
     required this.runnerFunction,
     required this.maxHands,
+    required this.maxDaily,
   }) : verifier = TokenVerifier(auth);
 
   final Map<String, String> env;
@@ -129,6 +136,7 @@ class _Tour {
   final Schedule schedule;
   final String runnerFunction;
   final int maxHands;
+  final int maxDaily;
 
   Store get store => boards.store;
 
@@ -162,19 +170,18 @@ class _Tour {
   }
 
   /// Runs [json]'s rules on aityx with the sample situation; throws when
-  /// aityx refuses them (for POST /api/strategies).
+  /// aityx refuses them, and [CheckUnavailable] when it can't be asked:
+  /// nothing goes in unchecked (for POST /api/strategies).
   Future<void> check(Object? json) async {
     final strategy = Strategy.fromJson(json, id: 'check', custom: true);
     final aityx = await decider();
-    if (aityx == null) {
-      stderr.writeln('check: no key to ask aityx with; the entry goes in unchecked');
-      return;
-    }
+    if (aityx == null) throw const CheckUnavailable('the leaderboard has no key');
     try {
       await aityx.act(strategy, sampleSituation);
     } on DecisionException catch (e) {
       if (e.strategyFault) throw Exception(e.message);
-      stderr.writeln('check: aityx could not be asked (${e.message}); the entry goes in unchecked');
+      stderr.writeln('check: aityx could not be asked: ${e.message}');
+      throw CheckUnavailable(e.keyFault ? 'the leaderboard\'s key is not working' : e.message);
     }
   }
 
@@ -188,7 +195,14 @@ class _Tour {
     return asked.name;
   }
 
-  TournamentQueue _queue(String holder) => TournamentQueue(boards.db, holder: holder);
+  /// The queue as [holder] sees it; a runner's lock lasts until [until]
+  /// (its function's own deadline), so a function that dies holding it
+  /// never keeps the next one waiting.
+  TournamentQueue _queue(String holder, {DateTime? until}) => TournamentQueue(
+    boards.db,
+    holder: holder,
+    lease: until == null ? LiveState.staleAfter : until.difference(DateTime.now()),
+  );
 
   /// The API function: a Lambda function URL event (payload 2.0) in, the
   /// answer out.
@@ -223,7 +237,8 @@ class _Tour {
       boards: boards,
       who: who,
       body: body,
-      aityx: leaderboardKey.isNotEmpty,
+      // Whether the key is in S3 and readable, not just named.
+      aityx: (await decider()) != null,
       aityxUrl: aityxUrl.toString(),
       live: await readLive(store),
       schedule: schedule,
@@ -248,7 +263,7 @@ class _Tour {
   /// left, under the table's lock; then itself again, while more wait.
   Future<Object?> runner(Object? event, LambdaContext context) async {
     final source = event is Map ? event['source'] : null;
-    final queue = _queue('runner-${context.requestId}');
+    final queue = _queue('runner-${context.requestId}', until: context.deadline.add(const Duration(seconds: 5)));
     if (source == TournamentSource.schedule) await queue.ask(TournamentSource.schedule);
     final aityx = await decider();
     if (aityx == null) {
@@ -256,16 +271,28 @@ class _Tour {
       await store.write(LiveState.name, jsonEncode(live.toJson()));
       return {'played': false, 'detail': live.detail};
     }
-    final runner = Runner(boards: boards, decider: aityx, maxHands: maxHands);
-    final deadline = context.deadline.subtract(const Duration(seconds: 45));
+    final runner = Runner(boards: boards, decider: aityx, maxHands: maxHands, maxDaily: maxDaily);
+    // Room after the deadline for a last aityx call (30 s) and the writes
+    // that record the result.
+    final deadline = context.deadline.subtract(const Duration(seconds: 90));
     TournamentResult? result;
-    final played = await queue.drain(max: 1, (request) async {
-      stdout.writeln('runner: a tournament asked for by the ${request.source}, ${context.remaining().inSeconds} s left');
-      result = await runner.play(deadline: deadline);
-    });
-    // The next one gets a function of its own, with all its time.
-    final more = played > 0 && (await queue.waiting()).isNotEmpty;
-    if (more) await lambda.invokeAsync(runnerFunction, {'source': 'queue'});
+    var played = 0;
+    var more = false;
+    try {
+      played = await queue.drain(max: 1, (request) async {
+        stdout.writeln('runner: a tournament asked for by the ${request.source}, ${context.remaining().inSeconds} s left');
+        result = await runner.playAsked(request, deadline: deadline);
+      });
+    } finally {
+      // The next one gets a function of its own, with all its time; even
+      // when this one failed, so the queue never strands.
+      try {
+        more = played > 0 && (await queue.waiting()).isNotEmpty;
+        if (more) await lambda.invokeAsync(runnerFunction, {'source': 'queue'});
+      } catch (error) {
+        stderr.writeln('runner: could not hand the queue on: $error');
+      }
+    }
     final r = result;
     return {
       'played': r != null,

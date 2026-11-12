@@ -164,8 +164,10 @@ class TokenVerifier {
         name: claims.name,
         picture: claims.picture?.toString(),
       );
+      // Remembered until it expires, and not past that: one accepted within
+      // the clock's leeway is checked again next time.
       final expiry = claims.expiry;
-      _verified[token] = (identity, expiry.isAfter(now) ? expiry : now.add(const Duration(minutes: 1)));
+      if (expiry.isAfter(now)) _verified[token] = (identity, expiry);
       return _check(identity);
     } catch (error) {
       stderr.writeln('auth: token not verified: $error');

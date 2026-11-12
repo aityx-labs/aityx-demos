@@ -235,20 +235,62 @@ class Leaderboard {
     return [for (final e in rows) e.toStanding(recordOf(e.id), shownOwner: ownerOf(e))];
   }
 
-  /// Whether [json] is a strategy (name, tagline, decisions); throws
-  /// [EntryException] with what's missing.
+  /// The most a player's entry may hold: every decision it makes sends
+  /// all of it to aityx on the host's key (the largest preset, the Shark,
+  /// is about 4 KB of decisions).
+  static const maxTaglineLength = 200;
+  static const maxDecisionsBytes = 16 * 1024;
+  static const maxDecisions = 24;
+
+  /// Whether [json] is a strategy (name, tagline, decisions) a player may
+  /// enter: within the limits above, its name plain text on one line;
+  /// throws [EntryException] with what's wrong.
   static void check(Object? json) {
+    final Strategy strategy;
     try {
-      Strategy.fromJson(json, id: 'entry', custom: true);
+      strategy = Strategy.fromJson(json, id: 'entry', custom: true);
     } on InvalidRequest catch (e) {
       throw EntryException(e.message);
     }
+    if (!isPlainLine(strategy.name)) throw EntryException('a strategy\'s name is plain text, on one line');
+    if (strategy.tagline.length > maxTaglineLength) throw EntryException('a tagline has at most $maxTaglineLength characters');
+    if (strategy.decisions.length > maxDecisions) throw EntryException('a strategy has at most $maxDecisions decisions');
+    if (utf8.encode(jsonEncode(strategy.decisions)).length > maxDecisionsBytes) {
+      throw EntryException('a strategy\'s decisions take at most ${maxDecisionsBytes ~/ 1024} KB');
+    }
+  }
+
+  /// Whether [text] is plain text on one line: no control characters, and
+  /// none of the invisible ones that could make a name pass for another
+  /// (zero-width, direction overrides, line separators).
+  static bool isPlainLine(String text) => !text.runes.any(
+    (r) =>
+        r < 0x20 ||
+        (r >= 0x7f && r <= 0x9f) ||
+        (r >= 0x200b && r <= 0x200f) ||
+        (r >= 0x2028 && r <= 0x202e) ||
+        (r >= 0x2060 && r <= 0x2069) ||
+        r == 0xfeff,
+  );
+
+  /// [who]'s entry of [json]'s name when its tagline and rules are the
+  /// same: entering it again changes nothing.
+  TourEntry? unchanged(Identity who, Object? json) {
+    if (json is! Map) return null;
+    final name = json['name'] is String ? (json['name'] as String).trim().toLowerCase() : null;
+    final same = entries.values
+        .where((e) => !e.preset && e.ownerEmail == who.email && e.strategy.name.toLowerCase() == name)
+        .firstOrNull;
+    if (same == null) return null;
+    final tagline = json['tagline'] is String ? json['tagline'] as String : '';
+    return same.strategy.tagline == tagline && jsonEncode(same.strategy.decisions) == jsonEncode(json['decisions']) ? same : null;
   }
 
   /// Enters [json] (name, tagline, decisions) for [who]: checked as a
-  /// strategy; the player's entry of the same name is replaced, and at
-  /// most [maxPerPlayer] entries a player. The caller checks the rules on
-  /// aityx first.
+  /// strategy; the player's entry of the same name is replaced by one with
+  /// a new id (so a tournament playing the old rules records nothing on
+  /// the new ones), and at most [maxPerPlayer] entries a player. The
+  /// caller checks the rules on aityx first.
   TourEntry enter(Identity who, Object? json) {
     final Strategy strategy;
     try {
@@ -264,7 +306,7 @@ class Leaderboard {
     if (models.strategies.values.any((p) => p.name.toLowerCase() == strategy.name.toLowerCase())) {
       throw EntryException('"${strategy.name}" is a preset\'s name; call yours something else');
     }
-    final id = sameName?.id ?? _newId();
+    final id = _newId();
     final entry = TourEntry(
       id: id,
       strategy: Strategy(id: id, name: strategy.name, tagline: strategy.tagline, decisions: strategy.decisions, custom: true),
@@ -273,8 +315,11 @@ class Leaderboard {
       preset: false,
       enteredAt: DateTime.now().toUtc(),
     );
+    if (sameName != null) {
+      entries.remove(sameName.id);
+      records.remove(sameName.id);
+    }
     entries[id] = entry;
-    if (sameName != null) records[id] = Record(); // new rules, a fresh record
     return entry;
   }
 

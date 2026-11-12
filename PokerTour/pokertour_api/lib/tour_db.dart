@@ -23,12 +23,13 @@ import 'queue.dart' show TournamentRequest;
 
 /// A player, as the leaderboard names them: their alias, else their name.
 class Player {
-  const Player({required this.ownerId, required this.name, this.alias});
+  const Player({required this.ownerId, required this.name, this.alias, this.lastEntryAt});
 
   factory Player.fromJson(Map<String, Object?> json) => Player(
     ownerId: json['ownerId'] as String,
     name: json['name'] as String? ?? '',
     alias: json['alias'] as String?,
+    lastEntryAt: DateTime.tryParse(json['lastEntryAt'] as String? ?? '')?.toUtc(),
   );
 
   final String ownerId;
@@ -39,9 +40,18 @@ class Player {
   /// What they chose to be called; null for their name.
   final String? alias;
 
+  /// When they last asked to enter a strategy (checked on aityx or not):
+  /// entries are rate-limited per player.
+  final DateTime? lastEntryAt;
+
   String get shown => (alias ?? '').trim().isNotEmpty ? alias!.trim() : name;
 
-  Map<String, Object?> toJson() => {'ownerId': ownerId, 'name': name, 'alias': alias};
+  Map<String, Object?> toJson() => {
+    'ownerId': ownerId,
+    'name': name,
+    'alias': alias,
+    if (lastEntryAt != null) 'lastEntryAt': lastEntryAt!.toUtc().toIso8601String(),
+  };
 }
 
 abstract interface class TourDb {

@@ -6,6 +6,7 @@ import 'package:poker_core/table.dart';
 import 'package:pokertour_api/aityx.dart';
 import 'package:pokertour_api/auth.dart';
 import 'package:pokertour_api/leaderboard.dart';
+import 'package:pokertour_api/queue.dart';
 import 'package:pokertour_api/runner.dart';
 import 'package:pokertour_api/store.dart';
 import 'package:test/test.dart';
@@ -31,6 +32,27 @@ AityxDecider fake(Models models, {int Function()? status, Duration delay = Durat
     );
   }),
 );
+
+/// An aityx that answers as [fake] does, except for a strategy whose
+/// name is in the request: [answers] by that name, a status and a body.
+AityxDecider picky(Models models, Map<String, (int, String)> answers) => AityxDecider(
+  AityxSettings(key: 'test-key', url: Uri.parse('https://aityx.test')),
+  models,
+  client: MockClient((request) async {
+    for (final MapEntry(:key, :value) in answers.entries) {
+      if (request.body.contains(key)) return http.Response(value.$2, value.$1);
+    }
+    return http.Response(
+      '{"answers":{"action":{"choice":"call"},"raise_to":{"number":0}},"receipt":{"decisions":{"action":{"rule":1}}}}',
+      200,
+    );
+  }),
+);
+
+Future<TourEntry> enterOne(Boards boards, String name) => boards.update((b) => b.enter(Identity(subject: name, email: '${name.toLowerCase()}@aletyx.com'), {
+  'name': name,
+  'decisions': {'action': {'expr': '"call"'}, 'raise_to': {'expr': 'min_raise'}},
+}));
 
 void main() {
   late Models models;
@@ -107,5 +129,74 @@ void main() {
     expect(live?.detail, contains('rejected the key'));
     expect(live?.current, isNull, reason: 'an abandoned tournament leaves no seats behind');
     expect((await boards.read()).tournamentsPlayed, 1);
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('an answer the table cannot take (a raise to infinity) leaves that strategy out, not the tournament', () async {
+    final boards = Boards(store: MemoryStore(), models: models);
+    final infinite = await enterOne(boards, 'Infinite');
+    final runner = Runner(
+      boards: boards,
+      decider: picky(models, {'Infinite': (200, '{"answers":{"action":{"choice":"raise"},"raise_to":{"number":1E+600}},"receipt":{}}')}),
+      maxHands: 10,
+      random: Random(9),
+      log: false,
+    );
+    final result = await runner.play();
+    expect(result, isNotNull, reason: 'the others play on');
+    final board = await boards.read();
+    expect(board.entries[infinite.id]?.broken, contains('finite'));
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('a seat aityx keeps failing on (429) folds, then sits out; nothing marks it broken', () async {
+    final boards = Boards(store: MemoryStore(), models: models);
+    final flaky = await enterOne(boards, 'Flaky');
+    final runner = Runner(
+      boards: boards,
+      decider: picky(models, {'Flaky': (429, '{"code":"too_many_requests"}')}),
+      maxHands: 15,
+      random: Random(10),
+      log: false,
+      retryAfter: const Duration(milliseconds: 5),
+    );
+    final result = await runner.play();
+    expect(result, isNotNull);
+    expect(result!.places.map((p) => p.id), contains(flaky.id));
+    expect((await boards.read()).entries[flaky.id]?.broken, isNull, reason: 'busy is not broken');
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('past the day\'s tournaments, a player\'s or an admin\'s waits for the schedule; the schedule\'s plays', () async {
+    final store = MemoryStore();
+    final boards = Boards(store: store, models: models);
+    await boards.update((b) {
+      for (var i = 0; i < 3; i++) {
+        b.finish([(id: 'rock', name: 'The Rock', place: 1), (id: 'shark', name: 'The Shark', place: 2)], hands: 1, calls: 1);
+      }
+    });
+    final runner = Runner(boards: boards, decider: fake(models), maxHands: 5, random: Random(11), log: false, maxDaily: 3);
+    final now = DateTime.now().toUtc();
+    expect(await runner.playAsked(TournamentRequest(source: TournamentSource.strategy, at: now)), isNull);
+    expect((await readLive(store))?.detail, contains('the next is the schedule'));
+    expect(await runner.playAsked(TournamentRequest(source: TournamentSource.admin, at: now)), isNull);
+    expect(await runner.playAsked(TournamentRequest(source: TournamentSource.schedule, at: now)), isNotNull);
+    // A day later the count starts again.
+    final tomorrow = now.add(const Duration(hours: 25));
+    expect(await runner.playAsked(TournamentRequest(source: TournamentSource.strategy, at: tomorrow), now: tomorrow), isNotNull);
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('aityx down for every seat: nobody folds for it, and the tournament is abandoned unrecorded', () async {
+    final store = MemoryStore();
+    final boards = Boards(store: store, models: models);
+    final runner = Runner(
+      boards: boards,
+      decider: fake(models, status: () => 503),
+      maxHands: 50,
+      random: Random(12),
+      log: false,
+      retryAfter: const Duration(milliseconds: 20),
+    );
+    final result = await runner.play(deadline: DateTime.now().add(const Duration(seconds: 2)));
+    expect(result, isNull);
+    expect((await boards.read()).tournamentsPlayed, 0, reason: 'no result made of folds');
+    expect((await readLive(store))?.detail, contains('abandoned'));
   }, timeout: const Timeout(Duration(minutes: 2)));
 }

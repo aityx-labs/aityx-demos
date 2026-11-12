@@ -301,6 +301,8 @@ Map<String, Object?> toAction(
   if (action is! String) throw DecisionFailed('no action');
   final raiseTo = (answers['raise_to'] as Map?)?['number'];
   if (raiseTo is! num) throw DecisionFailed('no raise_to');
+  // A number past a double's range decodes as Infinity, which no bet is.
+  if (!raiseTo.isFinite) throw DecisionFailed('raise_to is not a finite number');
   final table = _actionTable(sent);
   final rule = ((receipt['decisions'] as Map?)?['action'] as Map?)?['rule'];
   final fired = rule is int && rule >= 1 && rule < table.length ? rule : null;

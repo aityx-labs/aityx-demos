@@ -19,6 +19,7 @@ import 'package:poker_core/engine/game.dart';
 
 import 'aityx.dart';
 import 'leaderboard.dart';
+import 'queue.dart' show TournamentRequest, TournamentSource;
 import 'store.dart';
 
 /// A seat of the tournament being played, for the leaderboard.
@@ -85,6 +86,8 @@ class Runner {
     Random? random,
     this.log = true,
     this.progressEvery = const Duration(seconds: 5),
+    this.maxDaily = 12,
+    this.retryAfter = const Duration(seconds: 30),
   }) : _random = random ?? Random();
 
   final Boards boards;
@@ -99,6 +102,15 @@ class Runner {
   /// How often, at most, the tournament being played is written to the
   /// store for the API to show.
   final Duration progressEvery;
+
+  /// The most tournaments in a day (the last 24 hours): past it, only the
+  /// schedule's play. Players and admins ask for the others, each one
+  /// hundreds of calls on the host's key.
+  final int maxDaily;
+
+  /// The first pause before asking aityx again when it doesn't answer;
+  /// doubled each time, up to five minutes.
+  final Duration retryAfter;
 
   Store get store => boards.store;
 
@@ -135,6 +147,23 @@ class Runner {
   Map<int, TourEntry> get seated => _seated;
 
   void stop() => _stopped = true;
+
+  /// Plays [request]'s tournament, unless it is a player's or an admin's
+  /// and [maxDaily] tournaments finished in the last 24 hours: then it is
+  /// dropped (the schedule's next one plays the new entries), and the
+  /// live state says so.
+  Future<TournamentResult?> playAsked(TournamentRequest request, {DateTime? deadline, DateTime? now}) async {
+    if (request.source != TournamentSource.schedule) {
+      final since = (now ?? DateTime.now()).toUtc().subtract(const Duration(hours: 24));
+      final today = (await boards.read()).history.where((t) => t.finished.isAfter(since)).length;
+      if (today >= maxDaily) {
+        _say('the ${request.source}\'s tournament is not played: $today in the last 24 hours');
+        await _set('waiting', '$today tournaments in the last 24 hours, the most there are: the next is the schedule\'s', force: true);
+        return null;
+      }
+    }
+    return play(deadline: deadline);
+  }
 
   /// One tournament among the entries that can play: picked, played and
   /// recorded; its result, or null when fewer than two can play, when
@@ -196,8 +225,21 @@ class Runner {
     _number = board.tournamentsPlayed + 1;
     final playing = 'tournament #$_number, ${seated.length} players';
     await _set('playing', playing, force: true);
-    var retry = const Duration(seconds: 30);
+    var retry = retryAfter;
     var outOfTime = false;
+    // aityx failing on one seat's decisions, while it answers the others,
+    // is that strategy's doing (rules too heavy to answer in time, say):
+    // after two failures in a row the seat folds that decision, and after
+    // three such folds it sits out the rest of the tournament. Recorded
+    // nowhere: the next tournament asks it again. When another seat fails
+    // too before anything answers, aityx itself is down: no seat folds for
+    // it, the table waits, as it always did, until aityx answers or the
+    // time is up.
+    String? failing;
+    var failures = 0;
+    var down = false;
+    final strikes = <String, int>{};
+    final sittingOut = <String>{};
     while (!_stopped) {
       if (deadline != null && !DateTime.now().isBefore(deadline)) {
         outOfTime = true;
@@ -217,18 +259,27 @@ class Runner {
           continue;
         case NeedsAction(:final seat, :final situation):
           final entry = seats[seat.id];
-          if (entry == null || entry.broken != null) {
+          if (entry == null || entry.broken != null || sittingOut.contains(entry.id)) {
             game.apply(PlayerAction(ActionKind.fold));
             continue;
           }
           try {
-            final action = await decider.act(entry.strategy, situation);
+            // Every call asked counts, answered or not.
             _calls++;
-            game.apply(PlayerAction(ActionKind.parse(action['action'] as String), raiseTo: action['raise_to'] as num));
-            retry = const Duration(seconds: 30);
+            final action = await decider.act(entry.strategy, situation);
+            // An answer the table can't take (an action it doesn't know, a
+            // bet it can't make) is the strategy's, not the tournament's.
+            try {
+              game.apply(PlayerAction(ActionKind.parse(action['action'] as String), raiseTo: action['raise_to'] as num));
+            } catch (error) {
+              throw DecisionException('the table could not take its answer ($error)', strategyFault: true);
+            }
+            retry = retryAfter;
+            failing = null;
+            failures = 0;
+            down = false;
           } on DecisionException catch (e) {
             if (e.strategyFault) {
-              _calls++;
               _say('${entry.strategy.name} is left out: ${e.message}');
               entry.broken = e.message;
               await boards.update((b) => b.markBroken(entry.id, e.message));
@@ -237,7 +288,21 @@ class Runner {
               _game = null;
               await _set('error', '${e.message}: the leaderboard cannot play until the host sets a working key', force: true);
               return null;
+            } else if (!down && failing == entry.id && failures >= 1) {
+              // Twice in a row on this seat: it folds this decision, and
+              // after three such folds it sits out.
+              failures++;
+              final n = strikes[entry.id] = (strikes[entry.id] ?? 0) + 1;
+              _say('${entry.strategy.name} folds: aityx failed on it twice (${e.message})');
+              if (n >= 3) {
+                sittingOut.add(entry.id);
+                _say('${entry.strategy.name} sits out the rest of the tournament');
+              }
+              game.apply(PlayerAction(ActionKind.fold));
             } else {
+              if (failing != null && failing != entry.id) down = true;
+              failing = entry.id;
+              failures = 1;
               // The network, aityx down: wait and ask again, while there is time.
               if (deadline != null && !DateTime.now().add(retry).isBefore(deadline)) {
                 _game = null;

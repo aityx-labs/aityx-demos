@@ -422,3 +422,34 @@ The feature files hold the current specification; see the
     the queue and the lock in memory and on Floci's DynamoDB, the routes,
     the app's reading. See [The tour](tour.md#the-runner) and [On
     AWS](aws.md).
+
+16. **Review the code, especially for security, and deploy to AWS; check
+    that the leaderboard keys are not exposed; go ahead with the
+    fixes.** A review of every surface (the sign-in, the keys, the AWS
+    template, the API's input, the queue, the app, the tests), each
+    finding checked by two others, found the deployed stack still the
+    old design: its `pokertour-players` role let any Google sign-in for
+    the client read `pokertour/aityx.key`, the old players' key. Neither
+    leaderboard key had ever been in the bucket. The deploy of the
+    current template removed the role and wrote production's
+    leaderboard key, and the old key objects and all their versions were
+    deleted. Then, in this change: one entry a player a minute (429),
+    the same rules again a no-op, nothing entered unchecked (503 when
+    aityx can't say), limits on an entry (a 200-character tagline, 24
+    decisions, 16 KB) and plain-text names and aliases; a re-entry
+    under a new id; 408, 425 and 429 are aityx busy, not the strategy's
+    fault; an answer the table can't take (a raise to infinity) breaks
+    that strategy, not the tournament; a seat aityx keeps failing on
+    folds, then sits out; at most 12 tournaments a day before only the
+    schedule's play (`POKERTOUR_MAX_DAILY_TOURNAMENTS`); the runner's
+    lock ends with its function, which always hands the queue on;
+    AITYX_URL must be https; no AWS error text and no key in answers;
+    `/api/health`'s `aityx` says whether the key is readable; the token
+    cache never outlives a token. On AWS: a bucket policy that lets only
+    the functions read a key, old versions expiring after 30 days,
+    security headers, the API's concurrency capped at 20; `deploy.sh`
+    and `env.sh` no longer export production's key, `.env` values keep
+    their quotes and `#`, and the "tournament now" command works.
+    `.env.example` and the comments no longer describe the old players'
+    key. See [The tour](tour.md#entering-a-strategy) and [On
+    AWS](aws.md).

@@ -48,6 +48,13 @@ Parameters:
     Type: Number
     Default: 3
     Description: Strategies a player may have in the tour at once.
+  MaxDailyTournaments:
+    Type: Number
+    Default: 12
+    Description: >-
+      Tournaments in 24 hours past which only the schedule's play: players
+      and admins ask for the others, each one hundreds of calls on the
+      host's key.
   LeaderboardKeyObject:
     Type: String
     Default: pokertour/leaderboard.key
@@ -84,6 +91,43 @@ Resources:
               SSEAlgorithm: AES256
       VersioningConfiguration:
         Status: Enabled
+      # Old versions (every live.json written, a replaced key) go after a
+      # month.
+      LifecycleConfiguration:
+        Rules:
+          - Id: old-versions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  # Only the functions read a key, whatever else an account's principals
+  # may be allowed (an administrator, another app's role); and only over
+  # TLS. deploy.sh writes the key and lists the bucket, which this allows.
+  DataBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DataBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: OnlyTheFunctionsReadKeys
+            Effect: Deny
+            Principal: '*'
+            Action: [s3:GetObject, s3:GetObjectVersion]
+            Resource: !Sub '${DataBucket.Arn}/*.key'
+            Condition:
+              ArnNotEquals:
+                aws:PrincipalArn: !GetAtt FunctionRole.Arn
+          - Sid: TlsOnly
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: [!GetAtt DataBucket.Arn, !Sub '${DataBucket.Arn}/*']
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
 
   # The tour's table: the players' strategies (pk STRATEGY) and their
   # names and aliases (pk PLAYER), sk the strategy's or the owner's id;
@@ -176,6 +220,29 @@ Resources:
           return request;
         }
 
+  # What every answer carries: HTTPS only from now on, no MIME sniffing,
+  # never in a frame (the page holds the player's aityx key), and no
+  # path in the Referer to other sites.
+  SecurityHeaders:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub '${AWS::StackName}-security'
+        Comment: "Poker Tour's security headers"
+        SecurityHeadersConfig:
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: false
+            Override: true
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: DENY
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: strict-origin-when-cross-origin
+            Override: true
+
   # The API is never cached; the Authorization header must be in the
   # cache key for CloudFront to pass it to the origin.
   ApiCachePolicy:
@@ -228,6 +295,7 @@ Resources:
           Compress: true
           # The managed CachingOptimized policy.
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          ResponseHeadersPolicyId: !Ref SecurityHeaders
           FunctionAssociations:
             - EventType: viewer-request
               FunctionARN: !GetAtt ViewerFunction.FunctionMetadata.FunctionARN
@@ -239,6 +307,7 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: !Ref ApiCachePolicy
+            ResponseHeadersPolicyId: !Ref SecurityHeaders
             # The managed AllViewerExceptHostHeader policy: every header
             # and the body reach the function URL, whose host is its own.
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
@@ -313,6 +382,10 @@ Resources:
       Role: !GetAtt FunctionRole.Arn
       MemorySize: 512
       Timeout: 60
+      # Its URL is public (CloudFront is in front, but the URL answers
+      # anyone): at most this many at once, so a flood of calls can't use
+      # the account's concurrency, which other apps share.
+      ReservedConcurrentExecutions: 20
       Environment:
         Variables:
           POKERTOUR_ROLE: api
@@ -328,6 +401,7 @@ Resources:
           POKERTOUR_SCHEDULE_HOURS: !Ref ScheduleHours
           POKERTOUR_MAX_HANDS: !Ref MaxHands
           POKERTOUR_MAX_ENTRIES: !Ref MaxEntries
+          POKERTOUR_MAX_DAILY_TOURNAMENTS: !Ref MaxDailyTournaments
 
   ApiUrl:
     Type: AWS::Lambda::Url
@@ -386,6 +460,7 @@ Resources:
           POKERTOUR_SCHEDULE_HOURS: !Ref ScheduleHours
           POKERTOUR_MAX_HANDS: !Ref MaxHands
           POKERTOUR_MAX_ENTRIES: !Ref MaxEntries
+          POKERTOUR_MAX_DAILY_TOURNAMENTS: !Ref MaxDailyTournaments
 
   RunnerInvokeConfig:
     Type: AWS::Lambda::EventInvokeConfig

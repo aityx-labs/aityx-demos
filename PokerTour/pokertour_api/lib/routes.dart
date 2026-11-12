@@ -30,16 +30,20 @@
 ///                         presets too, the owner by alias; signed in
 ///   POST /api/strategies  {"name", "tagline", "decisions"}: enters the
 ///                         strategy (replacing the caller's of the same
-///                         name) once aityx runs it on the sample
-///                         situation, and asks for a tournament (queued
-///                         behind the one being played); 201 with the
-///                         entry and "tournament": what asking did
-///                         (as POST /api/tournaments' status, or null
-///                         when the leaderboard is off); 400 when it
-///                         isn't a strategy, 422 when aityx refuses it,
-///                         409 when the player has too many; signed in
+///                         name, under a new id) once aityx runs it on
+///                         the sample situation, and asks for a
+///                         tournament (queued behind the one being
+///                         played); 201 with the entry and "tournament":
+///                         what asking did (as POST /api/tournaments'
+///                         status, or null when the leaderboard is off);
+///                         200 with the entry, unchanged, when it is the
+///                         caller's already, rules and all; 400 when it
+///                         isn't a strategy or is over the limits, 422
+///                         when aityx refuses it, 503 when aityx can't be
+///                         asked, 409 when the player has too many, 429
+///                         within [entryInterval] of their last; signed in
 ///   DELETE /api/strategies/{id}  withdraws the caller's entry; 204, or
-///                         404; signed in
+///                         404 (400 for an id that isn't one); signed in
 ///   POST /api/tournaments asks for a tournament now: 202 with {"status":
 ///                         "started"; "queued" behind the one being
 ///                         played, never beside it; or "waiting" when an
@@ -51,6 +55,8 @@
 /// domain, 503 while the server has no client id. An admin: an aletyx.com
 /// or aletyx.ai account (403 otherwise).
 library;
+
+import 'dart:io';
 
 import 'auth.dart';
 import 'leaderboard.dart';
@@ -72,8 +78,23 @@ class Answer {
 }
 
 /// Checks a strategy's rules on aityx before it enters the tour; throws
-/// with the reason when aityx refuses them.
+/// with the reason when aityx refuses them, and [CheckUnavailable] when
+/// aityx can't say (no key, no answer, too busy): the entry waits.
 typedef StrategyCheck = Future<void> Function(Object? strategyJson);
+
+/// aityx couldn't be asked about a strategy: it isn't entered unchecked.
+class CheckUnavailable implements Exception {
+  const CheckUnavailable(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// How long a player waits between asking to enter strategies: each ask
+/// is an aityx call on the host's key, and a tournament.
+const entryInterval = Duration(minutes: 1);
 
 /// Asks for a tournament from [source] (lib/queue.dart), by [by]: what
 /// it did, one of [Asked]'s names. Throws when it can't.
@@ -85,7 +106,8 @@ typedef TournamentStarter = Future<String> Function(String source, Identity by);
 /// when it plays on its own and [runnerEnabled] whether it plays at all.
 /// [start] asks for a tournament (POST /api/tournaments, and a new
 /// strategy); [waiting], the tournaments queued; [check] is the aityx
-/// check for POST /api/strategies.
+/// check for POST /api/strategies, at most one per player every
+/// [interval].
 Future<Answer> route(
   String method,
   String path, {
@@ -102,6 +124,7 @@ Future<Answer> route(
   TournamentStarter? start,
   Future<List<TournamentRequest>> Function()? waiting,
   StrategyCheck? check,
+  Duration interval = entryInterval,
   DateTime? now,
 }) async {
   final at = (now ?? DateTime.now()).toUtc();
@@ -162,8 +185,11 @@ Future<Answer> route(
       if (given != null && given is! String) return const Answer(400, {'error': 'send {"alias": "..."}'});
       final alias = ((given as String?) ?? '').trim();
       if (alias.length > maxAlias) return const Answer(400, {'error': 'an alias has at most $maxAlias characters'});
-      if (alias.runes.any((r) => r < 0x20 || r == 0x7f)) return const Answer(400, {'error': 'an alias is plain text, on one line'});
-      await boards.db.putPlayer(Player(ownerId: me.ownerId, name: me.displayName, alias: alias.isEmpty ? null : alias));
+      if (!Leaderboard.isPlainLine(alias)) return const Answer(400, {'error': 'an alias is plain text, on one line'});
+      final before = await boards.db.player(me.ownerId);
+      await boards.db.putPlayer(
+        Player(ownerId: me.ownerId, name: me.displayName, alias: alias.isEmpty ? null : alias, lastEntryAt: before?.lastEntryAt),
+      );
       return Answer(200, {...me.toJson(), 'alias': alias.isEmpty ? null : alias, 'admin': auth.isAdmin(me.email)});
     case ('GET', '/api/strategies'):
       final gate = signedIn();
@@ -182,24 +208,46 @@ Future<Answer> route(
       } on EntryException catch (e) {
         return Answer(400, {'error': e.message});
       }
+      final me = who!.identity!;
+      // The same rules again: nothing to check, enter or play.
+      final same = (await boards.read()).unchanged(me, body);
+      if (same != null) {
+        final player = await boards.db.player(same.ownerId);
+        return Answer(200, {...same.toStrategy(shownOwner: player?.shown), 'tournament': null});
+      }
+      // One ask a player every [interval], checked or not: each is a call
+      // on the host's key.
+      final player = await boards.db.player(me.ownerId);
+      final last = player?.lastEntryAt;
+      if (last != null && at.isBefore(last.add(interval))) {
+        final wait = last.add(interval).difference(at).inSeconds + 1;
+        return Answer(429, {'error': 'one strategy a player every ${interval.inSeconds} s: try again in $wait s'});
+      }
+      await boards.db.putPlayer(
+        Player(ownerId: me.ownerId, name: player?.name ?? me.displayName, alias: player?.alias, lastEntryAt: at),
+      );
       if (check != null) {
         try {
           await check(body);
+        } on CheckUnavailable catch (e) {
+          return Answer(503, {'error': 'aityx can\'t check the rules now ($e); try again later'});
         } on Exception catch (e) {
           return Answer(422, {'error': 'aityx refused the rules: $e'});
         }
       }
       try {
-        final entry = await boards.update((b) => b.enter(who!.identity!, body));
+        final entry = await boards.update((b) => b.enter(me, body));
         final player = await boards.db.player(entry.ownerId);
         // A new strategy plays in the next tournament: one is asked for,
         // queued behind any being played. The entry stands if it can't be.
         String? tournament;
         if (runnerEnabled && start != null) {
           try {
-            tournament = await start(TournamentSource.strategy, who!.identity!);
+            tournament = await start(TournamentSource.strategy, me);
           } on Exception catch (e) {
-            tournament = 'not asked for: $e';
+            // AWS's words name roles and accounts: the log has them.
+            stderr.writeln('api: a tournament could not be asked for: $e');
+            tournament = 'not asked for';
           }
         }
         return Answer(201, {...entry.toStrategy(shownOwner: player?.shown), 'tournament': tournament});
@@ -218,13 +266,19 @@ Future<Answer> route(
       try {
         return Answer(202, {'status': await start(TournamentSource.admin, who.identity!)});
       } on Exception catch (e) {
-        return Answer(502, {'error': 'the tournament could not be started: $e'});
+        stderr.writeln('api: a tournament could not be started: $e');
+        return const Answer(502, {'error': 'the tournament could not be started; the server\'s log says why'});
       }
     default:
       if (method == 'DELETE' && path.startsWith('/api/strategies/')) {
         final gate = signedIn();
         if (gate.status != 200) return gate;
-        final id = Uri.decodeComponent(path.substring('/api/strategies/'.length));
+        final String id;
+        try {
+          id = Uri.decodeComponent(path.substring('/api/strategies/'.length));
+        } on ArgumentError {
+          return const Answer(400, {'error': 'not an entry id'});
+        }
         try {
           final gone = await boards.update((b) => b.withdraw(who!.identity!, id));
           return gone ? const Answer(204) : const Answer(404, {'error': 'no such entry of yours'});

@@ -88,9 +88,12 @@ class AityxDecider {
       throw const DecisionException('aityx rejected the key', keyFault: true);
     }
     if (response.statusCode != 200) {
-      // A 4xx about the model is the strategy's fault; the rest isn't.
-      final fault = response.statusCode >= 400 && response.statusCode < 500;
-      throw DecisionException('aityx answered HTTP ${response.statusCode}${problemDetail(text)}', strategyFault: fault);
+      // A 4xx about the model is the strategy's fault; a timeout, too
+      // early or too many requests (408, 425, 429) and a 5xx are aityx's,
+      // and pass.
+      final status = response.statusCode;
+      final fault = status >= 400 && status < 500 && !transientStatuses.contains(status);
+      throw DecisionException(_scrub('aityx answered HTTP $status${problemDetail(text)}'), strategyFault: fault);
     }
     final Object? json;
     try {
@@ -102,11 +105,18 @@ class AityxDecider {
     try {
       return toAction(sent, json.cast<String, Object?>());
     } on DecisionFailed catch (e) {
-      throw DecisionException('aityx could not decide it: $e', strategyFault: true);
+      throw DecisionException(_scrub('aityx could not decide it: $e'), strategyFault: true);
     } catch (_) {
       throw const DecisionException('unexpected answer from aityx');
     }
   }
+
+  /// The 4xx statuses that say nothing about the strategy: aityx is busy.
+  static const transientStatuses = {408, 425, 429};
+
+  /// [message] without the key, should aityx ever echo it: messages go to
+  /// answers, the live state and the standings.
+  String _scrub(String message) => settings.key.isEmpty ? message : message.replaceAll(settings.key, '[the key]');
 
   /// Whether aityx accepts the key: POSTs `{}`, which a working key gets
   /// 400 for and a bad one 401.

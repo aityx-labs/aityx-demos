@@ -14,7 +14,7 @@
 /// Settings, from the environment (scripts/serve.sh loads .env):
 ///   POKERTOUR_LEADERBOARD_KEY  the leaderboard's key (secret): the
 ///                         runner's decisions; else AITYX_API_KEY. Never
-///                         the players' key, which they fetch from S3
+///                         a player's: players bring their own
 ///   AITYX_URL             aityx's base URL (default https://api.aityx.ai),
 ///                         the browsers' too (GET /api/config)
 ///   API_PORT              the port (default 9810); FLUTTER_WEB_PORT is
@@ -36,6 +36,8 @@
 ///   POKERTOUR_MAX_HANDS   hands after which a tournament ends on chips
 ///                         (default 300)
 ///   POKERTOUR_MAX_ENTRIES strategies a player may have in (default 3)
+///   POKERTOUR_MAX_DAILY_TOURNAMENTS  tournaments in 24 hours past which
+///                         only the schedule's play (default 12)
 ///
 /// `server healthcheck` asks a running server's /api/health on
 /// 127.0.0.1:API_PORT and exits 0 when it answers ok: the Docker health
@@ -121,6 +123,7 @@ Future<void> main(List<String> args) async {
     boards: boards,
     decider: aityx,
     maxHands: int.tryParse(env['POKERTOUR_MAX_HANDS'] ?? '') ?? 300,
+    maxDaily: int.tryParse(env['POKERTOUR_MAX_DAILY_TOURNAMENTS'] ?? '') ?? 12,
   );
   if (key.isEmpty) {
     stderr.writeln('warning: POKERTOUR_LEADERBOARD_KEY (or AITYX_API_KEY) is not set: the leaderboard will not play');
@@ -157,7 +160,7 @@ Future<void> main(List<String> args) async {
         again = false;
         await queue.drain((request) async {
           stdout.writeln('runner: a tournament asked for by the ${request.source}${request.by == null ? '' : ' (${request.by})'}');
-          await runner.play(deadline: DateTime.now().add(_timeLimit));
+          await runner.playAsked(request, deadline: DateTime.now().add(_timeLimit));
         });
       } while (again);
     } catch (error) {
@@ -200,15 +203,16 @@ Future<void> main(List<String> args) async {
   }
 
   /// Runs [json]'s rules on aityx with the sample situation; throws when
-  /// aityx refuses them (for POST /api/strategies).
+  /// aityx refuses them, and [CheckUnavailable] when it can't be asked:
+  /// nothing goes in unchecked (for POST /api/strategies).
   Future<void> check(Object? json) async {
     final strategy = Strategy.fromJson(json, id: 'check', custom: true);
     try {
       await aityx.act(strategy, sampleSituation);
     } on DecisionException catch (e) {
       if (e.strategyFault) throw Exception(e.message);
-      // The key or the network: not the strategy's fault, let it in.
-      stderr.writeln('check: aityx could not be asked (${e.message}); the entry goes in unchecked');
+      stderr.writeln('check: aityx could not be asked: ${e.message}');
+      throw CheckUnavailable(e.keyFault ? 'the leaderboard\'s key is not working' : e.message);
     }
   }
 

@@ -12,8 +12,10 @@
 #      CloudFront
 #   5. puts the leaderboard's key, POKERTOUR_PROD_LEADERBOARD_KEY, in the
 #      data bucket when its object is missing (or with --key: again),
-#      through a pipe, never a command line. Only the functions can read
-#      it; players bring their own keys, and never get the host's.
+#      through a pipe, never a command line, read from .env only then
+#      (never exported to the builds or the CLI). Only the functions can
+#      read it, by the bucket's policy; players bring their own keys, and
+#      never get the host's.
 #      Production never gets a local key or AITYX_URL: its address is
 #      AITYX_PROD_URL (default https://api.aityx.ai).
 # then prints the app's address and the origin to authorize in the Google
@@ -25,7 +27,7 @@
 # POKERTOUR_OIDC_CLIENT_ID (the sign-in; without it nobody can sign in),
 # AITYX_PROD_URL and POKERTOUR_PROD_LEADERBOARD_KEY (production's aityx),
 # POKERTOUR_ALLOWED_DOMAINS, POKERTOUR_SCHEDULE_HOURS, POKERTOUR_MAX_HANDS,
-# POKERTOUR_MAX_ENTRIES; and POKERTOUR_STACK (default
+# POKERTOUR_MAX_ENTRIES, POKERTOUR_MAX_DAILY_TOURNAMENTS; and POKERTOUR_STACK (default
 # pokertour), AWS_REGION (default the CLI's), LAMBDA_ARCH (arm64, the
 # default, or x86_64: Docker builds for it, emulated when it isn't the
 # host's). Needs the AWS CLI with credentials for the account, Docker,
@@ -35,6 +37,8 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=../scripts/env.sh
 source "$root/scripts/env.sh"
+# Local keys: a deploy has no use for them, and no child process gets them.
+unset AITYX_API_KEY POKERTOUR_LEADERBOARD_KEY
 
 upload_key=no
 build=yes
@@ -109,6 +113,7 @@ params=(
 [[ -n "${POKERTOUR_SCHEDULE_HOURS:-}" ]] && params+=("ScheduleHours=$POKERTOUR_SCHEDULE_HOURS")
 [[ -n "${POKERTOUR_MAX_HANDS:-}" ]] && params+=("MaxHands=$POKERTOUR_MAX_HANDS")
 [[ -n "${POKERTOUR_MAX_ENTRIES:-}" ]] && params+=("MaxEntries=$POKERTOUR_MAX_ENTRIES")
+[[ -n "${POKERTOUR_MAX_DAILY_TOURNAMENTS:-}" ]] && params+=("MaxDailyTournaments=$POKERTOUR_MAX_DAILY_TOURNAMENTS")
 echo "deploy: the stack (a first deployment takes a few minutes: CloudFront)"
 aws cloudformation deploy --region "$region" --stack-name "$stack" \
   --template-file "$root/deploy/template.yaml" \
@@ -135,21 +140,27 @@ aws s3 cp --quiet --recursive --region "$region" "s3://$web_bucket/app/" "s3://$
   --cache-control "public, max-age=300" --metadata-directive REPLACE
 aws cloudfront create-invalidation --distribution-id "$distribution" --paths "/*" --query 'Invalidation.Id' --output text >/dev/null
 
-# put_key <object> <value> <what>: writes the key, through a pipe, when
-# --key or when the object is missing.
+# put_key <object> <variable> <what>: writes the key in <variable> (the
+# environment's, else .env's), through a pipe, when --key or when the
+# object is missing. Listed, not read: the bucket's policy lets only the
+# functions read a key.
 put_key() {
-  local object="$1" value="$2" what="$3"
-  if [[ "$upload_key" == no ]] && aws s3api head-object --bucket "$data_bucket" --key "$object" --region "$region" >/dev/null 2>&1; then
+  local object="$1" name="$2" what="$3" value found
+  found="$(aws s3api list-objects-v2 --bucket "$data_bucket" --prefix "$object" --region "$region" \
+    --query "Contents[?Key=='$object'] | length(@)" --output text)"
+  if [[ "$upload_key" == no && "$found" == 1 ]]; then
     return 0
   fi
+  value="${!name:-$(env_value "$name")}"
   if [[ -z "$value" ]]; then
     echo "deploy: no $what key is set: s3://$data_bucket/$object is not written" >&2
     return 0
   fi
   printf '%s' "$value" | aws s3 cp --quiet --region "$region" - "s3://$data_bucket/$object"
+  unset value
   echo "deploy: the $what key is in s3://$data_bucket/$object"
 }
-put_key "$leaderboard_key_object" "${POKERTOUR_PROD_LEADERBOARD_KEY:-}" "production leaderboard (POKERTOUR_PROD_LEADERBOARD_KEY)"
+put_key "$leaderboard_key_object" POKERTOUR_PROD_LEADERBOARD_KEY "production leaderboard (POKERTOUR_PROD_LEADERBOARD_KEY)"
 
 cat <<MSG
 
@@ -163,5 +174,6 @@ among its authorized JavaScript origins (Google Cloud, APIs & Services >
 Credentials), or the sign-in button answers "origin not allowed".
 
 Logs: aws logs tail /aws/lambda/$stack-runner --follow --region $region
-A tournament now, from here: aws lambda invoke --function-name $stack-runner --invocation-type Event --payload '{"source":"cli"}' --region $region /dev/stdout
+A tournament now, from here (as the schedule asks, so within the daily
+limit too): aws lambda invoke --function-name $stack-runner --invocation-type Event --cli-binary-format raw-in-base64-out --payload '{"source":"schedule"}' --region $region /dev/stdout
 MSG

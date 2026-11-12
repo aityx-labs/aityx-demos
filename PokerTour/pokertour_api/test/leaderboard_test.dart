@@ -45,15 +45,19 @@ void main() {
     expect(one.strategy.custom, isTrue);
     board.enter(ana, rules('Ana Two'));
     expect(() => board.enter(ana, rules('Ana Three')), throwsA(isA<EntryException>().having((e) => e.message, 'message', contains('withdraw one first'))));
+    board.recordOf(one.id).tournaments = 4;
     final again = board.enter(ana, rules('ana one'));
-    expect(again.id, one.id, reason: 'the same name replaces');
+    expect(again.id, isNot(one.id), reason: 'the same name replaces, under a new id');
+    expect(board.entries.containsKey(one.id), isFalse);
+    expect(board.records.containsKey(one.id), isFalse, reason: 'the old rules\' record goes with them');
+    expect(board.recordOf(again.id).tournaments, 0);
     expect(board.entries.values.where((e) => !e.preset).length, 2);
     expect(() => board.enter(bo, rules('The Rock')), throwsA(isA<EntryException>()));
     expect(() => board.enter(bo, {'name': 'x'}), throwsA(isA<EntryException>()));
-    expect(board.withdraw(bo, one.id), isFalse, reason: 'not Bo\'s');
-    expect(board.withdraw(ana, one.id), isTrue);
+    expect(board.withdraw(bo, again.id), isFalse, reason: 'not Bo\'s');
+    expect(board.withdraw(ana, again.id), isTrue);
     expect(board.withdraw(ana, 'rock'), isFalse, reason: 'a preset');
-    expect(board.entries.containsKey(one.id), isFalse);
+    expect(board.entries.containsKey(again.id), isFalse);
   });
 
   test('a tournament\'s places become points, wins, best and last', () {
@@ -128,5 +132,33 @@ void main() {
     final v2 = await store.write('x.json', '{"a":1}', ifVersion: v1);
     expect(v2, isNot(v1));
     expect((await store.read('x.json'))?.text, '{"a":1}');
+  });
+
+  test('an entry is within the limits, and its name plain text', () {
+    final ok = {'name': 'Fine', 'decisions': {'action': {'expr': '"call"'}, 'raise_to': {'expr': 'min_raise'}}};
+    Leaderboard.check(ok);
+    String why(Map<String, Object?> json) {
+      try {
+        Leaderboard.check(json);
+        return 'ok';
+      } on EntryException catch (e) {
+        return e.message;
+      }
+    }
+
+    expect(why({...ok, 'tagline': 'x' * 201}), contains('tagline'));
+    expect(why({...ok, 'name': 'Shark\u202e'}), contains('plain text'));
+    expect(why({...ok, 'name': 'Sh\u200bark'}), contains('plain text'));
+    expect(why({...ok, 'decisions': {...ok['decisions'] as Map<String, Object?>, 'pad': {'desc': 'x' * (17 * 1024)}}}), contains('KB'));
+    expect(why({...ok, 'decisions': {for (var i = 0; i < 25; i++) 'd$i': {'expr': '1'}, 'action': {'expr': '"call"'}, 'raise_to': {'expr': '1'}}}), contains('decisions'));
+    expect(why({...ok, 'name': 'Café Zürich'}), 'ok', reason: 'accents are plain text');
+  });
+
+  test('the same rules again are spotted; different ones are not', () {
+    final board = Leaderboard(models: models, random: Random(2));
+    board.enter(ana, rules('Ana One'));
+    expect(board.unchanged(ana, rules('ana one')), isNotNull);
+    expect(board.unchanged(bo, rules('Ana One')), isNull, reason: 'not Bo\'s');
+    expect(board.unchanged(ana, {...rules('Ana One'), 'tagline': 'new'}), isNull);
   });
 }

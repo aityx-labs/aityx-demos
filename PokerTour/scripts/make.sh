@@ -12,9 +12,9 @@
 #
 # The web build takes CanvasKit from our own origin (--no-web-resources-cdn),
 # so no third-party script of ours runs on the origin that holds the
-# tour's aityx key (Google's sign-in SDK is loaded by the sign-in plugin).
-# The app calls aityx itself, on the key it fetched from S3 after the
-# sign-in. The native builds have no sign-in and no key, so their
+# player's own aityx key (Google's sign-in SDK is loaded by the sign-in
+# plugin). The app calls aityx itself, on the key the player set in
+# Profile. The native builds have no sign-in and no key, so their
 # decisions answer "aityx is not set up".
 #
 # The version is X.Y.Z: X and Y from version.X.txt and version.Y.txt, Z the

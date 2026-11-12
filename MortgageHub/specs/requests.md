@@ -409,3 +409,15 @@ spec.
     and expects the `/demos/aityx/` URLs. See [aityx.ai
     integration](aityx.md), [Regulatory check](regulatory-check.md) and
     [Development environment](dev-environment.md).
+
+## 2026-11-12
+
+46. **Make sure each demo has a link back to "aityx demos"
+    (https://aityx.ai/demos), visible but discreet; add it where it is
+    missing.** Mortgage Hub had none. The welcome page gained it under the
+    button, above the version: a left arrow and *aityx demos*, small and
+    muted, primary and underlined under the pointer. A tap opens the index
+    page, `/demos/` on the page's origin (https://aityx.ai/demos/ on the
+    aityx website, the local index in development), in the same tab;
+    embedded (`?embed=1`) it isn't shown. It is `AityxDemosLink`, new in the
+    shared `aityx_web` package. See [Welcome page](welcome.md).

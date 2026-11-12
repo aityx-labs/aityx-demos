@@ -1,3 +1,4 @@
+import 'package:aityx_web/aityx_web.dart' show AityxDemosLink;
 import 'package:flutter/material.dart';
 
 import '../aityx/aityx_call_view.dart';
@@ -485,6 +486,16 @@ class _MenuBar extends StatelessWidget {
               ),
             ),
           ]),
+          const Spacer(),
+          // The way back to the index page, at the end of the bar, in the
+          // menus' own type.
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 10),
+            child: AityxDemosLink(
+              style: TextStyle(fontSize: 13, color: Classic.text),
+              hoverColor: Classic.selection,
+            ),
+          ),
         ],
       ),
     );

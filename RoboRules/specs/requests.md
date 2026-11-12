@@ -260,3 +260,15 @@ The requests that shaped RoboRules, oldest first, each with what changed.
     aityx call behind it."), in the same muted text, scrolling when the
     panel is short; the lines show as before once events arrive (see
     [The window](window.md)).
+
+## 2026-11-12
+
+26. **Make sure each demo has a link back to "aityx demos"
+    (https://aityx.ai/demos), visible but discreet; add it where it is
+    missing.** RoboRules had none. The menu bar gained it at its right end,
+    in the menus' type: a left arrow and *aityx demos*, blue and underlined
+    under the pointer. A tap opens the index page, `/demos/` on the page's
+    origin (https://aityx.ai/demos/ on the aityx website, the local index in
+    development), in the same tab; embedded (`?embed=1`) it isn't shown. It
+    is `AityxDemosLink`, new in the shared `aityx_web` package. See [The
+    window](window.md).

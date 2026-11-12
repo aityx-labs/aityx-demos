@@ -81,6 +81,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('PokerFace'), findsOneWidget);
+    // The way back to the index page, under the title.
+    expect(find.text('aityx demos'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('aityx demos')).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(find.text('PokerFace')).dy),
+    );
     expect(find.text('Rocky'), findsOneWidget);
     expect(find.text('Max'), findsOneWidget);
     expect(find.text('Press play to deal.'), findsOneWidget);

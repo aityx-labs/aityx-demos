@@ -301,6 +301,16 @@ void main() {
     final c = battle(FakeApi())..rounds = 1;
     await tester.pumpWidget(RoboRulesApp(controller: c));
     expect(find.text('Events'), findsOneWidget);
+    // The way back to the index page, at the right end of the menu bar.
+    expect(find.text('aityx demos'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('aityx demos')).dx,
+      greaterThan(tester.getTopRight(find.text('Help')).dx),
+    );
+    expect(
+      tester.getCenter(find.text('aityx demos')).dy,
+      moreOrLessEquals(tester.getCenter(find.text('Help')).dy, epsilon: 2),
+    );
     c.start();
     for (var i = 0; i < 400 && c.state != BattleState.over; i++) {
       await tester.pump(const Duration(milliseconds: 20));

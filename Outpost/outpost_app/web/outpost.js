@@ -137,6 +137,8 @@ const headersFor=c=>Object.assign({"Content-Type":"application/json"},c&&c.key?{
 const endpoint=()=>LIVE.conn?LIVE.conn.systemone:DEFAULT_URL+"/v1/systemone";
 // the demos page's key section; embedded (?embed=1), the page around the app shows its own key form
 function openKey(){ if(EMBED){ window.parent.postMessage("aityx:key","*"); return; } location.assign(DEMOS+"#aityx-key"); }
+// the header's way back to the demos page: not shown embedded, where the user stays on the page around the app
+if(EMBED) document.getElementById("demoslink").hidden=true;
 const V=(a,k)=>{const x=a&&a[k]; if(x==null) return undefined; if(typeof x!=="object"||Array.isArray(x)) return x; for(const f of ["value","choice","number","date","noul","level","score"]) if(f in x) return x[f]; return x;};
 let bestNights=0; try{ bestNights=+localStorage.getItem("outpost.nights.survived")||0; }catch(_){}
 const RULES_V=2; // v2: the factory runs on spare power only and adds battery storage

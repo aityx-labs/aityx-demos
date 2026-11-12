@@ -16,4 +16,17 @@ void main() {
     // A test build has no CONTACTHUB_VERSION, so no X.Y.Z shows.
     expect(find.textContaining(RegExp(r'^\d+\.\d+\.\d+$')), findsNothing);
   });
+
+  testWidgets('links back to the aityx demos, under the request box', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const ContactHubApp());
+
+    final link = find.text('aityx demos');
+    expect(link, findsOneWidget);
+    expect(
+      tester.getTopLeft(link).dy,
+      greaterThan(tester.getBottomLeft(find.byType(RequestBox)).dy),
+    );
+  });
 }

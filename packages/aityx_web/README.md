@@ -87,6 +87,26 @@ once every 30 s. There's no polling timer: each check spends a request of the
 user's quota. A tap opens the index page's key section (`/demos/#aityx-key`) in the same
 tab.
 
+## The link back
+
+`AityxDemosLink`: a left arrow and "aityx demos" (`aityxDemosLabel`), the way
+back from a demo to the index page. Small, in the muted colour of the app's
+secondary text (the theme's `bodySmall` in `onSurfaceVariant`), the primary
+colour and underlined under the pointer; `style` and `hoverColor` change that.
+A tap opens `aityxDemosPage()`, `/demos/` on the page's origin
+(https://aityx.ai/demos/ on the aityx website), in the same tab. Each app
+places it once, where its name is: under the title in the top bar (Cellfie,
+RiverRace, PokerFace), at the end of the menu bar (RoboRules), on the welcome
+page (Mortgage Hub, Contact Hub).
+
+```dart
+const Column(
+  mainAxisSize: MainAxisSize.min,
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [Text('Cellfie'), AityxDemosLink()],
+)
+```
+
 ## Embedded
 
 The aityx website's blueprint pages open an app in a frame, at
@@ -94,8 +114,9 @@ The aityx website's blueprint pages open an app in a frame, at
 `/demos/key.html`). With `embed=1` (read once, from the URL the app loaded with)
 `aityxEmbedded` is true and a tap on the light posts `aityxKeyMessage`
 (`"aityx:key"`) to the page around the app instead of leaving for the index page;
-the page shows its key form. An app with links of its own to the index page
-hides them when `aityxEmbedded`, so the user stays on the blueprint page.
+the page shows its key form. `AityxDemosLink` takes no room
+when `aityxEmbedded`, and an app with links of its own to the index page
+hides them too, so the user stays on the blueprint page.
 
 ## Tests in the apps
 
@@ -122,6 +143,9 @@ MaterialApp(
       light: AityxStatusLight(client: mock, store: AityxKeyStore.memory())),
 )
 AityxStatusLight(check: () async => AityxState.noKey)
+
+// The link back, without leaving the page:
+AityxDemosLink(onTap: () => opened++)
 
 // Or a default store for everything that isn't given one:
 AityxSettings.store = AityxKeyStore.memory();

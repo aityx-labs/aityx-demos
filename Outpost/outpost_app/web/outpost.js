@@ -233,8 +233,11 @@ function checkKey(){
 async function startNight(){
   if(!live()||G.busy||G.state!=="plan") return;
   G.busy=true; ui(); note("aityx is running the night…");
-  let r; try{ r=await callNight(G.phase,G.city,G.build,G.rules); }catch(e){ G.busy=false; note("Couldn't reach aityx. Check your connection, then start the night again.","warn"); setConn("error","Couldn't reach aityx on the last night. Start the night again to retry."); return; }
-  showCall(r.req,r.res,r.status); G.busy=false;
+  // Start over, a new key or a key gone while aityx answers: G or the connection is another one, and the answer is dropped.
+  const game=G, conn=LIVE.conn, stale=()=>G!==game||LIVE.conn!==conn;
+  let r; try{ r=await callNight(G.phase,G.city,G.build,G.rules); }catch(e){ game.busy=false; if(stale()) return; note("Couldn't reach aityx. Check your connection, then start the night again.","warn"); setConn("error","Couldn't reach aityx on the last night. Start the night again to retry."); return; }
+  game.busy=false; if(stale()) return;
+  showCall(r.req,r.res,r.status);
   if(r.status===401||r.status===403){ dropLive(); note("aityx stopped accepting this key. Set a new one on the demos page to keep playing live.","warn"); setConn("invalid","aityx stopped accepting this key. Set a new one on the demos page to keep playing live."); showTab("play"); return; }
   if(!r.res&&r.status>=500){ note(`aityx couldn't run this night (HTTP ${r.status}).`,"warn"); setConn("error",`aityx answered HTTP ${r.status}. Start the night again to retry.`); return; }
   if(r.err){ note(`aityx couldn't run this night: ${r.err}`,"warn"); ui(); return; }

@@ -46,7 +46,11 @@ what the chat's words settle wins over the model's answer:
 - **People.** A name that isn't in the chat is left out (small models copy
   names from their examples), and so is something that isn't a name ("Hal's
   kids"). Someone the chat names only to say they aren't coming ("Cousin
-  Gil can't make it") is left out, with a note, unless they paid something.
+  Gil can't make it") is left out, with a note, unless they paid something;
+  a "not coming" is theirs only in their part of the sentence ("Alice is
+  coming but Bob can't come" leaves out Bob alone), and not when the
+  sentence says first that they come ("Alice is coming and Bob cannot
+  come").
   People the model missed are added when the chat's wording is clear: a
   kid with an age in brackets, a parent named on a kid's line, who "brings
   his kids" or is in "Jo's daughter", whose place the first sentence says
@@ -62,7 +66,10 @@ what the chat's words settle wins over the model's answer:
   under 18 with no parent in the lists counts as an adult, with a note.
 - **Nights.** The trip's are the most the chat counts ("5 nights from Dec
   23"). A person's are fewer when a sentence that names them counts nights
-  ("Leo only makes it for the last 2 nights, and Tess comes with him"),
+  ("Leo only makes it for the last 2 nights, and Tess comes with him"; with
+  two counts, each is for the people named before it, a whole stay
+  included: "Alice stays 2 nights but Bob stays all 4" shortens Alice's
+  alone),
   says "a night early", or gives the day they arrive or leave ("Ruth
   arrives on the 30th"), counted from the first day. The model's word for
   fewer nights is taken only for someone the chat says comes late or

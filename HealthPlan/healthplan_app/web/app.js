@@ -243,7 +243,7 @@ function factsState(youOnly){
 async function readLive(){
   if(!live()) return;
   clearTimeout(LIVE.timer);
-  S.what=null; clearDirty();
+  S.what=null; S.msgEdited=false; clearDirty();
   const seq=++LIVE.seq;
   const body={questions:jevQuestions(),decision:buildDecision(S.plans,S.prices,S.members),state:{message:$("msg").value,members:persons(),...factsState(true)}};
   S.A=null; renderResult(); liveNote("aityx is reading your message and pricing the plans…");
@@ -291,8 +291,9 @@ function queueLive(){
 }
 function clearDirty(){ if(S) S.dirty=false; document.body.classList.remove("dirty"); }
 function updateGo(){ $("go").textContent=live()&&S&&S.jevRead?"Compare again":"Compare plans"; }
+// A changed message needs aityx to read it again; anything else, the rules alone.
 function compareAgain(){
-  settleLive();
+  if(S.msgEdited) readLive(); else settleLive();
   $("result").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"start"});
 }
 
@@ -395,10 +396,12 @@ function setNote(){
   $("msgnote").textContent="aityx reads this message for each person's care and any pregnancy. Try a what-if under the results to see the winner change.";
   $("chips").hidden=true;
 }
-function msgChanged(){ const n=$("msgnote"); n.textContent="Message changed. Press Compare plans and aityx reads it again."; n.classList.add("warn"); liveNote("Message changed. Press Compare plans and aityx reads it again.","warn"); }
+function msgChanged(){ S.msgEdited=true; if(S.A){ S.dirty=true; document.body.classList.add("dirty"); updateGo(); }
+  const n=$("msgnote"); n.textContent="Message changed. Press Compare plans and aityx reads it again."; n.classList.add("warn"); liveNote("Message changed. Press Compare plans and aityx reads it again.","warn"); }
 function countChars(){ const n=$("msg").value.length; $("count").textContent=`${n}/600`; }
 function lockInputs(){
   const lk=!live(); document.body.classList.toggle("locked",lk);
+  $("msg").hidden=lk; $("msg").disabled=lk; $("msgq").hidden=!lk; $("count").hidden=lk;
   document.querySelectorAll("#fam input,#fam button,#add,#ptable input,#prices input,#understood select,#understood input").forEach(el=>el.disabled=lk);
 }
 function connectUI(){

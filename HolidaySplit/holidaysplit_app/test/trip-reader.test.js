@@ -199,6 +199,11 @@ describe('who stays fewer nights, from the chat\'s own words', () => {
   it('splits a sentence with two counts between the people before each', () => {
     expect(said('Leo stays 2 nights and Tess 3 nights; Sam is there all week.', P('Sam', 'Leo', 'Tess'), 7)).toEqual({ leo: 2, tess: 3 });
   });
+  it('keeps a whole stay\'s count apart from the shorter one', () => {
+    expect(said('Alice stays 2 nights but Bob stays all 4 nights.', P('Alice', 'Bob'), 4)).toEqual({ alice: 2 });
+    expect(said('Of our 4 nights, Leo and Tess stay 2 nights.', P('Leo', 'Tess'), 4)).toEqual({ leo: 2, tess: 2 });
+    expect(said('Ruth arrives on the 30th, 4 nights for everyone else.', P('Ruth', 'Tom'), 4)).toEqual({ ruth: 3 });
+  });
   it('counts "a night early" from the trip, and days from its first day', () => {
     const people = P('Tom', 'Lu', 'Ruth', 'Kenji', 'Priya');
     expect(said('Tom and Lu leave on the 1st, a night early. Ruth arrives on the 30th. Priya booked it.', people, 4)).toEqual({ tom: 3, lu: 3, ruth: 3 });
@@ -261,6 +266,14 @@ describe('who comes, from the chat\'s own words', () => {
   it('knows who the chat names only to say they aren\'t coming', () => {
     const chat = "Cousin Gil can't make it. Zed might come but hasn't confirmed, don't count him. Leo can't make it for the first night. Ezra can only come for the last 2 nights. Rose is coming too, she doesn't drink.";
     expect(P('Cousin Gil', 'Zed', 'Leo', 'Ezra', 'Rose', 'Nobody').map((p) => notComing(chat, p))).toEqual([true, true, false, false, false, false]);
+  });
+  it('says it only of the person the sentence says isn\'t coming', () => {
+    const who = P('Alice', 'Bob', 'Gil', 'Ana', 'Zed');
+    const out = (chat) => who.filter((p) => notComing(chat, p)).map((p) => p.id);
+    expect(out('Alice is coming but Bob cannot come.')).toEqual(['bob']);
+    expect(out('Alice is coming and Bob cannot come.')).toEqual(['bob']);
+    expect(out("Bob can't come, but Alice is coming.")).toEqual(['bob']);
+    expect(out("Gil, Ana and Zed can't make it.")).toEqual(['gil', 'ana', 'zed']);
   });
   it('finds the names listed with people it knows', () => {
     expect(listedWith("Ski week, $3,100. It's Hal, Ines, Jax, Kay and Lon. Kay bought snacks, wine and beer.", P('Ines', 'Kay', 'Lon'))).toEqual(['Hal', 'Jax']);

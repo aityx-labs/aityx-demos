@@ -13,6 +13,12 @@
 ///                       or its API when it has no web app, answers right
 ///                       now; for scripts. With INDEX_DEMOS set, exactly
 ///                       the folders it names instead
+///   GET /api/settings   {"cluster": false, "ports": {"DATYX_API_PORT":
+///                       9900, ...}}: where this run publishes each
+///                       system, by the name of its setting below, and
+///                       whether this is the local Kubernetes cluster's
+///                       copy. The page builds its links, the ports in
+///                       its text and its footer from it
 ///
 /// Settings: INDEX_PORT (default 9800), INDEX_BIND_HOST (127.0.0.1),
 /// INDEX_GROUP (datyx), INDEX_DEMOS (unset): for a server with no folders
@@ -20,6 +26,15 @@
 /// check>, e.g. datyx=http://datyx-api:9900/api/health; /api/demos then
 /// lists those folders, each with its URL and whether that answers 2xx
 /// or 3xx within 2 s.
+///
+/// And what /api/settings answers, the ports as a browser reaches them
+/// (a local run needs none of these; k8s/deployment.yaml sets the
+/// cluster's): DATYX_DASHBOARD_WEB_PORT (9906), DATYX_API_PORT (9900),
+/// DATYX_OPENMETADATA_PORT (9902), DATYX_DEBUG_PORT (9905, the last of
+/// the API's ports in a local run), HEALTHHUB_WEB_PORT (9801),
+/// HEALTHHUB_FLINK_PORT (9806), the indexes' AITYX_INDEX_PORT (8800),
+/// MULTYX_INDEX_PORT (9700) and DATYX_INDEX_PORT (this one's, INDEX_PORT
+/// unless set), and INDEX_ON_CLUSTER (false; true or 1 on the cluster).
 library;
 
 import 'dart:async';
@@ -38,13 +53,43 @@ final Map<String, String> _listed = _parseDemos(
   Platform.environment['INDEX_DEMOS'] ?? '',
 );
 
+/// The ports the page links to and names, each a setting with its usual
+/// port, a local run's, as the default. Named as the system's own
+/// setting where it has one (datyx/.env.example, HealthHub/.env.example);
+/// the web apps' is FLUTTER_WEB_PORT in each of their folders, so here
+/// each has a name of its own. DATYX_INDEX_PORT, this index's, defaults
+/// to INDEX_PORT.
+const _usualPorts = {
+  'AITYX_INDEX_PORT': 8800,
+  'MULTYX_INDEX_PORT': 9700,
+  'DATYX_DASHBOARD_WEB_PORT': 9906,
+  'DATYX_API_PORT': 9900,
+  'DATYX_OPENMETADATA_PORT': 9902,
+  'DATYX_DEBUG_PORT': 9905,
+  'HEALTHHUB_WEB_PORT': 9801,
+  'HEALTHHUB_FLINK_PORT': 9806,
+};
+
+/// What GET /api/settings answers, read from the environment once, at
+/// start.
+late final Map<String, Object> _settings;
+
 Future<void> main() async {
   final env = Platform.environment;
-  final port = int.parse(env['INDEX_PORT'] ?? '9800');
   final host = env['INDEX_BIND_HOST'] ?? '127.0.0.1';
-  // A malformed INDEX_DEMOS stops the server at start, not at the first
-  // /api/demos.
+  // A malformed setting stops the server at start, not at the first
+  // /api/demos or with a page of wrong links.
+  final int port;
   try {
+    port = _port(env, 'INDEX_PORT', 9800);
+    _settings = {
+      'cluster': _flag(env, 'INDEX_ON_CLUSTER'),
+      'ports': {
+        'DATYX_INDEX_PORT': _port(env, 'DATYX_INDEX_PORT', port),
+        for (final usual in _usualPorts.entries)
+          usual.key: _port(env, usual.key, usual.value),
+      },
+    };
     if (_listed.isNotEmpty) {
       stdout.writeln('listing INDEX_DEMOS: ${_listed.keys.join(', ')}');
     }
@@ -69,6 +114,8 @@ Future<void> _handle(HttpRequest request) async {
       _json(response, 200, {'ok': true});
     } else if (path == '/api/demos') {
       _json(response, 200, {'demos': await _demos()});
+    } else if (path == '/api/settings') {
+      _json(response, 200, _settings);
     } else {
       await _file(response, path);
     }
@@ -187,6 +234,29 @@ Future<bool> _answers(String url, {int below = 300}) async {
   } catch (_) {
     return false;
   }
+}
+
+/// The port the setting [name] says, [usual] when it's unset or empty.
+/// Anything but a whole number from 1 to 65535 is a FormatException:
+/// "tcp://10.96.0.12:9900", say, which Kubernetes sets as DATYX_API_PORT
+/// in a pod beside a Service named datyx-api unless the pod opts out.
+int _port(Map<String, String> env, String name, int usual) {
+  final value = (env[name] ?? '').trim();
+  if (value.isEmpty) return usual;
+  final port = int.tryParse(value);
+  if (port == null || port < 1 || port > 65535) {
+    throw FormatException('$name: "$value" is not a port (1 to 65535)');
+  }
+  return port;
+}
+
+/// Whether the setting [name] says true (true or 1) and not false (false,
+/// 0, empty or unset). Anything else is a FormatException.
+bool _flag(Map<String, String> env, String name) {
+  final value = (env[name] ?? '').trim().toLowerCase();
+  if (value == 'true' || value == '1') return true;
+  if (value.isEmpty || value == 'false' || value == '0') return false;
+  throw FormatException('$name: "${env[name]}" is not true or false');
 }
 
 /// INDEX_DEMOS's <folder>=<URL> pairs, comma-separated. A pair without a

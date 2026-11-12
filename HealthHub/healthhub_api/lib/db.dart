@@ -16,6 +16,7 @@ import 'history.dart';
 import 'occupancy_alarms.dart' show AlarmCareCenter, ObservedOccupancy, forecastSteps;
 import 'routes.dart' show Bbox, hourlyMax;
 import 'schema_comments.dart';
+import 'simulated_history.dart';
 import 'simulation.dart' show LatLon, Place;
 
 /// Where the database is, from the environment (scripts/api.sh and
@@ -1422,7 +1423,19 @@ class Db {
   /// the simulation's admissions and the health check would fail during
   /// the history's transactions, and their failure would close it under
   /// them (on a first start, when the whole history is written).
-  Future<HistoryWritten> writeHistory(List<Place> centers, int days) async {
+  Future<HistoryWritten> writeHistory(List<Place> centers, int days) =>
+      _apart((connection) => writeAdmissionsHistory(connection, centers, days));
+
+  /// Makes the admissions table hold exactly [admissions] as the simulated
+  /// history (lib/simulated_history.dart's [writeSimulatedHistory]), and
+  /// admissions_hourly their counts, on a connection of its own, as
+  /// [writeHistory].
+  Future<SimulatedWritten> writeSimulated(List<Map<String, Object?>> admissions) =>
+      _apart((connection) => writeSimulatedHistory(connection, admissions));
+
+  /// Runs [action] once no migration runs, on a connection of its own,
+  /// closed after.
+  Future<T> _apart<T>(Future<T> Function(Connection connection) action) async {
     for (var migrating = _migrating; migrating != null; migrating = _migrating) {
       try {
         await migrating;
@@ -1430,7 +1443,7 @@ class Db {
     }
     final connection = await _newConnection();
     try {
-      return await writeAdmissionsHistory(connection, centers, days);
+      return await action(connection);
     } finally {
       try {
         await connection.close();

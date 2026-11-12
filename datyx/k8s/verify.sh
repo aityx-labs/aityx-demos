@@ -218,37 +218,60 @@ else
 fi
 
 # The models: datyx trains the groups the catalogue tags as time series
-# (XGBoost, DeepAR) on HealthHub's data; the runs are in PostgreSQL. The
-# dev profile starts from an empty database, and the first runs come well
-# after the catalogue's first table: the sync writes the tables, their
-# profiles and checks run, the curation tags the groups (a minute or more
-# after the first table), and only the trainer's next look, one a minute
-# (datyx.training.check-every), queues them. With the catalogue there the
-# first run is awaited up to 5 minutes; without it, a minute. The first
-# runs may still be under way (a minute or more each): that passes. A
-# group can fail on its data, too young for its horizon (a new
-# HealthHub's patient_days); the line says why.
+# on HealthHub's data, XGBoost on patient_days (group care) and DeepAR on
+# admissions_hourly (default, acute, chronic) and occupancy_hourly
+# (default); the runs are in PostgreSQL. HealthHub's initial data, its
+# two histories, is enough for both algorithms from the first start, so a
+# model of each is awaited: of the Local profile's source, the first the
+# API has. The dev profile starts from an empty database, and the first
+# runs come well after the catalogue's first table: the sync writes the
+# tables, their profiles and checks run, the curation tags the groups (a
+# minute or more after the first table), the trainer's next look, one a
+# minute (datyx.training.check-every), queues them, and they train one
+# at a time, a minute or so each. With the catalogue there they are
+# awaited up to 12 minutes; without it, a minute. A run that failed is
+# shown with why.
+state() {
+  sql "select coalesce(max(status) filter (where status = 'SUCCEEDED'),
+      max(status) filter (where status in ('QUEUED', 'RUNNING')), max(status), 'none')
+    from training_run where data_source_id = ${hh:-0} and split_part(table_fqn, '.', 4) = '$1'
+      and group_name = '$2' and algorithm = '$3'"
+}
 tries=20
-[[ "${tables:-0}" -gt 0 ]] && tries=100
+[[ "${tables:-0}" -gt 0 ]] && tries=240
 for _ in $(seq 1 "$tries"); do
-  counts="$(sql "select count(*) filter (where status = 'SUCCEEDED') || ' ' ||
-    count(*) filter (where status in ('QUEUED', 'RUNNING')) || ' ' || count(*) filter (where status = 'FAILED')
-    from training_run")"
-  read -r succeeded under_way failed_runs <<<"${counts:-0 0 0}"
-  [[ "$((succeeded + under_way + failed_runs))" -gt 0 ]] && break
+  xgb="$(state patient_days care XGBoost)"
+  deepar="$(state occupancy_hourly default DeepAR)"
+  hourly="$(state admissions_hourly default DeepAR)"
+  [[ "$xgb" == SUCCEEDED && "$deepar" == SUCCEEDED && "$hourly" == SUCCEEDED ]] && break
+  # A failure with nothing queued behind it stays one until the next
+  # schedule: no use waiting.
+  [[ "$xgb" == FAILED || "$deepar" == FAILED || "$hourly" == FAILED ]] && break
   sleep 3
 done
+counts="$(sql "select count(*) filter (where status = 'SUCCEEDED') || ' ' ||
+  count(*) filter (where status in ('QUEUED', 'RUNNING')) || ' ' || count(*) filter (where status = 'FAILED')
+  from training_run")"
+read -r succeeded under_way failed_runs <<<"${counts:-0 0 0}"
 models="$(sql "select string_agg(distinct split_part(table_fqn, '.', 4) || ' ' || group_name || ' (' || algorithm || ')', ', ')
   from training_run where status = 'SUCCEEDED'")"
-error="$(sql "select left(error, 160) from training_run where status = 'FAILED' order by id desc limit 1")"
+error="$(sql "select split_part(table_fqn, '.', 4) || ' ' || group_name || ' (' || algorithm || '): ' || left(error, 160)
+  from training_run where status = 'FAILED' order by id desc limit 1")"
 note=""
-[[ "$failed_runs" -gt 0 ]] && note=" (the latest failure: $error)"
-if [[ "$succeeded" -gt 0 ]]; then
-  ok "training: $succeeded runs succeeded, $under_way under way, $failed_runs failed$note; models: $models"
-elif [[ "$under_way" -gt 0 ]]; then
-  ok "training: the first $under_way runs under way since the start, $failed_runs failed$note"
+[[ "${failed_runs:-0}" -gt 0 ]] && note=" (the latest failure: $error)"
+if [[ "$xgb" == SUCCEEDED && "$deepar" == SUCCEEDED && "$hourly" == SUCCEEDED ]]; then
+  ok "training: a model of each algorithm on HealthHub's initial data, XGBoost's of patient_days and DeepAR's of occupancy_hourly and admissions_hourly; $succeeded runs succeeded, $under_way under way, $failed_runs failed$note; models: $models"
 else
-  ko "training: $succeeded succeeded, $under_way under way, $failed_runs failed${error:+: $error} (none come before HealthHub's catalogue)"
+  ko "training: patient_days care (XGBoost) ${xgb:-none}, occupancy_hourly default (DeepAR) ${deepar:-none}, admissions_hourly default (DeepAR) ${hourly:-none}; $succeeded succeeded, $under_way under way, $failed_runs failed${error:+: $error} (none come before HealthHub's catalogue)"
+fi
+# What the first runs of each said: one that failed for want of data
+# means HealthHub's histories weren't there when datyx first looked.
+first_failed="$(sql "select string_agg(split_part(table_fqn, '.', 4) || ' ' || group_name || ' (' || algorithm || '): ' || left(error, 100), '; ')
+  from training_run where trigger = 'INITIAL' and status = 'FAILED' and data_source_id = ${hh:-0}")"
+if [[ -z "$first_failed" ]]; then
+  ok "training: no first run of the Local profile's failed, so HealthHub's initial data was enough for each"
+else
+  ko "training: first runs failed: $first_failed"
 fi
 
 # The aityx gateway, from inside the API's container: the status, then a

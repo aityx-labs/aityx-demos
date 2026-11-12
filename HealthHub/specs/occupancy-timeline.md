@@ -113,7 +113,8 @@ its two endpoints, open the same way:
 
 - `GET /api/care-centers/{id}/occupancy?run=&hours=72`: the people in
   care there per hour from `occupancy_hourly`, of the run going on (or
-  `run`; in prod, the newest run with an admission there): `{"hospitalId",
+  `run`; in prod, the newest run with an admission there, which can be
+  the simulated history's, `00000001`): `{"hospitalId",
   "run", "current", "end", "threshold", "now", "hours": [{"hour",
   "occupancy", "predicted"}]}`, the `hours` hours up to `end` (at most
   720), oldest first, the hours as `YYYY-MM-DDTHH:MM` in simulated time

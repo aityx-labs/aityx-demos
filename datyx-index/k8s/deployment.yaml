@@ -3,8 +3,11 @@
 # folders beside it to read, so INDEX_DEMOS names the group's systems
 # /api/demos reports on, each with the in-cluster URL that says it's up:
 # the datyx API's health check, and the dashboard's and HealthHub's web
-# apps. The page's links need nothing here: it shifts every demo's port
-# by its own, 19800 - 9800.
+# apps. The page asks the server where everything is (/api/settings), so
+# the *_PORT settings below say where the cluster publishes each system
+# on this host (k8s/kind/cluster.yaml: its usual port plus 10000), and
+# INDEX_ON_CLUSTER that this copy is the cluster's, for the page's footer
+# and the ports its cards name.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,8 +26,9 @@ spec:
         app.kubernetes.io/name: datyx-index
         aityx-demos/build: local
     spec:
-      # The namespace's other Services' variables (DATYX_API_PORT, ...) are
-      # of no use to it.
+      # No variables from the namespace's other Services: the one of
+      # datyx-api would be DATYX_API_PORT=tcp://..., a setting of this
+      # server (set below, which wins either way).
       enableServiceLinks: false
       automountServiceAccountToken: false
       securityContext:
@@ -47,6 +51,26 @@ spec:
               value: 0.0.0.0
             - name: INDEX_DEMOS
               value: datyx=http://datyx-api:9900/api/health,datyx-dashboard=http://datyx-dashboard:9906/app/,HealthHub=http://healthhub:9801/app/
+            # What the page links to and names: the host ports of
+            # k8s/kind/cluster.yaml, not the Services' own.
+            - name: INDEX_ON_CLUSTER
+              value: "true"
+            - name: DATYX_INDEX_PORT
+              value: "19800"
+            - name: DATYX_DASHBOARD_WEB_PORT
+              value: "19906"
+            - name: DATYX_API_PORT
+              value: "19900"
+            - name: DATYX_OPENMETADATA_PORT
+              value: "19902"
+            - name: HEALTHHUB_WEB_PORT
+              value: "19801"
+            - name: HEALTHHUB_FLINK_PORT
+              value: "19806"
+            - name: AITYX_INDEX_PORT
+              value: "18800"
+            - name: MULTYX_INDEX_PORT
+              value: "19700"
           # process-compose.yaml's readiness probe: /api/health.
           readinessProbe:
             httpGet:

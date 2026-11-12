@@ -3,7 +3,8 @@
 # for it: /app/bin/server serves /app/www/. Built from this folder (the
 # demo's, datyx-index/) by k8s/build.sh; datyx-index.Dockerfile.dockerignore
 # lets in only bin/ and www/. The server has no folders beside it here,
-# so INDEX_DEMOS says which demos /api/demos lists (see k8s/).
+# so INDEX_DEMOS says which demos /api/demos lists, and its *_PORT
+# settings where a browser reaches each one (see k8s/).
 FROM dart:3.13.0 AS build
 WORKDIR /src
 COPY bin/ bin/

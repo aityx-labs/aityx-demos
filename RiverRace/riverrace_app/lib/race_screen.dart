@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
-import 'package:aityx_web/aityx_web.dart' show AityxDemosLink;
+import 'package:aityx_web/aityx_web.dart'
+    show AityxDemosLink, AityxKeyPrompt;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -392,6 +393,12 @@ class _RaceScreenState extends State<RaceScreen>
               children: _controls(),
             ),
           ),
+        // Without an aityx key, a small form for it, above the race aityx
+        // flies; else nothing. Once saved, the keys fly the plane again.
+        AityxKeyPrompt(
+          padding: const EdgeInsets.only(bottom: 8),
+          onSaved: _focus.requestFocus,
+        ),
         if (_error case final error?)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),

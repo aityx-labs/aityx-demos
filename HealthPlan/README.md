@@ -51,11 +51,21 @@ the key is set once on the index page (**Your aityx key**,
 `sessionStorage`, else `localStorage`, `aityx.key` with `aityx.url`. It calls
 `<url>/v1/systemone` itself. With no key there, it asks the index server's
 `/demos/aityx/config` and, when the server holds a dev key, calls through its
-proxy at `/demos/aityx/v1/systemone`, which adds the key. The page never asks
-for, saves, shows or logs a key.
+proxy at `/demos/aityx/v1/systemone`, which adds the key.
 
-The **Run it with aityx** panel and the pill at the top right say whether
-aityx accepts the key. The check POSTs `{}` (a working key gets 400
+With no key at all (none saved, no dev key), the **Run it with aityx** panel
+holds a small form: the key, optionally the aityx URL (an https URL on
+aityx.ai; `https://api.aityx.ai` when empty), **Save**, and under it **Get a
+key in the aityx console**. **Save** checks the key with one empty call to
+aityx, which runs no model, and saves only a key aityx accepts, in
+`localStorage`, where the index page and every other aityx demo read it; the
+page then goes live. The page never shows or logs a key.
+
+The pill at the top right says whether aityx accepts the key, and so does
+the **Run it with aityx** panel, which is there only while something is
+missing or wrong: with a working key it isn't shown at all, and a key aityx
+rejects, or an aityx that doesn't answer, brings it back with why,
+**Set your aityx key** and **Check again**. The check POSTs `{}` (a working key gets 400
 `invalid_request` and no model runs), on start, when the index page saves or
 forgets the key in another tab, and when the window regains focus, at most
 once every 30 s. **Set your aityx key** opens the index page's key section;

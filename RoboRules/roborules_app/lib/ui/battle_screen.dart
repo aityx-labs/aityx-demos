@@ -1,4 +1,5 @@
-import 'package:aityx_web/aityx_web.dart' show AityxDemosLink;
+import 'package:aityx_web/aityx_web.dart'
+    show AityxDemosLink, AityxKeyPrompt;
 import 'package:flutter/material.dart';
 
 import '../aityx/aityx_call_view.dart';
@@ -293,6 +294,15 @@ class _BattleScreenState extends State<BattleScreen> {
                           Expanded(flex: 2, child: robotsPanel),
                         ],
                       ),
+              ),
+            ),
+            // Without an aityx key, a small form for it, just above Start,
+            // whose every turn is played by aityx; else nothing.
+            const ColoredBox(
+              color: Classic.panel,
+              child: AityxKeyPrompt(
+                padding: EdgeInsets.fromLTRB(6, 6, 6, 4),
+                alignment: Alignment.centerLeft,
               ),
             ),
             _Controls(controller: c, onNew: _newBattle, onCall: _showCall),

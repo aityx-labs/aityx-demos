@@ -109,13 +109,14 @@ function decision(rules){
 
 /* ---------- state ---------- */
 /* ---------- the aityx key, as in every aityx demo (packages/aityx_web) ----------
-   1. The user's key, set once on the demos page (/demos/#aityx-key): sessionStorage, else localStorage,
-      "aityx.key", with "aityx.url" from the same storage (https://api.aityx.ai by default).
+   1. The user's key, set once on the demos page (/demos/#aityx-key) or, while there is none, in this page's
+      own small form (the key strip): sessionStorage, else localStorage, "aityx.key", with "aityx.url" from
+      the same storage (https://api.aityx.ai by default).
       The app calls <url>/v1/systemone itself, with the key as a bearer token.
    2. Else the index server's dev key: GET /demos/aityx/config says whether the server holds one (never the
       key), and calls go through /demos/aityx/v1/systemone, where the server adds it.
    3. Else none: recorded games only.
-   This page never saves, shows or logs a key. */
+   This page never shows or logs a key, and saves only one aityx accepts, where the demos page does. */
 const DEMOS="/demos/", DEFAULT_URL="https://api.aityx.ai";
 const EMBED=new URLSearchParams(location.search).get("embed")==="1"&&window.parent!==window;
 const LIVE={conn:null};             // the connection aityx accepted: live mode while it is set
@@ -135,8 +136,36 @@ async function resolveConn(){
 }
 const headersFor=c=>Object.assign({"Content-Type":"application/json"},c&&c.key?{Authorization:"Bearer "+c.key}:{});
 const endpoint=()=>LIVE.conn?LIVE.conn.systemone:DEFAULT_URL+"/v1/systemone";
-// the demos page's key section; embedded (?embed=1), the page around the app shows its own key form
-function openKey(){ if(EMBED){ window.parent.postMessage("aityx:key","*"); return; } location.assign(DEMOS+"#aityx-key"); }
+// with no key, this page's own form; else the demos page's key section or, embedded (?embed=1), the form of
+// the page around the app
+function openKey(){ if(CONN.state==="none"){ $("keyin").focus(); return; } if(EMBED){ window.parent.postMessage("aityx:key","*"); return; } location.assign(DEMOS+"#aityx-key"); }
+// The URL as typed, as the demos page takes it: the default when empty, else https on a host under aityx.ai
+// (all this page's content security policy lets it reach), no trailing slash. Null when it isn't one.
+function cleanUrl(t){ t=String(t||"").trim(); if(!t) return DEFAULT_URL; let u; try{ u=new URL(t); }catch(_){ return null; }
+  if(u.protocol!=="https:"||u.search||u.hash||u.username||u.password||!u.hostname.endsWith(".aityx.ai")) return null;
+  return (u.origin+u.pathname).replace(/\/+$/,""); }
+// The form's Save: one empty call checks the key with aityx (no model runs), and only a key aityx accepts is
+// saved, on this device, where the demos page and every aityx demo read it. Then the usual check goes live.
+let savingKey=false;
+async function saveKey(e){
+  e.preventDefault(); if(savingKey) return;
+  const say=t=>{ $("keymsg").textContent=t; }, key=$("keyin").value.trim(), url=cleanUrl($("urlin").value);
+  if(!key) return say("Paste your key first.");
+  if(/\s/.test(key)) return say("That doesn't look like a key: it has spaces in it.");
+  if(!url) return say("The URL must be an https URL on aityx.ai, like "+DEFAULT_URL+".");
+  savingKey=true; $("keysave").disabled=true; $("keysave").textContent="Checking…"; say("");
+  try{
+    const ctl=new AbortController(), to=setTimeout(()=>ctl.abort(),15000); let res, data;
+    try{ res=await fetch(url+"/v1/systemone",{method:"POST",signal:ctl.signal,headers:headersFor({key}),body:"{}",credentials:"omit",referrerPolicy:"no-referrer",cache:"no-store"}); data=await res.json().catch(()=>null); }
+    catch(_){ return say("aityx did not answer (the network, or the URL is wrong). Not saved."); }
+    finally{ clearTimeout(to); }
+    if(!(res.status===400&&data&&data.code==="invalid_request")) return say((res.status===401||res.status===403?"aityx rejected the key":"aityx answered HTTP "+res.status)+". Not saved.");
+    try{ for(const s of ["sessionStorage","localStorage"]){ try{ window[s].removeItem("aityx.key"); window[s].removeItem("aityx.url"); }catch(_){} }
+      localStorage.setItem("aityx.key",key); if(url!==DEFAULT_URL) localStorage.setItem("aityx.url",url); }
+    catch(_){ return say("aityx accepts the key, but this browser could not save it."); }
+    $("keyin").value=""; checkKey();
+  } finally{ savingKey=false; $("keysave").disabled=false; $("keysave").textContent="Save"; }
+}
 // the header's way back to the demos page: not shown embedded, where the user stays on the page around the app
 if(EMBED) document.getElementById("demoslink").hidden=true;
 const V=(a,k)=>{const x=a&&a[k]; if(x==null) return undefined; if(typeof x!=="object"||Array.isArray(x)) return x; for(const f of ["value","choice","number","date","noul","level","score"]) if(f in x) return x[f]; return x;};
@@ -164,7 +193,7 @@ async function callNight(ph,city,build,rules){
   const err=!res.ok?(data&&(data.detail||data.title))||`HTTP ${res.status}`:data&&data.decision_error?(data.decision_error.message||data.decision_error.code):!data||!data.answers?"no answers":null;
   return {req:body,res:data,status:res.status,err};
 }
-const CONN_TEXT={none:["Replay · no key","No aityx key yet. Set yours on the demos page to play live."],checking:["Checking key…","Checking for an aityx key…"],ok:["Live · ready","Live mode is ready: your nights run on aityx."],invalid:["Key rejected","aityx did not accept the key. Set a new one on the demos page."],error:["Connection error","Couldn't reach aityx."]};
+const CONN_TEXT={none:["Replay · no key","No aityx key yet. Set yours here to play live."],checking:["Checking key…","Checking for an aityx key…"],ok:["Live · ready","Live mode is ready: your nights run on aityx."],invalid:["Key rejected","aityx did not accept the key. Set a new one on the demos page."],error:["Connection error","Couldn't reach aityx."]};
 function setConn(st,msg){ CONN.state=st; CONN.msg=msg||""; ui(); }
 function dropLive(){ if(!LIVE.conn) return; LIVE.conn=null; clearInterval(G.timer); resetReplay(RP.run); }
 // The check the status light makes in every aityx demo: POST {} to systemone. aityx checks the key first,
@@ -991,12 +1020,14 @@ function ui(){
   document.body.dataset.conn=cs; $("mode").dataset.conn=cs; $("mode").querySelector("span").textContent=short; $("mode").title=long;
   $("conndot").dataset.conn=cs; $("conndot").setAttribute("aria-label",short);
   $("connstat").dataset.conn=cs; $("connmsg").textContent=CONN.msg||long; $("connretry").hidden=cs==="checking"||cs==="ok";
-  const lt=$("aityx-light"), tip={ok:"aityx: ready — the key works"+(LIVE.conn&&LIVE.conn.url?" with "+LIVE.conn.url:""),none:"aityx: no key — set yours on the index page",checking:"aityx: checking the key",invalid:"aityx: key rejected — "+(CONN.msg||long),error:"aityx: not reachable — "+(CONN.msg||long)}[cs];
+  const lt=$("aityx-light"), tip={ok:"aityx: ready — the key works"+(LIVE.conn&&LIVE.conn.url?" with "+LIVE.conn.url:""),none:"aityx: no key — set yours here or on the index page",checking:"aityx: checking the key",invalid:"aityx: key rejected — "+(CONN.msg||long),error:"aityx: not reachable — "+(CONN.msg||long)}[cs];
   lt.dataset.conn=cs; lt.title=tip; lt.setAttribute("aria-label",tip);
   $("setkey").textContent=L?"Change key":"Set your aityx key";
-  $("api-where").textContent=!LIVE.conn?"Calls go to aityx once a key is set on the demos page.":LIVE.conn.source==="dev"?`Calls go through the index server's dev proxy (${LIVE.conn.whose}${LIVE.conn.url?", "+LIVE.conn.url:""}).`:`Calls go to ${LIVE.conn.systemone}, with the key set on the demos page.`;
+  $("api-where").textContent=!LIVE.conn?"Calls go to aityx once a key is set.":LIVE.conn.source==="dev"?`Calls go through the index server's dev proxy (${LIVE.conn.whose}${LIVE.conn.url?", "+LIVE.conn.url:""}).`:`Calls go to ${LIVE.conn.systemone}, with your key.`;
   $("recall").hidden=!(L&&REC_MODE);
   { const n=RUNORDER.filter(k=>!REC[k]||REC[k].rv!==RULES_V).length; $("recall").textContent=n?`Record ${n} new game${n===1?"":"s"}`:"Re-record all games"; }
+  // with a working key the strip has nothing to ask or say: gone (the pill and the light say it is live)
+  $("keystrip").hidden=cs==="ok"&&$("recall").hidden;
   document.body.classList.toggle("locked",!L);
   $("liveplay").hidden=!L; $("replayplay").hidden=L;
   const survived=G.stars.filter(x=>x!=null).length, recent=G.stars.map((x,i)=>[x,i]).filter(([x])=>x!=null).slice(-6);
@@ -1056,6 +1087,7 @@ $("win-close").onclick=()=>{ $("win").close(); showTab("why"); };
 
 /* ---------- events ---------- */
 $("setkey").onclick=e=>{ e.preventDefault(); openKey(); };
+$("connect").onsubmit=saveKey;
 $("keybtn").onclick=openKey;   // the header button (and the "Set your aityx key to play" buttons, through it)
 $("aityx-light").onclick=openKey;
 $("connretry").onclick=()=>checkKey();

@@ -113,7 +113,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .howcard{width:min(720px,100%);max-height:100%;overflow:auto;background:var(--card);border:1px solid var(--acc);border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 24px 70px rgba(0,0,0,.5)}
 .how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .how div{background:var(--card2);border-radius:12px;padding:12px;font-size:14px}
-.legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;font-size:13px;line-height:1.35}.legend div{display:flex;gap:8px;align-items:baseline}.legend b{font:700 12px var(--mono);color:var(--fg);white-space:nowrap;min-width:92px}.legend i{display:inline-block;width:18px;height:4px;border-radius:2px;vertical-align:middle;margin-right:2px}
+.legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;font-size:13px;line-height:1.35}.legend div{display:flex;gap:8px;align-items:baseline}.legend b{font:700 12px var(--mono);color:var(--fg);white-space:nowrap;min-width:92px}.legend i{display:inline-block;width:18px;height:4px;border-radius:2px;vertical-align:middle;margin-right:2px}.legend .wide{grid-column:1/-1}.legend em{font-style:normal;color:var(--sun);white-space:nowrap}
 @media (max-width:700px){.legend{grid-template-columns:minmax(0,1fr)}}
 .how b{display:block;font:700 13px var(--mono);color:var(--acc);letter-spacing:.06em}
 
@@ -438,6 +438,10 @@ body:not(.locked) .keystrip .connect{flex:0 0 auto}
 .aityx-light[data-conn="ok"]::after{background:#4CC38A}
 .aityx-light[data-conn="none"]::after,.aityx-light[data-conn="invalid"]::after,.aityx-light[data-conn="error"]::after{background:#F0506E}
 .keystrip .connect a.button{text-decoration:none;display:inline-flex;align-items:center}
+/* the key form: only while there is no key at all (data-conn="none"); with one, the link to the demos page instead */
+body:not([data-conn="none"]) .connect label,body:not([data-conn="none"]) .connect button[type="submit"],body[data-conn="none"] #setkey{display:none}
+.keystrip .connect .urlin{flex:0 1 190px}
+.keystrip #keymsg{flex:1 1 100%;margin-top:-4px}.keystrip #keymsg:empty{display:none}
 body:not(.locked) #setkey{font-size:13px;padding:6px 11px;border-radius:9px;background:transparent;border-color:var(--line);color:var(--fg)}
 </style></head><body class="locked">
 <div class="app">
@@ -454,12 +458,17 @@ body:not(.locked) #setkey{font-size:13px;padding:6px 11px;border-radius:9px;back
 </header>
 <section class="keystrip keycard" id="keystrip" aria-labelledby="h-key">
           <h3 id="h-key"><span aria-hidden="true">🔑</span> To play your own city, set your aityx key</h3>
-          <div class="connect" id="connect">
+          <!-- No key anywhere: the key, optionally the aityx URL, Save. With a key, only "Change key" (the demos page). -->
+          <form class="connect" id="connect" autocomplete="off" novalidate>
+            <label class="keyin"><input type="password" id="keyin" name="key" aria-label="Your aityx key" placeholder="Your aityx key" autocomplete="off" spellcheck="false" autocapitalize="off"></label>
+            <label class="urlin"><input type="url" id="urlin" name="url" aria-label="aityx URL (optional)" placeholder="URL (optional)" spellcheck="false" autocapitalize="off"></label>
+            <button class="button primary" type="submit" id="keysave">Save</button>
             <a class="button primary" id="setkey" href="/demos/#aityx-key">Set your aityx key</a>
             <button class="button sm" type="button" id="recall" hidden>Record 2 games</button>
-          </div>
+          </form>
+          <div class="note warn" id="keymsg" role="status" aria-live="polite"></div>
           <div class="connstat" id="connstat" role="status" aria-live="polite"><i></i><span id="connmsg">Checking for an aityx key…</span><button class="button sm" id="connretry" type="button" hidden>Check again</button></div>
-          <div class="note only-replay">Set it once on the demos page: every aityx demo uses it, and it goes only to aityx. No key yet? Get one in the <a href="https://console.aityx.ai" target="_blank" rel="noopener">aityx console</a>. Without a key you can watch recorded games.</div>
+          <div class="note only-replay"><a href="https://console.aityx.ai" target="_blank" rel="noopener">Get a key in the aityx console</a>. Without a key you can watch recorded games.</div>
         </section>
 <button class="aityx-light" id="aityx-light" type="button" data-conn="checking" aria-label="aityx: checking the key" title="aityx: checking the key"></button>
 
@@ -511,7 +520,7 @@ body:not(.locked) #setkey{font-size:13px;padding:6px 11px;border-radius:9px;back
       <div class="howcard">
         <div class="mono orange">MISSION 02 / HOW LONG CAN IT LAST?</div>
         <h1 id="howto-title">Keep the city's lights on.</h1>
-        <p class="lede">You run the power of a growing city. Get ready by day, write the rules for the night, and see if the city makes it to morning. Every night the city grows and the night gets harder. How many can it survive?</p>
+        <p class="lede">You run the power of a growing city. Every night it grows and the night gets harder. How many can it survive?</p>
         <section class="how" aria-label="How to play">
           <div><b>1 · BY DAY</b>Build one thing: a solar panel, a battery or a wind turbine. It stays for the next nights.</div>
           <div><b>2 · BEFORE NIGHT</b>Set the night rules: what goes dark first when power runs short.</div>
@@ -519,16 +528,16 @@ body:not(.locked) #setkey{font-size:13px;padding:6px 11px;border-radius:9px;back
         </section>
         <div class="mono orange">WHAT YOU SEE</div>
         <section class="legend" aria-label="What each thing means">
-          <div><b>Night</b><span>Each night the city grows. How many can it survive?</span></div>
-          <div><b>Battery</b><span>Energy stored from the sun. It powers the city at night.</span></div>
-          <div><b>Approval</b><span>How happy people are. Below 50% at dawn, the city falls.</span></div>
-          <div><b>Stars</b><span>★★★ at 90%+, ★★ at 70%+, ★ if the city just made it.</span></div>
+          <div><b>Night</b><span>Six hours, dusk to dawn. The city is bigger every night.</span></div>
+          <div><b>Battery</b><span>Fills from the sun by day, powers the city at night.</span></div>
+          <div class="wide"><b>Approval</b><span>How happy people are. Every night starts at 100%. Each house in the dark takes 3 points an hour, dark streetlights 1 an hour. Nothing wins them back before dawn.</span></div>
+          <div class="wide"><b>Stars</b><span>You win them at dawn, from the approval you kept: <em>★★★</em> at 90% or more, <em>★★</em> at 70%, <em>★</em> at 50%. Below 50%, or with the hospital dark, you win none and the city falls.</span></div>
           <div><b>Hospital</b><span>Always served first. If it goes dark, the night is lost.</span></div>
-          <div><b>Houses</b><span>Each house in the dark costs approval, every hour.</span></div>
-          <div><b>Streetlights</b><span>Cheap to run. You can switch them off after midnight.</span></div>
+          <div><b>Houses</b><span>Keep them lit: each one in the dark costs approval.</span></div>
+          <div><b>Streetlights</b><span>Cheap to run. Switched off by your rule after midnight, they cost no approval.</span></div>
           <div><b>Factory</b><span>Runs only on spare power. Each hour adds battery storage.</span></div>
-          <div><b>Grid lines</b><span><i style="background:#6fe0ff"></i>supplying <i style="background:#7dff9a"></i>charging <i style="background:#f2c14e"></i>not enough</span></div>
-          <div><b>Why</b><span>The receipt shows every number and the rule behind it.</span></div>
+          <div class="wide"><b>Grid lines</b><span>A line's colour is its power:<i style="background:#6fe0ff"></i>supplying <i style="background:#7dff9a"></i>charging <i style="background:#f2c14e"></i>not enough <i style="background:#ef6b6b"></i>dark</span></div>
+          <div class="wide"><b>Why</b><span>The receipt of the night: every number and the rule behind it.</span></div>
         </section>
         <div class="row"><button class="button primary" id="howto-go" type="button">Let's play</button><span class="note">Each night is one aityx call. Without a key you watch real games we recorded.</span></div>
       </div>

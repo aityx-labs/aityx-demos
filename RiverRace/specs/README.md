@@ -34,6 +34,8 @@ fired. Which strategy wins?
 - [aityx status](aityx-status.md): the light, top right, that says
   whether there is a key (the user's, or the index server's dev key) and
   aityx accepts it.
+- [The key form](aityx-key.md): without an aityx key, a small form
+  for it where the app calls aityx; with one, nothing.
 - [aityx calls](api.md): no API of its own; the app calls aityx from the
   browser, on the key the user set on the index page, or through the
   index server's dev proxy; the checks before a call, and the messages

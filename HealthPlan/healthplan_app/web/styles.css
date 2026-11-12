@@ -284,6 +284,12 @@ pre .hot.soft .n{font-weight:500}
 .story small{grid-column:1/-1;font-size:12.5px;color:var(--muted)}
 .connect input{background:var(--ink);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:500 14px var(--mono);width:100%}
 .connect .go,.connect .ghost{align-self:auto}
+/* The key form: only while there is no key at all (idle); with a key that fails, the link to the aityx demos page and Check again instead. */
+#connpanel:not([data-state="idle"]) .connect .field,#connpanel:not([data-state="idle"]) #keysave,#connpanel[data-state="idle"] #setkey,#connpanel[data-state="idle"] #recheck{display:none}
+.connect .urlfield{flex:0 1 190px}
+.connect #keysave{padding:9px 18px;font-size:15px}
+#keymsg:empty{display:none}
+#connpanel[hidden]{display:none}
 .live{font-size:13px;color:var(--muted)}
 .live.ok{color:var(--ok)} .live.warn{color:var(--acc2)}
 body.pending .after{display:none}

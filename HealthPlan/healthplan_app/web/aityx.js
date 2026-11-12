@@ -3,7 +3,8 @@
 // packages/aityx_web (Dart), with the same storage entries and rules, so the
 // key the user sets once on the index page (/demos/#aityx-key) works here
 // too: the page and every demo share one origin, and so the browser's
-// storage.
+// storage. While there is no key at all, the page asks for it itself and
+// saves it there (save), for the index page and every other demo.
 //
 // Where the key comes from, in order:
 //   1. the user's key: sessionStorage['aityx.key'] ("only this session"),
@@ -71,6 +72,36 @@ const Aityx = (() => {
     };
   }
   const NONE = connection('none', DEFAULT_URL, '', null, null);
+  // A key as typed, before it is saved: where its check goes.
+  const userConnection = (key, url) => connection('user', url, url, key, null);
+
+  // The aityx URL as typed, as the index page takes it: the default when
+  // empty, else https on a host under aityx.ai (all the page's content
+  // security policy lets it reach), no trailing slash. Null when it isn't.
+  function cleanUrl(text) {
+    const t = (text || '').trim();
+    if (!t) return DEFAULT_URL;
+    let u;
+    try { u = new URL(t); } catch (_) { return null; }
+    if (u.protocol !== 'https:' || u.search || u.hash || u.username || u.password || !u.hostname.endsWith('.aityx.ai')) return null;
+    return (u.origin + u.pathname).replace(/\/+$/, '');
+  }
+
+  // Saves the key on this device (localStorage, as the index page's
+  // "Remember on this device"), with its URL when it isn't the default.
+  // False when the browser refuses the storage.
+  function save(key, url) {
+    try {
+      for (const store of ['sessionStorage', 'localStorage']) {
+        try { window[store].removeItem(KEY_NAME); window[store].removeItem(URL_NAME); } catch (_) {}
+      }
+      localStorage.setItem(KEY_NAME, key);
+      if (url && url !== DEFAULT_URL) localStorage.setItem(URL_NAME, url);
+      return storageGet('localStorage', KEY_NAME) === key;
+    } catch (_) {
+      return false;
+    }
+  }
 
   async function resolve() {
     const s = stored();
@@ -115,5 +146,5 @@ const Aityx = (() => {
     location.href = keyPage();
   }
 
-  return { NONE, resolve, check, keyPage, openKeyPage, embedded, KEY_NAME, URL_NAME };
+  return { NONE, resolve, check, userConnection, cleanUrl, save, keyPage, openKeyPage, embedded, KEY_NAME, URL_NAME };
 })();

@@ -73,6 +73,15 @@ next save or **Forget key**. Once saved, the key is not shown again, only its la
 characters. Every app reads it from there
 ([packages/aityx_web](../packages/aityx_web/)) and calls aityx itself.
 
+A demo opened with no key (none saved here, and no dev key) asks for it
+itself: a small form where it calls aityx, with the key, optionally the
+aityx URL, **Save** and a link to the aityx console
+(`AityxKeyPrompt` in [packages/aityx_web](../packages/aityx_web/README.md#the-key-form);
+Outpost and Health Plan, static pages, have their own). It checks the key the same way and
+saves it in the same `localStorage` entries, so this page then shows it
+as set, and every other demo uses it. With a key set, here or there, the
+form isn't shown.
+
 A link can carry the key, in the fragment only:
 `/demos/#AITYX_API_KEY=<key>`, with `AITYX_URL` beside it if the key is
 for another aityx. The browser never sends a fragment to a server, so the

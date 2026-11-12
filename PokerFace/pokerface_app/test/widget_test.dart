@@ -99,6 +99,39 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('aityx: no key')), findsOneWidget);
   });
 
+  testWidgets('without an aityx key, asks for it above the controls', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(PokerFaceApp(api: FakeApi()));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('aityx-key-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('aityx-url-field')), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
+    expect(find.text('Get a key in the aityx console'), findsOneWidget);
+    expect(
+      tester.getBottomLeft(find.byType(AityxKeyPrompt)).dy,
+      lessThanOrEqualTo(tester.getTopLeft(find.byKey(const Key('play'))).dy),
+    );
+  });
+
+  testWidgets('with an aityx key, shows no key form at all', (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    AityxSettings.store = AityxKeyStore.memory(local: {'aityx.key': 'k'});
+    addTearDown(() => AityxSettings.store = AityxKeyStore.memory());
+    await tester.pumpWidget(PokerFaceApp(api: FakeApi()));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('aityx-key-field')), findsNothing);
+    expect(find.text('Get a key in the aityx console'), findsNothing);
+    expect(tester.getSize(find.byType(AityxKeyPrompt)).height, 0);
+  });
+
   testWidgets('a step deals, the next asks aityx and plays the answer', (
     tester,
   ) async {

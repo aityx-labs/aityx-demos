@@ -12,7 +12,8 @@ Robocode-style battles, every turn played by aityx".
   app calls it with, red otherwise; its tooltip says why ("aityx: ready — the key works with
   https://api.aityx.ai", "aityx: no key — set yours on the index page", "aityx: key
   rejected — …", "aityx: not reachable — …", "aityx: not working — …").
-  The key is the user's, saved on the index page, else the index server's
+  The key is the user's, saved on the index page or in the window's own
+  key form (below), else the index server's
   dev key (see [Development environment](dev-environment.md#the-aityx-key)).
   It checks by posting an empty request to aityx's `/v1/systemone` (a
   working key gets 400 `invalid_request`, without running a model) at
@@ -112,6 +113,10 @@ Robocode-style battles, every turn played by aityx".
   call ("Call 9: turns 161–180 of round 1, in 406 ms"; a score call also
   lists the round's scores), a link that opens it in the viewer; "None
   yet" before the first.
+- **Key form**, just above the controls and only while there is no aityx
+  key at all: the key, optionally the aityx URL, **Save**, and a link to
+  the aityx console (see [The key form](aityx-key.md)). With a key, it
+  isn't there.
 - **Controls**: Start/Pause/Resume, Next turn, Stop, Restart, New battle…,
   **Speed** (1 to 60 turns a second, or Max; 10 to start), where a
   battle starts: every 15 seconds of play (pauses don't count) it speeds

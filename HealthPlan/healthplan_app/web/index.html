@@ -28,12 +28,17 @@
   <div class="connbar" role="status" aria-live="polite"><span class="dot" aria-hidden="true"></span><div><b id="conn-title">Checking your aityx key…</b><span class="t" id="conn-text">One quick call to aityx, no AI.</span></div></div>
   </div>
   <div class="connside">
-  <div class="connect">
+  <!-- No key anywhere: the key, optionally the aityx URL, Save. A key that fails: the link to the aityx demos page and Check again. -->
+  <form class="connect" id="connect" autocomplete="off" novalidate>
+    <label class="field keyfield"><input type="password" id="keyin" name="key" aria-label="Your aityx key" placeholder="Your aityx key" autocomplete="off" spellcheck="false" autocapitalize="off"></label>
+    <label class="field urlfield"><input type="url" id="urlin" name="url" aria-label="aityx URL (optional)" placeholder="URL (optional)" spellcheck="false" autocapitalize="off"></label>
+    <button class="go" type="submit" id="keysave">Save</button>
     <a class="go keylink" id="setkey" href="../#aityx-key">Set your aityx key</a>
     <button class="ghost" type="button" id="recheck">Check again</button>
     <button class="ghost" type="button" id="recall" hidden>Record all examples</button>
-  </div>
-  <div class="note">Every aityx demo here uses the key you set once on the <a class="keylink" href="../#aityx-key" style="color:var(--acc2)">aityx demos page</a>. It stays in your browser and goes only to aityx. No key yet? Get one in the <a href="https://console.aityx.ai" target="_blank" rel="noopener" style="color:var(--acc2)">aityx console</a>. Without a key nothing runs: you see real aityx calls we recorded, and the plans stay locked.</div>
+  </form>
+  <div class="note warn" id="keymsg" role="status" aria-live="polite"></div>
+  <div class="note"><a href="https://console.aityx.ai" target="_blank" rel="noopener" style="color:var(--acc2)">Get a key in the aityx console</a>. Without a key nothing runs: you see real aityx calls we recorded, and the plans stay locked.</div>
   </div>
 </section>
 <section class="panel" aria-labelledby="h-what">

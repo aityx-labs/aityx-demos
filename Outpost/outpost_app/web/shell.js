@@ -22,7 +22,7 @@ q("#howto-go").onclick=closeHow;
 how.addEventListener("click",e=>{ if(e.target===how) closeHow(); });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!how.hidden) closeHow(); });
 how.hidden=false; q("#howto-go").focus();   // always the first thing a visitor sees
-// header "Set your key" and [data-keycta]: outpost.js opens the demos page's key section
+// header "Set your key" and [data-keycta]: outpost.js puts the cursor in the key form (no key yet) or opens the demos page's key section
 q("#mapkey").onclick=()=>{ const p=q("#mapkeypop"), b=q("#mapkey"); p.hidden=!p.hidden; b.setAttribute("aria-expanded",!p.hidden); };
 document.addEventListener("click",e=>{ if(e.target.closest("[data-keycta]")) q("#keybtn").onclick(); });
 // zoom and pan the city (the view only; nothing in the game changes)

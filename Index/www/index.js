@@ -8,8 +8,8 @@
 // (only its last four characters).
 'use strict';
 
-// The demos, in the order shown, in two groups: "kind" is 'game' (under
-// "Games") or 'app' (the business apps, under "Apps").
+// The demos, in two groups: "kind" is 'game' (under "Games") or 'app' (the
+// business apps, under "Apps"). Each group is shown sorted by name.
 // "folder" matches the repository's folders;
 // each is served beside this page, at /demos/<folder in lower case>/
 // (bin/server.dart);
@@ -135,7 +135,9 @@ function card(d) {
 // (key.html, embedded in the aityx website) has neither.
 for (const kind of ['game', 'app']) {
   const grid = document.getElementById(kind + 's');
-  if (grid) grid.replaceChildren(...demos.filter(d => d.kind === kind).map(card));
+  if (grid) grid.replaceChildren(...demos.filter(d => d.kind === kind)
+    .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
+    .map(card));
 }
 
 // The key ---------------------------------------------------------------

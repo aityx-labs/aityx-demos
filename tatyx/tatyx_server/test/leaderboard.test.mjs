@@ -40,6 +40,11 @@ test('tournaments queue one per source and never play at once; an entry asks for
   await assert.rejects(board.enter(ana, { name: 'Ana Three', decisions: { build: {} } }), (e) => e instanceof EntryError && e.status === 409);
   await assert.rejects(board.enter(ana, { name: 'farmer', decisions: { build: {} } }), /preset's name/);
   await assert.rejects(board.enter(ana, { decisions: {} }), (e) => e instanceof EntryError && e.status === 400);
+  // The owner gets the rules; another player sees the entries, not their rules.
+  assert.ok((await board.entries(ana)).every((e) => e.mine && e.decisions));
+  const bob = await board.entries('bob@aletyx.com');
+  assert.equal(bob.length, 2);
+  assert.ok(bob.every((e) => !e.mine && !('decisions' in e) && e.by === 'ana'));
   let view = await board.view();
   assert.deepEqual(view.queue.map((q) => q.source), ['strategy', 'admin']);
   assert.ok(!JSON.stringify(view).includes(ana), 'no emails');

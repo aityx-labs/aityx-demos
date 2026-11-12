@@ -108,6 +108,7 @@ class _PlayersPanelState extends State<PlayersPanel> {
               child: DropdownButtonFormField<Strategy>(
                 key: const Key('new-player-strategy'),
                 initialValue: _strategy,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Strategy',
                   isDense: true,
@@ -298,7 +299,7 @@ class _StrategyRow extends StatelessWidget {
               strategy.name,
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            if (strategy.custom) ...[
+            if (strategy.custom && !strategy.sealed) ...[
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -323,16 +324,22 @@ class _StrategyRow extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextButton(
-              onPressed: () => showStrategyEditor(
-                context,
-                controller,
-                from: strategy,
-                editing: strategy.custom ? strategy : null,
+            if (strategy.sealed)
+              Tooltip(
+                message: "Another player's: it plays at your table, its rules stay theirs",
+                child: Icon(Icons.lock_outline, size: 18, color: scheme.onSurfaceVariant),
+              )
+            else
+              TextButton(
+                onPressed: () => showStrategyEditor(
+                  context,
+                  controller,
+                  from: strategy,
+                  editing: strategy.custom ? strategy : null,
+                ),
+                child: Text(strategy.custom ? 'Edit' : 'Rules'),
               ),
-              child: Text(strategy.custom ? 'Edit' : 'Rules'),
-            ),
-            if (filesSupported)
+            if (filesSupported && !strategy.sealed)
               IconButton(
                 key: Key('download-${strategy.id}'),
                 tooltip: 'Download as JSON',
@@ -349,7 +356,7 @@ class _StrategyRow extends StatelessWidget {
                 onPressed: () => enterInTour(context, strategy),
                 icon: const Icon(Icons.emoji_events_outlined),
               ),
-            if (strategy.custom)
+            if (strategy.custom && !strategy.sealed)
               IconButton(
                 tooltip: inUse ? 'In use at the table' : 'Delete',
                 onPressed: inUse

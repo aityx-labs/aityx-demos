@@ -11,7 +11,8 @@ the title (a team's **Upload**, which sets the team's strategy in the
 browser as before and, signed in, enters it too; signed out, the card
 says to sign in for that), or with **Enter a strategy** in the
 leaderboard tab, under **Your strategies in the tour**, which lists
-the player's entries, each with **Withdraw**
+the player's entries, each with **Download** (the file an upload reads
+back) and **Withdraw**
 ([ui/tour.ts](../tatyx_app/src/ui/tour.ts)).
 
 - `POST /api/strategies` (signed in, this origin's pages): the strategy
@@ -21,8 +22,10 @@ the player's entries, each with **Withdraw**
   `TATYX_MAX_ENTRIES` (3) in the tour, `409` past that; one of the same
   name replaces theirs, as a new strategy with a fresh record. `201`
   with the entry and `tournament`: what asking for one did (below).
-- `GET /api/strategies` (signed in): every entry, its rules, whose it is
-  (the owner's alias, never an email) and whether it is the caller's.
+- `GET /api/strategies` (signed in): every entry, whose it is (the
+  owner's alias, never an email) and whether it is the caller's; the
+  rules (`decisions`) of the caller's own alone. No answer gives a
+  player another's rules, and no one withdraws another's entry.
 - `DELETE /api/strategies/<id>` (signed in, this origin's pages): the
   caller's entry withdrawn (`404` for another's); it leaves the
   standings.

@@ -561,3 +561,16 @@ The feature files hold the current specification; see the
     http://localhost:19810 among its origins, so the Google sign-in
     works on the cluster too. Local runs are unchanged. See
     [Development environment](dev-environment.md).
+19. **Let users upload and download their own strategies, but not
+    download or delete each other's; the calls panel may still show
+    them, just don't make them easy to copy.** Another player's entry
+    is sealed at the table: it plays, but tapping its seat says whose it
+    is instead of opening its rules, and the players panel has a lock
+    for it instead of **Edit**, with no download or delete. The
+    leaderboard's **Download as JSON** is for the presets and the
+    player's own entries alone. Withdrawing was the owner's alone
+    already. `GET /api/strategies` still answers every entry's rules,
+    since the table plays them in the player's browser
+    ([Players and strategies](players.md#strategies), [The
+    tour](tour.md)). The players panel's strategy dropdown ellipsizes a
+    long name instead of overflowing.

@@ -41,6 +41,7 @@ class Strategy {
     required this.tagline,
     required this.decisions,
     this.custom = false,
+    this.sealed = false,
   });
 
   /// A preset's file, `assets/models/strategies/<id>.json`, or a custom
@@ -85,6 +86,10 @@ class Strategy {
 
   /// Written in the app, so it's sent whole with every decision.
   final bool custom;
+
+  /// Another player's, from the tour: it plays at the table, but the app
+  /// doesn't open, edit or download its rules.
+  final bool sealed;
 
   /// What a decision names: a preset's id, or the custom rules.
   Object toRequest() => custom

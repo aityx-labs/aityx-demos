@@ -3,6 +3,7 @@
 // one being played), the entries listed, and a player's withdrawn. The
 // session cookie says who; the server checks the file again.
 
+import { strategyFile } from '../game/lineup';
 import type { Strategy } from '../game/strategy';
 
 export interface Entry {
@@ -12,6 +13,8 @@ export interface Entry {
   /** Whose it is: the owner's alias. */
   by: string;
   mine: boolean;
+  /** The rules: the server sends the player's own alone. */
+  decisions?: Record<string, unknown>;
 }
 
 /** What entering a strategy came to, in a line for the player. */
@@ -80,4 +83,17 @@ export async function withdraw(id: string): Promise<string | null> {
   } catch {
     return 'the server did not answer';
   }
+}
+
+/** Saves `s` as a JSON file named `fileName`, what an upload reads back. */
+export function saveStrategyFile(s: Strategy, fileName: string): void {
+  const blob = new Blob([strategyFile(s)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

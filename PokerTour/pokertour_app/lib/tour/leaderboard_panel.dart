@@ -79,12 +79,13 @@ class _LeaderboardViewState extends State<LeaderboardView> {
     }
   }
 
-  /// The strategy's rules, for a download: the tour's, read
-  /// once signed in, or a preset from the table.
+  /// The strategy's rules, for a download: a preset's from the table, or
+  /// the player's own entry; never another player's.
   Strategy? _rules(Standing row) {
     if (row.preset) {
       return widget.controller?.strategies.where((x) => x.id == row.id).firstOrNull;
     }
+    if (!s.mine(row)) return null;
     return s.tourStrategies.where((t) => t.id == row.id).firstOrNull?.strategy;
   }
 

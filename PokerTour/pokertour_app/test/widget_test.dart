@@ -85,7 +85,55 @@ class SlowApi extends FakeApi {
   }
 }
 
+/// [FakeApi], with another player's strategy from the tour, sealed.
+class SealedApi extends FakeApi {
+  @override
+  Future<List<Strategy>> strategies() async => [
+    ...await super.strategies(),
+    const Strategy(
+      id: 'tour-u-9',
+      name: "Bea's Secret",
+      tagline: 'In the tour, by Bea.',
+      decisions: {'action': {}, 'raise_to': {}},
+      custom: true,
+      sealed: true,
+    ),
+  ];
+}
+
 void main() {
+  testWidgets("another player's strategy plays, but its rules don't open", (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(PokerTourApp(api: SealedApi()));
+    await tester.pumpAndSettle();
+
+    // Seated with the presets; its seat says whose it is, not its rules.
+    await tester.tap(find.byKey(const Key('seat-3')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining("plays Bea's Secret"), findsOneWidget);
+    expect(find.textContaining("another player's strategy"), findsOneWidget);
+    expect(find.byKey(const Key('remove-rule-0')), findsNothing);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+
+    // In the players panel: no Edit, no download, no delete, not "yours".
+    await tester.tap(find.textContaining('Players (3)'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.textContaining('In the tour, by Bea'),
+      200,
+      scrollable: find.ancestor(of: find.text('Rules').first, matching: find.byType(Scrollable)).first,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Rules'), findsNWidgets(2));
+    expect(find.text('Edit'), findsNothing);
+    expect(find.text('yours'), findsNothing);
+    expect(find.byKey(const Key('download-tour-u-9')), findsNothing);
+    expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+  });
+
   testWidgets('seats one player per strategy and shows the table', (
     tester,
   ) async {

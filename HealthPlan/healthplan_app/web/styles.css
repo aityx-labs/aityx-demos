@@ -300,3 +300,4 @@ a.proto{display:inline-flex;align-items:center;gap:7px;text-decoration:none;curs
 .proto[data-state="connecting"] .ldot{background:var(--fg);animation:pulse 1s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){.proto[data-state="connecting"] .ldot{animation:none}}
 a.go{text-decoration:none;display:inline-block}
+.lede em{font-style:normal;font-weight:600;color:var(--acc)}

@@ -69,7 +69,7 @@ behind each item. [README](ContactHub/README.md)
 
 ### Health Plan
 
-![Health Plan: the three plans priced for a family expecting a baby, with Gold the cheapest year](Index/www/healthplan.gif)
+![Health Plan: a family's year in their own words, the three plans priced by aityx, and a receipt for each](Index/www/healthplan.gif)
 
 Which 2027 health plan will actually cost you less? Describe your family's
 year in plain words. In one aityx call, Jev reads each person's care and any

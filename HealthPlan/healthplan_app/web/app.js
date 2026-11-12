@@ -1,10 +1,13 @@
+// The three examples, simplest first, each with a different winner: one person and a light year (Bronze),
+// a family with two ongoing conditions (Silver), and a growing family with a birth, an ongoing condition
+// and a surgery (Gold).
 const SAMPLES={
-  baby:{label:"Baby on the way",members:[{id:"maya",name:"Maya",age:31},{id:"sam",name:"Sam",age:33}],
-    text:"Maya is pregnant with our first baby, due in March. She sees her OB every month until then. Sam is healthy, he just does his yearly physical."},
+  solo:{label:"Just me",members:[{id:"chris",name:"Chris",age:27}],
+    text:"I'm 27 and rarely get sick. One checkup a year, maybe urgent care if I hurt myself skiing again."},
   asthma:{label:"Kid with asthma",members:[{id:"dana",name:"Dana",age:40},{id:"leo",name:"Leo",age:9},{id:"ava",name:"Ava",age:6}],
     text:"Leo has asthma. He uses an inhaler every day and sees his lung specialist every few months. Ava only needs her yearly checkup. I take a thyroid pill every day, nothing else."},
-  solo:{label:"Just me",members:[{id:"chris",name:"Chris",age:27}],
-    text:"I'm 27 and rarely get sick. One checkup a year, maybe urgent care if I hurt myself skiing again."}
+  baby:{label:"Baby on the way",members:[{id:"maya",name:"Maya",age:31},{id:"sam",name:"Sam",age:33},{id:"zoe",name:"Zoe",age:4}],
+    text:"Maya is pregnant with our second baby, due in March, and sees her OB every month until then. Sam has type 2 diabetes: he takes metformin every day and sees an endocrinologist every three months. Zoe is 4 and is getting her tonsils out in the spring, plus a couple of follow-up visits."}
 };
 // Extra years for Fill random when a key is connected (priced live; no recordings, so not offered without a key).
 const EXTRA={
@@ -25,7 +28,7 @@ const yearOf=k=>SAMPLES[k]||EXTRA[k];
 // What-if switches: each one changes one person's facts and re-prices with the same rules (one call, no AI).
 const WHATIF={
   baby:[{id:"nobaby",label:"No baby this year",set:{maya:{pregnant:0}}},
-        {id:"samdiab",label:"Sam is diagnosed with diabetes",set:{sam:{care:"regular"}}}],
+        {id:"zoeok",label:"Zoe doesn't need surgery",set:{zoe:{care:"light"}}}],
   asthma:[{id:"leocalm",label:"Leo only needs checkups",set:{leo:{care:"light"}}},
           {id:"avadiab",label:"Ava is diagnosed with diabetes",set:{ava:{care:"regular"}}},
           {id:"danababy",label:"Dana is expecting",set:{dana:{pregnant:1}}}],
@@ -67,8 +70,8 @@ const feelPlans=ps=>"["+ps.map(p=>`{id: "${p.id}", name: "${p.name}", premium_si
 function buildDecision(plans,prices,members){
   const adults=members.filter(isAdult), inputs={"members":{"type":["Person"],"desc":"People on the plan: id, name and age","from":"page JSON"}};
   members.forEach(m=>{
-    inputs[`${m.id}_care`]={"type":"light|some|regular","desc":`Care level member ${m.id} needs in 2027, read by Jev from message or set by the person`,"from":"Jev"};
-    if(isAdult(m)) inputs[`${m.id}_pregnant`]={"type":"number [0..1]","desc":`Jev probability that member ${m.id} gives birth in 2027 (1 or 0 when the person sets it)`,"from":"Jev"};
+    inputs[`${m.id}_care`]={"type":"light|some|regular","desc":`Care level member ${m.id} needs in 2027, read by aityx from message or set by the person`,"from":"aityx, reading message"};
+    if(isAdult(m)) inputs[`${m.id}_pregnant`]={"type":"number [0..1]","desc":`Probability, read by aityx from message, that member ${m.id} gives birth in 2027 (1 or 0 when the person sets it)`,"from":"aityx, reading message"};
   });
   const careOf=members.map(m=>`if m.id = "${m.id}" then ${m.id}_care else `).join("")+`"light"`;
   const birthOf=adults.map(m=>`if m.id = "${m.id}" then ${m.id}_pregnant else `).join("")+`0`;
@@ -92,7 +95,7 @@ function buildDecision(plans,prices,members){
     "price_regular":{"type":"number","desc":"Expected yearly care for an ongoing condition (daily medication, regular specialist), in USD","expr":String(prices.regular)},
     "price_birth":{"type":"number","desc":"Pregnancy, birth and postpartum care, in USD","expr":String(prices.birth)},
     "price_newborn":{"type":"number","desc":"A newborn's care in the first months, in USD","expr":String(prices.newborn)},
-    "evidence_threshold":{"type":"number [0..1]","desc":"Minimum Jev probability to treat someone as giving birth in 2027 (inclusive)","expr":String(EVIDENCE)},
+    "evidence_threshold":{"type":"number [0..1]","desc":"Minimum probability, as read by aityx, to treat someone as giving birth in 2027 (inclusive)","expr":String(EVIDENCE)},
     "choose_by":{"type":"date","desc":"Last day to pick a plan for coverage that starts Jan 1 (HealthCare.gov)","expr":`date("${DEADLINE}")`},
     "people":{"type":["Member"],"desc":"Each person with the care level and birth probability used for them","expr":`for m in members return {id: m.id, name: m.name, age: m.age, care: (${careOf}), pregnant: (${birthOf})}`},
     "baby_coming":{"type":"boolean","desc":"Does anyone on the plan give birth in 2027?","expr":"count(people[pregnant >= evidence_threshold]) > 0"},

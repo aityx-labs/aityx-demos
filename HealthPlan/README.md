@@ -24,8 +24,9 @@ year of care, or turn on a what-if switch, and the page prices again in one
 rules-only call, with no AI.
 
 Without a key, the page shows real aityx calls recorded with a key: the
-three example years (a baby on the way, a kid with asthma, just me), each
-with a different winner, and their what-if switches. The plans stay locked.
+three example years, simplest first, each with a different winner: just me
+(Bronze), a kid with asthma (Silver), and a baby on the way in a family with
+an ongoing condition and a surgery (Gold); and their what-if switches. The plans stay locked.
 
 ## Technology
 
@@ -66,7 +67,7 @@ lets it connect only to this origin and `https://*.aityx.ai`.
 
 To record the examples again, open `/demos/healthplan/#record` with a key
 set: **Record all examples** runs each example and its what-ifs on aityx
-(reusing the recorded Jev reads) and downloads `health-recordings.json`, to
+(reusing the recorded reads of each message) and downloads `health-recordings.json`, to
 paste into `recordings.js`.
 
 ## Run it

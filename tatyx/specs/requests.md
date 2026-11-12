@@ -455,3 +455,14 @@ The feature files hold the current specification; see the
     `TATYX_ALLOWED_DOMAINS` defaults to `*`, any Google account (a list
     of domains still narrows it). The admins are still the aletyx.com
     and aletyx.ai players alone ([Players](players.md)).
+
+## 2026-11-11
+
+46. **Tag tatyx's AWS resources by project, in the running stack and in the
+    deploy script.** The stack had no tags, so its costs showed as
+    untagged: `deploy/deploy.sh` now passes `project=tatyx` and
+    `tenancy=$TATYX_TENANCY` (default `GA`) as the stack's tags, which
+    CloudFormation copies to its resources, and tags the code bucket it
+    makes, as Poker Tour does ([Deployment](deploy.md)). The live stack
+    was updated with the same template and parameters to add the tags.
+

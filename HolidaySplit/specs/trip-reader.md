@@ -145,7 +145,10 @@ can't start (Chrome for Testing) handed over to the worker.
   several GB, by the browser, for Chrome's built-in one), then seconds to
   a minute to read.
 - Without WebGPU, the worker falls back to Qwen3 0.6B on WASM, the
-  weakest reader measured (4 of 18 on WebGPU). It loads on WASM, but
-  reading on the CPU is slow, and LFM2's 4-bit weights don't run there.
+  weakest reader measured (4 of 18 on WebGPU), and too slow to be of use:
+  one five-person chat took over seven minutes on the CPU in headless
+  Chrome (20 of its 23 facts right). LFM2's 4-bit weights don't run on
+  WASM at all. A browser with neither a built-in model nor WebGPU is
+  better served by fixing the lists by hand.
 - The built-in model was run in the installed Chrome, headless, with a
   profile of its own; not yet in a window by hand.

@@ -49,8 +49,7 @@ const demos = [
     what: 'Keep a growing city’s lights on, one aityx call per night',
     desc: 'Run the power of a city that grows every night. By day, build a solar panel, a battery or a wind turbine; before night, write the rules for what goes dark first. aityx runs the whole night, hour by hour, as a decision model, and the page only draws it: every number on the map and every line of the receipt, with the rule behind it. How many nights can your city survive?',
     chips: ['aityx', 'simulation', 'game', 'user playable'],
-    // No recording yet: the card has no animation (gif: false).
-    icon: 'bulb', codespace: 'aityx', gif: false,
+    icon: 'bulb', codespace: 'aityx',
   },
   {
     kind: 'app', folder: 'HealthPlan', name: 'Health Plan',

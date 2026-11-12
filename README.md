@@ -107,6 +107,8 @@ any robot's rules. [README](RoboRules/README.md)
 
 ### Outpost
 
+![Outpost: a recorded game, each night run hour by hour by aityx, the houses lit and the hospital kept on](Index/www/outpost.gif)
+
 A city grows every night. By day you build a solar panel, a battery or a
 wind turbine; before night you write the rules for what goes dark first.
 Each night is one aityx call that runs it hour by hour, and the page draws

@@ -27,3 +27,6 @@ bool bridgeRequested() => false;
 /// Nothing to ask: there is no page around the app.
 Future<({int status, String body})> askParent(String body, Duration timeout) =>
     Future.value((status: 0, body: ''));
+
+/// Off the web there is no tab to be in the background.
+Future<void> whenVisible() => Future.value();

@@ -85,34 +85,39 @@ var _nextCall = 0;
 /// origin, because a sandboxed app has none to name, and nothing secret is
 /// said either way: the body is the app's own, the answer is aityx's.
 ///
+/// Nothing is asked while the tab is in the background: the call waits
+/// until the user is back, and [timeout] starts then. Every demo makes one
+/// call at a time, so it simply stops where it is, and no balance is spent
+/// on a game nobody is watching. The console holds such calls too.
+///
 /// Answers with status 0 when no answer comes within [timeout], which the
 /// caller reports as unreachable.
 Future<({int status, String body})> askParent(
   String body,
   Duration timeout,
 ) async {
+  await whenVisible();
   final parent = web.window.parent;
   if (parent == null) return (status: 0, body: '');
   final id = 'c${_nextCall++}';
   final answer = Completer<({int status, String body})>();
   late final JSFunction listener;
   void stop() => web.window.removeEventListener('message', listener);
-  listener =
-      ((web.MessageEvent event) {
-        if (answer.isCompleted) return;
-        final data = event.data.dartify();
-        if (data is! Map) return;
-        final number = data['aityx'];
-        if (number is! num || number.toInt() != 1) return;
-        if (data['type'] != 'answer' || data['id'] != id) return;
-        final status = data['status'];
-        final text = data['body'];
-        stop();
-        answer.complete((
-          status: status is num ? status.toInt() : 0,
-          body: text is String ? text : '',
-        ));
-      }).toJS;
+  listener = ((web.MessageEvent event) {
+    if (answer.isCompleted) return;
+    final data = event.data.dartify();
+    if (data is! Map) return;
+    final number = data['aityx'];
+    if (number is! num || number.toInt() != 1) return;
+    if (data['type'] != 'answer' || data['id'] != id) return;
+    final status = data['status'];
+    final text = data['body'];
+    stop();
+    answer.complete((
+      status: status is num ? status.toInt() : 0,
+      body: text is String ? text : '',
+    ));
+  }).toJS;
   web.window.addEventListener('message', listener);
   parent.postMessage(
     {'aityx': 1, 'type': 'call', 'id': id, 'body': body}.jsify(),
@@ -125,4 +130,20 @@ Future<({int status, String body})> askParent(
       return (status: 0, body: '');
     },
   );
+}
+
+/// Completes when the page is visible: at once if it is, else on the
+/// visibilitychange that shows it. A framed app shares the visibility of
+/// the tab it is in.
+Future<void> whenVisible() {
+  if (web.document.visibilityState != 'hidden') return Future.value();
+  final shown = Completer<void>();
+  late final JSFunction listener;
+  listener = ((web.Event _) {
+    if (web.document.visibilityState == 'hidden') return;
+    web.document.removeEventListener('visibilitychange', listener);
+    if (!shown.isCompleted) shown.complete();
+  }).toJS;
+  web.document.addEventListener('visibilitychange', listener);
+  return shown.future;
 }

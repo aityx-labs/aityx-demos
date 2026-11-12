@@ -73,3 +73,12 @@ feature files in this folder describe the software as it is now.
    right, and the 1 GB-class models 15 (an upper bound: the rules were
    written against these chats). Before, the reader got 1 of the nine
    stories right.
+5. **In each story, make the text box larger so the chat fits, and break
+   the chat into paragraphs so it's easier to understand.** The chat box is
+   now as high as its text, at any width, and grows as you type: no
+   scrolling inside it. Each of the nine stories' chats is split into two
+   to five short paragraphs (the place and the dates, who's coming, who
+   comes late or isn't paying, what was spent), with no word changed or
+   moved, Thanksgiving's included. Every story's call was recorded again
+   with the new text, with the same results
+   ([The page](page.md#the-samples)).

@@ -11,7 +11,9 @@ prototype, in five numbered steps:
    Year's), **Fill random** and a menu of that holiday's stories, the
    group chat, and the lists it's settled from: who's coming (adults, and
    kids with their ages and parents, nights, who drinks) and what was spent
-   (kind, label, amount, who paid). The chat can always be rewritten:
+   (kind, label, amount, who paid). The chat box is as high as its text,
+   which never scrolls inside it, and grows as you type. The chat can
+   always be rewritten:
    **Split it** then reads it into the lists (see [Trip
    reader](trip-reader.md)); changed back to the story's own text, it uses
    the story's own lists again. With a key, the lists can be edited: **+
@@ -31,7 +33,9 @@ or leaves, a countdown), from Google Fonts and inline SVG and canvas.
 
 ## The samples
 
-Nine stories, three per holiday, each with its chat, its lists, the host
+Nine stories, three per holiday, each with its chat (in short paragraphs:
+the place and the dates, who's coming, who comes late or isn't paying,
+what was spent), its lists, the host
 and the outcome it shows (a kid who stays free, a host who doesn't pay,
 people who leave early...). The one each holiday opens on grows with the
 holiday:

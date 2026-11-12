@@ -76,7 +76,7 @@ h2{margin:0;font:600 20px var(--display);text-wrap:balance}
 .tab:hover{border-color:var(--muted)}
 textarea[readonly]{cursor:default;opacity:.92}
 textarea[readonly]:focus{outline:none;border-color:var(--line)}
-textarea{width:100%;min-height:140px;resize:vertical;background:var(--ink);color:var(--fg);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font:400 16px/1.6 var(--display)}
+textarea{width:100%;min-height:140px;resize:none;overflow:hidden;background:var(--ink);color:var(--fg);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font:400 16px/1.6 var(--display)}
 .note{font-size:13px;color:var(--muted)}
 .note.warn{color:var(--acc2)}
 .go{align-self:flex-start;font:600 16px var(--display);color:var(--ink);background:var(--acc);border:0;border-radius:12px;padding:12px 22px;cursor:pointer}

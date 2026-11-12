@@ -8,7 +8,7 @@ import * as reader from "./reader.js";
 
 const SAMPLES = {
   cabin:{trip:"cabin",kind:"all",result:"Ray and Ben come late. Zoe, 16, pays full. Rose and Ana skip the drinks.",label:"Christmas at the cabin",start:"2026-12-23",host:"sam",
-    text:"Christmas at a cabin in the Smokies, 5 nights from Dec 23, $2,450. Sam booked it and paid. Jan and Mo are bringing the kids, Lily (4), Max (12) and Zoe (16). Grandma Rose is coming too, she doesn't drink. Leo only makes it for the last 2 nights, and his girlfriend Tess comes with him. Uncle Ray drives up on the 25th, so 3 nights, with his son Ben (9). Mo did the grocery run, $420, and Ana did the second one on the 26th, $185. Ana doesn't drink. Sam got the wine and beer, $180, and Ray brought the eggnog and whiskey, $95. Tess paid for everyone's sledding passes, $120.",
+    text:"Christmas at a cabin in the Smokies, 5 nights from Dec 23, $2,450. Sam booked it and paid.\n\nJan and Mo are bringing the kids, Lily (4), Max (12) and Zoe (16). Grandma Rose is coming too, she doesn't drink.\n\nLeo only makes it for the last 2 nights, and his girlfriend Tess comes with him. Uncle Ray drives up on the 25th, so 3 nights, with his son Ben (9).\n\nMo did the grocery run, $420, and Ana did the second one on the 26th, $185. Ana doesn't drink. Sam got the wine and beer, $180, and Ray brought the eggnog and whiskey, $95. Tess paid for everyone's sledding passes, $120.",
     people:[
       {id:"sam",name:"Sam",age:null,nights:5,drinks:true},
       {id:"jan",name:"Jan",age:null,nights:5,drinks:true},
@@ -25,7 +25,7 @@ const SAMPLES = {
     expenses:[{kind:"lodging",what:"Cabin",amount:2450,by:"sam"},{kind:"groceries",what:"Groceries",amount:420,by:"mo"},{kind:"groceries",what:"Second grocery run",amount:185,by:"ana"},{kind:"drinks",what:"Wine and beer",amount:180,by:"sam"},{kind:"drinks",what:"Eggnog and whiskey",amount:95,by:"ray"},{kind:"other",what:"Sledding passes",amount:120,by:"tess"}],
     exempt:[], nudge:"Try it: tap Grandma Rose."},
   ski:{trip:"ski",kind:"out",result:"Chris turns 40 and doesn't pay. Five come late or leave early. Lina, 19, can't drink.",label:"New Year's at the lake",start:"2026-12-29",host:"priya",
-    text:"New Year's at the lake house, 4 nights from Dec 29, $3,600, plus the boathouse loft for the overflow, $640. Priya booked both and paid. It's Priya, Dev, Maya, Tom, Lu, Chris, Nadia, Omar, Kenji and Ruth. Dev and Maya bring the twins, Ari and Eli (7), and baby June (1). Nadia and Omar bring Sami (14) and Lina (19), who's in college and can't drink yet. Tom and Lu leave on the 1st, a night early. Kenji only makes it for New Year's Eve and the night after, 2 nights. Ruth arrives on the 30th, so 3 nights. Chris is turning 40 on the 31st, so it's on us this year: Chris doesn't pay a thing. Dev and Maya don't drink, and neither does Ruth. Maya paid for groceries, $485.60. Omar did a second grocery run, $212.35. Tom got the champagne and drinks, $318.90. Kenji brought the fireworks, $150. Lu paid for the New Year's Eve dinner, $420.",
+    text:"New Year's at the lake house, 4 nights from Dec 29, $3,600, plus the boathouse loft for the overflow, $640. Priya booked both and paid.\n\nIt's Priya, Dev, Maya, Tom, Lu, Chris, Nadia, Omar, Kenji and Ruth. Dev and Maya bring the twins, Ari and Eli (7), and baby June (1). Nadia and Omar bring Sami (14) and Lina (19), who's in college and can't drink yet.\n\nTom and Lu leave on the 1st, a night early. Kenji only makes it for New Year's Eve and the night after, 2 nights. Ruth arrives on the 30th, so 3 nights.\n\nChris is turning 40 on the 31st, so it's on us this year: Chris doesn't pay a thing. Dev and Maya don't drink, and neither does Ruth.\n\nMaya paid for groceries, $485.60. Omar did a second grocery run, $212.35. Tom got the champagne and drinks, $318.90. Kenji brought the fireworks, $150. Lu paid for the New Year's Eve dinner, $420.",
     people:[
       {id:"priya",name:"Priya",age:null,nights:4,drinks:true},
       {id:"dev",name:"Dev",age:null,nights:4,drinks:false},
@@ -45,7 +45,7 @@ const SAMPLES = {
     expenses:[{kind:"lodging",what:"Lake house",amount:3600,by:"priya"},{kind:"lodging",what:"Boathouse loft",amount:640,by:"priya"},{kind:"groceries",what:"Groceries",amount:485.6,by:"maya"},{kind:"groceries",what:"Second grocery run",amount:212.35,by:"omar"},{kind:"drinks",what:"Champagne and drinks",amount:318.9,by:"tom"},{kind:"other",what:"Fireworks",amount:150,by:"kenji"},{kind:"other",what:"New Year's Eve dinner",amount:420,by:"lu"}],
     exempt:["chris"], nudge:"Chris turns 40, so Chris is marked as not paying. Try it: tap Lina."},
   thanks:{trip:"thanks",kind:"out",result:"Mom hosts and doesn't pay. The others cover her share.",label:"Thanksgiving at Mom's",start:"2026-11-26",host:"mom",
-    text:"Thanksgiving at Mom's on Nov 26. Mom bought the turkey and groceries, $310, and says she's not paying a cent, it's her house. Carlos brought wine, $95. Bea made the pies, $48, and doesn't drink. Bea's partner Sam is coming. Uncle Joe brings his kids, Nina (3), Theo (8) and Ava (15).",
+    text:"Thanksgiving at Mom's on Nov 26.\n\nMom bought the turkey and groceries, $310, and says she's not paying a cent, it's her house. Carlos brought wine, $95. Bea made the pies, $48, and doesn't drink.\n\nBea's partner Sam is coming. Uncle Joe brings his kids, Nina (3), Theo (8) and Ava (15).",
     people:[
       {id:"mom",name:"Mom",age:null,nights:1,drinks:true},
       {id:"carlos",name:"Carlos",age:null,nights:1,drinks:true},
@@ -58,7 +58,7 @@ const SAMPLES = {
     expenses:[{kind:"groceries",what:"Turkey and groceries",amount:310,by:"mom"},{kind:"drinks",what:"Wine",amount:95,by:"carlos"},{kind:"groceries",what:"Pies",amount:48,by:"bea"}],
     exempt:["mom"], nudge:"Mom said she's not paying, so we already marked her."},
   cabin_out:{trip:"cabin",kind:"out",result:"Grandpa Walt is the group's treat. The others cover him.",label:"Christmas in Vermont",start:"2026-12-22",host:"nora",
-    text:"Christmas at a farmhouse in Vermont, 4 nights from Dec 22, $1,600. Nora booked it and paid. Grandpa Walt is our treat this year, he doesn't pay a thing. Eli and Rae bring their son Finn (9). Rae doesn't drink. Eli did the groceries, $380. Nora got the wine and eggnog, $150.",
+    text:"Christmas at a farmhouse in Vermont, 4 nights from Dec 22, $1,600. Nora booked it and paid.\n\nGrandpa Walt is our treat this year, he doesn't pay a thing. Eli and Rae bring their son Finn (9). Rae doesn't drink.\n\nEli did the groceries, $380. Nora got the wine and eggnog, $150.",
     people:[
       {id:"nora",name:"Nora",age:null,nights:4,drinks:true},
       {id:"walt",name:"Grandpa Walt",age:null,nights:4,drinks:true},
@@ -68,7 +68,7 @@ const SAMPLES = {
     expenses:[{kind:"lodging",what:"Farmhouse",amount:1600,by:"nora"},{kind:"groceries",what:"Groceries",amount:380,by:"eli"},{kind:"drinks",what:"Wine and eggnog",amount:150,by:"nora"}],
     exempt:["walt"], nudge:"Grandpa Walt is the group's treat, so he's marked as not paying."},
   cabin_lake:{trip:"cabin",kind:"all",result:"Mia, 7, pays half. Ben skips the drinks.",label:"Christmas by the lake",start:"2026-12-24",host:"dana",
-    text:"Christmas at a lake cabin, 3 nights from Dec 24, $1,200. Dana booked it and paid. Kai, Jo and Ben are coming, plus Jo's daughter Mia (7). Ben doesn't drink. Kai bought groceries, $300. Jo got the drinks, $120.",
+    text:"Christmas at a lake cabin, 3 nights from Dec 24, $1,200. Dana booked it and paid.\n\nKai, Jo and Ben are coming, plus Jo's daughter Mia (7). Ben doesn't drink.\n\nKai bought groceries, $300. Jo got the drinks, $120.",
     people:[
       {id:"dana",name:"Dana",age:null,nights:3,drinks:true},
       {id:"kai",name:"Kai",age:null,nights:3,drinks:true},
@@ -78,7 +78,7 @@ const SAMPLES = {
     expenses:[{kind:"lodging",what:"Lake cabin",amount:1200,by:"dana"},{kind:"groceries",what:"Groceries",amount:300,by:"kai"},{kind:"drinks",what:"Drinks",amount:120,by:"jo"}],
     exempt:[], nudge:"Try it: tap Dana to treat her this year."},
   ski_out:{trip:"ski",kind:"out",result:"It's Iris's birthday. The others cover her share.",label:"New Year's at the beach",start:"2026-12-30",host:"rafa",
-    text:"Beach house for New Year's, 3 nights from Dec 30, $1,950. Rafa booked it. It's Rafa, Iris, Noah, Zoe and Sam. It's Iris's birthday, so the rest of us are covering her this time. Noah doesn't drink. Zoe got the groceries, $270. Sam bought the champagne, $160.",
+    text:"Beach house for New Year's, 3 nights from Dec 30, $1,950. Rafa booked it.\n\nIt's Rafa, Iris, Noah, Zoe and Sam. It's Iris's birthday, so the rest of us are covering her this time. Noah doesn't drink.\n\nZoe got the groceries, $270. Sam bought the champagne, $160.",
     people:[
       {id:"rafa",name:"Rafa",age:null,nights:3,drinks:true},
       {id:"iris",name:"Iris",age:null,nights:3,drinks:true},
@@ -88,7 +88,7 @@ const SAMPLES = {
     expenses:[{kind:"lodging",what:"Beach house",amount:1950,by:"rafa"},{kind:"groceries",what:"Groceries",amount:270,by:"zoe"},{kind:"drinks",what:"Champagne",amount:160,by:"sam"}],
     exempt:["iris"], nudge:"It's Iris's birthday, so she's marked as not paying."},
   ski_mtn:{trip:"ski",kind:"all",result:"Ken and Ari leave early. Ari skips the drinks.",label:"New Year's in the mountains",start:"2026-12-28",host:"jules",
-    text:"Mountain cabin for New Year's, 4 nights from Dec 28, $2,000. Jules booked it. It's Jules, Ken, Ari, Bo and Lee. Ken and Ari leave a night early. Ari doesn't drink. Bo got the groceries, $320. Ken got the drinks, $200.",
+    text:"Mountain cabin for New Year's, 4 nights from Dec 28, $2,000. Jules booked it.\n\nIt's Jules, Ken, Ari, Bo and Lee. Ken and Ari leave a night early. Ari doesn't drink.\n\nBo got the groceries, $320. Ken got the drinks, $200.",
     people:[
       {id:"jules",name:"Jules",age:null,nights:4,drinks:true},
       {id:"ken",name:"Ken",age:null,nights:3,drinks:true},
@@ -98,7 +98,7 @@ const SAMPLES = {
     expenses:[{kind:"lodging",what:"Mountain cabin",amount:2000,by:"jules"},{kind:"groceries",what:"Groceries",amount:320,by:"bo"},{kind:"drinks",what:"Drinks",amount:200,by:"ken"}],
     exempt:[], nudge:""},
   thanks_all:{trip:"thanks",kind:"multi",result:"Pat and Gus get paid back. Leo, 10, pays half.",label:"Friendsgiving at Pat's",start:"2026-11-26",host:"pat",
-    text:"Friendsgiving at Pat's on Nov 26. Pat made the turkey, $140. Gus brought sides and dessert, $90. Mel brought wine, $60. Kim doesn't drink and brings her son Leo (10).",
+    text:"Friendsgiving at Pat's on Nov 26.\n\nPat made the turkey, $140. Gus brought sides and dessert, $90. Mel brought wine, $60.\n\nKim doesn't drink and brings her son Leo (10).",
     people:[
       {id:"pat",name:"Pat",age:null,nights:1,drinks:true},
       {id:"gus",name:"Gus",age:null,nights:1,drinks:true},
@@ -108,7 +108,7 @@ const SAMPLES = {
     expenses:[{kind:"groceries",what:"Turkey",amount:140,by:"pat"},{kind:"groceries",what:"Sides and dessert",amount:90,by:"gus"},{kind:"drinks",what:"Wine",amount:60,by:"mel"}],
     exempt:[], nudge:""},
   thanks_june:{trip:"thanks",kind:"multi",result:"Hal and Ivy paid. The others pay them both back.",label:"Thanksgiving at Grandma June's",start:"2026-11-26",host:"june",
-    text:"Thanksgiving at Grandma June's on Nov 26. Hal bought the turkey and groceries, $260. Ivy brought wine, $70. Ivy's partner Cy is coming. Hal brings his kids, Ty (6) and Em (13).",
+    text:"Thanksgiving at Grandma June's on Nov 26.\n\nHal bought the turkey and groceries, $260. Ivy brought wine, $70.\n\nIvy's partner Cy is coming. Hal brings his kids, Ty (6) and Em (13).",
     people:[
       {id:"june",name:"Grandma June",age:null,nights:1,drinks:true},
       {id:"hal",name:"Hal",age:null,nights:1,drinks:true},
@@ -390,7 +390,7 @@ function load(key){
     expenses:s.expenses.map((e,i)=>({...e,i,edited:false})),
     exempt:new Set(s.exempt),exemptByYou:false,jevRead:false,rules:{...DEFAULT_RULES},focus:null,listChanged:false,n:0};
   const th=THEMES[s.trip]; document.documentElement.dataset.holiday=th.h; $("hword").textContent=th.word; FX.set(th.h); countdown(th);
-  $("msg").value=s.text; setNote(false); readerNote("");
+  $("msg").value=s.text; fitChat(); setNote(false); readerNote("");
   $("tabs").innerHTML=Object.entries(THEMES).map(([t,v])=>`<button class="tab" type="button" data-k="${v.def}" aria-pressed="${t===s.trip}">${esc(v.tab)}</button>`).join("");
   $("casetag").innerHTML=`${ICON[s.kind]}<span><b>${esc(s.label)}</b> · ${esc(s.result)}</span>`;
   $("fill-menu").innerHTML=Object.entries(SAMPLES).filter(([,v])=>v.trip===s.trip).map(([k,v])=>`<button type="button" role="menuitemradio" aria-checked="${k===key}" data-pick="${k}">${ICON[v.kind]}<span>${esc(v.label)}<small>${esc(v.result)}</small></span></button>`).join("");
@@ -398,6 +398,10 @@ function load(key){
   document.body.classList.add("pending"); document.body.classList.remove("norec");
   renderFacts(); renderRules(); run(true);
 }
+// The chat box is as high as its text: no scrolling inside it.
+function fitChat(){ const m=$("msg"); m.style.height="auto"; m.style.height=(m.scrollHeight+2)+"px"; }
+addEventListener("resize",fitChat);
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(fitChat);
 function setNote(warn){
   $("msgnote").className="note"+(warn?" warn":"");
   $("msgnote").textContent="The family wrote this, or write your own trip and press Split it. aityx reads who comes, for how many nights, what was spent, who isn't paying and who doesn't drink."+(live()?"":" Set your aityx key to settle it on aityx.");
@@ -725,7 +729,7 @@ document.addEventListener("change",e=>{
 document.addEventListener("input",e=>{
   const t=e.target, r=S.rules, num=()=>parseInt(t.value,10);
   if(t.dataset.f==="name"||t.dataset.f==="guardian"||t.dataset.ef) return;
-  if(t.id==="msg"){ const same=sameAsStory(); S.chatChanged=!same||!!S.custom;
+  if(t.id==="msg"){ fitChat(); const same=sameAsStory(); S.chatChanged=!same||!!S.custom;
     readerNote(!S.chatChanged?"":same?"Back to the story's own words: Split it uses the story's own lists.":"Chat changed. Press Split it and aityx reads it again.",same?"":"warn"); return; }
   if(t.dataset.p){ const p=S.people.find(x=>x.id===t.dataset.p), f=t.dataset.f;
     if(f==="drinks") p.drinks=t.checked; else { const v=num(); if(isNaN(v)) return; p[f]=f==="nights"?Math.max(1,v):Math.max(0,v); }

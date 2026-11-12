@@ -1,3 +1,4 @@
+import 'package:aityx_web/aityx_web.dart' show AityxKeyPrompt;
 import 'package:faker/faker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -300,6 +301,12 @@ class _ProposalFormScreenState extends State<ProposalFormScreen> {
                   _borrowerSection(),
                   _consentTile(),
                   const SizedBox(height: 16),
+                  // Without an aityx key, a small form for it, just above
+                  // the button whose request aityx checks; else nothing.
+                  const AityxKeyPrompt(
+                    padding: EdgeInsets.only(bottom: 16),
+                    alignment: Alignment.centerLeft,
+                  ),
                   FilledButton.icon(
                     onPressed: _submit,
                     icon: const Icon(Icons.send),

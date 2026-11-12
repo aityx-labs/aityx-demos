@@ -17,3 +17,6 @@ bool embedded() => false;
 
 /// No page around the app to post to.
 void postToParent(String message) {}
+
+/// Opens [page] in a new tab: nothing to open off the web.
+void openNewTab(Uri page) {}

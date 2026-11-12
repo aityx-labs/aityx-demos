@@ -1,4 +1,5 @@
-import 'package:aityx_web/aityx_web.dart' show AityxDemosLink;
+import 'package:aityx_web/aityx_web.dart'
+    show AityxDemosLink, AityxKeyPrompt;
 import 'package:flutter/material.dart' hide Step;
 
 import '../app_version.dart';
@@ -127,6 +128,12 @@ class _TableScreenState extends State<TableScreen> {
                     padding: const EdgeInsets.all(8),
                     child: TableView(controller: c),
                   ),
+                ),
+                // Without an aityx key, a small form for it, just above
+                // Play, whose every decision is an aityx call; else nothing.
+                const AityxKeyPrompt(
+                  padding: EdgeInsets.fromLTRB(12, 4, 12, 8),
+                  alignment: Alignment.centerLeft,
                 ),
                 ControlsBar(
                   controller: c,

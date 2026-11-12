@@ -296,3 +296,20 @@ The feature files hold the current specification; see the
     device, until **Forget key**. The limitation about a session-only key
     not reaching a new tab went with it. See [aityx status
     light](aityx-status.md).
+24. **In each demo, make sure the key can be set on the index page and
+    read in the demo; but when it isn't set there, let the user set it in
+    the demo: where the demo already asks for it, or just above the aityx
+    call, or on the opening page. With a key set, show nothing at all;
+    without one, a small, discreet form with the key and optionally the
+    URL, and at the bottom a link to the aityx console to make one.** The
+    shared package gained `AityxKeyPrompt`, a form that shows only while
+    there is no key (neither the user's nor the index server's dev key)
+    and takes no room otherwise: the key, the URL (optional), **Save**,
+    and **Get a key in the aityx console**. **Save** checks the key with
+    aityx as the index page does and saves only one aityx accepts, in the
+    same `localStorage` entries, so the index page and every other demo
+    use it too. The welcome page shows it above the request box. On the
+    routing screen, a request that found no key shows it above **Try
+    again**, in place of the **Set your key** button that opened the index
+    page; saving a key routes the request again. A key set on the index
+    page is read as before. See [The key form](aityx-key.md).

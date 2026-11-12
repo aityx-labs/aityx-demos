@@ -35,8 +35,19 @@ the key is set once on the index page (**Your aityx key**,
 `sessionStorage`, else `localStorage`, `aityx.key` with `aityx.url`. It calls
 `<url>/v1/systemone` itself. With no key there, it asks the index server's
 `/demos/aityx/config` and, when the server holds a dev key, calls through its
-proxy at `/demos/aityx/v1/systemone`, which adds the key. The page never asks
-for, saves, shows or logs a key.
+proxy at `/demos/aityx/v1/systemone`, which adds the key.
+
+With no key at all (none saved, no dev key), the strip under the top bar
+holds a small form: the key, optionally the aityx URL (an https URL on
+aityx.ai; `https://api.aityx.ai` when empty), **Save**, and under it **Get a
+key in the aityx console**. **Save** checks the key with one empty call to
+aityx, which runs no model, and saves only a key aityx accepts, in
+`localStorage`, where the index page and every other aityx demo read it; the
+game then goes live. With a working key the strip isn't there at all: the
+pill and the light at the top right say the game is live, and a click on the
+light opens the index page's key section, to change the key. A key aityx
+rejects, or an aityx that doesn't answer, brings the strip back with why and
+a link to the index page. The page never shows or logs a key.
 
 The status light at the top right is the same as the Flutter demos': grey
 while it checks, green when aityx accepts the key, red otherwise. The check

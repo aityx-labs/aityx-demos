@@ -13,7 +13,8 @@ the app calls aityx itself, through the shared
 
 - **Where the key comes from**, in this order (`AityxSettings.resolve`):
   1. **The user's key**, set once on the index page's **Your aityx key**
-     (`/demos/#aityx-key`) and kept in the browser, on the device:
+     (`/demos/#aityx-key`) or in the app's own
+     [key form](aityx-key.md), and kept in the browser, on the device:
      `localStorage['aityx.key']`, until **Forget key** (a key an older
      index page left in `sessionStorage` is read first), with
      `aityx.url` beside it (default
@@ -30,7 +31,8 @@ the app calls aityx itself, through the shared
      no Authorization header: the server adds the key, which never
      reaches the browser.
   3. **None**: the check says *aityx is not set up: set your key on the
-     index page* and sends nothing.
+     index page* and sends nothing; the [key form](aityx-key.md) shows
+     above **Request proposal** and above the check's **Try again**.
 
   The key is never compiled into the app (no `--dart-define`), never in a
   URL or a log, and never in what the app shows: the request under **Show

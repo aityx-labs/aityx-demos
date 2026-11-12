@@ -67,7 +67,7 @@ call (the request's body and aityx's answer, never the headers, which
 carry the key) for the [viewer](window.md), unless aityx's answer holds
 the user's key: then the call isn't kept. A failed call says why:
 "aityx is not set up: set your key on the index page" (no key; nothing is
-sent), "aityx rejected the key" (401, 403), "aityx did not answer" (no
+sent, and the [key form](aityx-key.md) shows above the controls), "aityx rejected the key" (401, 403), "aityx did not answer" (no
 answer, or not in time), or "aityx answered HTTP n: …" with aityx's
 `detail` and `errors`, its reasons for a model it can't run; "the battle
 failed: …" for a decision error.

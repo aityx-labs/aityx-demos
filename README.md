@@ -23,7 +23,11 @@ No key ships with this repository. To get one:
 3. Open the aityx index (http://localhost:8800/demos/ or your codespace),
    paste the key in **Your aityx key** and choose **Check and save**.
 
-The key stays in your browser, and every aityx demo uses it. tatyx asks
+The key stays in your browser, and every aityx demo uses it. A demo opened
+without a key asks for it itself, in a small form where it calls aityx (the
+key, optionally the aityx URL, and a link to the console): a key saved there
+is the same key, for the index page and every other demo. With a key set,
+the form isn't there. tatyx asks
 for a key in its own **Your aityx key** panel. Poker Tour plays on the
 host's key, and HealthHub's server holds its own. To skip this step, give
 the servers a dev key (see [A dev key](#a-dev-key)).

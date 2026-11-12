@@ -61,8 +61,10 @@ lock as the other aityx demos', so they share one Nix store.
    aityx demo uses it. Or put `AITYX_API_KEY` in the repository's `.env`
    (see [../.env.example](../.env.example)) for a dev key: the index
    server adds it to the app's calls, and it never reaches the browser.
-   Without a key the game runs, but the aityx pilots fly straight on and
-   the light in the top right corner is red.
+   Without a key the game runs, but the aityx pilots fly straight on,
+   the light in the top right corner is red, and a small form above the
+   river takes your key (and, optionally, the aityx URL) without leaving
+   the game; with a key, the form isn't there.
 
 Press **Start** and fly; see [Game](specs/game.md) for the rules of play,
 [Strategies](specs/strategies.md) for the sensors, commands and rule

@@ -15,7 +15,8 @@ The app is served by the index server at `/demos/pokerface/`, on the same
 origin as the index page and the other aityx demos, and aityx_web finds
 the key in this order:
 
-1. **The user's key**, set once on the index page's "Your aityx key"
+1. **The user's key**, set once on the index page's "Your aityx key" or
+   in the app's own [key form](aityx-key.md)
    (`sessionStorage`, else `localStorage`, `aityx.key` and `aityx.url`):
    the app calls `<url>/v1/systemone` (by default
    `https://api.aityx.ai`) with `Authorization: Bearer <key>`.
@@ -25,7 +26,8 @@ the key in this order:
    on its own origin, and the server adds the key. The key never reaches
    the browser.
 3. **None**: every decision fails with "aityx is not set up: set your key
-   on the index page", and [the aityx light](aityx-status.md) is red.
+   on the index page", [the aityx light](aityx-status.md) is red, and
+   the [key form](aityx-key.md) shows above the controls.
 
 ## The presets
 

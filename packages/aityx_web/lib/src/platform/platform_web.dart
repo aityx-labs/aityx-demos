@@ -47,6 +47,10 @@ AityxKeyStore browserKeyStore() => _store;
 /// Opens [page] in the same tab.
 void openPage(Uri page) => web.window.location.assign(page.toString());
 
+/// Opens [page] in a new tab, which gets no handle on this one.
+void openNewTab(Uri page) =>
+    web.window.open(page.toString(), '_blank', 'noopener,noreferrer');
+
 /// Whether the page that loaded the app asked for it embedded (`?embed=1`)
 /// and the app is in a frame. Read once, at the first use: the query is
 /// the one the app was loaded with, whatever it routes to since.

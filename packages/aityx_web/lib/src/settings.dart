@@ -9,9 +9,14 @@ import 'body.dart';
 import 'connection.dart';
 import 'key_store.dart';
 import 'paths.dart';
+import 'platform/platform_vm.dart'
+    if (dart.library.js_interop) 'platform/platform_web.dart';
 
 /// Reads the key the way the index page and every demo agree on:
 ///
+/// 0. nothing at all, when the page around the app makes its calls
+///    (`?bridge=1`): the aityx console's Demos tab, where the app is framed
+///    with an origin of its own and has no storage to read a key from;
 /// 1. the user's key from the [AityxKeyStore] (sessionStorage, then
 ///    localStorage), sent straight to its URL;
 /// 2. else the dev key, when the origin's `/demos/aityx/config` says the
@@ -39,6 +44,10 @@ class AityxSettings {
     AityxKeyStore? store,
     Duration timeout = const Duration(seconds: 10),
   }) async {
+    // Before the store: framed by the console there is no store to read, and
+    // no key would be the right answer anyway.
+    if (bridgeRequested()) return AityxConnection.bridge();
+
     final keys = store ?? AityxSettings.store;
     final key = keys.key;
     if (key != null) return AityxConnection.user(key, url: keys.url);

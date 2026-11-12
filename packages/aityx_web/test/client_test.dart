@@ -10,6 +10,30 @@ final origin = Uri.parse('http://localhost:8800/demos/riverrace/');
 
 void main() {
   group('systemone', () {
+    test('the bridged connection sends no key and names the console', () {
+      final to = AityxConnection.bridge();
+
+      expect(to.source, AityxSource.bridge);
+      expect(to.key, isNull);
+      // No Authorization: a framed demo holds no credential to send.
+      expect(to.headers(), {'Content-Type': 'application/json'});
+      expect(to.whose, 'the aityx console');
+    });
+
+    test('a bridged call off the web reports the console unreachable', () async {
+      // Only a browser has a page around the app to ask; the VM stub answers
+      // nothing, which must read as unreachable rather than as a refusal.
+      final client = AityxClient(
+        client: MockClient((_) async => fail('nothing is sent over HTTP')),
+        connection: AityxConnection.bridge(),
+      );
+
+      await expectLater(
+        client.systemone({'state': 'x'}),
+        throwsA(isA<AityxUnreachable>()),
+      );
+    });
+
     test("POSTs the body with the user's key, and answers timed", () async {
       late http.Request sent;
       final client = AityxClient(
@@ -128,7 +152,7 @@ void main() {
           isA<AityxNoKey>().having(
             (e) => e.toString(),
             'message',
-            'aityx is not set up: set your key on the index page',
+            'aityx is not set up: set your key (the light, top right)',
           ),
         ),
       );

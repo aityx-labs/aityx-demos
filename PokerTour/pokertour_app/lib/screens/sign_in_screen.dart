@@ -13,8 +13,8 @@ import '../tour/tour_session.dart';
 
 /// The page before the table: the table itself, seated with the presets,
 /// and its controls, under a veil that takes every click; on the veil,
-/// what the tour is, the sign-in with Google, and the leaderboard as it
-/// stands. Only accounts in the tour's domains get to the table; they
+/// the leaderboard as it stands, large, and beside it what the tour is
+/// and the sign-in with Google. Only accounts in the tour's domains get to the table; they
 /// play on their own aityx key.
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key, required this.session});
@@ -61,10 +61,7 @@ class _SignInScreenState extends State<SignInScreen> {
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: Center(
-                child: Text(
-                  AppVersion.version,
-                  style: theme.textTheme.bodySmall?.copyWith(color: scheme.outline),
-                ),
+                child: Text(AppVersion.version, style: theme.textTheme.bodySmall?.copyWith(color: scheme.outline)),
               ),
             ),
         ],
@@ -108,54 +105,82 @@ class _SignInScreenState extends State<SignInScreen> {
     );
   }
 
-  /// On the veil: the welcome with the sign-in, and the leaderboard.
+  /// On the veil: the leaderboard, large, and beside it the welcome with
+  /// the sign-in (above it on a narrow screen, so the sign-in stays in
+  /// sight). Google's One Tap prompt also offers the sign-in, at the top.
   Widget _welcome(BuildContext context) {
-    final theme = Theme.of(context);
     return ListenableBuilder(
       listenable: session,
-      builder: (context, _) => ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: Card(
-                key: const Key('welcome'),
-                color: Aityx.bg1,
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Welcome to the Poker Tour',
-                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "No-limit hold'em where every player is a set of rules run on "
-                        'aityx. Play at your own table with your aityx key, write a '
-                        'strategy, and enter it in the tour: the leaderboard plays '
-                        'the strategies against each other four times a day, '
-                        'whenever a strategy is entered, and whenever an admin asks.',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 16),
-                      _Status(session: session),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 900),
+      builder: (context, _) => LayoutBuilder(
+        builder: (context, box) {
+          final wide = box.maxWidth >= 960;
+          final leaderboard = Card(
+            key: const Key('leaderboard-card'),
+            color: Aityx.bg1,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
               child: LeaderboardView(session: session),
             ),
-          ),
-        ],
+          );
+          final welcome = _WelcomeCard(session: session);
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1240),
+                child: wide
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: leaderboard),
+                          const SizedBox(width: 24),
+                          SizedBox(width: 360, child: welcome),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [welcome, const SizedBox(height: 16), leaderboard],
+                      ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// What the tour is, and the state of the sign-in with its button.
+class _WelcomeCard extends StatelessWidget {
+  const _WelcomeCard({required this.session});
+
+  final TourSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      key: const Key('welcome'),
+      color: Aityx.bg1,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Welcome to the Poker Tour', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Text(
+              "No-limit hold'em where every player is a set of rules run on "
+              'aityx. Play at your own table with your aityx key, write a '
+              'strategy, and enter it in the tour: the leaderboard plays '
+              'the strategies against each other four times a day, '
+              'whenever a strategy is entered, and whenever an admin asks.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            _Status(session: session),
+          ],
+        ),
       ),
     );
   }

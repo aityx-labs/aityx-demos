@@ -1,13 +1,23 @@
 # Board
 
 [LifeScreen](../cellfie_app/lib/life/life_screen.dart) is the app's one
-screen: a single row at the top, the title on the left and the
+screen: a single row at the top, the title on the left (under it, small
+and muted, [the link back to the aityx demos](#the-way-back)) and the
 [controls](#controls) on its right, then the board, and (on windows 1000
 px wide or more) the [calls panel](calls-panel.md) on the right, 440 px
 wide at the start and as wide as you drag it (see [Calls
 panel](calls-panel.md#width)). On narrower windows the panel opens as a drawer from the calls
 button at the end of the top row (its tooltip `Calls (n)`, the count as a
 badge once there are calls). The app's version isn't shown.
+
+## The way back
+
+Under the title, a left arrow and **aityx demos**: a small, muted link,
+primary and underlined under the pointer. A tap opens the index page
+(`/demos/` on the page's origin: https://aityx.ai/demos/ on the aityx
+website) in the same tab. Embedded (`?embed=1`) it isn't shown. It is
+`AityxDemosLink`, from the shared
+[aityx_web](../../packages/aityx_web/README.md) package.
 
 ## The infinite board
 

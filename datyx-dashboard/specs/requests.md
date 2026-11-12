@@ -4,6 +4,52 @@ The history of requests that shaped the datyx dashboard, newest first.
 Its earlier history, as the `datyx-dash` module inside `datyx/`, is in
 [../../datyx/specs/requests.md](../../datyx/specs/requests.md).
 
+## 2026-11-10: a reload while signed in shows the data, not a 401
+
+Asked: fix the dashboard: with Google sign-in on, a page reloaded while
+signed in, on a tab that loads what the API secures (seen on Training,
+`GET /api/training answered 401`), showed the 401 until refreshed.
+
+Found: a start-up race. The tabs were built, and asked, before
+`GET /api/auth/config` answered: sign-in looked off, so the calls went
+out with no token and the API refused them. The answer then turned
+sign-in on and restored the kept token in the same step, so no tab ever
+saw itself locked and then unlocked, which is what makes one ask again.
+The screen's own refresh had the same flaw for the data sources and the
+profile on every tab, and skipped the refresh that signing in asks for
+when one was already under way.
+
+Changed: fixed, in the app's start-up rather than tab by tab.
+`AuthController` takes the API's answer and the kept session in one
+step, tells its listeners once, and says when who calls is known
+(`settled`). Until then `DashboardScreen` asks only the health, builds
+only the Audit and Health tabs, and shows the others as waiting for the
+sign-in settings; once settled each tab is built as whoever is signed
+in, so its first call carries the token. With sign-in off the tabs load
+with no token as soon as the API says so; signed out they say to sign
+in, as before; a 401 mid-session still renews the token silently and
+retries. A change of who calls during a refresh is followed by another
+round of the secured calls. `DatyxDashApp` takes the tab to open, for
+tests.
+
+Two reviews of the fix found four more things, fixed in
+`dashboard_screen.dart`: a tab polling a training run went on asking
+(without a token) after a sign-out; the next user to sign in on the page
+first saw the last one's data sources and tabs; an answer on its way at
+a sign-out (the data sources, the profile, whom the API sees) was still
+kept, so the next user could see the last one's sources, or the Health
+tab name the last one for a whole session, and the round went on asking
+without a token; and the API's "did not answer" line stayed above the
+data once the API came back after being down at start. Each secured tab
+is now made anew when who calls changes (keyed on the caller), a
+sign-out empties the data sources, an answer asked for by an earlier
+caller is dropped and its round stops, and the status is asked again
+when the sign-in settles after it failed.
+
+Tests: `test/sign_in_start_test.dart` (19, 59 in all): the 14 on the
+start and the 3 on the reviews' findings fail without the fix, the 2 on
+the 401's retry hold what was already there. [dashboard.md](dashboard.md).
+
 ## 2026-11-10: on the cluster, sign in and see your data
 
 Asked: fix the issues the cluster's deploy had left open.

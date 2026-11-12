@@ -8,13 +8,14 @@ import 'package:http/http.dart' as http;
 
 import 'check.dart';
 import 'connection.dart';
-import 'key_page.dart';
+import 'key_panel.dart';
 import 'key_store.dart';
 import 'settings.dart';
 
 /// An 8 px dot: grey while it checks, green when aityx accepts the key,
 /// red otherwise; why, on hover and for screen readers. A tap opens the
-/// index page's key section in the same tab.
+/// key panel over the app ([openAityxKey]), where the key is set, changed
+/// or forgotten without leaving the app.
 ///
 /// It checks on start, when the key store changes (the index page, in
 /// another tab, sets or forgets the key), and when the window regains
@@ -52,7 +53,7 @@ class AityxStatusLight extends StatefulWidget {
   /// test gives its own.
   final Future<AityxState> Function()? check;
 
-  /// On tap: opens the index page's key section unless given.
+  /// On tap: opens the key panel, over the app, unless given.
   final VoidCallback? onTap;
 
   /// The least time between two checks on focus.
@@ -170,7 +171,14 @@ class _AityxStatusLightState extends State<AityxStatusLight> {
     if (onTap != null) {
       onTap();
     } else {
-      openAityxKeyPage(origin: widget.origin);
+      unawaited(
+        openAityxKey(
+          context,
+          client: widget.client,
+          store: _keys,
+          origin: widget.origin,
+        ),
+      );
     }
   }
 

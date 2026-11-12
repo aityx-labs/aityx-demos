@@ -10,7 +10,7 @@ every aityx demo, mounted once through `MaterialApp.builder` with
 |---|---|---|
 | grey | a check is running | `aityx: checking` |
 | green | aityx accepts the key in use (the user's, or the index server's dev key) | `aityx: ready — the key works with https://api.aityx.ai` |
-| red | no key anywhere | `aityx: no key — set yours on the index page` |
+| red | no key anywhere | `aityx: no key — set yours here` |
 | red | aityx refuses the key | `aityx: key rejected — <why>` |
 | red | no answer (network, CORS, a blocker, or the dev proxy can't reach aityx) | `aityx: not reachable — <why>` |
 | red | any other answer | `aityx: not working — <why>` |
@@ -19,8 +19,8 @@ The dot is 8 px, at 80% opacity, with no text; the tooltip, on hover or
 long press, says why, and screen readers read the same. It sits in an
 `Overlay` of its own so its tooltip works above the app's navigator, 6 px
 from the corner inside the safe area. The app bar keeps its last action
-16 px clear of it. A tap opens the index page's key section
-(`/demos/#aityx-key`) in the same tab.
+16 px clear of it. A tap opens the key panel, over the app
+(see [The key form](aityx-key.md#changing-the-key)).
 
 The check uses the key the generations use (see [aityx calls](aityx-calls.md)):
 it POSTs `{}` to `/v1/systemone`, which aityx answers with 400
@@ -29,8 +29,3 @@ It checks at start, at once when the key changes (the index page, in
 another tab, saves or forgets it), and when the window regains focus, at
 most once every 30 s. There's no polling: each check spends a request of
 the key's quota.
-
-## Known limitations
-
-- A key set as "only this session" lives in that tab's sessionStorage: a
-  demo opened in a new tab doesn't see it.

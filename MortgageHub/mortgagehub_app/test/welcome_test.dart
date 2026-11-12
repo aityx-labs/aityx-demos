@@ -15,4 +15,19 @@ void main() {
     // A test build has no MORTGAGEHUB_VERSION, so only the two texts show.
     expect(find.textContaining(RegExp(r'^\d+\.\d+\.\d+$')), findsNothing);
   });
+
+  testWidgets('links back to the aityx demos, under the button', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MortgageHubApp());
+
+    final link = find.text('aityx demos');
+    expect(link, findsOneWidget);
+    expect(
+      tester.getTopLeft(link).dy,
+      greaterThan(
+        tester.getBottomLeft(find.text('Request a mortgage proposal')).dy,
+      ),
+    );
+  });
 }

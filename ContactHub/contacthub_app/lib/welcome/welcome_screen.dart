@@ -1,3 +1,5 @@
+import 'package:aityx_web/aityx_web.dart'
+    show AityxDemosLink, AityxKeyPrompt;
 import 'package:flutter/material.dart';
 
 import '../app_version.dart';
@@ -52,6 +54,9 @@ class WelcomeScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 32),
+                  // Without an aityx key, a small form for it, just above
+                  // the request aityx routes; else nothing.
+                  const AityxKeyPrompt(padding: EdgeInsets.only(bottom: 16)),
                   RequestBox(
                     voice: voice,
                     onSubmit: (request) => Navigator.of(context).push(
@@ -61,8 +66,10 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 32),
+                  const AityxDemosLink(),
                   if (AppVersion.version.isNotEmpty) ...[
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 8),
                     Text(
                       AppVersion.version,
                       style: theme.textTheme.bodySmall?.copyWith(

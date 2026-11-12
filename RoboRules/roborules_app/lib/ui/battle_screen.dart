@@ -1,3 +1,5 @@
+import 'package:aityx_web/aityx_web.dart'
+    show AityxDemosLink, AityxKeyPrompt;
 import 'package:flutter/material.dart';
 
 import '../aityx/aityx_call_view.dart';
@@ -294,6 +296,15 @@ class _BattleScreenState extends State<BattleScreen> {
                       ),
               ),
             ),
+            // Without an aityx key, a small form for it, just above Start,
+            // whose every turn is played by aityx; else nothing.
+            const ColoredBox(
+              color: Classic.panel,
+              child: AityxKeyPrompt(
+                padding: EdgeInsets.fromLTRB(6, 6, 6, 4),
+                alignment: Alignment.centerLeft,
+              ),
+            ),
             _Controls(controller: c, onNew: _newBattle, onCall: _showCall),
           ],
         ),
@@ -485,6 +496,16 @@ class _MenuBar extends StatelessWidget {
               ),
             ),
           ]),
+          const Spacer(),
+          // The way back to the index page, at the end of the bar, in the
+          // menus' own type.
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 10),
+            child: AityxDemosLink(
+              style: TextStyle(fontSize: 13, color: Classic.text),
+              hoverColor: Classic.selection,
+            ),
+          ),
         ],
       ),
     );

@@ -263,3 +263,46 @@ The feature files hold the current specification; see the
     generations: *Five cells that grow into chaos before they settle*
     and *Seven cells that grow into a vast, long-lived pattern*. See
     [Board](board.md#controls).
+
+## 2026-11-12
+
+23. **Make sure each demo has a link back to "aityx demos"
+    (https://aityx.ai/demos), visible but discreet; add it where it is
+    missing.** Cellfie had none. The top row gained it under the title: a
+    left arrow and *aityx demos*, small and muted, primary and underlined
+    under the pointer. A tap opens the index page, `/demos/` on the page's
+    origin (https://aityx.ai/demos/ on the aityx website, the local index in
+    development), in the same tab; embedded (`?embed=1`) it isn't shown. It
+    is `AityxDemosLink`, new in the shared `aityx_web` package. See
+    [Board](board.md#the-way-back).
+24. **Remove the "Keep it" option from the index page: always keep the
+    key.** The index page's key form lost **Remember on this device** /
+    **Only this session**: a key is always saved in `localStorage`, on the
+    device, until **Forget key**. The limitation about a session-only key
+    not reaching a new tab went with it. See [aityx status
+    light](aityx-status.md).
+25. **In each demo, make sure the key can be set on the index page and
+    read in the demo; but when it isn't set there, let the user set it in
+    the demo: where the demo already asks for it, or just above the aityx
+    call, or on the opening page. With a key set, show nothing at all;
+    without one, a small, discreet form with the key and optionally the
+    URL, and at the bottom a link to the aityx console to make one.** The
+    shared package gained `AityxKeyPrompt`, a form that shows only while
+    there is no key (neither the user's nor the index server's dev key)
+    and takes no room otherwise: the key, the URL (optional), **Save**,
+    and **Get a key in the aityx console**. **Save** checks the key with
+    aityx as the index page does and saves only one aityx accepts, in the
+    same `localStorage` entries, so the index page and every other demo
+    use it too. The life screen shows it under the app bar, above the
+    board. The no-key snackbar lost its **Set your key** button, which
+    opened the index page: the form is on the screen. A key set on the
+    index page is read as before. See [The key form](aityx-key.md).
+
+24. **In this and all demos, let the key be changed without going back to
+    the index, inside the demo itself, with the same mechanism, so the key
+    works for all demos.** A tap on the status light now opens the key
+    panel over the app instead of the index page's key section: the key in
+    use, a field for a new one, **Check and save**, **Forget key** and
+    **Close** ([The key form](aityx-key.md#changing-the-key)). It saves
+    where the index page does, so every demo uses the key. The messages
+    that sent people to the index page now point to the light.

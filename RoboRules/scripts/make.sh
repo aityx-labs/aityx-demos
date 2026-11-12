@@ -36,7 +36,10 @@ BUILD_ARGS=(--build-name "$VERSION" --build-number "$BUILD_NUMBER"
 build_web() {
   local base="${WEB_BASE_HREF:-/demos/roborules/}"
   echo "==> web ($MODE, version $VERSION, build $BUILD_NUMBER, under $base)"
-  flutter build web "--$MODE" --base-href "$base" --no-web-resources-cdn \
+  # No service worker: the aityx console frames these sandboxed, without
+  # allow-same-origin, and there reading navigator.serviceWorker throws
+  # rather than being undefined, which the Flutter loader does not guard.
+  flutter build web "--$MODE" --pwa-strategy=none --base-href "$base" --no-web-resources-cdn \
     "${BUILD_ARGS[@]}"
   echo "==> web: roborules_app/build/web/"
 }

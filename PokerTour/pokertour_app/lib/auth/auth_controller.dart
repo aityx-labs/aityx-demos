@@ -77,7 +77,9 @@ class AuthController extends ChangeNotifier {
 
   /// Takes the server's answer and, when it names a client id,
   /// initializes the client and, without a kept token, tries to sign in
-  /// without interaction (a previous session).
+  /// without interaction (a previous session): on the web, Google's One
+  /// Tap prompt at the top of the page, which signs a returning account
+  /// in by itself and offers the others in one click.
   Future<void> start(AuthConfig config) async {
     _config = config;
     final clientId = config.clientId;
@@ -141,6 +143,16 @@ class AuthController extends ChangeNotifier {
       await _signIn.signOut();
     } catch (_) {
       // Signed out here whatever Google says.
+    }
+    // Google's One Tap prompt again, at the top of the page, to sign back
+    // in (or with another account) in one click. After a sign-out Google
+    // doesn't sign in by itself; it waits for that click.
+    if (_ready && kIsWeb) {
+      try {
+        await _signIn.attemptLightweightAuthentication();
+      } catch (_) {
+        // The button on the page still signs in.
+      }
     }
   }
 

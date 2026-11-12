@@ -8,6 +8,12 @@ app's home. Centered, at most 480 px wide:
 - "Your mortgage, from application to closing, in one place.", muted;
 - a **Request a mortgage proposal** button, which opens the
   [proposal request](proposal-request.md);
+- **aityx demos**, behind a left arrow: a small, muted link back to the
+  index page (`/demos/` on the page's origin: https://aityx.ai/demos/ on
+  the aityx website), in the same tab; primary and underlined under the
+  pointer, and not shown when the app is embedded (`?embed=1`). It is
+  `AityxDemosLink`, from the shared
+  [aityx_web](../../packages/aityx_web/README.md) package;
 - the build's version, `X.Y.Z` (see
   [Development environment](dev-environment.md)), small and faint, only
   when the build sets `MORTGAGEHUB_VERSION`.

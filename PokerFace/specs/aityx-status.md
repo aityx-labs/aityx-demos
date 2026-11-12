@@ -5,14 +5,14 @@ is ready for the table: whether there is a key (the user's, or the index
 server's dev key) and whether aityx accepts it. It is 8 px, a little
 transparent and has no label, so it stays out of the way; it sits in the
 corner's padding, clear of the app bar's buttons, and taps elsewhere pass
-through to the app. A tap on the dot opens the index page's key section
-(`/demos/#aityx-key`) in the same tab.
+through to the app. A tap on the dot opens the key panel, over the app
+(see [The key form](aityx-key.md#changing-the-key)).
 
 | Dot | Means | Tooltip (and screen-reader label) |
 |---|---|---|
 | grey | a check is running | `aityx: checking` |
 | green | aityx accepts the key | `aityx: ready — the key works with https://api.aityx.ai` |
-| red | no key at all | `aityx: no key — set yours on the index page` |
+| red | no key at all | `aityx: no key — set yours here` |
 | red | aityx refuses the key | `aityx: key rejected — <why>` |
 | red | aityx (or the dev proxy) can't be reached | `aityx: not reachable — <why>` |
 | red | any other answer | `aityx: not working — <why>` |

@@ -14,15 +14,20 @@ void main() {
 /// The datyx dashboard: shows what the API answers. The logic and the
 /// data live in the API (datyx/); this app only asks and shows. It signs
 /// the user in the way the API says (GET /api/auth/config) and sends the ID
-/// token with every call.
+/// token with every call. Until that answer comes, and the session kept
+/// from before a reload is restored with it, the screen asks nothing the
+/// API secures ([AuthController.settled]).
 class DatyxDashApp extends StatefulWidget {
-  const DatyxDashApp({super.key, this.api, this.auth});
+  const DatyxDashApp({super.key, this.api, this.auth, this.initialTab});
 
   /// The API, unless a test passes a fake.
   final DatyxApi? api;
 
   /// The sign-in, unless a test passes its own.
   final AuthController? auth;
+
+  /// The tab open at start; the one the page's address names when null.
+  final DashboardTab? initialTab;
 
   @override
   State<DatyxDashApp> createState() => _DatyxDashAppState();
@@ -73,6 +78,6 @@ class _DatyxDashAppState extends State<DatyxDashApp> {
     title: AppVersion.title,
     debugShowCheckedModeBanner: false,
     theme: aityxDarkTheme(),
-    home: DashboardScreen(api: _api, auth: _auth),
+    home: DashboardScreen(api: _api, auth: _auth, initialTab: widget.initialTab),
   );
 }

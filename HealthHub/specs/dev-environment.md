@@ -39,7 +39,14 @@ process-compose through Docker Compose comes from.
     `healthhub.test`, the API's live test's topic, and
     `healthhub.admissions.hourly`, the Flink job's, compacted
     (`cleanup.policy=compact,delete`): healthy once the broker answers
-    and every topic exists. A `kafka` container made before
+    and every topic exists. It makes the topics once per container, with
+    60 s for it, and marks that in `/tmp/healthhub-topics`; after that it
+    only checks that the broker takes a connection (`nc -z`). Five
+    `kafka-topics.sh` runs, each a JVM, took over the old 10 s on a busy
+    machine, so the check never passed and the readiness probe stopped
+    Kafka (and skipped Kafka's REST proxy and Flink's job) after its 3
+    minutes. A topic deleted while the container runs is made again only
+    when the container is recreated. A `kafka` container made before
     `healthhub.admissions` was added keeps its old check until it is
     recreated (`docker compose up -d kafka`), and until then the API's
     admissions fail to publish (logged, retried); `kafka-topics.sh

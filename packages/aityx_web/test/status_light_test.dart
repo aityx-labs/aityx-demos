@@ -299,7 +299,7 @@ void main() {
       // Off the web, Uri.base is a file: URL: no dev proxy to ask.
       await tester.pump();
       expect(dotColor(tester), shown(AityxStatusLight.red));
-      expect(tip(tester), 'aityx: no key — set yours on the index page');
+      expect(tip(tester), 'aityx: no key — set yours here');
     } finally {
       AityxSettings.store = before;
     }

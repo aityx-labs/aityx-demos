@@ -43,7 +43,10 @@ and response, in a side panel.
   server's dev key; the checks, and what a failure says.
 - [aityx status light](aityx-status.md): a small dot, top right on every
   screen, green when aityx accepts the key and red otherwise, with why in
-  its tooltip; a tap opens the index page's key section.
+  its tooltip; a tap opens the key panel, over the app, where the key is
+  set, changed or forgotten.
+- [The key form](aityx-key.md): without an aityx key, a small form
+  for it where the app calls aityx; with one, nothing.
 - [Theme](theme.md): the aityx dark palette.
 - [App icon](app-icon.md): a glider on the dark background; the favicon
   and every platform's icon, generated from SVG masters.

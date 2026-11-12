@@ -17,9 +17,11 @@ behind, the table as the game shows it, seated with the five presets
 (Rocky, Max, Sunny, Ada, Finn), with its controls, under a dark veil
 that takes every click: nothing on it can be pressed, focused or read
 out until the player signs in, and it never plays (its presets come from
-the app's assets; it has no key to decide with). On the veil: what the
-tour is, the state of the sign-in, and the leaderboard as it stands
-(below). It asks the server how to sign in (`GET /api/config`:
+the app's assets; it has no key to decide with). On the veil, the
+leaderboard as it stands (below) is the page's headline, large, and
+beside it, on the right, a card with what the tour is and the state of
+the sign-in, with its button; on a screen narrower than 960 pixels the
+card comes first, above the leaderboard, so the sign-in stays in sight. It asks the server how to sign in (`GET /api/config`:
 the Google client id, the allowed domains, aityx's URL; never a key),
 again with a growing pause while the server doesn't answer, and
 then:
@@ -28,7 +30,10 @@ then:
   and the leaderboard still shows.
 - **Sign in**: Google's own button
   ([google_sign_in](https://pub.dev/packages/google_sign_in), as in
-  HealthHub). The ID token is kept in the tab's session storage, so a
+  HealthHub), and Google's One Tap prompt at the top of the page, as
+  the page opens and again after a sign-out. One Tap signs a returning
+  account in by itself, except after a sign-out, when it waits for a
+  click. The ID token is kept in the tab's session storage, so a
   reload stays signed in until it expires.
 - **Not allowed**: an account outside the tour's domains (the server's
   `POKERTOUR_ALLOWED_DOMAINS`; `*`, any Google account, by default, so
@@ -76,8 +81,11 @@ The app shows it on the welcome page and in the sidebar's
 **Leaderboard** tab, compact ([leaderboard_panel.dart](../pokertour_app/lib/tour/leaderboard_panel.dart)),
 refreshed every ten seconds while shown. Each row has the strategy's name
 with its owner beneath ("template strategy" for a preset, whatever the
-API calls it), then the wins (the ranking is still by points; they
-aren't shown). The latest results aren't listed. The line at the top says what
+API calls it), then the wins; points aren't shown. On the welcome page
+the wins are the only number, large, and the rows are ranked by them (a
+tie keeps the server's order, by points), the first three places in
+gold, silver and bronze. The sidebar keeps the server's ranking, by
+points, and shows the tournaments played beside the wins. The latest results aren't listed. The line at the top says what
 the leaderboard is doing and the tournaments waiting their turn ("the
 schedule's, a new strategy's"); the line under it counts down to the
 next scheduled tournament by the second, with when it is in local time

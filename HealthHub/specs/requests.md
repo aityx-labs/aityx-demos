@@ -910,4 +910,14 @@ The feature files hold the current specification; see the
    Karapace keeps two arenas (`MALLOC_ARENA_MAX`). The same settings in
    `compose.yaml` and `k8s/`. See [Admissions per
    hour](admissions-hourly.md) and [Development
+
+4. **The simulation's events weren't running.** On a busy machine (the
+   whole datyx group starting, with the local Kubernetes cluster
+   beside it) Kafka's Docker health check never passed: it runs
+   `kafka-topics.sh`, a JVM, five times in a row within a 10 s timeout.
+   After its 3 minutes the readiness probe stopped Kafka, so Kafka's
+   REST proxy and Flink's job were skipped and no move reached the
+   stream. The check now makes the topics once per container, with 60 s
+   for it, and marks that in `/tmp/healthhub-topics`; after that it only
+   checks that the broker takes a connection. See [Development
    environment](dev-environment.md).

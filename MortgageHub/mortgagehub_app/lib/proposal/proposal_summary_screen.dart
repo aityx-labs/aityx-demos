@@ -1,3 +1,4 @@
+import 'package:aityx_web/aityx_web.dart' show AityxKeyPrompt;
 import 'package:flutter/material.dart';
 
 import 'aityx_json_view.dart';
@@ -306,6 +307,13 @@ class _RegulatoryCheckCardState extends State<RegulatoryCheckCard> {
       Text(
         "Couldn't run the check: $error",
         style: TextStyle(color: scheme.error),
+      ),
+      // Without an aityx key, a small form for it; saving one runs the
+      // check again.
+      AityxKeyPrompt(
+        padding: const EdgeInsets.only(top: 12),
+        alignment: Alignment.centerLeft,
+        onSaved: _retry,
       ),
       Align(
         alignment: Alignment.centerLeft,

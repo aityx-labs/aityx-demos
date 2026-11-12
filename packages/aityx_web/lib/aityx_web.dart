@@ -1,11 +1,15 @@
 /// aityx from the browser, for the aityx demos: the user's key (or the
-/// index server's dev key), systemone calls, and the status light.
+/// index server's dev key), systemone calls, the status light, and the
+/// link back to the index page.
 library;
 
 export 'src/check.dart';
 export 'src/client.dart';
 export 'src/connection.dart';
+export 'src/demos_link.dart';
 export 'src/key_page.dart';
+export 'src/key_panel.dart';
+export 'src/key_prompt.dart';
 export 'src/key_store.dart';
 export 'src/paths.dart';
 export 'src/settings.dart';

@@ -55,7 +55,10 @@ build() {
     web)
       local base=()
       [[ -n "${WEB_BASE_HREF:-}" ]] && base=(--base-href "$WEB_BASE_HREF")
-      flutter build web "--$MODE" ${base[@]+"${base[@]}"} --no-web-resources-cdn \
+      # No service worker: the aityx console frames these sandboxed, without
+      # allow-same-origin, and there reading navigator.serviceWorker throws
+      # rather than being undefined, which the Flutter loader does not guard.
+      flutter build web "--$MODE" --pwa-strategy=none ${base[@]+"${base[@]}"} --no-web-resources-cdn \
         "${BUILD_ARGS[@]}"
       echo "==> web: riverrace_app/build/web/"
       ;;

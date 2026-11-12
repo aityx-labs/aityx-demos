@@ -180,7 +180,7 @@ void main() {
       expect(calls, 0);
     });
 
-    test('without a key, says to set one on the index page', () {
+    test('without a key, says to set one with the light', () {
       final noKey = AityxRequestRouter(
         aityx: AityxClient(
           client: MockClient((_) async => fail('no call without a key')),
@@ -191,7 +191,7 @@ void main() {
       expect(
         noKey.route(message),
         fails(
-          'aityx is not set up: set your key on the index page.',
+          'aityx is not set up: set your key (the light, top right).',
           noKey: true,
         ),
       );
@@ -553,7 +553,7 @@ void main() {
       );
       await pump(tester, router);
       expect(find.text('aityx did not answer.'), findsOneWidget);
-      expect(find.text('Set your key'), findsNothing);
+      expect(find.byType(AityxKeyPrompt), findsNothing);
 
       router.answer = null;
       await tester.tap(find.text('Try again'));
@@ -562,22 +562,30 @@ void main() {
       expect(router.asked.length, 2);
     });
 
-    testWidgets('without a key, offers the index page', (tester) async {
+    testWidgets('without a key, asks for it above Try again', (tester) async {
       await pump(
         tester,
         FakeRouter(
           const RoutingException(
-            'aityx is not set up: set your key on the index page.',
+            'aityx is not set up: set your key (the light, top right).',
             noKey: true,
           ),
         ),
       );
       expect(
-        find.text('aityx is not set up: set your key on the index page.'),
+        find.text('aityx is not set up: set your key (the light, top right).'),
         findsOneWidget,
       );
-      expect(find.text('Set your key'), findsOneWidget);
+      // The key form: the key, the URL, Save and the console's link.
+      expect(find.byKey(const ValueKey('aityx-key-field')), findsOneWidget);
+      expect(find.byKey(const ValueKey('aityx-url-field')), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
+      expect(find.text('Get a key in the aityx console'), findsOneWidget);
       expect(find.text('Try again'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byType(AityxKeyPrompt)).dy,
+        lessThan(tester.getTopLeft(find.text('Try again')).dy),
+      );
     });
   });
 }

@@ -6,6 +6,9 @@ import 'paths.dart';
 /// The production aityx: where a user's key goes unless they set a URL.
 const aityxDefaultUrl = 'https://api.aityx.ai';
 
+/// The aityx console, where a user makes a key.
+const aityxConsoleUrl = 'https://console.aityx.ai';
+
 /// The storage entries the index page writes (localStorage, or
 /// sessionStorage for "only this session").
 const aityxKeyName = 'aityx.key';
@@ -20,6 +23,11 @@ enum AityxSource {
   /// The dev key: the index server's proxy (`<origin>/demos/aityx/`) adds
   /// it, so the key never reaches the browser.
   dev,
+
+  /// No key anywhere, but the page around the app makes its calls: the
+  /// aityx console's Demos tab, framing the app with an origin of its own.
+  /// The app never holds a credential and never reaches aityx itself.
+  bridge,
 
   /// No key at all.
   none,
@@ -60,6 +68,15 @@ class AityxConnection {
     source: AityxSource.dev,
     url: url,
     devKeyFrom: devKeyFrom,
+  );
+
+  /// The page around the app makes the calls, on the account signed in
+  /// there. [endpoint] is this page, which nothing is sent to: calls go out
+  /// over postMessage, not HTTP.
+  factory AityxConnection.bridge() => AityxConnection(
+    endpoint: Uri.base,
+    source: AityxSource.bridge,
+    url: '',
   );
 
   /// No key anywhere: calls throw AityxNoKey.
@@ -104,6 +121,7 @@ class AityxConnection {
   /// Whose key, for people: "your key", "dev key from .env", "dev key from
   /// the environment", "no key".
   String get whose => switch (source) {
+    AityxSource.bridge => 'the aityx console',
     AityxSource.user => 'your key',
     AityxSource.dev => switch (devKeyFrom) {
       '.env' => 'dev key from .env',
@@ -132,4 +150,27 @@ String normalizeAityxUrl(String? url) {
     return aityxDefaultUrl;
   }
   return trimmed;
+}
+
+/// [text] as the aityx URL a user typed, the way the index page takes it:
+/// the default when empty, else an https URL on a host under aityx.ai,
+/// without a query, a fragment or a user, and without trailing slashes.
+/// Null when it isn't one: a pasted key goes nowhere else.
+String? cleanAityxUrl(String? text) {
+  final value = (text ?? '').trim();
+  if (value.isEmpty) return aityxDefaultUrl;
+  final parsed = Uri.tryParse(value);
+  if (parsed == null ||
+      !parsed.isScheme('https') ||
+      parsed.hasQuery ||
+      parsed.hasFragment ||
+      parsed.userInfo.isNotEmpty ||
+      !parsed.host.toLowerCase().endsWith('.aityx.ai')) {
+    return null;
+  }
+  var path = parsed.path;
+  while (path.endsWith('/')) {
+    path = path.substring(0, path.length - 1);
+  }
+  return '${parsed.origin}$path';
 }

@@ -119,10 +119,14 @@ services:
       # makes it a no-op afterwards. healthhub.admissions.hourly, the Flink
       # job's upserts, is compacted as well as kept a day: a reader from
       # the start gets each hour's latest count. The tool is a JVM of its
-      # own: a small heap, not the broker's.
-      test: ["CMD-SHELL", "for t in healthhub.people.moves healthhub.admissions healthhub.alarms healthhub.test; do KAFKA_HEAP_OPTS=-Xmx64m /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic $$t > /dev/null 2>&1 || exit 1; done && KAFKA_HEAP_OPTS=-Xmx64m /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic healthhub.admissions.hourly --config cleanup.policy=compact,delete > /dev/null 2>&1"]
+      # own: a small heap, not the broker's. Five of them take well over
+      # 10 s on a busy machine, so the topics are made once per container
+      # (the marker /tmp/healthhub-topics, gone when the container is
+      # made again), with a minute for it; after that the check is only
+      # that the broker takes a connection, which takes milliseconds.
+      test: ["CMD-SHELL", "if [ -f /tmp/healthhub-topics ]; then nc -z kafka 19092; else for t in healthhub.people.moves healthhub.admissions healthhub.alarms healthhub.test; do KAFKA_HEAP_OPTS=-Xmx64m /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic $$t > /dev/null 2>&1 || exit 1; done && KAFKA_HEAP_OPTS=-Xmx64m /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic healthhub.admissions.hourly --config cleanup.policy=compact,delete > /dev/null 2>&1 && touch /tmp/healthhub-topics; fi"]
       interval: 10s
-      timeout: 10s
+      timeout: 60s
       start_period: 60s
       start_interval: 2s
       retries: 6

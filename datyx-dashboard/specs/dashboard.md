@@ -15,6 +15,13 @@ Data sources, Catalog, Training, Inference, aityx, Audit, Health, Profile. Data 
 start, unless the page's address names another (see Kept across a
 reload).
 
+At start, until the API's sign-in settings arrive (see Sign-in), nobody
+knows whether a call needs a token, so the tabs whose data the API
+secures (all but Audit and Health) aren't built yet: each shows one
+line, *Waiting for the API's sign-in settings (GET /api/auth/config).*,
+under the red line when the API itself didn't answer, and asks nothing.
+Once they arrive the tab is built as whoever is signed in, and asks.
+
 - The app bar: the title, the account corner (`UserMenu`: nothing while
   the API has authentication off; Google's own sign-in button while
   nobody is signed in; the user's picture, name, email and a sign-out
@@ -424,7 +431,10 @@ A reload of the page comes back as it was:
   sign-out. At start, a kept token that was issued for the API's client
   id and expires in more than a minute signs in at once, with the user's
   name, email and picture read from it, and Google isn't asked; an
-  expired or foreign one is dropped. When it expires, or the API refuses
+  expired or foreign one is dropped. It is restored in the same step
+  that takes the API's sign-in settings, before any tab asks, so the
+  open tab's first call carries it: a reload on any tab shows its data,
+  with no 401 first. When it expires, or the API refuses
   it, Google is asked to renew it silently; if it can't, the user is
   signed out here and the sign-in button shows. The dashboard reads the
   token's expiry and audience only; the API verifies it.
@@ -440,16 +450,40 @@ and another tab starts signed out. The data itself lives in the API.
 `GET /api/auth/config` at start, asked again with a growing delay (3 s
 up to 30 s) while the API doesn't answer, so a dashboard opened before
 the API is up still gets its sign-in. Off: nothing happens and every call goes
-out anonymous. On: it initializes `google_sign_in` with the client id the
+out anonymous. On: it restores the session kept from before a reload
+(see Kept across a reload), initializes `google_sign_in` with the client id the
 API published (nothing is built in), listens to its sign-in and sign-out
-events, and tries a silent sign-in from a previous session. The web
+events, and, with no session kept, tries a silent sign-in from a previous
+one. The web
 renders Google's own button (`google_sign_in_web`'s `renderButton`, in
 `sign_in_button_web.dart`, chosen by a conditional import); other
 platforms get a button of ours that calls `authenticate()`. The signed-in
 account's ID token (an OpenID Connect token, audience the client id) is
 what `HttpDatyxApi` sends as `Authorization: Bearer` on every call; after
 a 401 it asks for a silent re-sign-in once and retries, since Google's
-tokens live an hour. Signing in or out refreshes the screen.
+tokens live an hour.
+
+Who calls is known, the sign-in *settled* (`AuthController.settled`),
+once that answer came: the controller takes it and the kept session in
+one step and tells its listeners once, so nobody sees sign-in on with
+the session not restored yet. Until then `DashboardScreen` asks only
+what the API leaves open (`GET /api/health`, and `GET /api/auth/config`
+itself) and builds only the Audit and Health tabs; the others wait (see
+What it shows), so no call goes out without the token it needs, to be
+refused with a 401. With sign-in off that is one answer's wait, and
+then every tab loads with no token. While the API is down the tabs keep
+waiting, and load when it comes back, the API's red line gone (the
+status is asked again when the sign-in settles after it failed). The
+sign-in settling, signing in and signing out each build the tabs again
+as whoever calls now: each secured tab is made anew for each caller (a
+key of who calls), so nothing of the one before stays on screen, nor
+goes on asking (a training run's poll ends with its tab), and signing
+out empties the data sources; signed out, with sign-in on, the tabs say
+to sign in and ask nothing. They also ask the API again for what it
+secures: the data sources, the profile and whom it sees. When a refresh
+is under way at that moment, another follows it, since the first may
+have asked already as whoever called before; whatever that first one
+gets back after the change is dropped, and it asks nothing more.
 
 ## The API client
 
@@ -565,7 +599,27 @@ by name, the default first, gray past the third; the tab the address names opens
 with a session store in memory, the audit is read back after a reload
 (a waiting call as never answered), a fresh token signs in without
 Google, an expired, foreign or malformed one is dropped, a refused one
-that can't be renewed signs out, and signing out forgets it. The
+that can't be renewed signs out, and signing out forgets it.
+`test/sign_in_start_test.dart` starts the whole app over `HttpDatyxApi`
+against an API that, with sign-in on, answers a secured call without the
+right token with a 401, and whose sign-in settings come after the tabs
+are on screen: reloaded signed in (a fresh token kept) on each of the
+eight tabs, nothing secured is asked before the settings come, every
+secured call then carries the kept token, none is refused, and the tab
+shows its data, with no 401, no *Sign in* and no *Loading…* left; on the
+Training tab it waits meanwhile, and `GET /api/training` is asked once,
+with the token; signing out then says to sign in and asks nothing more,
+even with a training run under way, whose poll stops, and the Data
+sources tab keeps nothing of the user who left, even of a list that
+was on its way at the sign-out;
+with nobody signed in, or the kept token expired, the tab says to sign
+in and nothing secured is asked; with sign-in off the tab loads with no
+token once the API says so; while the API is down the secured tabs wait
+under the red line, the Health tab says it waits for
+`/api/auth/config`, and the tab loads once the settings come, the red
+line gone even with no refresh timer; and a
+token the API refuses is renewed once and the call retried with the new
+one, or, when it can't be renewed, the 401 is the answer. The
 Training tab shows a model's scope, its next run, its latest run's
 failure, its latest success's tiles (3.10 against 5.20, 40% better),
 its features' bars in proportion with their shares, its scores and

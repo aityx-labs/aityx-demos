@@ -835,3 +835,16 @@ The feature files hold the current specification; see the
    branch's pace (2500 ms a turn of 15 minutes). See [A care center's
    occupancy per hour](occupancy-timeline.md) and [The
    simulation](simulation.md#the-flow-at-a-care-center).
+
+## 2026-11-10
+
+1. **The simulation's events weren't running.** On a busy machine (the
+   whole datyx group starting, with the local Kubernetes cluster
+   beside it) Kafka's Docker health check never passed: it runs
+   `kafka-topics.sh`, a JVM, five times in a row within a 10 s timeout.
+   After its 3 minutes the readiness probe stopped Kafka, so Kafka's
+   REST proxy and Flink's job were skipped and no move reached the
+   stream. The check now makes the topics once per container, with 60 s
+   for it, and marks that in `/tmp/healthhub-topics`; after that it only
+   checks that the broker takes a connection. See [Development
+   environment](dev-environment.md).

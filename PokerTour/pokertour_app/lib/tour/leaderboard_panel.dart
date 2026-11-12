@@ -25,8 +25,10 @@ class LeaderboardView extends StatefulWidget {
   /// from, when there is one.
   final GameController? controller;
 
-  /// For the sidebar: fewer columns (no best place) and the actions under
-  /// the title.
+  /// For the sidebar: smaller, the games played beside the wins, and the
+  /// actions under the title. Otherwise (the welcome page) the leaderboard
+  /// is the page's headline: large, across its card, ranked by the wins
+  /// alone.
   final bool compact;
 
   @override
@@ -110,7 +112,18 @@ class _LeaderboardViewState extends State<LeaderboardView> {
           children: [
             Row(
               children: [
-                Expanded(child: Text('Leaderboard', style: theme.textTheme.titleMedium)),
+                if (!widget.compact) ...[
+                  Icon(Icons.emoji_events, color: scheme.primary, size: 28),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Text(
+                    'Leaderboard',
+                    style: widget.compact
+                        ? theme.textTheme.titleMedium
+                        : theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
                 if (!widget.compact) ...actions,
                 IconButton(
                   tooltip: 'Refresh',
@@ -296,54 +309,45 @@ class _Standings extends StatelessWidget {
     if (board.standings.isEmpty) {
       return Text('Nobody is in the tour yet.', style: theme.textTheme.bodySmall);
     }
+    // The welcome page shows the wins alone, so it ranks by them; a tie
+    // keeps the server's order (by points). The sidebar keeps the
+    // server's ranking.
+    final standings = compact
+        ? board.standings
+        : [
+            for (final (_, row) in board.standings.indexed.toList()
+              ..sort((a, b) {
+                final byWins = b.$2.wins.compareTo(a.$2.wins);
+                return byWins != 0 ? byWins : a.$1.compareTo(b.$1);
+              }))
+              row,
+          ];
+    if (!compact) return _board(standings, theme, scheme);
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: DataTable(
         key: const Key('standings'),
-        columnSpacing: compact ? 12 : 18,
-        horizontalMargin: compact ? 4 : 24,
+        columnSpacing: 12,
+        horizontalMargin: 4,
         dataRowMinHeight: 44,
         dataRowMaxHeight: 52,
         headingTextStyle: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
-        columns: [
-          const DataColumn(label: Text('#')),
-          const DataColumn(label: Text('Strategy')),
-          const DataColumn(label: Text('Wins'), numeric: true),
-          const DataColumn(label: Text('Played'), numeric: true),
-          if (!compact) const DataColumn(label: Text('Best'), numeric: true),
-          const DataColumn(label: Text('')),
+        columns: const [
+          DataColumn(label: Text('#')),
+          DataColumn(label: Text('Strategy')),
+          DataColumn(label: Text('Wins'), numeric: true),
+          DataColumn(label: Text('Played'), numeric: true),
+          DataColumn(label: Text('')),
         ],
         rows: [
-          for (final (i, row) in board.standings.indexed)
+          for (final (i, row) in standings.indexed)
             DataRow(
               cells: [
                 DataCell(Text('${i + 1}')),
-                DataCell(
-                  Tooltip(
-                    message: row.broken != null ? 'Left out: ${row.broken}' : row.tagline,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _name(row, theme, scheme),
-                        Text(
-                          row.preset ? 'template strategy' : row.owner,
-                          key: Key('owner-${row.id}'),
-                          style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                DataCell(_strategy(row, null, theme, scheme)),
                 DataCell(Text('${row.wins}')),
                 DataCell(Text('${row.tournaments}')),
-                if (!compact) DataCell(Text(row.best == null ? '–' : '${row.best}')),
-                DataCell(_Actions(
-                  row: row,
-                  rules: rules(row),
-                  mine: session.mine(row),
-                  onWithdraw: onWithdraw,
-                )),
+                DataCell(_actions(row)),
               ],
             ),
         ],
@@ -351,12 +355,73 @@ class _Standings extends StatelessWidget {
     );
   }
 
-  Widget _name(Standing row, ThemeData theme, ColorScheme scheme) => Row(
+  /// The welcome page's standings: large, across the card, the wins alone.
+  Widget _board(List<Standing> standings, ThemeData theme, ColorScheme scheme) {
+    final label = theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
+    Widget line(Widget rank, Widget strategy, Widget wins, Widget actions) => Row(
+      children: [
+        SizedBox(width: 48, child: rank),
+        Expanded(child: strategy),
+        SizedBox(width: 64, child: Align(alignment: Alignment.centerRight, child: wins)),
+        SizedBox(width: 96, child: Align(alignment: Alignment.centerRight, child: actions)),
+      ],
+    );
+    return Column(
+      key: const Key('standings'),
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: line(Text('#', style: label), Text('Strategy', style: label), Text('Wins', style: label), const SizedBox()),
+        ),
+        for (final (i, row) in standings.indexed) ...[
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: line(
+              _Rank(place: i + 1),
+              _strategy(row, theme.textTheme.titleMedium, theme, scheme),
+              Text(
+                '${row.wins}',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              _actions(row),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// The strategy's name over its owner, with why it is left out, if it
+  /// is, or its tagline on hover.
+  Widget _strategy(Standing row, TextStyle? style, ThemeData theme, ColorScheme scheme) => Tooltip(
+    message: row.broken != null ? 'Left out: ${row.broken}' : row.tagline,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _name(row, style, scheme),
+        Text(
+          row.preset ? 'template strategy' : row.owner,
+          key: Key('owner-${row.id}'),
+          style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+      ],
+    ),
+  );
+
+  Widget _actions(Standing row) => _Actions(row: row, rules: rules(row), mine: session.mine(row), onWithdraw: onWithdraw);
+
+  Widget _name(Standing row, TextStyle? style, ColorScheme scheme) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
       Text(
         row.name,
-        style: TextStyle(
+        style: (style ?? const TextStyle()).copyWith(
           fontWeight: FontWeight.bold,
           color: row.broken != null ? scheme.outline : null,
         ),
@@ -371,6 +436,38 @@ class _Standings extends StatelessWidget {
       ],
     ],
   );
+}
+
+/// A place in the welcome page's standings, the first three in gold,
+/// silver and bronze.
+class _Rank extends StatelessWidget {
+  const _Rank({required this.place});
+
+  final int place;
+
+  static const _medals = [Color(0xFFE8B931), Color(0xFFB8C0CC), Color(0xFFC07A45)];
+
+  @override
+  Widget build(BuildContext context) {
+    final medal = place <= _medals.length ? _medals[place - 1] : null;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        width: 30,
+        height: 30,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: medal?.withValues(alpha: 0.18),
+          border: medal == null ? null : Border.all(color: medal, width: 1.5),
+        ),
+        child: Text(
+          '$place',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: medal),
+        ),
+      ),
+    );
+  }
 }
 
 class _Actions extends StatelessWidget {

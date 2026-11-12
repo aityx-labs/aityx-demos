@@ -23,11 +23,12 @@ your key** in step 1, opens the demos page's key section; embedded
 (`?embed=1`, the aityx website) it posts `aityx:key` to the page around it
 instead. Step 1 says which key is in use and where it goes.
 
-While aityx accepts a key, the page is live: the chat can be rewritten and
-read, the lists and the rules edited, and every change runs on aityx.
-Without one, it shows the samples' recorded calls, and the lists and the
-rules are locked. When the key starts working, a trip already shown is run
-on aityx at once; when it stops, the page goes back to the recorded sample.
+While aityx accepts a key, the page is live: the lists and the rules can
+be edited, and every change runs on aityx. Without one, it shows the
+samples' recorded calls, and the lists and the rules are locked; the chat
+can still be rewritten and read into the lists, and the amounts are then
+the browser's own estimate, said so, until a key is set. When the key
+starts working, a trip already shown is run on aityx at once; when it stops, the page goes back to the recorded sample.
 
 Step 5 shows where the call went and whose key it used ("Authorization:
 Bearer <your key>", or the server's dev key added by its proxy), never the

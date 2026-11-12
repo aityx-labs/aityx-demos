@@ -248,6 +248,5 @@ details.jx pre{margin:0 16px 16px}
 .top .lightslot{display:inline-flex;align-items:center;margin-left:8px}
 .connect{align-items:center}
 .connect a.go{text-decoration:none;display:inline-flex;align-items:center}
-.readrow{display:flex;gap:10px;margin:8px 0 2px}
 .readnote{margin-top:6px}
 .readnote.ok{color:var(--ok)}

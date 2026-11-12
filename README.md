@@ -71,11 +71,11 @@ behind each item. [README](ContactHub/README.md)
 
 ![Holiday Split: a family's Christmas trip, read and settled by aityx, with everyone's receipt](Index/www/holidaysplit.gif)
 
-Who owes what after a holiday trip. Write the family's group chat: a small
-LLM reads it on the device (transformers.js) for who comes, for how many
-nights and what was spent, Jev reads who isn't paying and who doesn't
-drink, and the house rules, a decision model on aityx, say who pays whom,
-how much and by when, with a receipt for everyone. [README](HolidaySplit/README.md)
+Who owes what after a holiday trip. Write the family's group chat, and
+aityx reads who comes, for how many nights, what was spent, who isn't
+paying and who doesn't drink; the house rules, a decision model on aityx,
+say who pays whom, how much and by when, with a receipt for everyone.
+From Thanksgiving at Mom's to New Year's at the lake with fifteen people. [README](HolidaySplit/README.md)
 
 ### Cellfie
 

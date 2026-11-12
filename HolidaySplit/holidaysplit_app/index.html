@@ -54,13 +54,12 @@
   </div>
   <div class="casetag" id="casetag"></div>
   <h3 class="lbl">The family group chat</h3>
-  <textarea id="msg" maxlength="1200" aria-label="Trip message" aria-describedby="msgnote" readonly></textarea>
-  <div class="readrow"><button class="ghost" id="readchat" type="button" disabled>Read the chat on this device</button></div>
+  <textarea id="msg" maxlength="2000" aria-label="Trip message" aria-describedby="msgnote"></textarea>
   <div class="note readnote" id="readnote" role="status" hidden></div>
   <div class="note" id="msgnote"></div>
   <h3 class="lbl">Who's coming and what was spent</h3>
   <p class="note" style="margin:-6px 0 0">aityx counts the people and amounts in these lists. If something here looks wrong, fix it and aityx settles it again.</p>
-  <p class="lockline">🔒 Connect a key above to write your own trip and change people, nights and amounts.</p>
+  <p class="lockline">🔒 Connect a key above to change people, nights and amounts.</p>
   <div class="tablewrap"><table id="ppl"></table></div>
   <div class="addrow"><button class="ghost" id="add-adult" type="button">+ Adult</button><button class="ghost" id="add-kid" type="button">+ Kid</button></div>
   <div class="tablewrap"><table id="exp"></table></div>
@@ -99,7 +98,7 @@
 </section>
 
 <footer>
-  <span>People, nights and amounts come from the lists, which the trip reader fills from your chat on this device. Jev reads the group chat; the house rules settle who pays whom. Without a key you see a real aityx call we recorded.</span>
+  <span>aityx reads the group chat into the lists, and the house rules settle who pays whom. Without a key you see a real aityx call we recorded.</span>
   <span><a href="../" style="color:inherit">aityx demos</a> · <span id="version"></span></span>
 </footer>
 </div>

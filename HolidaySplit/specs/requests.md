@@ -6,9 +6,9 @@ feature files in this folder describe the software as it is now.
 ## 2026-11-12
 
 1. **Is there a free LLM a web app can use, as Contact Hub does, to parse
-   free text into an aityx request?** Contact Hub uses Jev, aityx's own LLM,
-   in the same call as the decision; Jev answers yes/no, choice and score
-   questions, but doesn't extract values (names, amounts, dates). For
+   free text into an aityx request?** Contact Hub's questions run on aityx,
+   in the same call as the decision; they answer yes/no, choice and score,
+   but don't extract values (names, amounts, dates). For
    those, a small model run in the browser by transformers.js, as Contact
    Hub runs its speech model, is free and keeps the text on the device.
 2. **Copy `holiday-split-live_v11.html` into a new demo in the aityx group,
@@ -36,3 +36,22 @@ feature files in this folder describe the software as it is now.
    and worse. Qwen3-1.7B doesn't load in the browser (`std::bad_alloc`).
    So the reader is 0.6B, held to the chat, and the page asks to check
    the lists.
+3. **Keep the Thanksgiving case as is; make the Christmas party a little
+   bigger and more complicated, and New Year's really big and difficult to
+   calculate. Don't mention Jev, only aityx. Remove the "Read the chat on
+   this device" button: let the user edit the chat, and process it with
+   transformers.js.** Thanksgiving at Mom's is unchanged. Christmas at the
+   cabin now has 12 people (three kids at free, half and full price, a late
+   couple, an uncle and his son from the 25th, two grocery runs, two drinks
+   bills, sledding passes), and New Year's at the lake 15 (two lodgings,
+   five kids from a baby to a 19-year-old who can't drink, early leavers and
+   late arrivals, three who don't drink, a 40th birthday the others cover,
+   seven expenses with cents); both settle on aityx to the cent, checked by
+   hand ([The page](page.md#the-samples)). Every sample's call was recorded
+   again, Thanksgiving's with the same results. The page says aityx
+   wherever it said Jev, the decision's own descriptions too; aityx's
+   identifiers keep their names (`"model": "jev-latest"`, `"source":
+   "jev"`). The button is gone: the chat is always editable, and **Split
+   it** reads a changed chat into the lists ("aityx is reading the chat"),
+   then settles it; without a key the amounts are the browser's estimate
+   until one is set ([Trip reader](trip-reader.md)).

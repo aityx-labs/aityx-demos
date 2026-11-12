@@ -1,14 +1,15 @@
 # Trip reader
 
-Jev answers questions about a message (yes/no, a choice among options, a
-score); it doesn't pull values out of it. The trip reader does: a small
+aityx's questions about a message are yes/no, a choice among options or a
+score; they don't pull values out of it. The trip reader does: a small
 LLM, run in the browser, turns the group chat into the lists the house
-rules settle.
+rules settle. The page presents it as aityx ("aityx is reading the chat",
+"Getting aityx ready in your browser"), never by the model's name.
 
 ## How it reads
 
-**Read the chat on this device** (step 2, with a key) sends the chat to a
-module Web Worker,
+The chat is always editable. Once it's changed, **Split it** first sends
+it to a module Web Worker,
 [public/reader/reader-worker.js](../holidaysplit_app/public/reader/reader-worker.js),
 the way Contact Hub runs Moonshine for dictation:
 
@@ -48,8 +49,9 @@ the answer is checked against the chat before it fills the lists
 
 Nothing to split (no adult, or no amount) is an error, shown under the
 chat. Then the lists are replaced, the trip is labeled **Your trip**, and,
-as for a sample, Jev reads the chat for who isn't paying and who doesn't
-drink, and aityx settles it (see [Settling](settling.md)). Every list stays
+as for a sample, aityx reads the chat for who isn't paying and who
+doesn't drink, and settles it; without a key, the page shows the browser's
+own estimate and asks for one (see [Settling](settling.md)). Every list stays
 editable.
 
 ## Measured

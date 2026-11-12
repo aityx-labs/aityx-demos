@@ -62,8 +62,8 @@ const demos = [
   {
     kind: 'app', folder: 'HolidaySplit', name: 'Holiday Split',
     what: 'Who owes what for the holidays, settled by house rules',
-    desc: 'Write the family’s group chat about a trip. A small LLM reads it on the device (transformers.js) for who comes, for how many nights and what was spent; Jev reads who isn’t paying and who doesn’t drink; and the house rules, a decision model on aityx, say who pays whom, how much and by when, with a receipt for everyone.',
-    chips: ['aityx', 'natural language processing', 'on-device AI', 'accountable results'],
+    desc: 'Write the family’s group chat about a trip, from Thanksgiving at Mom’s to New Year’s at the lake with fifteen people. aityx reads who comes, for how many nights, what was spent, who isn’t paying and who doesn’t drink, and the house rules, a decision model on aityx, say who pays whom, how much and by when, with a receipt for everyone.',
+    chips: ['aityx', 'natural language processing', 'accountable results'],
     icon: 'receipt', codespace: 'aityx',
   },
 ];

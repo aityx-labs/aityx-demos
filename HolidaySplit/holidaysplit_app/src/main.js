@@ -7,30 +7,43 @@ import * as aityx from "./aityx.js";
 import * as reader from "./reader.js";
 
 const SAMPLES = {
-  cabin:{trip:"cabin",kind:"all",result:"Leo comes for 2 nights. Rose and Ana skip the drinks.",label:"Christmas at the cabin",start:"2026-12-23",host:"sam",
-    text:"Christmas at a cabin in the Smokies, 5 nights from Dec 23, $1,850. Sam booked it and paid. Jan and Mo are bringing the kids, Lily (4) and Max (12). Grandma Rose is coming too, she doesn't drink. Leo only makes it for the last 2 nights. Mo did the grocery run, $420. Ana doesn't drink. Sam also got the wine and beer, $180.",
+  cabin:{trip:"cabin",kind:"all",result:"Ray and Ben come late. Zoe, 16, pays full. Rose and Ana skip the drinks.",label:"Christmas at the cabin",start:"2026-12-23",host:"sam",
+    text:"Christmas at a cabin in the Smokies, 5 nights from Dec 23, $2,450. Sam booked it and paid. Jan and Mo are bringing the kids, Lily (4), Max (12) and Zoe (16). Grandma Rose is coming too, she doesn't drink. Leo only makes it for the last 2 nights, and his girlfriend Tess comes with him. Uncle Ray drives up on the 25th, so 3 nights, with his son Ben (9). Mo did the grocery run, $420, and Ana did the second one on the 26th, $185. Ana doesn't drink. Sam got the wine and beer, $180, and Ray brought the eggnog and whiskey, $95. Tess paid for everyone's sledding passes, $120.",
     people:[
       {id:"sam",name:"Sam",age:null,nights:5,drinks:true},
       {id:"jan",name:"Jan",age:null,nights:5,drinks:true},
       {id:"mo",name:"Mo",age:null,nights:5,drinks:true},
       {id:"lily",name:"Lily",age:4,nights:5,drinks:false,guardians:["jan","mo"]},
       {id:"max",name:"Max",age:12,nights:5,drinks:false,guardians:["jan","mo"]},
+      {id:"zoe",name:"Zoe",age:16,nights:5,drinks:false,guardians:["jan","mo"]},
       {id:"rose",name:"Grandma Rose",age:null,nights:5,drinks:false},
       {id:"leo",name:"Leo",age:null,nights:2,drinks:true},
+      {id:"tess",name:"Tess",age:null,nights:2,drinks:true},
+      {id:"ray",name:"Uncle Ray",age:null,nights:3,drinks:true},
+      {id:"ben",name:"Ben",age:9,nights:3,drinks:false,guardians:["ray"]},
       {id:"ana",name:"Ana",age:null,nights:5,drinks:false}],
-    expenses:[{kind:"lodging",what:"Cabin",amount:1850,by:"sam"},{kind:"groceries",what:"Groceries",amount:420,by:"mo"},{kind:"drinks",what:"Wine and beer",amount:180,by:"sam"}],
+    expenses:[{kind:"lodging",what:"Cabin",amount:2450,by:"sam"},{kind:"groceries",what:"Groceries",amount:420,by:"mo"},{kind:"groceries",what:"Second grocery run",amount:185,by:"ana"},{kind:"drinks",what:"Wine and beer",amount:180,by:"sam"},{kind:"drinks",what:"Eggnog and whiskey",amount:95,by:"ray"},{kind:"other",what:"Sledding passes",amount:120,by:"tess"}],
     exempt:[], nudge:"Try it: tap Grandma Rose."},
-  ski:{trip:"ski",kind:"all",result:"Tom and Lu leave a night early and pay for 3 nights.",label:"New Year's with friends",start:"2026-12-29",host:"priya",
-    text:"Lake house for New Year's, 4 nights from Dec 29, $2,400. Priya booked it. It's Priya, Dev, Maya, Tom, Lu and Chris. Tom and Lu leave on the 1st, a night early. Dev and Maya don't drink. Maya paid for groceries, $360. Tom got the champagne and drinks, $240.",
+  ski:{trip:"ski",kind:"out",result:"Chris turns 40 and doesn't pay. Five come late or leave early. Lina, 19, can't drink.",label:"New Year's at the lake",start:"2026-12-29",host:"priya",
+    text:"New Year's at the lake house, 4 nights from Dec 29, $3,600, plus the boathouse loft for the overflow, $640. Priya booked both and paid. It's Priya, Dev, Maya, Tom, Lu, Chris, Nadia, Omar, Kenji and Ruth. Dev and Maya bring the twins, Ari and Eli (7), and baby June (1). Nadia and Omar bring Sami (14) and Lina (19), who's in college and can't drink yet. Tom and Lu leave on the 1st, a night early. Kenji only makes it for New Year's Eve and the night after, 2 nights. Ruth arrives on the 30th, so 3 nights. Chris is turning 40 on the 31st, so it's on us this year: Chris doesn't pay a thing. Dev and Maya don't drink, and neither does Ruth. Maya paid for groceries, $485.60. Omar did a second grocery run, $212.35. Tom got the champagne and drinks, $318.90. Kenji brought the fireworks, $150. Lu paid for the New Year's Eve dinner, $420.",
     people:[
       {id:"priya",name:"Priya",age:null,nights:4,drinks:true},
       {id:"dev",name:"Dev",age:null,nights:4,drinks:false},
       {id:"maya",name:"Maya",age:null,nights:4,drinks:false},
+      {id:"ari",name:"Ari",age:7,nights:4,drinks:false,guardians:["dev","maya"]},
+      {id:"eli",name:"Eli",age:7,nights:4,drinks:false,guardians:["dev","maya"]},
+      {id:"june",name:"June",age:1,nights:4,drinks:false,guardians:["dev","maya"]},
       {id:"tom",name:"Tom",age:null,nights:3,drinks:true},
       {id:"lu",name:"Lu",age:null,nights:3,drinks:true},
-      {id:"chris",name:"Chris",age:null,nights:4,drinks:true}],
-    expenses:[{kind:"lodging",what:"Lake house",amount:2400,by:"priya"},{kind:"groceries",what:"Groceries",amount:360,by:"maya"},{kind:"drinks",what:"Champagne and drinks",amount:240,by:"tom"}],
-    exempt:[], nudge:""},
+      {id:"chris",name:"Chris",age:null,nights:4,drinks:true},
+      {id:"nadia",name:"Nadia",age:null,nights:4,drinks:true},
+      {id:"omar",name:"Omar",age:null,nights:4,drinks:true},
+      {id:"sami",name:"Sami",age:14,nights:4,drinks:false,guardians:["nadia","omar"]},
+      {id:"lina",name:"Lina",age:19,nights:4,drinks:false,guardians:["nadia","omar"]},
+      {id:"kenji",name:"Kenji",age:null,nights:2,drinks:true},
+      {id:"ruth",name:"Ruth",age:null,nights:3,drinks:false}],
+    expenses:[{kind:"lodging",what:"Lake house",amount:3600,by:"priya"},{kind:"lodging",what:"Boathouse loft",amount:640,by:"priya"},{kind:"groceries",what:"Groceries",amount:485.6,by:"maya"},{kind:"groceries",what:"Second grocery run",amount:212.35,by:"omar"},{kind:"drinks",what:"Champagne and drinks",amount:318.9,by:"tom"},{kind:"other",what:"Fireworks",amount:150,by:"kenji"},{kind:"other",what:"New Year's Eve dinner",amount:420,by:"lu"}],
+    exempt:["chris"], nudge:"Chris turns 40, so Chris is marked as not paying. Try it: tap Lina."},
   thanks:{trip:"thanks",kind:"out",result:"Mom hosts and doesn't pay. The others cover her share.",label:"Thanksgiving at Mom's",start:"2026-11-26",host:"mom",
     text:"Thanksgiving at Mom's on Nov 26. Mom bought the turkey and groceries, $310, and says she's not paying a cent, it's her house. Carlos brought wine, $95. Bea made the pies, $48, and doesn't drink. Bea's partner Sam is coming. Uncle Joe brings his kids, Nina (3), Theo (8) and Ava (15).",
     people:[
@@ -126,8 +139,8 @@ const fmtDate=d=>d.toLocaleDateString("en-US",{weekday:"short",month:"short",day
 const nightsTxt=n=>`${n} night${n>1?"s":""}`;
 const list=a=>a.length<2?a.join(""):a.slice(0,-1).join(", ")+" and "+a[a.length-1];
 
-/* aityx: the decision below was proven on staging. House rules overwrite its constants; Jev reads only whether the host pays. */
-const DECISION={"name":"Example · Holiday split","types":{"Adult":{"id":"string","name":"string","nights":"number > 0","drinks":"boolean"},"Kid":{"id":"string","name":"string","age":"number >= 0","nights":"number > 0","guardians":["string"]},"Expense":{"kind":"lodging|groceries|drinks|other","what":"string","amount":"number >= 0","paid_by":"string"},"Weight":{"id":"string","guardians":["string"],"general":"number","drink":"number"},"Share":{"id":"string","guardians":["string"],"owed":"number"},"Owed":{"id":"string","owed":"number"},"Balance":{"id":"string","net":"number"},"Slice":{"id":"string","i":"number","v":"number"},"Transfer":{"from":"string","to":"string","amount":"number"},"RLine":{"kind":"string","label":"string","ref":"string","value":"number","paid":"number","share":"number","weight":"number"},"LineSet":{"id":"string","lines":["RLine"]},"PersonReceipt":{"id":"string","lines":["RLine"],"owes":"number","rounding":"number"}},"inputs":{"start":{"type":"date","desc":"First day of the trip","from":"trip JSON"},"host":{"type":"string","desc":"Id of the person hosting or booking the trip","from":"trip JSON"},"exempt":{"type":["string"],"desc":"Ids of people the group agreed won't pay","from":"trip JSON"},"people":{"type":["Adult"],"desc":"Adults on the trip, who pay","from":"trip JSON"},"kids":{"type":["Kid"],"desc":"Kids on the trip; their guardians pay their share","from":"trip JSON"},"expenses":{"type":["Expense"],"desc":"What was bought, in USD, and who paid","from":"trip JSON"},"host_not_paying":{"type":"number [0..1]","desc":"Jev probability that the message says the host won't pay","from":"Jev"}},"functions":{"age_weight":{"desc":"Share of a full person's cost for a kid of this age","params":{"age":"number","free_age":"number","half_age":"number"},"returns":"number","body":[["age","=> number","# why"],["<= free_age","0","Kids up to the free age stay free."],["<= half_age","0.5","Kids up to the half age pay half."],["-","1","Older kids pay a full share."]]},"share_of":{"desc":"One person's share of one expense, in USD: drinks by drink weight, everything else by general weight","params":{"amount":"number","kind":"string","wg":"number","wd":"number","gt":"number","dt":"number"},"returns":"number","body":"if kind = \"drinks\" then (if dt = 0 then 0 else amount * wd / dt) else (if gt = 0 then 0 else amount * wg / gt)"}},"decisions":{"free_age":{"type":"number","desc":"Kids at or below this age stay free","expr":"5"},"half_age":{"type":"number","desc":"Kids at or below this age pay half","expr":"12"},"split_by_nights":{"type":"boolean","desc":"Weigh every share by nights stayed?","expr":"true"},"drinkers_split_drinks":{"type":"boolean","desc":"Split drinks only among the people who drink?","expr":"true"},"pay_days_before":{"type":"number","desc":"Days before the trip that transfers are due","expr":"7"},"evidence_threshold":{"type":"number [0..1]","desc":"Minimum Jev probability to treat the host as not paying","expr":"0.8"},"weights":{"type":["Weight"],"desc":"Each person's weight for shared costs (age share times nights) and for drinks (nights, adults who drink)","expr":"concatenate(for p in people return {id: p.id, guardians: [], general: if split_by_nights then p.nights else 1, drink: if not(drinkers_split_drinks) or p.drinks then (if split_by_nights then p.nights else 1) else 0}, for k in kids return {id: k.id, guardians: k.guardians, general: age_weight(k.age, free_age, half_age) * (if split_by_nights then k.nights else 1), drink: 0})"},"general_total":{"type":"number","desc":"Sum of everyone's weight for shared costs","expr":"sum(weights.general)"},"drink_total":{"type":"number","desc":"Sum of everyone's weight for drinks","expr":"sum(weights.drink)"},"shared_cost":{"type":"number","desc":"Lodging, groceries and other costs everyone shares, in USD","expr":"sum(concatenate([0], expenses[kind != \"drinks\"].amount))"},"drinks_cost":{"type":"number","desc":"Drinks cost, in USD","expr":"sum(concatenate([0], expenses[kind = \"drinks\"].amount))"},"shares":{"type":["Share"],"desc":"Each person's own share of the costs before kids and exemptions move, in USD","let":{"general_total":"sum(weights.general)","drink_total":"sum(weights.drink)"},"expr":"for w in weights return {id: w.id, guardians: w.guardians, owed: (if general_total = 0 then 0 else shared_cost * w.general / general_total) + (if drink_total = 0 then 0 else drinks_cost * w.drink / drink_total)}"},"payer_shares":{"type":["Owed"],"desc":"Each adult's share including their part of their kids' shares, split evenly between guardians, in USD","expr":"for p in shares[count(guardians) = 0] return {id: p.id, owed: p.owed + sum(concatenate([0], for k in shares[list contains(guardians, p.id)] return k.owed / count(k.guardians)))}"},"host_exempt":{"type":"boolean","desc":"Does the message establish that the host won't pay?","expr":"host_not_paying >= evidence_threshold"},"exempt_ids":{"type":["string"],"desc":"Ids of the adults who don't pay","expr":"if host_exempt then distinct values(concatenate(exempt, [host])) else exempt"},"exempt_cost_total":{"type":"number","desc":"The shares of the adults who don't pay, in USD","expr":"sum(concatenate([0], payer_shares[list contains(exempt_ids, id)].owed))"},"covering_count":{"type":"number","desc":"How many adults cover the shares of those who don't pay","expr":"count(payer_shares[not(list contains(exempt_ids, id))])"},"balances":{"type":["Balance"],"desc":"What each adult paid minus what they owe, with exempt shares split evenly among the others, in USD","let":{"exempt_cost":"sum(concatenate([0], payer_shares[list contains(exempt_ids, id)].owed))","covering":"count(payer_shares[not(list contains(exempt_ids, id))])"},"expr":"for p in payer_shares return {id: p.id, net: sum(concatenate([0], expenses[paid_by = p.id].amount)) - (if list contains(exempt_ids, p.id) then 0 else p.owed + exempt_cost / covering)}"},"debtors":{"type":["Slice"],"desc":"Adults who owe money, largest first, in USD","expr":"sort((for i in 1..count(balances) return {id: balances[i].id, i: i, v: 0 - balances[i].net})[v > 0], function(x, y) x.v > y.v or (x.v = y.v and x.i < y.i))"},"creditors":{"type":["Slice"],"desc":"Adults who are owed money, largest first, in USD","expr":"sort((for i in 1..count(balances) return {id: balances[i].id, i: i, v: balances[i].net})[v > 0], function(x, y) x.v > y.v or (x.v = y.v and x.i < y.i))"},"transfers":{"type":["Transfer"],"desc":"Who pays whom, in USD rounded to cents: the largest debts settle the largest credits first","let":{"debt_ends":"if count(debtors) = 0 then [] else for k in 1..count(debtors) return sum(sublist(debtors.v, 1, k))","credit_ends":"if count(creditors) = 0 then [] else for k in 1..count(creditors) return sum(sublist(creditors.v, 1, k))"},"expr":"if count(debtors) = 0 or count(creditors) = 0 then [] else (for i in 1..count(debtors), j in 1..count(creditors) return {from: debtors[i].id, to: creditors[j].id, amount: decimal(max(0, min(debt_ends[i], credit_ends[j]) - max(debt_ends[i] - debtors[i].v, credit_ends[j] - creditors[j].v)), 2)})[amount > 0]"},"pay_by":{"type":"date","desc":"Date all transfers are due","expr":"start - pay_days_before * duration(\"P1D\")"},"receipt_lines":{"type":["LineSet"],"desc":"Each adult's receipt, line by line, in USD: their share of each expense, their kids' shares, their part of who isn't paying, and what they bought minus their own share of it","expr":"for p in people return {id: p.id, lines: if list contains(exempt_ids, p.id) then (for e in expenses[paid_by = p.id] return {kind: \"bought_exempt\", label: e.what, ref: e.kind, value: decimal(0 - e.amount, 2), paid: e.amount, share: 0, weight: 0}) else concatenate(for e in expenses[paid_by != p.id] return {kind: if e.kind = \"drinks\" and (weights[id = p.id])[1].drink = 0 then \"nodrink\" else \"share\", label: e.what, ref: e.kind, value: decimal(share_of(e.amount, e.kind, (weights[id = p.id])[1].general, (weights[id = p.id])[1].drink, general_total, drink_total), 2), paid: 0, share: 0, weight: 0}, for k in kids[list contains(guardians, p.id)] return {kind: \"kid\", label: k.id, ref: \"\", value: decimal((shares[id = k.id])[1].owed / count(k.guardians), 2), paid: 0, share: 0, weight: age_weight(k.age, free_age, half_age)}, if count(exempt_ids) > 0 then [{kind: \"cover\", label: \"\", ref: \"\", value: decimal(exempt_cost_total / covering_count, 2), paid: 0, share: 0, weight: covering_count}] else [], for e in expenses[paid_by = p.id] return {kind: \"bought\", label: e.what, ref: e.kind, value: decimal(share_of(e.amount, e.kind, (weights[id = p.id])[1].general, (weights[id = p.id])[1].drink, general_total, drink_total) - e.amount, 2), paid: e.amount, share: decimal(share_of(e.amount, e.kind, (weights[id = p.id])[1].general, (weights[id = p.id])[1].drink, general_total, drink_total), 2), weight: 0})}"},"receipts":{"type":["PersonReceipt"],"desc":"Each adult's receipt with what they owe overall (negative means they get money back) and the cents left over from rounding each line","expr":"for r in receipt_lines return {id: r.id, lines: r.lines, owes: sum(concatenate([0], transfers[from = r.id].amount)) - sum(concatenate([0], transfers[to = r.id].amount)), rounding: decimal(sum(concatenate([0], transfers[from = r.id].amount)) - sum(concatenate([0], transfers[to = r.id].amount)) - sum(concatenate([0], r.lines.value)), 2)}"}}};
+/* aityx: the decision below was proven on staging. House rules overwrite its constants; aityx reads only whether the host pays. */
+const DECISION={"name":"Example · Holiday split","types":{"Adult":{"id":"string","name":"string","nights":"number > 0","drinks":"boolean"},"Kid":{"id":"string","name":"string","age":"number >= 0","nights":"number > 0","guardians":["string"]},"Expense":{"kind":"lodging|groceries|drinks|other","what":"string","amount":"number >= 0","paid_by":"string"},"Weight":{"id":"string","guardians":["string"],"general":"number","drink":"number"},"Share":{"id":"string","guardians":["string"],"owed":"number"},"Owed":{"id":"string","owed":"number"},"Balance":{"id":"string","net":"number"},"Slice":{"id":"string","i":"number","v":"number"},"Transfer":{"from":"string","to":"string","amount":"number"},"RLine":{"kind":"string","label":"string","ref":"string","value":"number","paid":"number","share":"number","weight":"number"},"LineSet":{"id":"string","lines":["RLine"]},"PersonReceipt":{"id":"string","lines":["RLine"],"owes":"number","rounding":"number"}},"inputs":{"start":{"type":"date","desc":"First day of the trip","from":"trip JSON"},"host":{"type":"string","desc":"Id of the person hosting or booking the trip","from":"trip JSON"},"exempt":{"type":["string"],"desc":"Ids of people the group agreed won't pay","from":"trip JSON"},"people":{"type":["Adult"],"desc":"Adults on the trip, who pay","from":"trip JSON"},"kids":{"type":["Kid"],"desc":"Kids on the trip; their guardians pay their share","from":"trip JSON"},"expenses":{"type":["Expense"],"desc":"What was bought, in USD, and who paid","from":"trip JSON"},"host_not_paying":{"type":"number [0..1]","desc":"aityx's probability that the message says the host won't pay","from":"aityx"}},"functions":{"age_weight":{"desc":"Share of a full person's cost for a kid of this age","params":{"age":"number","free_age":"number","half_age":"number"},"returns":"number","body":[["age","=> number","# why"],["<= free_age","0","Kids up to the free age stay free."],["<= half_age","0.5","Kids up to the half age pay half."],["-","1","Older kids pay a full share."]]},"share_of":{"desc":"One person's share of one expense, in USD: drinks by drink weight, everything else by general weight","params":{"amount":"number","kind":"string","wg":"number","wd":"number","gt":"number","dt":"number"},"returns":"number","body":"if kind = \"drinks\" then (if dt = 0 then 0 else amount * wd / dt) else (if gt = 0 then 0 else amount * wg / gt)"}},"decisions":{"free_age":{"type":"number","desc":"Kids at or below this age stay free","expr":"5"},"half_age":{"type":"number","desc":"Kids at or below this age pay half","expr":"12"},"split_by_nights":{"type":"boolean","desc":"Weigh every share by nights stayed?","expr":"true"},"drinkers_split_drinks":{"type":"boolean","desc":"Split drinks only among the people who drink?","expr":"true"},"pay_days_before":{"type":"number","desc":"Days before the trip that transfers are due","expr":"7"},"evidence_threshold":{"type":"number [0..1]","desc":"Minimum aityx probability to treat the host as not paying","expr":"0.8"},"weights":{"type":["Weight"],"desc":"Each person's weight for shared costs (age share times nights) and for drinks (nights, adults who drink)","expr":"concatenate(for p in people return {id: p.id, guardians: [], general: if split_by_nights then p.nights else 1, drink: if not(drinkers_split_drinks) or p.drinks then (if split_by_nights then p.nights else 1) else 0}, for k in kids return {id: k.id, guardians: k.guardians, general: age_weight(k.age, free_age, half_age) * (if split_by_nights then k.nights else 1), drink: 0})"},"general_total":{"type":"number","desc":"Sum of everyone's weight for shared costs","expr":"sum(weights.general)"},"drink_total":{"type":"number","desc":"Sum of everyone's weight for drinks","expr":"sum(weights.drink)"},"shared_cost":{"type":"number","desc":"Lodging, groceries and other costs everyone shares, in USD","expr":"sum(concatenate([0], expenses[kind != \"drinks\"].amount))"},"drinks_cost":{"type":"number","desc":"Drinks cost, in USD","expr":"sum(concatenate([0], expenses[kind = \"drinks\"].amount))"},"shares":{"type":["Share"],"desc":"Each person's own share of the costs before kids and exemptions move, in USD","let":{"general_total":"sum(weights.general)","drink_total":"sum(weights.drink)"},"expr":"for w in weights return {id: w.id, guardians: w.guardians, owed: (if general_total = 0 then 0 else shared_cost * w.general / general_total) + (if drink_total = 0 then 0 else drinks_cost * w.drink / drink_total)}"},"payer_shares":{"type":["Owed"],"desc":"Each adult's share including their part of their kids' shares, split evenly between guardians, in USD","expr":"for p in shares[count(guardians) = 0] return {id: p.id, owed: p.owed + sum(concatenate([0], for k in shares[list contains(guardians, p.id)] return k.owed / count(k.guardians)))}"},"host_exempt":{"type":"boolean","desc":"Does the message establish that the host won't pay?","expr":"host_not_paying >= evidence_threshold"},"exempt_ids":{"type":["string"],"desc":"Ids of the adults who don't pay","expr":"if host_exempt then distinct values(concatenate(exempt, [host])) else exempt"},"exempt_cost_total":{"type":"number","desc":"The shares of the adults who don't pay, in USD","expr":"sum(concatenate([0], payer_shares[list contains(exempt_ids, id)].owed))"},"covering_count":{"type":"number","desc":"How many adults cover the shares of those who don't pay","expr":"count(payer_shares[not(list contains(exempt_ids, id))])"},"balances":{"type":["Balance"],"desc":"What each adult paid minus what they owe, with exempt shares split evenly among the others, in USD","let":{"exempt_cost":"sum(concatenate([0], payer_shares[list contains(exempt_ids, id)].owed))","covering":"count(payer_shares[not(list contains(exempt_ids, id))])"},"expr":"for p in payer_shares return {id: p.id, net: sum(concatenate([0], expenses[paid_by = p.id].amount)) - (if list contains(exempt_ids, p.id) then 0 else p.owed + exempt_cost / covering)}"},"debtors":{"type":["Slice"],"desc":"Adults who owe money, largest first, in USD","expr":"sort((for i in 1..count(balances) return {id: balances[i].id, i: i, v: 0 - balances[i].net})[v > 0], function(x, y) x.v > y.v or (x.v = y.v and x.i < y.i))"},"creditors":{"type":["Slice"],"desc":"Adults who are owed money, largest first, in USD","expr":"sort((for i in 1..count(balances) return {id: balances[i].id, i: i, v: balances[i].net})[v > 0], function(x, y) x.v > y.v or (x.v = y.v and x.i < y.i))"},"transfers":{"type":["Transfer"],"desc":"Who pays whom, in USD rounded to cents: the largest debts settle the largest credits first","let":{"debt_ends":"if count(debtors) = 0 then [] else for k in 1..count(debtors) return sum(sublist(debtors.v, 1, k))","credit_ends":"if count(creditors) = 0 then [] else for k in 1..count(creditors) return sum(sublist(creditors.v, 1, k))"},"expr":"if count(debtors) = 0 or count(creditors) = 0 then [] else (for i in 1..count(debtors), j in 1..count(creditors) return {from: debtors[i].id, to: creditors[j].id, amount: decimal(max(0, min(debt_ends[i], credit_ends[j]) - max(debt_ends[i] - debtors[i].v, credit_ends[j] - creditors[j].v)), 2)})[amount > 0]"},"pay_by":{"type":"date","desc":"Date all transfers are due","expr":"start - pay_days_before * duration(\"P1D\")"},"receipt_lines":{"type":["LineSet"],"desc":"Each adult's receipt, line by line, in USD: their share of each expense, their kids' shares, their part of who isn't paying, and what they bought minus their own share of it","expr":"for p in people return {id: p.id, lines: if list contains(exempt_ids, p.id) then (for e in expenses[paid_by = p.id] return {kind: \"bought_exempt\", label: e.what, ref: e.kind, value: decimal(0 - e.amount, 2), paid: e.amount, share: 0, weight: 0}) else concatenate(for e in expenses[paid_by != p.id] return {kind: if e.kind = \"drinks\" and (weights[id = p.id])[1].drink = 0 then \"nodrink\" else \"share\", label: e.what, ref: e.kind, value: decimal(share_of(e.amount, e.kind, (weights[id = p.id])[1].general, (weights[id = p.id])[1].drink, general_total, drink_total), 2), paid: 0, share: 0, weight: 0}, for k in kids[list contains(guardians, p.id)] return {kind: \"kid\", label: k.id, ref: \"\", value: decimal((shares[id = k.id])[1].owed / count(k.guardians), 2), paid: 0, share: 0, weight: age_weight(k.age, free_age, half_age)}, if count(exempt_ids) > 0 then [{kind: \"cover\", label: \"\", ref: \"\", value: decimal(exempt_cost_total / covering_count, 2), paid: 0, share: 0, weight: covering_count}] else [], for e in expenses[paid_by = p.id] return {kind: \"bought\", label: e.what, ref: e.kind, value: decimal(share_of(e.amount, e.kind, (weights[id = p.id])[1].general, (weights[id = p.id])[1].drink, general_total, drink_total) - e.amount, 2), paid: e.amount, share: decimal(share_of(e.amount, e.kind, (weights[id = p.id])[1].general, (weights[id = p.id])[1].drink, general_total, drink_total), 2), weight: 0})}"},"receipts":{"type":["PersonReceipt"],"desc":"Each adult's receipt with what they owe overall (negative means they get money back) and the cents left over from rounding each line","expr":"for r in receipt_lines return {id: r.id, lines: r.lines, owes: sum(concatenate([0], transfers[from = r.id].amount)) - sum(concatenate([0], transfers[to = r.id].amount)), rounding: decimal(sum(concatenate([0], transfers[from = r.id].amount)) - sum(concatenate([0], transfers[to = r.id].amount)) - sum(concatenate([0], r.lines.value)), 2)}"}}};
 const QUESTIONS={"host_not_paying":{"type":"noul","instructions":"Does message say that the host, the person in people whose id equals host, will not pay a share of the trip costs? Do not calculate amounts or apply split rules.","criteria":{"true":"The message says the host won't pay or contribute, for example because it is their house.","false":"The message says the host pays like everyone else, or does not say the host won't pay."}}};
 
 let REC_MODE=/record/i.test(location.hash+location.search); // team only: add #record to the address to see the recording buttons
@@ -168,7 +181,7 @@ function liveDecision(){
   set("free_age",r.freeAge); set("half_age",r.halfAge); set("split_by_nights",r.byNights); set("drinkers_split_drinks",r.drinksOnly); set("pay_days_before",r.dueDays);
   return d;
 }
-// read: Jev + Decision on the message (once per trip). Otherwise Decision-only: what Jev found is already in S.exempt, so no AI call.
+// read: questions + Decision on the message (once per trip). Otherwise Decision-only: what aityx read is already in S.exempt, so no AI call.
 function liveState(read){
   const st={start:S.start,host:S.host,exempt:read&&!S.exemptByYou?[]:[...S.exempt],
     people:S.people.filter(p=>!isKid(p)).map(p=>({id:p.id,name:p.name,nights:p.nights,drinks:p.drinks})),
@@ -201,8 +214,8 @@ async function settleLive(read,afterRead){
   S.R.due=new Date(a.pay_by.date+"T00:00:00Z");
   render(false);
   const ms=Math.round(performance.now()-t0), p=a.host_not_paying&&a.host_not_paying.noul;
-  liveNote(afterRead?`Jev read the group chat (${LIVE.readN} questions, ${LIVE.readMs} ms). aityx settled it with your house rules (${ms} ms).`
-    :read?`Settled by aityx. Jev read the message: ${Math.round(p*100)}% that the host isn't paying. ${ms} ms`
+  liveNote(afterRead?`aityx read the group chat (${LIVE.readN} questions, ${LIVE.readMs} ms) and settled it with your house rules (${ms} ms).`
+    :read?`Settled by aityx: ${Math.round(p*100)}% that the host isn't paying. ${ms} ms`
     :`Settled by aityx with your house rules. No AI call. ${ms} ms`,"ok");
 }
 // Real aityx calls recorded with a key, shown to visitors without one. Filled with "Copy this call as a recording".
@@ -261,7 +274,7 @@ function showRecorded(){
 }
 function lockInputs(){
   const lk=!live(); document.body.classList.toggle("locked",lk);
-  $("msg").readOnly=lk; $("readchat").disabled=lk||READING;
+
   document.querySelectorAll("#rules input,#rules button,#ppl input,#ppl select,#ppl button,#exp input,#exp select,#exp button,.addrow button").forEach(el=>el.disabled=lk);
 }
 function renderDecisionView(){
@@ -295,13 +308,13 @@ function jevQuestions(){
   });
   return q;
 }
-// Step 1: Jev reads the message (one noul question per person). Step 2: the same proven decision settles, no AI.
+// Step 1: aityx reads the message (one noul question per person). Step 2: the same proven decision settles, no AI.
 async function readLive(){
   if(!live()) return;
   clearTimeout(LIVE.timer);
   const seq=++LIVE.seq, questions=jevQuestions();
   const body={questions,state:{message:$("msg").value,people:S.people.filter(p=>!isKid(p)).map(p=>({id:p.id,name:p.name}))}};
-  liveNote("Jev is reading the group chat…");
+  liveNote("aityx is reading the group chat…");
   const t0=performance.now(); let res,data;
   try{
     ({res,data}=await post(body));
@@ -311,7 +324,7 @@ async function readLive(){
   LIVE.read={req:body,res:data,status:res.status};
   const a=data&&data.answers, pr=k=>a&&a[k]&&typeof a[k].noul==="number"?a[k].noul:null;
   if(!res.ok||!a||Object.keys(questions).every(k=>pr(k)===null)){
-    liveNote(`Jev: ${(data&&(data.detail||data.title))||"HTTP "+res.status+", no answers"}. The amounts below are not from aityx.`,"warn"); renderCall(); return; }
+    liveNote(`aityx: ${(data&&(data.detail||data.title))||"HTTP "+res.status+", no answers"}. The amounts below are not from aityx.`,"warn"); renderCall(); return; }
   if(!S.exemptByYou) S.exempt=new Set(S.people.filter(p=>!isKid(p)&&(pr(`${p.id}_not_paying`)||0)>=EVIDENCE).map(p=>p.id));
   S.people.forEach(p=>{ if(!isKid(p)&&canDrink(p)&&!p.edited.drinks) p.drinks=(pr(`${p.id}_no_drinks`)||0)<EVIDENCE; });
   S.jevRead=true; LIVE.readMs=Math.round(performance.now()-t0); LIVE.readN=Object.keys(questions).length;
@@ -333,36 +346,38 @@ aityx.onState(st=>{
 });
 connectUI();
 
-// The trip reader: a small LLM on this device (transformers.js, reader.js)
-// turns the chat into the lists (who comes, for how many nights, the kids'
-// ages and parents, what was spent and by whom). Then, as for a sample, Jev
+// The chat into the lists: who comes, for how many nights, the kids' ages and
+// parents, what was spent and by whom. A small LLM run in the browser
+// (transformers.js, reader.js), shown as aityx. Then, as for a sample, aityx
 // reads who isn't paying and who doesn't drink, and the house rules settle.
 let READING=false;
 function readerNote(t,cls){ const n=$("readnote"); n.hidden=!t; n.className="note readnote"+(cls?" "+cls:""); n.textContent=t||""; }
 async function readChat(){
   const text=$("msg").value.trim();
-  if(!text||!live()||READING) return;
-  READING=true; $("readchat").disabled=true; $("readchat").classList.remove("go");
-  readerNote("Starting the trip reader…");
+  if(!text||READING) return;
+  READING=true; $("go").disabled=true;
+  readerNote("aityx is reading the chat…"); liveNote("aityx is reading the chat…");
   try{
     const out=await reader.read(text,{
-      onProgress:p=>readerNote(`Loading the trip reader: ${Math.round(p*100)}% (downloaded the first time only, then your browser keeps it)`),
-      onLoaded:d=>readerNote(`Reading the chat on this device (${d==="webgpu"?"on the GPU":"on the CPU, slower"})…`),
-      onToken:n=>readerNote(`Reading the chat on this device… ${n} token${n===1?"":"s"}`)});
-    applyTrip(out.trip);
+      onProgress:p=>readerNote(p<1?`Getting aityx ready in your browser: ${Math.round(p*100)}% (the first time only)`:"aityx is reading the chat…"),
+      onToken:n=>readerNote(`aityx is reading the chat… ${n}`)});
+    applyTrip(out.trip); S.chatChanged=false;
     const t=out.trip, adults=t.people.filter(p=>!p.guardians.length).length, kids=t.people.length-adults;
-    readerNote(`Read on this device in ${(out.ms/1000).toFixed(1)} s: ${adults} adult${adults===1?"":"s"}${kids?`, ${kids} kid${kids===1?"":"s"}`:""} and ${t.expenses.length} expense${t.expenses.length===1?"":"s"}${t.notes.length?` (${t.notes.join("; ")})`:""}. Check the lists: fix anything it got wrong.`,"ok");
-    document.body.classList.remove("pending"); run(); readLive();
+    readerNote(`aityx read the chat in ${(out.ms/1000).toFixed(1)} s: ${adults} adult${adults===1?"":"s"}${kids?`, ${kids} kid${kids===1?"":"s"}`:""} and ${t.expenses.length} expense${t.expenses.length===1?"":"s"}${t.notes.length?` (${t.notes.join("; ")})`:""}. Check the lists: fix anything it got wrong.`,"ok");
+    document.body.classList.remove("pending"); run();
+    if(live()) readLive();
+    else liveNote("Set your aityx key to settle this trip on aityx. The amounts below are your browser's estimate.","warn");
   }catch(e){
-    readerNote(`The trip reader couldn't read it: ${e.message}. Write it more plainly, or fix the lists by hand.`,"warn");
-  }finally{ READING=false; $("readchat").disabled=!live(); }
+    readerNote(`aityx couldn't read the chat: ${e.message}. Write it more plainly, or fix the lists by hand.`,"warn");
+    liveNote("");
+  }finally{ READING=false; $("go").disabled=false; }
 }
 function applyTrip(t){
-  Object.assign(S,{start:t.start,host:t.host,label:"Your trip",nudge:"",
+  Object.assign(S,{start:t.start,host:t.host,label:"Your trip",nudge:"",custom:true,
     people:t.people.map(p=>({...p,edited:{}})),expenses:t.expenses.map((e,i)=>({...e,i,edited:false})),
     exempt:new Set(),exemptByYou:false,jevRead:false,listChanged:true,recorded:null,focus:null});
   LIVE.call=null; LIVE.read=null;
-  $("casetag").innerHTML=`${ICON.all}<span><b>Your trip</b> · read from your chat, on this device</span>`;
+  $("casetag").innerHTML=`${ICON.all}<span><b>Your trip</b> · read by aityx from your chat</span>`;
   renderFacts(); renderRules();
 }
 function load(key){
@@ -372,7 +387,7 @@ function load(key){
     expenses:s.expenses.map((e,i)=>({...e,i,edited:false})),
     exempt:new Set(s.exempt),exemptByYou:false,jevRead:false,rules:{...DEFAULT_RULES},focus:null,listChanged:false,n:0};
   const th=THEMES[s.trip]; document.documentElement.dataset.holiday=th.h; $("hword").textContent=th.word; FX.set(th.h); countdown(th);
-  $("msg").value=s.text; setNote(false); readerNote(""); $("readchat").classList.remove("go");
+  $("msg").value=s.text; setNote(false); readerNote("");
   $("tabs").innerHTML=Object.entries(THEMES).map(([t,v])=>`<button class="tab" type="button" data-k="${v.def}" aria-pressed="${t===s.trip}">${esc(v.tab)}</button>`).join("");
   $("casetag").innerHTML=`${ICON[s.kind]}<span><b>${esc(s.label)}</b> · ${esc(s.result)}</span>`;
   $("fill-menu").innerHTML=Object.entries(SAMPLES).filter(([,v])=>v.trip===s.trip).map(([k,v])=>`<button type="button" role="menuitemradio" aria-checked="${k===key}" data-pick="${k}">${ICON[v.kind]}<span>${esc(v.label)}<small>${esc(v.result)}</small></span></button>`).join("");
@@ -382,8 +397,7 @@ function load(key){
 }
 function setNote(warn){
   $("msgnote").className="note"+(warn?" warn":"");
-  $("msgnote").textContent=live()?"The family wrote this, or write your own trip. The trip reader, on this device, reads who comes and what was spent; Jev, the aityx AI, reads who isn't paying and who doesn't drink."
-    :"The family wrote this. Jev, the aityx AI, reads it for who isn't paying and who doesn't drink. Set your aityx key to write your own trip.";
+  $("msgnote").textContent="The family wrote this, or write your own trip and press Split it. aityx reads who comes, for how many nights, what was spent, who isn't paying and who doesn't drink."+(live()?"":" Set your aityx key to settle it on aityx.");
 }
 
 const isKid=p=>p.guardians.length>0;
@@ -581,14 +595,14 @@ function hl(o){ return esc(JSON.stringify(o,null,2))
 let VIEW="key";
 const pct=v=>Math.round(v*100)+"%";
 function readAnswers(){ if(live()) return S.jevRead&&LIVE.read&&LIVE.read.res&&LIVE.read.res.answers; return S.recorded&&S.recorded.read&&S.recorded.read.res&&S.recorded.read.res.answers; }
-// Plain words for what Jev read about who pays. The cut-off itself lives in the decision (evidence_threshold).
+// Plain words for what aityx read about who pays. The cut-off itself lives in the decision (evidence_threshold).
 function renderJevNote(){
   const n=$("jevnote"), a=readAnswers(); if(!a){ n.hidden=true; return; }
   const bar=pct(EVIDENCE);
   const rows=S.people.filter(p=>!isKid(p)).map(p=>({p,v:a[`${p.id}_not_paying`]&&a[`${p.id}_not_paying`].noul})).filter(x=>typeof x.v==="number"&&x.v>=EVIDENCE);
   if(!rows.length&&!S.exemptByYou){ n.hidden=true; return; }
   n.hidden=false;
-  n.innerHTML=rows.map(({p,v})=>`<span>Jev read <b>${pct(v)}</b> that ${esc(p.name)} isn't paying. That clears the rules' ${bar} bar, so ${esc(p.name)} sits out and the others cover the share.</span>`).join("")
+  n.innerHTML=rows.map(({p,v})=>`<span>aityx read <b>${pct(v)}</b> that ${esc(p.name)} isn't paying. That clears the rules' ${bar} bar, so ${esc(p.name)} sits out and the others cover the share.</span>`).join("")
     +(S.exemptByYou?`<span>You changed who pays in the house rules, so your choice counts.</span>`:"");
   if(S.exemptByYou&&!rows.length) n.innerHTML=`<span>You changed who pays in the house rules, so your choice counts.</span>`;
 }
@@ -608,7 +622,7 @@ function renderGist(read,settle){
   const nm=id=>(S.R.byId[id]||{name:id}).name; let h="";
   if(ra){ const rows=Object.entries(ra).map(([q,x])=>[q,x&&x.noul]).filter(([,v])=>typeof v==="number").sort((x,y)=>y[1]-x[1]);
     const shown=rows.filter(([,v])=>v>=0.15), rest=rows.length-shown.length;
-    h+=`<h4>Step 1 · Jev read the message (AI)</h4><ul>${shown.map(([q,v])=>`<li><code>${esc(q)}</code><span class="pct${v>=EVIDENCE?" hit":""}">${pct(v)} ${v>=EVIDENCE?"· counts":"· under "+pct(EVIDENCE)+", doesn't count"}</span></li>`).join("")}${rest?`<li class="soft">${rest} more questions read under 15%, so they don't count</li>`:""}</ul>`; }
+    h+=`<h4>Step 1 · aityx read the message (AI)</h4><ul>${shown.map(([q,v])=>`<li><code>${esc(q)}</code><span class="pct${v>=EVIDENCE?" hit":""}">${pct(v)} ${v>=EVIDENCE?"· counts":"· under "+pct(EVIDENCE)+", doesn't count"}</span></li>`).join("")}${rest?`<li class="soft">${rest} more questions read under 15%, so they don't count</li>`:""}</ul>`; }
   if(sr){ h+=`<h4>Step 2 · The rules settled it (no AI)</h4>`;
     if(sr.decision_error) h+=`<ul><li class="soft">decision_error: ${esc(sr.decision_error.message||sr.decision_error.code||"")}</li></ul>`;
     else if(sa){ const ex=sa.exempt_ids&&sa.exempt_ids.value, tx=(sa.transfers&&sa.transfers.value)||[], due=sa.pay_by&&sa.pay_by.date;
@@ -618,7 +632,7 @@ function renderGist(read,settle){
   g.innerHTML=h;
 }
 function showCall(read,settle,head,status){
-  const k=VIEW==="key", two=(a,b)=>a&&b?{"1_jev_reads_the_message":a,"2_rules_settle":b}:(a||b||{});
+  const k=VIEW==="key", two=(a,b)=>a&&b?{"1_aityx_reads_the_message":a,"2_rules_settle":b}:(a||b||{});
   const q1=read&&(k?slimReadReq(read.req):read.req), q2=settle&&(k?slimSettleReq(settle.req):settle.req);
   const r1=read&&(k?slimReadRes(read.res):read.res), r2=settle&&(k?slimSettleRes(settle.res):settle.res);
   $("req").innerHTML=`<span class="c">${esc(head)}${k?"\n// Key parts. Switch to Full JSON for everything.":""}</span>\n`+hl(two(q1,q2));
@@ -679,9 +693,10 @@ document.addEventListener("click",e=>{
     b.parentElement.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b)); run(); return; }
   if(b.dataset.x){ const id=b.dataset.x; S.exempt.has(id)?S.exempt.delete(id):S.exempt.add(id); S.exemptByYou=true;
     b.setAttribute("aria-pressed",S.exempt.has(id)); const n=$("nudge"); if(n) n.remove(); S.focus=id; run(); return; }
+  if(b.id==="go"&&S.chatChanged){ readChat(); $("result").scrollIntoView({behavior:"smooth"}); return; }
+  if(b.id==="go"&&S.custom&&!live()){ document.body.classList.remove("pending"); run(); liveNote("Set your aityx key to settle this trip on aityx. The amounts below are your browser's estimate.","warn"); return; }
   if(b.id==="go"){ document.body.classList.remove("pending"); if(live()){ run(); readLive(); } else showRecorded(); $("result").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"start"}); return; }
   if(b.id==="recall"){ recordAll(); return; }
-  if(b.id==="readchat"){ readChat(); return; }
   if(b.id==="add-adult"||b.id==="add-kid"){ const kid=b.id==="add-kid", adults=S.people.filter(p=>!isKid(p)); S.n++;
     S.people.push({id:`new${S.n}`,name:kid?`Kid ${S.n}`:`Guest ${S.n}`,age:kid?8:null,nights:Math.max(...S.people.map(p=>p.nights)),drinks:!kid,guardians:kid?[adults[0].id]:[],edited:{}});
     listChanged(); const i=$("ppl").querySelectorAll("input[type=text]"); i[i.length-1].select(); return; }
@@ -705,7 +720,7 @@ document.addEventListener("change",e=>{
 document.addEventListener("input",e=>{
   const t=e.target, r=S.rules, num=()=>parseInt(t.value,10);
   if(t.dataset.f==="name"||t.dataset.f==="guardian"||t.dataset.ef) return;
-  if(t.id==="msg"){ if(live()){ readerNote("Chat changed. Read it to update the lists below, then Jev reads it and aityx settles.","warn"); $("readchat").classList.add("go"); } else setNote(true); return; }
+  if(t.id==="msg"){ S.chatChanged=true; readerNote("Chat changed. Press Split it and aityx reads it again.","warn"); return; }
   if(t.dataset.p){ const p=S.people.find(x=>x.id===t.dataset.p), f=t.dataset.f;
     if(f==="drinks") p.drinks=t.checked; else { const v=num(); if(isNaN(v)) return; p[f]=f==="nights"?Math.max(1,v):Math.max(0,v); }
     if(!p.edited[f]){ p.edited[f]=true; t.insertAdjacentHTML("afterend",`<span class="edited">changed</span>`); } run(); return; }

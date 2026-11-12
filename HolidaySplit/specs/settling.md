@@ -4,7 +4,7 @@ Two aityx calls per trip, from the page itself
 ([src/main.js](../holidaysplit_app/src/main.js), `readLive` and
 `settleLive`), on the key described in [The aityx key](key.md):
 
-1. **Jev reads the chat**: for each adult in the lists, one yes/no question
+1. **aityx reads the chat**: for each adult in the lists, one yes/no question
    (`noul`), `<id>_not_paying` (the chat says they won't pay a share: their
    house, the group's treat, a birthday), and, for each adult who may
    drink, `<id>_no_drinks`. An answer at least 0.8 likely (the decision's

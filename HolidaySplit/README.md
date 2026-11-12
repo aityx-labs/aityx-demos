@@ -5,22 +5,23 @@ Holiday Split settles who owes what after a holiday trip. Pick a trip
 chat, and the app tells everyone how much to pay, to whom, and by when,
 with a receipt for each person that says why.
 
-Three readers, each doing what it's good at:
+In the app, it's all aityx, in three steps:
 
-1. **The trip reader**, a small LLM run in the browser by
-   [transformers.js](https://huggingface.co/docs/transformers.js) (the way
-   [Contact Hub](../ContactHub/) runs its speech model), turns the chat into
-   the lists: who comes, for how many nights, the kids' ages and parents,
-   what was spent and by whom. The chat never leaves the device for this.
-2. **Jev**, aityx's LLM, answers yes/no questions about the chat: who isn't
-   paying (the host, a birthday) and who doesn't drink.
+1. **The chat into the lists**: who comes, for how many nights, the kids'
+   ages and parents, what was spent and by whom. A small LLM run in the
+   browser by [transformers.js](https://huggingface.co/docs/transformers.js),
+   the way [Contact Hub](../ContactHub/) runs its speech model; the chat
+   doesn't leave the device for this.
+2. **Questions about the chat**, answered by aityx: who isn't paying (the
+   host, a birthday) and who doesn't drink.
 3. **The house rules**, a decision model on [aityx](https://aityx.ai), settle
    it the same way every time: kids up to 5 stay free and up to 12 pay half,
    lodging split by nights, drinks by the people who drink, the date to pay
    by. Change a rule and aityx settles it again.
 
-The page shows each step's source (the reader, Jev, a house rule or your
-edit) and the aityx calls themselves.
+The page shows each line's source (what aityx read, a house rule or your
+edit) and the aityx calls themselves. The app never names the models
+behind aityx: it says aityx.
 
 ## Technology
 
@@ -55,11 +56,13 @@ The light at the top right says whether aityx accepts the key; a click
 opens the demos page's key section. **Set your key** in step 1 does the
 same.
 
-To write your own trip, edit the group chat in step 2 and press **Read the
-chat on this device**. The first time, the browser downloads the trip
-reader (about 540 MB, once). Check the lists it fills in: it leaves out
-names and amounts the chat doesn't have, and says which amounts in the
-chat it couldn't place. Then Jev reads the chat and aityx settles it.
+To write your own trip, edit the group chat in step 2 and press **Split
+it**. The first time, the browser downloads the reader (about 540 MB, once).
+Check the lists it fills in: it leaves out names and amounts the chat
+doesn't have, and says which amounts in the chat it couldn't place. Then
+aityx reads who isn't paying and who doesn't drink, and settles it. The chat
+can be edited without a key too: then the lists are filled, and the amounts
+are the browser's estimate until a key is set.
 
 For development with hot reload, `devbox run dev` serves the sources on
 http://localhost:18811/demos/holidaysplit/ and passes the rest of `/demos/`

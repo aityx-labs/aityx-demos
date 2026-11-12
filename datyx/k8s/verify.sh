@@ -1,21 +1,24 @@
 #!/usr/bin/env bash
 # Checks datyx on the local cluster from this host, one line per check:
 # the API (http://localhost:19900) ready with PostgreSQL and OpenMetadata,
-# its description, sign-in, the data in PostgreSQL (HealthHub's sources,
-# the training runs, the aityx calls), HealthHub's PostgreSQL through the
-# API pod's port forwarder, HealthHub's catalogue in OpenMetadata and its
-# search index, OpenMetadata's UI and API (http://localhost:19902), and
-# the aityx gateway passing a service's call on to aityx with datyx's key.
-# Exits 1 if any check fails.
+# its description, sign-in, the data in PostgreSQL (HealthHub's sources in
+# every profile, the training runs, the aityx calls), HealthHub's
+# PostgreSQL and Kafka at the addresses the API is given, HealthHub's
+# catalogue in OpenMetadata, its topics and its search index,
+# OpenMetadata's UI and API (http://localhost:19902), and the aityx
+# gateway passing a service's call on to aityx with datyx's key. Exits 1
+# if any check fails.
 #
-# The cluster's API runs with sign-in off (api.yaml gives it no
-# OIDC_CLIENT_ID): every path is open and every call is the Local profile,
-# which owns the dev data, so its data sources are read through the API,
-# as the dashboard reads them. With sign-in on the data paths want a
-# Google user, which a script can't be: they are checked to refuse an
-# anonymous call. Either way the data is read from the stores too. No
-# secret is printed: the service token stays in the API's container, where
-# the gateway's checks run.
+# The cluster's API signs its users in with Google when the root .env has
+# an OIDC_CLIENT_ID (api.yaml): the data paths then want a Google user,
+# which a script can't be, so they are checked to refuse an anonymous
+# call, and the data is read from the stores: the Local profile's, which
+# the API seeds, catalogues and trains at every start, as it does each
+# user's from their first sign-in. Without a client id sign-in is off,
+# every call is the Local profile, and its data sources are read through
+# the API too, as the dashboard reads them. No secret is printed: the
+# service token stays in the API's container, where the gateway's checks
+# run.
 #
 #   bash datyx/k8s/verify.sh     # (bash k8s/deploy.sh datyx runs it)
 set -uo pipefail
@@ -56,7 +59,7 @@ else
 fi
 # The address the API reports for OpenMetadata is the one the dashboard's
 # Health tab links to: it has to open from this host, not only in the
-# cluster (api.yaml's DATYX_OPENMETADATA_URL).
+# cluster (api.yaml's DATYX_OPENMETADATA_PUBLIC_URL).
 omurl="$(jq -r '.checks[]? | select(.name=="OpenMetadata") | .data.url // empty' <<<"$health" 2>/dev/null)"
 if [[ -n "$omurl" ]] && get "$omurl/" | grep -qi '<title>OpenMetadata'; then
   ok "the API's address for OpenMetadata opens from this host: $omurl"
@@ -94,12 +97,12 @@ if [[ "$(jq -r .enabled <<<"$auth" 2>/dev/null)" == true ]]; then
   c="$(code "$api/api/datasources" -H 'Authorization: Bearer not.a.token')"
   [[ "$c" == 401 ]] && refused=$((refused + 1)) || let_in+=("a made-up token: $c")
   if [[ ${#let_in[@]} == 0 ]]; then
-    ok "sign-in on ($(jq -r .issuer <<<"$auth")): a user's paths refuse an anonymous call and a made-up token (401, $refused calls); a user signs in on the dashboard (19906) or HealthHub (19801), which the OAuth client lists among its origins"
+    ok "sign-in on ($(jq -r .issuer <<<"$auth")): a user's paths refuse an anonymous call and a made-up token (401, $refused calls); a user signs in on the dashboard (19906) or HealthHub (19801), which the OAuth client lists among its origins, and gets a profile with HealthHub's sources"
   else
     ko "sign-in on, but not refused: ${let_in[*]}"
   fi
 elif [[ "$(jq -r .enabled <<<"$auth" 2>/dev/null)" == false ]]; then
-  ok "sign-in off (api.yaml gives the API no OIDC_CLIENT_ID): every path open, every call the Local profile"
+  ok "sign-in off (no OIDC_CLIENT_ID in the root .env's demo-env): every path open, every call the Local profile"
   # What the dashboard lists: the caller's data sources, HealthHub's two
   # among them (the dev data is seeded into the Local profile).
   mine="$(get "$api/api/datasources?limit=100" | jq -r '[.. | objects | select(has("name") and has("type")) | .name] | sort | join(", ")' 2>/dev/null)"
@@ -116,28 +119,39 @@ else
   ko "sign-in: no answer from /api/auth/config"
 fi
 
-# The data in PostgreSQL: the dev profile's HealthHub sources (its
-# database and Kafka, reached through the API pod's port forwarders).
-names="$(sql "select string_agg(name, ', ' order by name) from data_source")"
-if [[ "$names" == *"HealthHub Kafka"* ]]; then
-  ok "data sources in PostgreSQL: $names"
+# The data in PostgreSQL: the dev data's HealthHub sources (its database
+# and Kafka) in every profile, the Local one from the start and each
+# user's from their first sign-in.
+names="$(sql "select string_agg(distinct name, ', ' order by name) from data_source")"
+profiles="$(sql "select count(*) from profile")"
+without="$(sql "select count(*) from profile p where (select count(*) from data_source d
+  where d.profile_id = p.id and d.name in ('HealthHub', 'HealthHub Kafka')) < 2")"
+if [[ "$names" == *"HealthHub Kafka"* && "$without" == 0 ]]; then
+  ok "data sources in PostgreSQL: $names, in each of the $profiles profile(s)"
 else
-  ko "data sources in PostgreSQL: HealthHub's aren't there (${names:-none})"
+  ko "data sources in PostgreSQL: HealthHub's aren't in every profile (${names:-none}; ${without:-?} of ${profiles:-?} profiles without)"
 fi
-# HealthHub's PostgreSQL answering through the API pod's forwarder on
-# 9803 (it listens on the pod's every address): pg_isready from datyx's
-# PostgreSQL container asks for a session, which only a running server
-# answers, so a forwarder with nothing behind it fails.
+# HealthHub's PostgreSQL and Kafka at the addresses api.yaml gives the API
+# for the dev data's sources (DATYX_HEALTHHUB_DB_HOST and _PORT,
+# DATYX_HEALTHHUB_KAFKA), asked from the API's own container, so by its
+# network and its names: pg_isready's question to the database (the
+# start of a session, which only a running server answers) and a
+# connection to the broker.
 hh_up=0
-api_ip="$(kc -n "$ns" get pod -l app.kubernetes.io/name=datyx-api --field-selector=status.phase=Running \
-  -o jsonpath='{.items[0].status.podIP}' 2>/dev/null)"
-if [[ -z "$api_ip" ]]; then
-  ko "HealthHub's PostgreSQL through the API pod's port 9803: no running API pod"
-elif kc -n "$ns" exec datyx-postgres-0 -c postgres -- pg_isready -q -t 5 -h "$api_ip" -p 9803 </dev/null 2>/dev/null; then
+hh_db="$(in_api 'printf "%s:%s" "${DATYX_HEALTHHUB_DB_HOST:-localhost}" "${DATYX_HEALTHHUB_DB_PORT:-9803}"')"
+hh_kafka="$(in_api 'printf %s "${DATYX_HEALTHHUB_KAFKA:-localhost:9804}"')"
+if [[ -z "$hh_db" ]]; then
+  ko "HealthHub's PostgreSQL at the API's address for it: no running API container"
+elif kc -n "$ns" exec datyx-postgres-0 -c postgres -- pg_isready -q -t 5 -h "${hh_db%:*}" -p "${hh_db##*:}" </dev/null 2>/dev/null; then
   hh_up=1
-  ok "HealthHub's PostgreSQL answers through the API pod's port 9803 ($api_ip:9803, healthhub-postgres:5432)"
+  ok "HealthHub's PostgreSQL answers at the API's address for it ($hh_db)"
 else
-  ko "HealthHub's PostgreSQL doesn't answer through the API pod's port 9803 ($api_ip:9803): HealthHub up? (bash k8s/deploy.sh HealthHub)"
+  ko "HealthHub's PostgreSQL doesn't answer at the API's address for it ($hh_db): HealthHub up? (bash k8s/deploy.sh HealthHub)"
+fi
+if [[ -n "$hh_kafka" ]] && in_api 'first="${DATYX_HEALTHHUB_KAFKA:-localhost:9804}"; first="${first%%,*}"; timeout 5 bash -c "exec 3<>/dev/tcp/${first%:*}/${first##*:}"'; then
+  ok "HealthHub's Kafka takes a connection at the API's address for it ($hh_kafka)"
+else
+  ko "HealthHub's Kafka takes no connection at the API's address for it (${hh_kafka:-none}): HealthHub up?"
 fi
 
 # HealthHub's catalogue in OpenMetadata (datyx writes it by itself once
@@ -179,6 +193,26 @@ if [[ -n "$token" ]]; then
   done
   [[ "${hits:-0}" -gt 0 ]] && ok "OpenMetadata's search (Elasticsearch): $hits tables indexed" ||
     ko "OpenMetadata's search (Elasticsearch): no tables indexed"
+  # HealthHub's Kafka, read at the address above: its topics, catalogued
+  # with the tables' pass, or, when Kafka was still starting then (a new
+  # cluster), within half a minute of its answering (the API tries it
+  # again every 30 s for 5 minutes): awaited up to 5 minutes with the
+  # tables there.
+  hk="$(sql "select id from data_source where name = 'HealthHub Kafka' order by id limit 1")"
+  tries=1
+  [[ "${tables:-0}" -gt 0 ]] && tries=100
+  for _ in $(seq 1 "$tries"); do
+    topics="$(get "$om/api/v1/topics?service=datyx-ds-$hk&limit=1" -H "Authorization: Bearer $token" | jq '.paging.total' 2>/dev/null)"
+    [[ "${topics:-0}" -gt 0 ]] && break
+    sleep 3
+  done
+  if [[ "${topics:-0}" -gt 0 ]]; then
+    ok "HealthHub's topics in OpenMetadata: $topics (datyx-ds-$hk)"
+  elif [[ "${tables:-0}" -gt 0 ]]; then
+    ko "HealthHub's topics in OpenMetadata: none (datyx-ds-$hk), though its tables are there: Kafka unread at $hh_kafka?"
+  else
+    ko "HealthHub's topics in OpenMetadata: none yet"
+  fi
 else
   ko "OpenMetadata: the admin's sign-in failed"
 fi

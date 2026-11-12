@@ -2,6 +2,54 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-10: every profile has HealthHub's data, and its addresses come from the environment
+
+Asked: pass the ports as environment variables, so the same build works
+locally and on Kubernetes, and fix the issues the cluster's deploy had
+left open.
+
+Found: with Google sign-in on, a user's profile was empty (no data
+source, catalogue nor model), because the development data reached only
+the profiles there when the Flyway migration ran, so the cluster ran with
+sign-in off. HealthHub's addresses were written into that migration
+(`localhost:9803`, `localhost:9804`), which on the cluster took two port
+forwarders in the API's pod, and `/api/health` reported OpenMetadata at
+the address the API calls, a Service name a browser can't open, which
+took a third. The container also stood at its 1536 MiB memory limit
+while DeepAR trained.
+
+Changed:
+
+- The development data (`DevData`) takes HealthHub's addresses from
+  `DATYX_HEALTHHUB_DB_HOST`, `DATYX_HEALTHHUB_DB_PORT`,
+  `DATYX_HEALTHHUB_DB_PASSWORD` and `DATYX_HEALTHHUB_KAFKA` (a laptop's
+  ports by default), and a profile made later, at someone's first
+  sign-in, is made with HealthHub's two sources too (`ProfileMaker`), so
+  every profile has them, as [data-sources.md](data-sources.md) says.
+- The dev catalogue syncs and curates a new profile's sources at its next
+  half-minute tick instead of the next pass, up to 10 minutes later, and
+  the trainer picks them up from there: a user sees their sources at
+  once, the catalogue and the models within minutes. A Kafka that didn't
+  answer (HealthHub's still starting on a new cluster, which left the
+  topics out of the catalogue for 10 minutes) is tried again every half
+  minute for 5 minutes. A pass that fails on something unexpected no
+  longer has its sources taken for new profiles half a minute later.
+- `DATYX_OPENMETADATA_PUBLIC_URL` is the address `/api/health` reports
+  for OpenMetadata, the dashboard's links (the address the API calls when
+  unset); Docker Compose sets it to this host's port.
+- On the cluster (`k8s/api.yaml`): sign-in back on, with the root `.env`'s
+  client; HealthHub and OpenMetadata at their Services, the three
+  forwarders gone; 2 GiB of memory. `k8s/verify.sh` checks HealthHub's
+  sources in every profile, HealthHub reached at the API's addresses,
+  and its topics catalogued.
+- `DevDataProfileTest`: a first sign-in's profile has the two sources at
+  the configured addresses, each person their own.
+
+[data-sources.md](data-sources.md), [profiles.md](profiles.md),
+[curation.md](curation.md), [api.md](api.md),
+[dev-environment.md](dev-environment.md), README, `.env.example`,
+`compose.yaml`, the scripts.
+
 ## 2026-11-10: on the cluster, a model of each algorithm from HealthHub's first start
 
 Asked (HealthHub's request): make HealthHub's initial data set enough

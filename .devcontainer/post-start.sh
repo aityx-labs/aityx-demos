@@ -10,7 +10,7 @@
 # start-all.sh starts each demo's services (`devbox services up -b`, or the
 # image's process-compose: see demos-toolchain.sh). The aityx group: the
 # index (Index/, 8800), which serves the release web builds of Mortgage
-# Hub, Contact Hub, PokerFace, RoboRules, Cellfie and RiverRace itself, at
+# Hub, Contact Hub, PokerFace, RoboRules, Cellfie, RiverRace and Outpost itself, at
 # /demos/mortgagehub/, /demos/contacthub/, ... on its port (its page at
 # /demos/); each app calls aityx from the browser. The datyx group: the
 # datyx API (9900, with PostgreSQL,

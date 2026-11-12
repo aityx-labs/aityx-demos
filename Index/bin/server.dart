@@ -369,7 +369,7 @@ Future<Map<String, _Demo>> _demos() async {
     final slug = folder.toLowerCase();
     if (await _groupOf(entry) != _group) continue;
     // A Flutter app (its pubspec.yaml), or a static page (its web/index.html,
-    // copied as it is into build/web by the demo's scripts/build.sh: Outpost).
+    // copied as it is into build/web by the demo's scripts/build.sh: Outpost, HealthPlan).
     if (!await File('${entry.path}/${slug}_app/pubspec.yaml').exists() &&
         !await File('${entry.path}/${slug}_app/web/index.html').exists()) {
       continue;

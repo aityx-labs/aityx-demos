@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stops the seven aityx demos: Mortgage Hub, Contact Hub,
+# Stops the eight aityx demos: Mortgage Hub, Contact Hub, Health Plan,
 # PokerFace, RoboRules, Cellfie, RiverRace and Outpost, by stopping the index
 # (Index/) that serves them all: every folder whose group.id.txt says
 # `aityx` and runs services, through stop-all.sh. The demos start and stop by group; use

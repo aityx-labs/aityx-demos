@@ -30,8 +30,8 @@ the servers a dev key (see [A dev key](#a-dev-key)).
 
 ## aityx
 
-Seven web apps that call aityx from the browser (six in Flutter, Outpost a
-static page), all served by the [index](Index/) under `/demos/`.
+Eight web apps that call aityx from the browser (six in Flutter, Outpost and
+Health Plan static pages), all served by the [index](Index/) under `/demos/`.
 
 [![Open the aityx demos in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Faityx%2Fdevcontainer.json&machine=standardLinux32gb)
 
@@ -39,6 +39,7 @@ static page), all served by the [index](Index/) under `/demos/`.
 |---|---|---|
 | [Mortgage Hub](MortgageHub/) | `/demos/mortgagehub/` | A mortgage application, checked against US lending rules by a decision model |
 | [Contact Hub](ContactHub/) | `/demos/contacthub/` | A request, typed or dictated, routed to the right department or person |
+| [Health Plan](HealthPlan/) | `/demos/healthplan/` | Which 2027 health plan costs a family less, read from their own words and priced by rules |
 | [Cellfie](Cellfie/) | `/demos/cellfie/` | Conway's Game of Life, with aityx naming the patterns on the board |
 | [RiverRace](RiverRace/) | `/demos/riverrace/` | The 1982 Atari river shooter, with two planes flown by aityx and one by you |
 | [RoboRules](RoboRules/) | `/demos/roborules/` | Robocode-style tank battles, each robot a decision model |
@@ -65,6 +66,16 @@ Ask anything and get routed to the right department or person. In one aityx
 call, Jev classifies and checks the message, and a decision model picks the
 department, the person and the priority. The app shows why, with the JSON
 behind each item. [README](ContactHub/README.md)
+
+### Health Plan
+
+![Health Plan: a family's year in their own words, the three plans priced by aityx, and a receipt for each](Index/www/healthplan.gif)
+
+Which 2027 health plan will actually cost you less? Describe your family's
+year in plain words. In one aityx call, Jev reads each person's care and any
+pregnancy, and the plan rules price Bronze, Silver and Gold for that year.
+A receipt per plan shows every number and where it came from, and what-if
+switches show the winner change. [README](HealthPlan/README.md)
 
 ### Cellfie
 

@@ -3,9 +3,9 @@
 // files serve from the index server (Index/bin/server.dart) and from a
 // static host's /demos/ (the aityx website).
 // The key is kept the way every demo reads it (packages/aityx_web), on this
-// origin: localStorage or, for this session only, sessionStorage, under
-// aityx.key, with aityx.url beside it. Never in a URL, in a log, or on the
-// page once saved (only its last four characters).
+// origin: always in localStorage, until "Forget key", under aityx.key, with
+// aityx.url beside it. Never in a URL, in a log, or on the page once saved
+// (only its last four characters).
 'use strict';
 
 // The demos, in the order shown, in two groups: "kind" is 'game' (under
@@ -91,12 +91,13 @@ const codespaces = (d) =>
   encodeURIComponent('.devcontainer/' + d.codespace + '/devcontainer.json') +
   '&machine=standardLinux32gb';
 // A demo's app: beside this page (/demos/<slug>/), on this origin, so it
-// reads the key saved here. Opened in a new tab, with an opener: a key
-// kept "only this session" lives in this tab's sessionStorage, which the
-// browser copies into a new tab only when the tab keeps its opener. With
-// noopener (the default for target="_blank" since Chrome 88) the new tab
-// starts with an empty one and the demo would open without the key. The
-// app is on this origin, so the opener is no risk.
+// reads the key saved here. Opened in a new tab, with an opener: this page
+// keeps the key in localStorage, which every tab shares, but a key in this
+// tab's sessionStorage (one saved "only this session" before the page
+// dropped that choice; the demos still read it first) is copied into a new
+// tab only when the tab keeps its opener. With noopener (the default for
+// target="_blank" since Chrome 88) the new tab starts with an empty one.
+// The app is on this origin, so the opener is no risk.
 const appPath = (d) => d.folder.toLowerCase() + '/';
 const appTab = 'target="_blank" rel="opener"';
 const ext = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M19 14v6H4V5h6"/></svg>';
@@ -190,16 +191,14 @@ function userKey() {
   return null;
 }
 
-function saveKey(key, url, sessionOnly) {
-  const [to, other] = sessionOnly ? [session, local] : [local, session];
-  if (!to) throw new Error(sessionOnly ? 'this browser keeps no session storage' : 'this browser keeps no local storage');
-  for (const s of [other, to]) {
-    if (!s) continue;
-    s.removeItem('aityx.key');
-    s.removeItem('aityx.url');
-  }
-  to.setItem('aityx.key', key);
-  to.setItem('aityx.url', url);
+// Always on the device, in localStorage: the page has no "only this
+// session". A key in sessionStorage (one saved there before, which would
+// win over this one) is cleared.
+function saveKey(key, url) {
+  if (!local) throw new Error('this browser keeps no local storage');
+  forgetKey();
+  local.setItem('aityx.key', key);
+  local.setItem('aityx.url', url);
 }
 
 function forgetKey() {
@@ -352,10 +351,6 @@ document.getElementById('key-form').addEventListener('submit', async (event) => 
   const input = document.getElementById('key-input');
   const key = input.value.trim();
   const url = cleanUrl(document.getElementById('url-input').value);
-  // The index page offers "Only this session"; key.html (the website's
-  // modal) has no choice and keeps the key on the device, in localStorage.
-  const keep = document.querySelector('input[name=keep]:checked');
-  const sessionOnly = !!keep && keep.value === 'session';
   if (!key) return result('Paste your key first.', false);
   if (/\s/.test(key)) return result('That doesn’t look like a key: it has spaces in it.', false);
   if (!url) {
@@ -370,15 +365,14 @@ document.getElementById('key-form').addEventListener('submit', async (event) => 
     const answer = await check(url, key);
     if (!answer.ok) return result(answer.detail + '. Not saved.', false);
     try {
-      saveKey(key, url, sessionOnly);
+      saveKey(key, url);
     } catch (error) {
       return result('aityx accepts the key, but it could not be saved: ' + error.message + '.', false);
     }
     input.value = '';
     wantOwn = false;
     lastCheckResult = null;
-    result('aityx accepts the key ' + last4(key) + ': saved ' +
-      (sessionOnly ? 'for this session.' : 'on this device.'), true);
+    result('aityx accepts the key ' + last4(key) + ': saved on this device.', true);
     await describeKey();
     checkAityx(true);
   } finally {

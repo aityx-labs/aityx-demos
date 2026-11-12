@@ -32,5 +32,3 @@ the key's quota.
 
 ## Known limitations
 
-- A key set as "only this session" lives in that tab's sessionStorage: a
-  demo opened in a new tab doesn't see it.

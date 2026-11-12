@@ -13,8 +13,8 @@ Every demo is a Flutter web app that calls aityx from the browser, with
 the key the user sets once on this page: the page and the apps share one
 origin, so they share the browser's storage. A card's picture and **Open**
 open the app in a new tab that keeps its opener (`rel="opener"`), so a
-key kept "only this session" (sessionStorage) is copied into it; with
-noopener the new tab would start empty. Every other link on the page
+key still in the tab's sessionStorage (saved "only this session" before
+the page dropped that choice) is copied into it. Every other link on the page
 (aityx.ai, the console, GitHub, Codespaces) opens a new tab too.
 
 ## What it serves
@@ -64,10 +64,12 @@ The page's **Your aityx key** section (`/demos/#aityx-key`, which each app's
 status light opens) takes the user's key, checks it with one empty call
 to `<url>/v1/systemone` from the browser (aityx answers 400
 `invalid_request` once it accepts the key, so no model runs) and only
-then saves it: in `localStorage` ("Remember on this device") or
-`sessionStorage` ("Only this session"), as `aityx.key`, with `aityx.url`
-(by default `https://api.aityx.ai`, under **Advanced**). **Forget key**
-removes it. Once saved, the key is not shown again, only its last four
+then saves it, always on the device: in `localStorage`, as `aityx.key`,
+with `aityx.url` (by default `https://api.aityx.ai`, under **Advanced**),
+where it stays until **Forget key** removes it. There is no "only this
+session" choice; a key left in `sessionStorage` by an earlier version of
+the page is still read first, as the apps read it, and is cleared by the
+next save or **Forget key**. Once saved, the key is not shown again, only its last four
 characters. Every app reads it from there
 ([packages/aityx_web](../packages/aityx_web/)) and calls aityx itself.
 
@@ -135,7 +137,7 @@ aityx.ai itself `'self'` already covers the website) or
 `http://localhost:4330`, by default):
 
 - [www/key.html](www/key.html): "Your aityx key" alone, with this page's
-  script. It has no "Only this session": the key is kept in `localStorage`,
+  script: the key is kept in `localStorage`, as on the index page,
   and the form asks for a key made for testing. Framed, it posts its height to the page around it
   (`{type: "aityx:key-height"}`) and, after each check, whether a working
   key is set (`{type: "aityx:key-state", ready: true|false}`, never the

@@ -1,8 +1,11 @@
 # The multyx index's server: the page, /api/health, and /api/demos, which
 # checks the group's demos through their Services in this namespace (the
 # image has no folders beside it to read, so INDEX_DEMOS names them). The
-# page links to each demo on this page's host at its own port shifted as
-# this page's is: from 19700, tatyx on 19710 and Poker Tour on 19810.
+# page asks the server where everything is (/api/settings), so the *_PORT
+# settings below say where the cluster publishes each demo on this host
+# (k8s/kind/cluster.yaml: its usual port plus 10000, tatyx on 19710 and
+# Poker Tour on 19810), and INDEX_ON_CLUSTER that this copy is the
+# cluster's, for the page's footer.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,6 +23,10 @@ spec:
       labels:
         app.kubernetes.io/name: multyx-index
     spec:
+      # No variables from the namespace's other Services: the one of tatyx
+      # would be TATYX_PORT=tcp://..., a setting of this server (set
+      # below, which wins either way).
+      enableServiceLinks: false
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
@@ -41,6 +48,18 @@ spec:
               value: 0.0.0.0
             - name: INDEX_DEMOS
               value: tatyx=http://tatyx:9710/tatyx/,PokerTour=http://pokertour:9810/pokertour/
+            # What the page links to and names: the host ports of
+            # k8s/kind/cluster.yaml, not the Services' own.
+            - name: INDEX_ON_CLUSTER
+              value: "true"
+            - name: TATYX_PORT
+              value: "19710"
+            - name: POKERTOUR_WEB_PORT
+              value: "19810"
+            - name: AITYX_INDEX_PORT
+              value: "18800"
+            - name: DATYX_INDEX_PORT
+              value: "19800"
           # As process-compose.yaml's readiness probe: /api/health.
           readinessProbe:
             httpGet:

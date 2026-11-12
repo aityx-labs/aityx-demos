@@ -77,7 +77,7 @@ A demo opened with no key (none saved here, and no dev key) asks for it
 itself: a small form where it calls aityx, with the key, optionally the
 aityx URL, **Save** and a link to the aityx console
 (`AityxKeyPrompt` in [packages/aityx_web](../packages/aityx_web/README.md#the-key-form);
-Outpost, a static page, has its own). It checks the key the same way and
+Outpost and Health Plan, static pages, have their own). It checks the key the same way and
 saves it in the same `localStorage` entries, so this page then shows it
 as set, and every other demo uses it. With a key set, here or there, the
 form isn't shown.

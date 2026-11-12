@@ -135,7 +135,7 @@ const endpoint=()=>LIVE.conn.systemone;
 function liveNote(t,cls){ const n=$("live"); n.className="live"+(cls?" "+cls:""); n.textContent=t; }
 // Connection status: "Connected" only after aityx answers, never just because a key is set.
 const CONN={state:"connecting",seq:0};
-const NO_KEY_TEXT="You're seeing real aityx calls we recorded. Set your key on the aityx demos page to price your own year live.";
+const NO_KEY_TEXT="You're seeing real aityx calls we recorded. Set your key here to price your own year live.";
 function okText(){
   const c=LIVE.conn;
   return c.source==="dev"?`You haven't set a key, so this server lends ${c.whose}${c.url?` (${c.url})`:""}. Every answer on this page now comes from a live aityx call.`
@@ -153,7 +153,28 @@ function setConn(state,detail){
   $("conn-title").textContent=t; $("conn-text").textContent=x;
   $("mode").title=`aityx: ${t}. ${x} Click to set your key.`;
   $("setkey").textContent=LIVE.conn.source==="user"?"Change your key":LIVE.conn.source==="dev"?"Set your own key":"Set your aityx key";
+  // With a working key the panel has nothing to ask or say: gone (the pill at the top says it is live).
+  $("connpanel").hidden=state==="ok"&&$("recall").hidden;
 }
+// The key form's Save, shown only while there is no key at all: one empty call checks the key with aityx
+// (no model runs), and only a key aityx accepts is saved, on this device, where the aityx demos page and
+// every aityx demo read it. Then the usual check goes live.
+let savingKey=false;
+async function saveKey(){
+  if(savingKey) return;
+  const say=t=>{ $("keymsg").textContent=t; }, key=$("keyin").value.trim(), url=Aityx.cleanUrl($("urlin").value);
+  if(!key) return say("Paste your key first.");
+  if(/\s/.test(key)) return say("That doesn't look like a key: it has spaces in it.");
+  if(!url) return say("The URL must be an https URL on aityx.ai, like https://api.aityx.ai.");
+  savingKey=true; $("keysave").disabled=true; $("keysave").textContent="Checking…"; say("");
+  try{
+    const st=await Aityx.check(Aityx.userConnection(key,url));
+    if(st.kind!=="ready") return say((st.kind==="rejected"?"aityx rejected the key":st.kind==="unreachable"?"aityx did not answer (the network, or the URL is wrong)":st.detail)+". Not saved.");
+    if(!Aityx.save(key,url)) return say("aityx accepts the key, but this browser could not save it.");
+    $("keyin").value=""; refreshConnection();
+  } finally{ savingKey=false; $("keysave").disabled=false; $("keysave").textContent="Save"; }
+}
+$("connect").addEventListener("submit",e=>{ e.preventDefault(); saveKey(); });
 async function post(body){
   const conn=LIVE.conn, n=++CONN.seq, mine=()=>n===CONN.seq&&LIVE.conn===conn;
   if(CONN.state!=="ok") setConn("connecting");
@@ -364,6 +385,7 @@ function lockInputs(){
 }
 function connectUI(){
   $("recall").hidden=!(live()&&REC_MODE);
+  $("connpanel").hidden=CONN.state==="ok"&&$("recall").hidden;
   if(S){ setNote(); lockInputs(); updateGo(); renderWhatIf(); renderCall(); }
 }
 

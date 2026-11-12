@@ -144,12 +144,16 @@ process-compose through Docker Compose comes from.
   `HEALTHHUB_KAFKA_REST_PORT` (9805), `HEALTHHUB_FLINK_PORT` (9806),
   `HEALTHHUB_KAFKA_REST_URL`
   (http://127.0.0.1:9805), `HEALTHHUB_MODE` (`dev`, which runs the
-  people simulation; `prod` doesn't), `HEALTHHUB_SIM_PEOPLE` (40 per
+  people simulation; `prod` doesn't), `HEALTHHUB_SIM_PEOPLE` (80 per
   city), `HEALTHHUB_SIM_TURN_MS` (2500) and
   `HEALTHHUB_SIM_MINUTES_PER_TURN` (15, so a simulated hour takes 10 real
   seconds), `HEALTHHUB_HISTORY_DAYS` (90, the days of admissions history
   the API writes at start in dev mode; 0 for none: [The
-  history](admissions-hourly.md#the-history)), `HEALTHHUB_ALARM_EVERY_MS`
+  history](admissions-hourly.md#the-history)),
+  `HEALTHHUB_SIM_HISTORY_DAYS` (365, the days of the people's visits the
+  API simulates ahead and writes at start in dev mode, for datyx's
+  models to train on from the first start; 0 for none, at most 730:
+  [The simulated history](simulated-history.md)), `HEALTHHUB_ALARM_EVERY_MS`
   (5000, the least real milliseconds between two [occupancy
   alarm](occupancy-alarms.md) checks; 0 turns them off),
   `HEALTHHUB_ALARM_THRESHOLD` (0.9, the share of a care center's capacity
@@ -194,9 +198,14 @@ process-compose through Docker Compose comes from.
   `kafka` first); `devbox run flink` the Flink job (`infra.sh up
   flink-sql`, which starts the JobManager, the TaskManager, Kafka and
   PostgreSQL first; the API must have made `admissions_hourly`).
-- `dart run bin/history.dart [--days N] [--dry-run]` in `healthhub_api/`
-  writes the admissions history to the database `HEALTHHUB_DB_*` names
-  without starting the API ([The history](admissions-hourly.md#the-history)).
+- `dart run bin/history.dart [--days N] [--sim-days N] [--dry-run]` in
+  `healthhub_api/` writes the two histories to the database
+  `HEALTHHUB_DB_*` names without starting the API: the admissions per
+  hour drawn from rates ([The history](admissions-hourly.md#the-history))
+  and the simulated year of the people's visits
+  ([The simulated history](simulated-history.md)). `--dry-run` writes
+  nothing and prints what both would hold; it still reads the care
+  centers from the database.
 - The web app calls the API at `API_BASE_URL` (a dart-define). The
   services leave it empty, in both modes: the app calls `/api/` on its own
   origin, which the web server (or the dev server) proxies to the API.

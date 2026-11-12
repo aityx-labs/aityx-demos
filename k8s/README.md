@@ -61,16 +61,16 @@ here with `kubectl --context kind-aityx-demos -n <group> port-forward`.
 On the cluster, each demo signs in with the Google OAuth client below,
 which lists its cluster origins as authorized JavaScript origins, next to
 the local ones (Google Cloud console, Google Auth Platform, Clients). The
-datyx API and its dashboard ask for no sign-in on the cluster, as in a
-local run without a `datyx/.env`: every call there is the Local profile,
-which owns the development data (HealthHub's sources, their catalogue and
-models). A signed-in user would get a new, empty profile, since datyx
-seeds that data only into the profiles there at its start
+root `.env`'s `OIDC_CLIENT_ID` is the `healthhub` client's: HealthHub, the
+datyx API and its dashboard sign in with it. Each Google user gets a datyx
+profile of their own, made at the first sign-in with the development
+data's HealthHub sources, so the dashboard shows them at once, and their
+catalogue and models within minutes
 ([datyx/k8s/api.yaml](../datyx/k8s/api.yaml)).
 
 | Client (Google project) | Demos | Cluster origins |
 |---|---|---|
-| `healthhub` (aletyxcode-healthhub) | HealthHub | `http://localhost:19800`, `:19801` and `:19906`, and the same on `http://127.0.0.1` |
+| `healthhub` (aletyxcode-healthhub) | HealthHub, the datyx dashboard | `http://localhost:19800`, `:19801` and `:19906`, and the same on `http://127.0.0.1` |
 | `pokertour-web` (aletyxcode-pokertour) | Poker Tour | `http://localhost:19810` |
 | `tatyx-web` (aletyxcode-tatyx) | tatyx | `http://localhost:19710` |
 

@@ -146,6 +146,10 @@ services:
       DATYX_DB_USER: datyx
       DATYX_DB_PASSWORD: ${DATYX_DB_PASSWORD:-datyx}
       DATYX_OPENMETADATA_URL: http://openmetadata:8585
+      # Where a browser opens OpenMetadata, which /api/health reports and
+      # the dashboard's Health tab links to: the port published above on
+      # this host, since the service's name is the Compose network's alone.
+      DATYX_OPENMETADATA_PUBLIC_URL: ${DATYX_OPENMETADATA_PUBLIC_URL:-http://localhost:${DATYX_OPENMETADATA_PORT:-9902}}
       # The catalogue's sign-in to OpenMetadata (see .env.example): a bot
       # token when set, else the built-in admin above.
       DATYX_OPENMETADATA_TOKEN: ${DATYX_OPENMETADATA_TOKEN:-}
@@ -173,6 +177,17 @@ services:
       DATYX_AITYX_URL: ${DATYX_AITYX_URL:-${AITYX_URL:-https://api.aityx.ai}}
       DATYX_SERVICE_TOKEN: ${DATYX_SERVICE_TOKEN:-}
       DATYX_AITYX_SHARE_SERVICE_CALLS: ${DATYX_AITYX_SHARE_SERVICE_CALLS:-}
+      # The development data (the dev profile; see .env.example): where
+      # HealthHub's PostgreSQL and Kafka are, as this container reaches
+      # them. Empty, the API's defaults, localhost:9803 and
+      # localhost:9804: HealthHub's ports on the host, which in here is
+      # the container itself, so the two sources are listed but can't be
+      # read (no catalogue, no models) until these name a HealthHub the
+      # container reaches. Nothing in this file puts one on its network.
+      DATYX_HEALTHHUB_DB_HOST: ${DATYX_HEALTHHUB_DB_HOST:-}
+      DATYX_HEALTHHUB_DB_PORT: ${DATYX_HEALTHHUB_DB_PORT:-}
+      DATYX_HEALTHHUB_DB_PASSWORD: ${DATYX_HEALTHHUB_DB_PASSWORD:-}
+      DATYX_HEALTHHUB_KAFKA: ${DATYX_HEALTHHUB_KAFKA:-}
     ports:
       # API_PORT is the name .env.example, the demos and the repository's
       # start-all.sh use for this port (Compose can't nest a second default).

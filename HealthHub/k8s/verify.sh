@@ -4,13 +4,19 @@
 # web app's proxy, with its database and Kafka; the simulation's moves
 # flowing through Kafka and back (GET /api/events, read twice); Flink's
 # healthhub-admissions-hourly job RUNNING (its web UI on :19806) and its
-# counts of the live run in admissions_hourly, read back by the API; an
+# counts of the live run in admissions_hourly, read back by the API; the
+# initial data the API writes at start for datyx's models, read from the
+# database (the simulated history, a year of visits behind patient_days
+# and occupancy_hourly, and the hourly history of admissions_hourly); an
 # admission triaged by aityx, through datyx's aityx gateway; and
 # /api/datyx/*, which needs a Google sign-in, refusing cleanly without one.
 # One line per check; exits 1 if any fails. Never prints a secret.
 #
 #   bash HealthHub/k8s/verify.sh
 set -uo pipefail
+here="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=../../k8s/lib.sh
+source "$here/../../k8s/lib.sh"
 
 web="http://127.0.0.1:19801"
 flink="http://127.0.0.1:19806"
@@ -122,6 +128,72 @@ if more "${counted%% *}" 0; then
   ok "admissions_hourly has the live run's counts from Flink: ${counted%% *} admissions in 72 h at hospital $hospital (run ${counted#* })"
 else
   bad "admissions_hourly: no counts of the current run at the latest admissions' hospitals (${counted:-no current run})"
+fi
+
+# The initial data, what datyx trains on from the first start: the
+# simulated history (run 00000001: HEALTHHUB_SIM_HISTORY_DAYS days of the
+# people's visits in admissions, so patient_days has each person's days
+# over several of XGBoost's 30-day horizons and occupancy_hourly each care
+# center's hours, for DeepAR), with its hourly counts, and the hourly
+# history drawn from rates (run 00000000 of admissions_hourly,
+# HEALTHHUB_HISTORY_DAYS days). Read from the database, as its superuser
+# on the server's own socket. The API writes the first before its live
+# run starts and the second in the background, well under a minute on an
+# empty database: asked again for up to 90 s.
+hsql() { kc -n datyx exec healthhub-postgres-0 -- psql -U postgres -d healthhub -tAc "$1" 2>/dev/null; }
+setting() {
+  kc -n datyx get deploy healthhub-api -o jsonpath="{.spec.template.spec.containers[0].env[?(@.name==\"$1\")].value}" 2>/dev/null
+}
+sim_days="$(setting HEALTHHUB_SIM_HISTORY_DAYS)"
+sim_days="${sim_days:-365}"
+hour_days="$(setting HEALTHHUB_HISTORY_DAYS)"
+hour_days="${hour_days:-90}"
+deadline=$((SECONDS + 90))
+while :; do
+  IFS='|' read -r sim_admissions sim_people sim_last <<<"$(hsql "select count(*), count(distinct person_id), coalesce(max(sim_day), 0)
+    from admissions where split_part(event_id, '-', 1) = '00000001'")"
+  IFS='|' read -r hist_rows hist_centers hist_hours <<<"$(hsql "select count(*), count(distinct hospital_id),
+    coalesce(extract(epoch from max(hour_start) - min(hour_start)) / 3600, 0)::int from admissions_hourly where run_id = '00000000'")"
+  { [[ "$sim_days" == 0 ]] || more "${sim_admissions:-}" 0; } && { [[ "$hour_days" == 0 ]] || more "${hist_hours:-}" $(((hour_days - 1) * 24 - 24)); } && break
+  [[ $SECONDS -ge $deadline ]] && break
+  sleep 5
+done
+if [[ "$sim_days" == 0 ]]; then
+  ok "no simulated history asked for (HEALTHHUB_SIM_HISTORY_DAYS=0)"
+else
+  if more "${sim_admissions:-}" 0 && more "${sim_last:-}" $((sim_days - 8)); then
+    ok "the simulated history is in admissions: $sim_admissions admissions of $sim_people people over $sim_last days (run 00000001, $sim_days days asked)"
+  else
+    bad "the simulated history in admissions: ${sim_admissions:-0} admissions up to day ${sim_last:-0} of $sim_days (run 00000001)"
+  fi
+  IFS='|' read -r pd_rows pd_series pd_span <<<"$(hsql "select count(*), count(distinct person_id), coalesce(max(day) - min(day), 0)
+    from patient_days where run_id = '00000001'")"
+  # XGBoost's group has a 30-day horizon and wants several of them.
+  if more "${pd_rows:-}" 0 && more "${pd_span:-}" 119; then
+    ok "patient_days has it: $pd_rows days of care of $pd_series people over $pd_span days, several of XGBoost's 30-day horizons"
+  else
+    bad "patient_days: ${pd_rows:-0} rows of the simulated history over ${pd_span:-0} days: too short for XGBoost's 30-day horizon"
+  fi
+  IFS='|' read -r occ_rows occ_centers occ_span <<<"$(hsql "select count(*), count(distinct hospital_id),
+    coalesce(extract(epoch from max(hour_start) - min(hour_start)) / 3600, 0)::int from occupancy_hourly where run_id = '00000001'")"
+  if more "${occ_rows:-}" 0 && more "${occ_span:-}" 48; then
+    ok "occupancy_hourly has it: $occ_rows hours with people in care at $occ_centers care centers over $occ_span hours, for DeepAR"
+  else
+    bad "occupancy_hourly: ${occ_rows:-0} hours of the simulated history over ${occ_span:-0} hours"
+  fi
+  counted="$(hsql "select coalesce(sum(admissions), 0) from admissions_hourly where run_id = '00000001'")"
+  if [[ -n "$counted" && "$counted" == "${sim_admissions:-}" ]]; then
+    ok "admissions_hourly counts the simulated history's admissions: $counted, as many as admissions holds"
+  else
+    bad "admissions_hourly counts ${counted:-no} admissions of the simulated history, admissions holds ${sim_admissions:-0}"
+  fi
+fi
+if [[ "$hour_days" == 0 ]]; then
+  ok "no hourly history asked for (HEALTHHUB_HISTORY_DAYS=0)"
+elif more "${hist_hours:-}" $(((hour_days - 1) * 24 - 24)); then
+  ok "the hourly history is in admissions_hourly: $hist_rows rows of $hist_centers care centers over $hist_hours hours (run 00000000, $hour_days days asked)"
+else
+  bad "the hourly history in admissions_hourly: ${hist_rows:-0} rows over ${hist_hours:-0} hours of $((hour_days * 24)) (run 00000000)"
 fi
 
 # A triage decided by aityx: an admission with its level, and the latest

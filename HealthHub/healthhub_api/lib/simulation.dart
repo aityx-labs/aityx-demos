@@ -315,6 +315,47 @@ Place? nearestCareCenter(LatLon home, CareSetting setting, Iterable<Place> place
   return best ?? nearestHospital(home, places);
 }
 
+/// The care centers of a list by what they take, told apart once: asking
+/// each of thousands of places again for each of hundreds of people
+/// ([Place.serves] reads their subtype and name) took the API seconds at
+/// start. It answers as [nearestHospital] and [nearestCareCenter] do over
+/// the whole list.
+class CareIndex {
+  CareIndex(List<Place> places) {
+    final general = [for (final p in places) if (p.isGeneralHospital) p];
+    _hospitals = general.isNotEmpty ? general : [for (final p in places) if (p.isHospital) p];
+    for (final setting in CareSetting.values) {
+      if (setting == CareSetting.hospital) continue;
+      _serving[setting] = [for (final p in places) if (p.serves(setting)) p];
+    }
+  }
+
+  late final List<Place> _hospitals;
+  final _serving = <CareSetting, List<Place>>{};
+
+  /// The general hospital nearest [home]; of any kind when none is
+  /// general; null when there are none.
+  Place? hospital(LatLon home) => _nearest(home, _hospitals);
+
+  /// The care center nearest [home] that serves [setting]; the nearest
+  /// hospital when none does.
+  Place? nearest(LatLon home, CareSetting setting) =>
+      (setting == CareSetting.hospital ? null : _nearest(home, _serving[setting]!)) ?? hospital(home);
+
+  static Place? _nearest(LatLon home, List<Place> places) {
+    Place? best;
+    var bestDistance = double.infinity;
+    for (final place in places) {
+      final distance = distanceMeters(home, place.at);
+      if (distance < bestDistance) {
+        best = place;
+        bestDistance = distance;
+      }
+    }
+    return best;
+  }
+}
+
 /// A random point within [radiusMeters] of [center], uniform over the
 /// disc.
 LatLon randomPointNear(LatLon center, Random random, {double radiusMeters = homeRadiusMeters}) {
@@ -1043,9 +1084,10 @@ List<Person> populate(
   List<MedicalCondition> conditions = const [],
 }) {
   final people = <Person>[];
+  final index = CareIndex(places);
   for (final MapEntry(key: city, value: centers) in placesByCity(places).entries) {
     for (var n = 1; n <= perCity; n++) {
-      final person = newPerson(city, n, centers, places, minutesPerTurn, random, conditions: conditions);
+      final person = newPerson(city, n, centers, places, minutesPerTurn, random, conditions: conditions, index: index);
       if (person == null) return [];
       people.add(person);
     }
@@ -1067,6 +1109,7 @@ Map<String, List<Place>> placesByCity(List<Place> places) {
 /// care centers of [places] nearest home, with a profile of their city and
 /// their conditions from [conditions], their visits from [from] on (the
 /// run's start, or when they join it); null when no hospital has a place.
+/// [index] is [places]' ([CareIndex]), made here when not given.
 Person? newPerson(
   String city,
   int n,
@@ -1076,9 +1119,11 @@ Person? newPerson(
   Random random, {
   List<MedicalCondition> conditions = const [],
   int from = simStartMinutes,
+  CareIndex? index,
 }) {
+  index ??= CareIndex(places);
   final home = randomPointNear(centers[random.nextInt(centers.length)].at, random);
-  final hospital = nearestHospital(home, places);
+  final hospital = index.hospital(home);
   if (hospital == null) return null;
   final profile = randomProfile(city, random);
   final person = Person(
@@ -1087,7 +1132,7 @@ Person? newPerson(
     home: home,
     hospital: hospital,
     careCenters: {
-      for (final setting in CareSetting.values) setting: nearestCareCenter(home, setting, places) ?? hospital,
+      for (final setting in CareSetting.values) setting: index.nearest(home, setting) ?? hospital,
     },
     profile: profile,
     minutesPerTurn: minutesPerTurn,
@@ -1141,6 +1186,9 @@ class Simulation {
 
   static int _numberOf(String id) => int.tryParse(id.substring(id.lastIndexOf('-') + 1)) ?? 0;
 
+  /// [places] by what they take, for the people who join.
+  late final _index = CareIndex(places);
+
   /// Makes every city have [perCity] people (1 to [maxPeoplePerCity]):
   /// new people join at the turn now, their conditions starting from it,
   /// and their loops start when it runs; the last to join leave first,
@@ -1156,7 +1204,7 @@ class Simulation {
       while ((_count[city] ?? 0) < perCity) {
         final n = _next[city] ?? 1;
         final person = newPerson(city, n, centers, places, settings.minutesPerTurn, _random,
-            conditions: conditions, from: from);
+            conditions: conditions, from: from, index: _index);
         if (person == null) break;
         // Their visits under the flow factors as they are now.
         if (_flow.isNotEmpty) retime(person, from, const {}, _flow, _random);
@@ -1251,7 +1299,8 @@ class Simulation {
 
   /// The run id, random hex new at every [start], the start of every
   /// event id: the people's ids and the turns repeat from run to run (and
-  /// API to API), and admissions.event_id is unique. Never [historyRun].
+  /// API to API), and admissions.event_id is unique. Never [historyRun]
+  /// nor [simulatedRun].
   String get run => _run;
   String _run = '';
 
@@ -1275,7 +1324,7 @@ class Simulation {
     final generation = ++_generation;
     do {
       _run = _hex(Random.secure());
-    } while (_run == historyRun);
+    } while (_run == historyRun || _run == simulatedRun);
     _stopwatch
       ..reset()
       ..start();
@@ -1731,6 +1780,11 @@ class PeopleFeed {
 /// generates at start (lib/history.dart), never a simulation's
 /// ([Simulation.run]), so its series stand apart from every live run's.
 const historyRun = '00000000';
+
+/// The simulated history's run: the run id of the admissions the API
+/// simulates ahead at start (lib/simulated_history.dart), a year of the
+/// people's visits, never a live simulation's either.
+const simulatedRun = '00000001';
 
 String _hex(Random random) =>
     List.generate(4, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join();

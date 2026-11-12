@@ -73,7 +73,11 @@ The API's image is [docker/api.jvm.Dockerfile](docker/api.jvm.Dockerfile),
 the packaged app on the GraalVM JDK; `DATYX_API_DOCKERFILE=docker/api.native.Dockerfile`
 builds the native executable instead (give Docker 6 GB or more). The API
 is published on 9900, where the dashboard's own `docker compose up`
-reaches it.
+reaches it. Its container has no HealthHub on its own localhost, so the
+development data's two HealthHub sources are listed but not read there
+until `DATYX_HEALTHHUB_DB_HOST`, `DATYX_HEALTHHUB_DB_PORT` and
+`DATYX_HEALTHHUB_KAFKA` name one it reaches (see
+[.env.example](.env.example)).
 
 ### On the local Kubernetes cluster
 
@@ -84,8 +88,13 @@ bash k8s/deploy.sh datyx     # from the repository root: build, apply, check
 [k8s/](k8s/) runs the same services on the repository's kind cluster
 (`../k8s/`), in the `datyx` namespace: the API at
 http://localhost:19900/api/health and OpenMetadata at
-http://localhost:19902/, beside a local run on the usual ports.
-`k8s/verify.sh` checks them.
+http://localhost:19902/, beside a local run on the usual ports. With an
+`OIDC_CLIENT_ID` in the root `.env` the API signs its users in with
+Google there, and each user's profile is made with HealthHub's two data
+sources, catalogued and trained within minutes of the first sign-in.
+The API reaches HealthHub and OpenMetadata at their Services, through
+its environment ([k8s/api.yaml](k8s/api.yaml)). `k8s/verify.sh` checks
+them.
 
 ## The API (datyx-api/)
 
@@ -97,7 +106,9 @@ OpenAPI, and a REST client for OpenMetadata.
 - `GET /api/health` (SmallRye Health, also `/live` and `/ready`): the
   API's own check, `datyx`, with its version, Quarkus profile, launch
   mode, JVM or native and start time; PostgreSQL's; OpenMetadata's
-  (version, URL). Development runs the `dev` profile, both with
+  (version, and the URL a browser opens it at:
+  `DATYX_OPENMETADATA_PUBLIC_URL`, else the one the API calls).
+  Development runs the `dev` profile, both with
   `devbox services up` (`quarkus:dev`) and Docker Compose
   (`DATYX_API_PROFILE`, `dev` unless set).
 - `/api/datasources`: the data sources on record, the first entity:
@@ -117,8 +128,11 @@ OpenAPI, and a REST client for OpenMetadata.
   and written as OpenMetadata test cases with their results. In
   development datyx also curates HealthHub there by itself, once its data
   initialization is done: owners, domain, data product, glossary, tiers,
-  more checks, lineage, data contracts and Gold certifications. See
-  [specs/curation.md](specs/curation.md).
+  more checks, lineage, data contracts and Gold certifications: in
+  development every profile has HealthHub's PostgreSQL and Kafka as data
+  sources, those there at start and each one a first sign-in makes, at
+  the addresses `DATYX_HEALTHHUB_*` give (this host's ports 9803 and
+  9804 unless set). See [specs/curation.md](specs/curation.md).
   `/api/datasources/{id}/timeseries`: the tables whose columns are tagged
   with the `TimeSeries` roles (`Timestamp`, `Target`, `SeriesKey`, the
   static and dynamic features DeepAR takes), one series per group of

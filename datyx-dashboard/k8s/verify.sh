@@ -9,12 +9,14 @@
 #
 #   bash datyx-dashboard/k8s/verify.sh
 #
-# The cluster's API runs with sign-in off (datyx/k8s/api.yaml), as a local
-# run does without a datyx/.env: the dashboard asks for no sign-in and
-# shows the Local profile's data, HealthHub's sources among it. Were
-# sign-in on (the API given an OIDC_CLIENT_ID), the paths that need a
-# signed-in user are checked to refuse a caller without one; the sign-in
-# itself can't be checked without a browser.
+# The cluster's API signs its users in with Google when the root .env has
+# an OIDC_CLIENT_ID (datyx/k8s/api.yaml): the paths that need a signed-in
+# user are then checked to refuse a caller without one, and the sign-in
+# itself can't be checked without a browser (a user's profile is made
+# with HealthHub's sources: datyx/k8s/verify.sh checks every profile has
+# them). Without a client id sign-in is off, as a local run without a
+# datyx/.env: what the tabs ask for is checked to answer, with HealthHub's
+# sources in the Data sources tab's list.
 set -uo pipefail
 
 PORT="${DASHBOARD_PORT:-19906}"

@@ -9,9 +9,16 @@ table a forecast is trained on (what datyx will read, as it would a
 customer's). The job is
 [flink/admissions-hourly.sql](../flink/admissions-hourly.sql); the
 services that run it are in [compose.yaml](../compose.yaml). Beside the
-live runs the job counts, the table holds a generated **history**, run
-`00000000`, which the API writes ([The history](#the-history)), so a
-forecast has long, full series to learn from.
+live runs the job counts, the table holds two runs the API writes at
+start, so a forecast has long series to learn from:
+
+- `00000000`, the **history**: 90 days of counts drawn from rates, full
+  and well above a live run's level, with no admissions behind them
+  ([The history](#the-history));
+- `00000001`, the **simulated history**: a year of the simulation's
+  people going for care, simulated ahead, whose admissions are in the
+  `admissions` table and whose hours here are counted from them, at a
+  live run's level ([The simulated history's run](#the-simulated-historys-run)).
 
 ## What it counts
 
@@ -46,8 +53,8 @@ key ever saw two).
   key. The API makes it at start; the job upserts into it (`INSERT ... ON
   CONFLICT`), flushing every second or 500 rows, as user `healthhub`.
   Sparse: an hour with no admission at a hospital has no row, so a
-  missing hour is a zero. The history run's rows are the API's, not the
-  job's.
+  missing hour is a zero. The rows of runs `00000000` and `00000001`
+  are the API's, not the job's.
 - **The topic** `healthhub.admissions.hourly`: each key's latest count,
   the key as JSON (`{"run_id":"adf5309c","hospital_id":2,"hour_start":"2034-11-08T16:00:00"}`)
   and the row as JSON, the same snake_case columns, timestamps in
@@ -62,8 +69,8 @@ both at once (one Flink statement set).
 
 ## How the job runs
 
-- **No event-time windows.** The simulated clock runs an hour a real
-  second and starts again from day 1 at every start of the API, so a
+- **No event-time windows.** The simulated clock runs an hour every 10
+  real seconds and starts again from day 1 at every start of the API, so a
   watermark would declare whole runs late. The job is a plain `GROUP BY`
   over the key, which keeps a count per key and sends each change on.
 - **A function of the topic.** The source reads `healthhub.admissions`
@@ -126,13 +133,16 @@ authentication and runs any job it is sent.
 
 ## The history
 
-A live run is a poor training set: its few people (40 a city) leave
+A live run is a poor training set: its few people (80 a city) leave
 most hours of most care centers empty, and it starts again at day 1
 whenever the API restarts. So the table also holds the **history run**,
 `00000000` (`historyRun` in `lib/simulation.dart`, which a simulation's
 random run id never takes): the admissions per hour of every care
 center the simulation's people use, generated from rates rather than
-simulated ([lib/history.dart](../healthhub_api/lib/history.dart)).
+simulated ([lib/history.dart](../healthhub_api/lib/history.dart)). It
+has no admissions: the `admissions` table, and so `patient_days` and
+`occupancy_hourly`, hold nothing of run `00000000`, and nothing compares
+its counts with admissions.
 
 - **Who writes it**: the API, at start in dev mode, once the database
   is migrated and the care centers read, in the background beside the
@@ -140,8 +150,9 @@ simulated ([lib/history.dart](../healthhub_api/lib/history.dart)).
   same against any database `HEALTHHUB_DB_*` names (it migrates it
   first, as the API does), with `--days N` and `--dry-run` (writes
   nothing, prints the care centers, rows and admissions, and the mean
-  admissions per care center by hour of day). The Flink job never
-  writes it: no event has run `00000000`.
+  admissions per care center by hour of day); it writes the simulated
+  history too (`--sim-days N`). The Flink job never writes it: no event
+  has run `00000000`.
 - **How long**: `HEALTHHUB_HISTORY_DAYS` days (90 by default, 2,160
   hours; 0 writes none; a whole number up to 730, two years, anything
   else stops the API), from day 1 of the simulated calendar, 2026-01-01 00:00, a
@@ -153,8 +164,8 @@ simulated ([lib/history.dart](../healthhub_api/lib/history.dart)).
   start, and the history covers exactly the care centers a live run
   admits people to; `bin/history.dart` draws the same people
   (`HEALTHHUB_SIM_PEOPLE` a city), so the same care centers. With the
-  defaults, 271 (87 hospitals, 118 health
-  stations, 66 clinics). `hospital_name` is the care center's
+  defaults, on a new database, 404 (127 hospitals, 185 health
+  stations, 92 clinics). `hospital_name` is the care center's
   name in `care_centers`.
 - **The counts**: each hour's acute and chronic admissions are drawn
   from Poisson distributions whose means are, for a care center of
@@ -178,9 +189,9 @@ simulated ([lib/history.dart](../healthhub_api/lib/history.dart)).
   60% acute; a health station 1.5 to 4, 35% acute; a clinic 1 to 3, half
   acute. `admissions` is the sum; an hour with none has no row, as the
   job's.
-- **Deterministic**: a care center's random numbers are seeded by its id
-  (`historySeed + id`), so it always gets the same rows, and a longer
-  history starts with the same days.
+- **The same every time**: a care center's random numbers are seeded by
+  its id (`historySeed + id`), so it always gets the same rows, and a
+  longer history starts with the same days.
 - **Idempotent**: one query reads each care center's rows of the run
   (their count, admissions, acute admissions, last hour and name); a
   care center whose rows match what it should have is left alone, any
@@ -189,33 +200,58 @@ simulated ([lib/history.dart](../healthhub_api/lib/history.dart)).
   CONFLICT DO NOTHING`); the rows of care centers no longer covered are
   deleted. A restart costs that one query; a change of the days or the
   care centers rewrites what changed. With the defaults, the first
-  writing takes well under a minute and 359,962 rows. It runs on a
+  writing takes well under a minute and 542,350 rows. It runs on a
   connection of its own, closed after: the API's shared one refuses
   other statements during a transaction, so the simulation's admissions
   and the health checks, which go on meanwhile, would fail and close it
   under the history.
 
-With the defaults, every series spans 2,160 hours (752 to 1,701 of them
+With the defaults, every series spans 2,160 hours (739 to 1,713 of them
 with a row); the mean admissions per care center rise from none at
-01:00 to 3.37 at 13:00, symmetric about it; the first harmonic fitted
+01:00 to 3.47 at 13:00, symmetric about it; the first harmonic fitted
 to each series (y ≈ a + b cos(2πh/24) + c sin(2πh/24), the hours
-without a row as zeros) peaks between 12.6 and 13.5 h (13.0 on
-average) with an amplitude of 0.92 to 1.05 times its mean, its acute
+without a row as zeros) peaks between 12.6 and 13.4 h (13.0 on
+average) with an amplitude of 0.92 to 1.06 times its mean, its acute
 and chronic parts alike; and a weekend day has 0.85 of a weekday's
 admissions.
+
+## The simulated history's run
+
+Run `00000001` (`simulatedRun`) is the admissions per hour of
+[the simulated history](simulated-history.md): a year, by default
+(`HEALTHHUB_SIM_HISTORY_DAYS`), of the simulation's people going for
+care, simulated ahead by the API at start in dev mode and written
+straight into the `admissions` table. The API then counts the run's
+rows here from those admissions in SQL, by care center and simulated
+hour, acute and chronic, as the job counts a live run's: the job itself
+never sees them, since they don't go through Kafka, and the
+`healthhub.admissions.hourly` topic has none of them.
+
+The run's rows are deleted and counted again, in one transaction,
+whenever its admissions were written again or the rows don't add up to
+them. With the defaults, 5,995 rows at 300 care centers (82 hospitals,
+181 health stations, 37 clinics), from 2026-01-01 to 2026-12-31: a
+live run's level and shape, 20 admissions a care center in the year on
+average (9 at the median one, 729 at the busiest), nearly every row a
+single admission, where the history run's hours are mostly full.
 
 ## Known limitations
 
 - The hours are the simulation's, from an arbitrary 2026-01-01; with
-  the defaults a run covers a simulated year in about two and a half real
-  hours, so `hour_start` runs years ahead of the wall clock.
+  the defaults a run covers a simulated year in about a real day, so
+  `hour_start` runs ahead of the wall clock.
 - A run's series stop when the API restarts; the next run is new series
   from day 1, not a continuation.
 - Hours with no admission have no row: a reader fills them with zeros.
 - The history is drawn, not simulated: its levels are well above a live
-  run's (a few admissions a care center at the busiest hour, against a
-  few a day), and its weekends are quieter while a live run's are not. A
-  forecast learns the daily shape from it, not a live run's level.
+  run's (a few admissions a care center at the busiest hour, against 20
+  a year on average in the simulated history), and its weekends are
+  quieter while a live run's are not. A
+  forecast learns the daily shape from it, and a live run's level from
+  the simulated history's run.
+- Every run starts on 2026-01-01, the two the API writes and each live
+  one, so the same hours repeat across them, told apart by the run
+  alone.
 - Its care centers follow the people: a change of `HEALTHHUB_SIM_PEOPLE`,
   of the care centers or of the conditions changes them, and the next
   start deletes the history of those no longer used and writes that of

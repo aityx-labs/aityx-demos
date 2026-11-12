@@ -23,7 +23,7 @@ and the [occupancy alarms](occupancy-alarms.md):
 | `GET /api/events?limit=20&type=admission` | The latest moves (a person's changes of state only) and admissions the API read from the streams, as one stream newest first by simulated time, the kinds among each other, a tie in the order read ([Simulation](simulation.md#the-stream)): `{"enabled": <dev mode>, "paused": <whether the simulation is paused>, "peoplePerCity": <the people a city now>, "busiest": <the care center with the most people in care now, {"id", "name", "kind", "inCare"}; null while nobody is>, "topic": "healthhub.people.moves", "topics": ["healthhub.people.moves", "healthhub.admissions"], "total": <every move and admission the feed read>, "perSecond": <how many a second over the last minute, to a tenth>, "events": [...]}`. A move is `{"type": "move", "id", "name", "age", "city", "state", "mode", "monitored", "monitoredFor" (why: "aged 84", "pregnant", a chronic condition; null when not), "conditionName", "conditionType", "hospitalName", "careCenterKind", "simTime", "day", "at" (the same moment as a date and time), "turn", "lat", "lon", "partition", "offset"}`; an admission is `{"type": "admission", "eventId", "personId", "id" (the person's id again, as a move has it), "name", "age", "sex", "occupation", "city", "conditionCode", "conditionName", "conditionType", "visit", "visitNumber", "complaint", "hospitalId", "hospitalName", "careCenterKind", "simTime", "day", "at", "turn", "partition", "offset", "triage" (aityx's level, "red" to "blue", once recorded; null until then or when it failed)}`. `type` (`admission` or `move`, else 400) keeps one kind; `limit` of them (20 unless asked, at most 100; 400 when not a positive number). The feed keeps the latest 100 of each kind apart, so admissions stay among the events however many moves follow; a move only when it changes the person's state (left home, arrived, going home, back home), though `total` counts them all. Whatever the type, the answer also has `"now"`, the simulated clock `{"day", "simTime", "date"}` of the newest move (`date` the day as `YYYY-MM-DD`, day 1 being 2026-01-01; null before the first move), and `"alarms"`, `{"enabled", "threshold", "checkedAt", "status", "note", "stale", "active", "recent"}` as `/api/alarms` has them with the 10 latest events ([Occupancy alarms](occupancy-alarms.md#the-api)), only `enabled` and `"signIn": true` (empty lists) to a caller not signed in while sign-in is on; with the caller's token (any caller while sign-in is off) it sets an alarm check off in the background. In prod mode `"enabled": false`, `"paused": false`, `"total": 0`, `"perSecond": 0`, no events, `"now": null`, `"busiest": null` and the alarms off; open to everyone |
 | `GET /api/alarms?limit=20` | The [occupancy alarms](occupancy-alarms.md#the-api): `{"enabled", "paused", "everyMs", "threshold", "now", "checkedAt", "status", "note", "stale", "trainingRun", "active": [...], "recent": [...]}`, the care centers whose occupancy reaches the threshold of their capacity (90% unless `HEALTHHUB_ALARM_THRESHOLD` says): `actual` by the occupancy observed at the run's latest hour, `expected` by the mean of datyx's DeepAR forecast, `possible` by its 90th percentile, the worst and soonest first, and the latest alarm events, newest first, `limit` of them (20 unless asked, at most 100; 400 when not a positive number). Sets a check off as `/api/events` does. In prod, or with `HEALTHHUB_ALARM_EVERY_MS=0`, `"enabled": false` and nothing; with sign-in on, a signed-in user only (401 otherwise), as the forecast it is |
 | `POST /api/simulation/pause`, `POST /api/simulation/resume` | Pause or resume the simulation ([Simulation](simulation.md#pausing)): 200 `{"paused": true}` or `{"paused": false}`, the state after the call; pausing a paused simulation, or resuming a running one, changes nothing and answers the same. 401 `{"error": "sign in first"}` without a user once authentication is on, checked before anything changes; 409 `{"error": "the simulation does not run"}` in prod mode or before it has started. No body is read |
-| `GET /api/admissions?limit=20` | `{"admissions": [{"id", "eventId", "personId", "name", "age", "sex", "occupation", "city", "conditionCode", "conditionName", "conditionType", "visit", "visitNumber", "complaint", "hospitalId", "hospitalName", "day", "simTime", "recordedAt"}]}`: the latest admissions recorded in the database's `admissions` table, newest first, `limit` of them (20 unless asked, at most 200; 400 when not a positive number); in prod mode too, whatever a dev run recorded; open to everyone; 503 when the database doesn't answer |
+| `GET /api/admissions?limit=20` | `{"admissions": [{"id", "eventId", "personId", "name", "age", "sex", "occupation", "city", "conditionCode", "conditionName", "conditionType", "visit", "visitNumber", "complaint", "hospitalId", "hospitalName", "day", "simTime", "recordedAt"}]}`: the latest admissions recorded in the database's `admissions` table, newest first, `limit` of them (20 unless asked, at most 200; 400 when not a positive number); in prod mode too, whatever a dev run recorded; the [simulated history](simulated-history.md)'s admissions are in the table too, written before the live run starts, so they come after the live run's and fill the list only until it has `limit` of its own; open to everyone; 503 when the database doesn't answer |
 | `GET /api/triage?limit=20` | `{"enabled": <whether admissions are triaged>, "summary": {"total", "failed", "compared", "matched", "withinOne", "under", "over", "nurseChecks", "inputTokens", "medianMillis", "levels": {"red", "orange", "yellow", "green", "blue"}}, "triaged": [{"eventId", "name", "age", "sex", "city", "complaint", "conditionName", "conditionType", "visit", "visitNumber", "hospitalName", "day", "simTime", "level", "waitMinutes", "area", "nurseCheck", "levelRule", "levelWhy", "areaRule", "areaWhy", "signs", "choices", "reference", "error", "inputTokens", "millis", "triagedAt"}]}`: every triage counted, against the reference levels, and the latest, newest first, `limit` of them (as `/api/admissions`) ([Triage at the desk](triage.md)); open to everyone; 503 when the database doesn't answer |
 | `GET /api/care-centers/{id}` | One care center: where it is, its capacity in the simulation, its flow factor this run (`flow`), who is there and on the way now, its admissions counted and the latest with their triage ([The care center view](care-center.md#the-api)); 404 for none, 503 without the database; open to everyone |
 | `POST /api/care-centers/{id}/flow` | `{"action": "double" \| "halve" \| "reset"}`: doubles, halves (from 1/8 to 8) or resets the care center's flow factor for the rest of the run, the visits headed there coming that many times as often ([Simulation](simulation.md#the-flow-at-a-care-center)); answers `{"id", "factor"}`; anyone signed in (anyone while authentication is off), 401 without a user once it is on, 409 when the simulation doesn't run, 400 for another action, 404 for a care center the simulation sends nobody to |
@@ -65,6 +65,10 @@ simulation's `HEALTHHUB_SIM_PEOPLE`, `HEALTHHUB_SIM_TURN_MS` and
 (90; 0 for none; anything but a whole number up to 730 stops the
 server), the days of admissions history it writes at start in dev mode
 ([The history](admissions-hourly.md#the-history)),
+`HEALTHHUB_SIM_HISTORY_DAYS` (365; 0 for none; anything but a whole
+number up to 730 stops the server), the days of the people's visits it
+simulates ahead and writes at start in dev mode
+([The simulated history](simulated-history.md)),
 `HEALTHHUB_ALARM_EVERY_MS` (5000: real milliseconds between two
 [occupancy alarm](occupancy-alarms.md) checks at least; 0 turns them
 off; anything but a whole number from 0 stops the server) and
@@ -98,19 +102,23 @@ such as a refused value, leaves it open; connect timeout 5 s, query
 timeout 10 s, no TLS). The driver sends one statement at a time on it;
 only the migration holds every other call back until it is done, so a
 health check's ping or a read never waits behind an admission being
-retried. The admissions history is the one exception to the shared
-connection: once no migration runs, it is written on a connection of its
-own, with the same settings, closed after, because the shared one
-refuses other statements while a transaction runs on it, and the
-simulation's admissions and the health checks go on during the
-history's transactions ([The history](admissions-hourly.md#the-history)).
+retried. The two histories are the exceptions to the shared connection:
+once no migration runs, each is written on a connection of its own, with
+the same settings, closed after, because the shared one refuses other
+statements while a transaction runs on it, and the simulation's
+admissions and the health checks go on during the histories'
+transactions ([The history](admissions-hourly.md#the-history),
+[The simulated history](simulated-history.md)).
 At start the server runs the migration in the background, retrying every
 3 s until the database answers: `CREATE TABLE IF NOT EXISTS greetings`
 and the hello row if the table is empty, and the care centers' table and
 seed. Until then `/api/health` says `"db": false` and `/api/hello`
 answers 503. In dev mode, once the migration succeeded, the server reads
-the care centers and starts the [simulation](simulation.md) and the feed
-that reads it back; neither waits for Kafka, and in prod neither runs. Every statement with a value
+the care centers, draws the people, writes the simulated history (one
+try, which the rest waits for: a few seconds on a new database, two
+queries after), starts the admissions history's writing in the
+background, and starts the [simulation](simulation.md) and the feed
+that reads it back; neither waits for Kafka, and in prod none of this runs. Every statement with a value
 takes it as a parameter. Logs name the database as
 `user@host:port/name`, never the password.
 
@@ -156,8 +164,8 @@ the proxy.
 ## Known limitations
 
 - Only the two datyx paths are forwarded; a general proxy isn't wanted.
-- One shared connection, no pool (the history's own aside, while it is
-  written): enough for the hello world.
+- One shared connection, no pool (the two histories' own aside, while
+  they are written): enough for the hello world.
 - Every person publishes its own record each turn, one HTTP call each
   (560 a second with the defaults, up to 1,400 at 200 people a city, and
   one more for each admission), over

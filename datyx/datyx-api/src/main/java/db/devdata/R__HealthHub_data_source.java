@@ -12,8 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import datyx.crypto.Crypto;
 import datyx.datasource.AccessCodec;
 import datyx.datasource.DataSource.Access;
-import datyx.datasource.DataSource.DatabaseAccess;
-import datyx.datasource.DataSource.KafkaAccess;
+import datyx.datasource.DevData;
 import datyx.profile.ProfileIdentity;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.flywaydb.core.api.migration.BaseJavaMigration;
@@ -22,26 +21,22 @@ import org.jboss.logging.Logger;
 
 /**
  * Development data, dev mode only (db/devdata is a Flyway location in the
- * dev profile alone): HealthHub as two data sources, its PostgreSQL named
- * HealthHub and its Kafka named HealthHub Kafka, each in every profile
- * that has none of that name, the local profile included (made here when
- * missing, so authentication off has them too). The details are
- * HealthHub's development defaults (HealthHub/.env.example): localhost,
- * port 9803, database healthhub, user healthhub; Kafka's bootstrap server
- * localhost:9804, plain text. Encrypted as the API stores them
- * (AccessCodec), with the same master key. A repeatable migration: it
- * runs again when {@link #VERSION} changes, and then seeds the profiles
- * made since. A profile whose key another master key wrapped is skipped
- * with a warning.
+ * dev profile alone): HealthHub as two data sources ({@link DevData}), its
+ * PostgreSQL named HealthHub and its Kafka named HealthHub Kafka, each in
+ * every profile that has none of that name, the local profile included
+ * (made here when missing, so authentication off has them too). A profile
+ * made after this ran gets them when it is made (ProfileMaker). The
+ * details are HealthHub's development ones, at the addresses the
+ * configuration gives (localhost:9803 and localhost:9804 on a laptop).
+ * Encrypted as the API stores them (AccessCodec), with the same master
+ * key. A repeatable migration: it runs again when {@link #VERSION}
+ * changes, and then seeds the profiles without them. A profile whose key
+ * another master key wrapped is skipped with a warning.
  */
 public class R__HealthHub_data_source extends BaseJavaMigration {
 
     /** Bump to run the seed again (the migration's checksum). */
     static final int VERSION = 2;
-
-    static final String NAME = "HealthHub";
-
-    static final String KAFKA_NAME = "HealthHub Kafka";
 
     private static final Logger LOG = Logger.getLogger(R__HealthHub_data_source.class);
 
@@ -63,13 +58,9 @@ public class R__HealthHub_data_source extends BaseJavaMigration {
         ObjectMapper json = new ObjectMapper();
         Instant now = Instant.now();
         ensureLocalProfile(c, crypto, now);
-        seed(c, crypto, json, now, NAME, "DATABASE",
-            "HealthHub's PostgreSQL, the development one (compose.yaml of HealthHub/)",
-            new Access(new DatabaseAccess("postgresql", "localhost", 9803, "healthhub", "healthhub", "healthhub"),
-                null, null, null));
-        seed(c, crypto, json, now, KAFKA_NAME, "KAFKA",
-            "HealthHub's Kafka, the development one (compose.yaml of HealthHub/): admissions, moves and hourly counts",
-            new Access(null, null, null, new KafkaAccess("localhost:9804", "PLAINTEXT", null, null, null)));
+        for (DevData.Seed seed : DevData.healthHub(ConfigProvider.getConfig())) {
+            seed(c, crypto, json, now, seed.name(), seed.type().name(), seed.description(), seed.access());
+        }
     }
 
     /** A data source of this name, type and details, in every profile without one of the name. */
@@ -90,13 +81,14 @@ public class R__HealthHub_data_source extends BaseJavaMigration {
             }
             try (PreparedStatement s = c.prepareStatement("""
                 insert into data_source (id, profile_id, name, type, description, created_at, created_by, created_by_name, access)
-                values (nextval('data_source_seq'), ?, ?, ?, ?, ?, null, 'dev data', ?)""")) {
+                values (nextval('data_source_seq'), ?, ?, ?, ?, ?, null, ?, ?)""")) {
                 s.setLong(1, id);
                 s.setString(2, name);
                 s.setString(3, type);
                 s.setString(4, description);
                 s.setTimestamp(5, Timestamp.from(now));
-                s.setBytes(6, sealed);
+                s.setString(6, DevData.CREATED_BY_NAME);
+                s.setBytes(7, sealed);
                 s.executeUpdate();
             }
             seeded++;

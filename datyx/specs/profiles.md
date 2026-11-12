@@ -26,7 +26,11 @@ the token's `iss` and `sub` (`CurrentUser`, [auth.md](auth.md)). An
 identity the API has not seen gets a new profile with a new key, in a
 transaction of its own (`ProfileMaker`), so an identity's first two calls
 at once make one profile: the loser's unique violation is swallowed and
-the winner's row found. Every call also records the identity's claims
+the winner's row found. In dev mode the profile is made with the
+development data, HealthHub's two data sources, in that same transaction
+([data-sources.md](data-sources.md#development-data)), so a first
+sign-in has them to see, and the catalogue and the trainer pick them up
+within minutes. Every call also records the identity's claims
 and `lastSeenAt`. With authentication off every call is the local
 identity, issuer `local`, subject `anonymous`, and one local profile owns
 everything, so the API runs without any setup. The sign-in is simply the
@@ -67,7 +71,11 @@ database source holds none of its host, database, user, password or
 engine in clear, and the API reads it back. `CryptoTest`, no Quarkus:
 documents round-trip, and another key, place or master key is refused;
 a master key that isn't base64 or isn't 32 bytes is refused.
-`AuthOffTest`: the local profile.
+`AuthOffTest`: the local profile. `DevDataProfileTest` (authentication
+on, the development data on, HealthHub's addresses set to a cluster's):
+a first sign-in's profile has HealthHub's two sources at the configured
+addresses, another person has their own (the first's is a 404 to them),
+and signing in again adds none.
 
 ## Known limitations
 

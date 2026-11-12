@@ -13,9 +13,10 @@ Every demo is a web app (Flutter, or for Holiday Split plain JavaScript
 built with Vite) that calls aityx from the browser, with
 the key the user sets once on this page: the page and the apps share one
 origin, so they share the browser's storage. A card's picture and **Open**
-open the app in a new tab that keeps its opener (`rel="opener"`), so a
-key still in the tab's sessionStorage (saved "only this session" before
-the page dropped that choice) is copied into it. Every other link on the page
+open the app in a new tab without an opener (`rel="noopener"`), so a key
+still in the tab's sessionStorage (saved "only this session" before the
+page dropped that choice) isn't copied into it, where it would outlive the
+page's **Check and save** and **Forget key**. Every other link on the page
 (aityx.ai, the console, GitHub, Codespaces) opens a new tab too.
 
 ## What it serves

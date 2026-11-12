@@ -361,10 +361,13 @@ async function readChat(){
   if(!text||READING) return;
   READING=true; $("go").disabled=true;
   readerNote("aityx is reading the chat…"); liveNote("aityx is reading the chat…");
+  // Another story or holiday picked while it reads (load() makes a new S): its answer is for the old chat, and is dropped.
+  const at=S, moved=()=>S!==at;
   try{
     const out=await reader.read(text,{
-      onProgress:p=>readerNote(p<1?`Getting aityx ready in your browser: ${Math.round(p*100)}% (the first time only)`:"aityx is reading the chat…"),
-      onToken:n=>readerNote(`aityx is reading the chat… ${n}`)});
+      onProgress:p=>{ if(!moved()) readerNote(p<1?`Getting aityx ready in your browser: ${Math.round(p*100)}% (the first time only)`:"aityx is reading the chat…"); },
+      onToken:n=>{ if(!moved()) readerNote(`aityx is reading the chat… ${n}`); }});
+    if(moved()) return;
     applyTrip(out.trip); S.chatChanged=false;
     const t=out.trip, adults=t.people.filter(p=>!p.guardians.length).length, kids=t.people.length-adults;
     readerNote(`aityx read the chat in ${(out.ms/1000).toFixed(1)} s: ${adults} adult${adults===1?"":"s"}${kids?`, ${kids} kid${kids===1?"":"s"}`:""} and ${t.expenses.length} expense${t.expenses.length===1?"":"s"}${t.notes.length?` (${t.notes.join("; ")})`:""}. Check the lists: fix anything it got wrong.`,"ok");
@@ -372,6 +375,7 @@ async function readChat(){
     if(live()) readLive();
     else liveNote("Set your aityx key to settle this trip on aityx. The amounts below are your browser's estimate.","warn");
   }catch(e){
+    if(moved()) return;
     readerNote(`aityx couldn't read the chat: ${e.message}. Write it more plainly, or fix the lists by hand.`,"warn");
     liveNote("");
   }finally{ READING=false; $("go").disabled=false; }

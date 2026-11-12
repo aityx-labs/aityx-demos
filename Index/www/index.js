@@ -98,15 +98,14 @@ const codespaces = (d) =>
   encodeURIComponent('.devcontainer/' + d.codespace + '/devcontainer.json') +
   '&machine=standardLinux32gb';
 // A demo's app: beside this page (/demos/<slug>/), on this origin, so it
-// reads the key saved here. Opened in a new tab, with an opener: this page
-// keeps the key in localStorage, which every tab shares, but a key in this
-// tab's sessionStorage (one saved "only this session" before the page
-// dropped that choice; the demos still read it first) is copied into a new
-// tab only when the tab keeps its opener. With noopener (the default for
-// target="_blank" since Chrome 88) the new tab starts with an empty one.
-// The app is on this origin, so the opener is no risk.
+// reads the key saved here, in localStorage, which every tab shares. Opened
+// in a new tab without an opener, which starts with an empty
+// sessionStorage: a key an older page left in this tab's sessionStorage
+// ("only this session", before the page dropped that choice) isn't copied
+// into it. The demos read sessionStorage first, so a copy would outlive
+// this page's Save and Forget key, which clear only this tab's.
 const appPath = (d) => d.folder.toLowerCase() + '/';
-const appTab = 'target="_blank" rel="opener"';
+const appTab = 'target="_blank" rel="noopener"';
 const ext = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M19 14v6H4V5h6"/></svg>';
 
 function card(d) {

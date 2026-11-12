@@ -399,9 +399,12 @@ export function nightsInChat(chat, people, trip, start) {
     const named = people.flatMap((person) => mentions(sentence, person.name).map((i) => [i, person])).sort((x, y) => x[0] - y[0]);
     if (!named.length) continue;
     const all = [...new Set(named.map(([, person]) => person))];
-    const counts = [...sentence.matchAll(/\b(\d{1,2})\s+nights?\b/gi)].map((m) => [m.index, Number(m[1])]).filter(([, n]) => n < trip);
-    if (counts.length === 1) set(all, counts[0][1]);
-    else if (counts.length > 1) {
+    // A whole stay's count stays in, to tell whose the shorter one is: in "Alice stays 2 nights but Bob
+    // stays all 4", Bob's 4 (set() keeps no full stay). A sentence with only full stays counts none.
+    const counts = [...sentence.matchAll(/\b(\d{1,2})\s+nights?\b/gi)].map((m) => [m.index, Number(m[1])]).filter(([, n]) => n <= trip);
+    const short = counts.filter(([, n]) => n < trip);
+    if (counts.length === 1 && short.length) set(all, counts[0][1]);
+    else if (short.length) {
       // "Leo 2 nights and Tess 3": each count is for the people named since the count before it.
       let from = 0;
       counts.forEach(([i, n], k) => {
@@ -431,10 +434,24 @@ const TITLE = '(?:grandma|grandpa|uncle|aunt|auntie|cousin)';
 
 const NOT_COMING = /\b(?:can['’]?t|cannot|won['’]?t|isn['’]?t|is\s+not|not|aren['’]?t)\s+(?:make\s+it|come|coming|be\s+(?:there|coming|joining)|join(?:ing)?)\b(?!\s+(?:for|until|till|before|on|the)\b)|\bmight\s+come\b|\bhasn['’]?t\s+confirmed\b|\bdon['’]?t\s+count\b/i;
 
+/** Where a sentence turns to someone else: "Alice is coming but Bob can't come". */
+const CONTRAST = /\b(?:but|while|whereas|although|though|however|yet)\b/i;
+
+const COMING = /\b(?:is|are|will)\s+(?:coming|come|joining|be\s+there)\b|\b(?:comes|joins|arrives)\b/gi;
+
+/**
+ * Whether a clause says `person` isn't coming: it names them and says no one comes, and doesn't
+ * say first that they do ("Alice is coming and Bob cannot come" says it of Bob, not Alice).
+ */
+function saysNotComing(clause, person) {
+  const at = mentions(clause, person.name), no = NOT_COMING.exec(clause);
+  return at.length > 0 && !!no && !at.some((i) => i < no.index && [...clause.slice(i, no.index).matchAll(COMING)].length);
+}
+
 /** Whether the chat names `person` only to say they aren't coming: "Cousin Gil can't make it". No model. */
 export function notComing(chat, person) {
   const about = sentences(chat).filter((sentence) => mentions(sentence, person.name).length);
-  return about.length > 0 && about.every((sentence) => NOT_COMING.test(sentence));
+  return about.length > 0 && about.every((sentence) => sentence.split(CONTRAST).some((clause) => saysNotComing(clause, person)));
 }
 
 const NOT_NAMES = new Set(['everyone', 'everybody', 'all', 'kids', 'me', 'us', 'them', 'you', 'we', 'i', 'he', 'she', 'they', 'others', 'family', 'friends', 'the', 'rest', 'more', 'co']);

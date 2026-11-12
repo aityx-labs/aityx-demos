@@ -26,7 +26,9 @@ rules-only call, with no AI.
 Without a key, the page shows real aityx calls recorded with a key: the
 three example years, simplest first, each with a different winner: just me
 (Bronze), a kid with asthma (Silver), and a baby on the way in a family with
-an ongoing condition and a surgery (Gold); and their what-if switches. The plans stay locked.
+an ongoing condition and a surgery (Gold); and their what-if switches. The plans and the
+message stay locked. With a key, the message can be rewritten: Compare plans then has aityx read
+it again.
 
 ## Technology
 

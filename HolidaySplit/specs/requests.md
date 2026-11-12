@@ -90,3 +90,18 @@ feature files in this folder describe the software as it is now.
    one it accepts, in the entries every aityx demo and the demos page read,
    and can forget it. (The Flutter demos get the same through `aityx_web`,
    in their own change.)
+7. **Fix the review's findings on the aityx website's pull request
+   (aletyx/aityx-website#33).** Three, in the trip reader and the page:
+   - In "Alice stays 2 nights but Bob stays all 4 nights", Bob got Alice's
+     2 nights: the whole stay's count was dropped before the counts were
+     matched to the names. It is kept for the matching, and still gives no
+     one fewer nights ([Trip reader](trip-reader.md#held-to-the-chat)).
+   - In "Alice is coming but Bob cannot come", Alice was left out too: a
+     "not coming" anywhere in a sentence counted for every name in it. It
+     now counts only in the person's part of the sentence (up to a "but",
+     "while", "although"...), and not when that part says first that they
+     come.
+   - Picking another holiday or story while the chat was being read (the
+     first read downloads the model) let the old chat's lists replace the
+     new story's. The reading is dropped once another one is picked
+     ([The page](page.md)).

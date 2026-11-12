@@ -17,7 +17,8 @@ prototype, in five numbered steps:
    always be rewritten:
    **Split it** then reads it into the lists (see [Trip
    reader](trip-reader.md)); changed back to the story's own text, it uses
-   the story's own lists again. With a key, the lists can be edited: **+
+   the story's own lists again. Another holiday or story picked while the
+   chat is being read drops that reading: the lists stay the new story's. With a key, the lists can be edited: **+
    Adult**, **+ Kid**, **+ Expense**.
 3. **Set the house rules**: free and half-price ages, splitting lodging by
    nights, drinks only among the people who drink, days to pay by. Each

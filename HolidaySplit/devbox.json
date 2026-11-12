@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.5/.schema/devbox.schema.json",
+  "packages": {
+    "nodejs": "22",
+    "curl":   "latest"
+  },
+  "shell": {
+    "scripts": {
+      "build": "bash scripts/build.sh",
+      "dev":   "cd holidaysplit_app && npm install --no-audit --no-fund && npm run dev",
+      "test":  "cd holidaysplit_app && npm install --no-audit --no-fund && npm test"
+    }
+  }
+}

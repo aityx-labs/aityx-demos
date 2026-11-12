@@ -34,8 +34,9 @@ the servers a dev key (see [A dev key](#a-dev-key)).
 
 ## aityx
 
-Eight web apps that call aityx from the browser (six in Flutter, Outpost and
-Health Plan static pages), all served by the [index](Index/) under `/demos/`.
+Nine web apps that call aityx from the browser (six in Flutter; Outpost and
+Health Plan, static pages; Holiday Split, plain JavaScript built with Vite),
+all served by the [index](Index/) under `/demos/`.
 
 [![Open the aityx demos in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Faityx%2Fdevcontainer.json&machine=standardLinux32gb)
 
@@ -44,6 +45,7 @@ Health Plan static pages), all served by the [index](Index/) under `/demos/`.
 | [Mortgage Hub](MortgageHub/) | `/demos/mortgagehub/` | A mortgage application, checked against US lending rules by a decision model |
 | [Contact Hub](ContactHub/) | `/demos/contacthub/` | A request, typed or dictated, routed to the right department or person |
 | [Health Plan](HealthPlan/) | `/demos/healthplan/` | Which 2027 health plan costs a family less, read from their own words and priced by rules |
+| [Holiday Split](HolidaySplit/) | `/demos/holidaysplit/` | Who owes what after a holiday trip: the group chat read on the device, settled by house rules |
 | [Cellfie](Cellfie/) | `/demos/cellfie/` | Conway's Game of Life, with aityx naming the patterns on the board |
 | [RiverRace](RiverRace/) | `/demos/riverrace/` | The 1982 Atari river shooter, with two planes flown by aityx and one by you |
 | [RoboRules](RoboRules/) | `/demos/roborules/` | Robocode-style tank battles, each robot a decision model |
@@ -80,6 +82,15 @@ year in plain words. In one aityx call, Jev reads each person's care and any
 pregnancy, and the plan rules price Bronze, Silver and Gold for that year.
 A receipt per plan shows every number and where it came from, and what-if
 switches show the winner change. [README](HealthPlan/README.md)
+### Holiday Split
+
+![Holiday Split: a family's Christmas trip, read and settled by aityx, with everyone's receipt](Index/www/holidaysplit.gif)
+
+Who owes what after a holiday trip. Write the family's group chat, and
+aityx reads who comes, for how many nights, what was spent, who isn't
+paying and who doesn't drink; the house rules, a decision model on aityx,
+say who pays whom, how much and by when, with a receipt for everyone.
+From Thanksgiving at Mom's to New Year's at the lake with fifteen people. [README](HolidaySplit/README.md)
 
 ### Cellfie
 

@@ -1,15 +1,16 @@
 # Index
 
 The aityx demos on one origin, under `/demos/`: the index page, in the
-aityx palette, with a card for each of the eight, in two groups, Games
+aityx palette, with a card for each of the nine, in two groups, Games
 (Cellfie, Outpost, PokerFace, RoboRules, RiverRace) and Apps (Mortgage Hub,
-Contact Hub, Health Plan): an animation of the app, what it shows, its technology,
-**Open**, **Source** on GitHub, and **Codespace**; the eight apps
+Contact Hub, Health Plan, Holiday Split): an animation of the app, what it shows, its technology,
+**Open**, **Source** on GitHub, and **Codespace**; the nine apps
 themselves, each under its own path; and "Your aityx key". The datyx
 group has its own index, [../datyx-index/](../datyx-index/), and so has
 the multyx group, [../multyx-index/](../multyx-index/).
 
-Every demo is a Flutter web app that calls aityx from the browser, with
+Every demo is a web app (Flutter, or for Holiday Split plain JavaScript
+built with Vite) that calls aityx from the browser, with
 the key the user sets once on this page: the page and the apps share one
 origin, so they share the browser's storage. A card's picture and **Open**
 open the app in a new tab that keeps its opener (`rel="opener"`), so a
@@ -27,6 +28,7 @@ the page dropped that choice) is copied into it. Every other link on the page
 | `/demos/<slug>.mp4` | the same recording as a video, `www/<slug>.mp4`, made by [scripts/make-videos.sh](scripts/make-videos.sh), for the website's blueprint pages; served in byte ranges, as Safari needs |
 | `/demos/mortgagehub/` | `MortgageHub/mortgagehub_app/build/web` |
 | `/demos/contacthub/` | `ContactHub/contacthub_app/build/web` |
+| `/demos/holidaysplit/` | `HolidaySplit/holidaysplit_app/build/web` (a Vite app, not Flutter) |
 | `/demos/pokerface/` | `PokerFace/pokerface_app/build/web` |
 | `/demos/roborules/` | `RoboRules/roborules_app/build/web` |
 | `/demos/cellfie/` | `Cellfie/cellfie_app/build/web` |
@@ -48,11 +50,13 @@ apps fall back to the user's key.
 
 [bin/server.dart](bin/server.dart) is plain Dart, no packages. A demo is
 every folder beside this one whose `group.id.txt` says `aityx`
-(`INDEX_GROUP`) with a `<slug>_app/` package (a Flutter app, or a static page in
-`<slug>_app/web/`, as Outpost and Health Plan), the slug being the folder's
+(`INDEX_GROUP`) with a `<slug>_app/` package (a Flutter app; a static page in
+`<slug>_app/web/`, as Outpost and Health Plan; or a web app with a
+`package.json`, as Holiday Split), the slug being the folder's
 name in lower case. Its release build (each demo's `scripts/build.sh`:
 `flutter build web --release --base-href /demos/<slug>/
---no-web-resources-cdn`)
+--no-web-resources-cdn`, the static page copied as it is, or Holiday
+Split's `vite build` with the same base, all into `<slug>_app/build/web`)
 is served with `Cache-Control: no-cache`, and any path that isn't a file
 gets its `index.html` (the app routes it); a path that tries to leave the
 build is refused. A demo that isn't built answers 503 with a page that

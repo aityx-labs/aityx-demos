@@ -13,7 +13,13 @@
 # and blob server at healthhub-flink-rpc, its web UI and REST API at
 # healthhub-flink-jobmanager, published on the node (31806, the host's
 # 19806). The memory sizes are the processes' whole footprint, as Flink's
-# own Kubernetes integration sizes its pods.
+# own Kubernetes integration sizes its pods. Two processors for the JVMs
+# (flink.properties' env.java.opts.jobmanager and .taskmanager, which leave
+# Flink's own env.java.opts.all, its Java 17 flags, as they are) and two
+# arenas for jemalloc, the
+# image's allocator (MALLOC_CONF), whatever the node has: sized by the
+# node's 15 processors, the JobManager stood at 700 MB of its 768Mi and
+# was killed a dozen times a day; with two, 330 MB.
 apiVersion: v1
 kind: Service
 metadata:
@@ -76,6 +82,8 @@ spec:
             - name: FLINK_PROPERTIES
               valueFrom:
                 configMapKeyRef: { name: healthhub-flink, key: FLINK_PROPERTIES }
+            - name: MALLOC_CONF
+              value: narenas:2,background_thread:true,dirty_decay_ms:5000,muzzy_decay_ms:5000
           ports:
             - name: rest
               containerPort: 8081
@@ -136,6 +144,8 @@ spec:
             - name: FLINK_PROPERTIES
               valueFrom:
                 configMapKeyRef: { name: healthhub-flink, key: FLINK_PROPERTIES }
+            - name: MALLOC_CONF
+              value: narenas:2,background_thread:true,dirty_decay_ms:5000,muzzy_decay_ms:5000
           ports:
             - name: rpc
               containerPort: 6122

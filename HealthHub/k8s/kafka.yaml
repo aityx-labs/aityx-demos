@@ -195,6 +195,11 @@ spec:
               value: WARNING
             - name: KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED
               value: "true"
+            # Two malloc arenas, not eight per processor for its 40-odd
+            # threads (librdkafka's): their fragments grew it until it was
+            # killed at its limit after 18 hours.
+            - name: MALLOC_ARENA_MAX
+              value: "2"
           ports:
             - name: http
               containerPort: 8082

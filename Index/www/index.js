@@ -41,7 +41,7 @@ const demos = [
     kind: 'game', folder: 'RiverRace', name: 'RiverRace',
     what: 'The Atari river raid, three planes at once, two flown by aityx',
     desc: 'The 1982 Atari river shooter, remade: banks and islands, bridges, tankers, helicopters, jets and fuel depots, with three planes up one river at once. Two are flown by aityx, each by its own rules (a decision table you can edit while they fly); the yellow one is yours. Who scores more? Every aityx call, sent and received, in a side panel.',
-    chips: ['aityx', 'simulation', 'game', 'multiplayer', 'user playable'],
+    chips: ['aityx', 'simulation', 'game', 'user playable'],
     icon: 'plane', codespace: 'aityx',
   },
   {
@@ -124,7 +124,6 @@ function card(d) {
     '<div><h2>' + d.name + '</h2><p class="what">' + d.what + '</p></div></div>' +
     '<p class="desc">' + d.desc + '</p>' +
     '<div class="chips">' + chips + '</div>' +
-    '<div class="status" hidden></div>' +
     '<div class="actions">' +
     '<a class="btn primary" href="' + appPath(d) + '" ' + appTab + '>Open ' + ext + '</a>' +
     '<a class="btn" href="' + github + d.folder + '" target="_blank" rel="noopener">Source ' + ext + '</a>' +
@@ -139,32 +138,6 @@ for (const kind of ['game', 'app']) {
   const grid = document.getElementById(kind + 's');
   if (grid) grid.replaceChildren(...demos.filter(d => d.kind === kind).map(card));
 }
-
-// Which builds the index server has (api/demos, beside the page): a card
-// whose app isn't built, or was built for another path, says so. On a
-// static host there's no api/demos, and the cards stay as they are.
-async function markBuilds() {
-  let list;
-  try {
-    const r = await fetch('api/demos', { cache: 'no-store' });
-    if (!r.ok) return;
-    list = (await r.json()).demos;
-  } catch (_) {
-    return;
-  }
-  if (!Array.isArray(list)) return;
-  for (const d of list) {
-    const el = document.getElementById('demo-' + d.folder);
-    if (!el) continue;
-    const status = el.querySelector('.status');
-    const why = !d.built
-      ? 'Not built yet: run ./build-all.sh ' + d.folder
-      : !d.served ? 'Built for another path: run ./build-all.sh ' + d.folder : '';
-    status.textContent = why;
-    status.hidden = !why;
-  }
-}
-markBuilds();
 
 // The key ---------------------------------------------------------------
 

@@ -13,10 +13,10 @@ the app calls aityx itself, through the shared
 
 - **Where the key comes from**, in this order (`AityxSettings.resolve`):
   1. **The user's key**, set once on the index page's **Your aityx key**
-     (`/demos/#aityx-key`) and kept in the browser:
-     `sessionStorage['aityx.key']` ("Only this session") or
-     `localStorage['aityx.key']` ("Remember on this device"), the
-     session's first, with `aityx.url` beside it (default
+     (`/demos/#aityx-key`) and kept in the browser, on the device:
+     `localStorage['aityx.key']`, until **Forget key** (a key an older
+     index page left in `sessionStorage` is read first), with
+     `aityx.url` beside it (default
      `https://api.aityx.ai`). The index and every aityx demo are served
      from one origin (the index server, port 8800: the index page at
      `/demos/`, this app at `/demos/mortgagehub/`), so they share it. The
@@ -73,5 +73,3 @@ the app calls aityx itself, through the shared
 ## Known limitations
 
 - `jq` comes from the host, not devbox.
-- A key saved for "Only this session" lives in that tab's
-  `sessionStorage`: a demo opened in a new tab may not see it.

@@ -104,8 +104,6 @@
       font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg);
       background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; width: 100%;
     }
-    .key fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; }
-    .key fieldset legend { padding: 0; margin-bottom: 4px; font-size: 13px; color: var(--muted); }
     .key details { font-size: 14px; }
     .key summary { cursor: pointer; color: var(--muted); }
     .key details label.field { margin-top: 8px; }
@@ -155,11 +153,6 @@
           <label class="field">API key
             <input type="password" id="key-input" name="key" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="aityx_sk_…" required>
           </label>
-          <fieldset>
-            <legend>Keep it</legend>
-            <label><input type="radio" name="keep" value="device" checked> Remember on this device</label>
-            <label><input type="radio" name="keep" value="session"> Only this session</label>
-          </fieldset>
           <details id="key-advanced">
             <summary>Advanced</summary>
             <label class="field">aityx URL
@@ -182,7 +175,7 @@
         </ol>
         <p class="note">The key stays in this browser, for the demos on this address: each calls aityx with it,
           straight from the page. <strong>Check and save</strong> makes one empty call to aityx, which runs no model.
-          Use <strong>Only this session</strong> on a shared computer.</p>
+          It is kept on this device until you choose <strong>Forget key</strong>: do that on a shared computer.</p>
       </div>
     </section>
 

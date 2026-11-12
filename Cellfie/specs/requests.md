@@ -275,3 +275,9 @@ The feature files hold the current specification; see the
     development), in the same tab; embedded (`?embed=1`) it isn't shown. It
     is `AityxDemosLink`, new in the shared `aityx_web` package. See
     [Board](board.md#the-way-back).
+24. **Remove the "Keep it" option from the index page: always keep the
+    key.** The index page's key form lost **Remember on this device** /
+    **Only this session**: a key is always saved in `localStorage`, on the
+    device, until **Forget key**. The limitation about a session-only key
+    not reaching a new tab went with it. See [aityx status
+    light](aityx-status.md).

@@ -3,10 +3,10 @@
 // (Index/bin/server.dart) and from a static host's /demos/ (the aityx
 // website).
 // No key is asked for here. On the aityx website, Open goes to the aityx
-// console's Demos tab, which signs the visitor in, has them choose one of
-// their API keys and runs the demo there (it serves these files from its
-// own origin). Anywhere else (the index server, a codespace) Open runs the
-// demo beside this page, on the dev key or none.
+// console's Demos tab, which signs the visitor in and runs the demo there,
+// on their account (it serves these files from its own origin). Anywhere
+// else (the index server, a codespace) Open runs the demo beside this page,
+// on the dev key or none.
 'use strict';
 
 // The demos, in two groups: "kind" is 'game' (under "Games") or 'app' (the
@@ -98,14 +98,23 @@ const codespaces = (d) =>
   'https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=' +
   encodeURIComponent('.devcontainer/' + d.codespace + '/devcontainer.json') +
   '&machine=standardLinux32gb';
-// The aityx console of the website this page is on, by its host: Open runs
-// the demo there (#/demos?demo=<slug>). Elsewhere, null.
-const consoles = {
-  'aityx.ai': 'https://console.aityx.ai',
-  'stage.aityx.ai': 'https://console-stage.aityx.ai',
-  'localhost:4330': 'http://localhost:9004',
-};
-const consoleUrl = consoles[window.location.host] || null;
+// The aityx console this page belongs to: Open runs the demo there
+// (#/demos?demo=<slug>). The aityx website says which in console.json,
+// beside this page (its PUBLIC_CONSOLE_URL), so production, stage, each
+// preview link and its dev server all open their own console. Elsewhere
+// (the index server, a codespace) there is no such file: null.
+let consoleUrl = null;
+async function findConsole() {
+  try {
+    const r = await fetch('console.json', { cache: 'no-cache' });
+    if (!r.ok) return null;
+    const url = (await r.json()).console;
+    // An origin only: http(s), a host, no path.
+    return typeof url === 'string' && /^https?:\/\/[^/?#]+$/.test(url) ? url : null;
+  } catch (_) {
+    return null;
+  }
+}
 // Where Open goes: the console's Demos tab, or the app beside this page
 // (/demos/<slug>/) where there is no console.
 const slug = (d) => d.folder.toLowerCase();
@@ -130,17 +139,22 @@ function card(d) {
     '<p class="desc">' + d.desc + '</p>' +
     '<div class="chips">' + chips + '</div>' +
     '<div class="actions">' +
-    '<a class="btn primary" href="' + appPath(d) + '"' + (consoleUrl ? ' title="Opens it in the aityx console, with your API key"' : '') + '>Open</a>' +
+    '<a class="btn primary" href="' + appPath(d) + '"' + (consoleUrl ? ' title="Opens it in the aityx console, after you sign in"' : '') + '>Open</a>' +
     '<a class="btn" href="' + github + d.folder + '" target="_blank" rel="noopener">Source ' + ext + '</a>' +
     (d.codespace ? '<a class="btn" href="' + codespaces(d) + '" target="_blank" rel="noopener">Codespace ' + ext + '</a>' : '') +
     '</div>';
   return el;
 }
 
-// Each group's cards into its grid: #games, #apps.
-for (const kind of ['game', 'app']) {
-  const grid = document.getElementById(kind + 's');
-  if (grid) grid.replaceChildren(...demos.filter(d => d.kind === kind)
-    .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
-    .map(card));
+// Each group's cards into its grid: #games, #apps. Once the console is
+// known, so no Open ever points anywhere else first.
+async function render() {
+  consoleUrl = await findConsole();
+  for (const kind of ['game', 'app']) {
+    const grid = document.getElementById(kind + 's');
+    if (grid) grid.replaceChildren(...demos.filter(d => d.kind === kind)
+      .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
+      .map(card));
+  }
 }
+render();

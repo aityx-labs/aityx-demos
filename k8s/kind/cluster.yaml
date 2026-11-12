@@ -1,0 +1,45 @@
+# The local Kubernetes cluster for the demos: one kind node, named
+# aityx-demos (kubectl context kind-aityx-demos). k8s/up.sh creates it.
+#
+# Each demo's web port is published on this host only (127.0.0.1), at
+# its usual port plus 10000, so the cluster runs beside the demos that
+# ./start-all.sh runs on the usual ports. A demo's Service is a NodePort
+# at its usual port plus 22000, which kind maps to the host port:
+#
+#   host port   node port   demo (usual port)
+#   18800       30800       aityx index, the six aityx demos at /demos/ (8800)
+#   19700       31700       multyx index (9700)
+#   19710       31710       tatyx (9710)
+#   19810       31810       Poker Tour (9810)
+#   19800       31800       datyx index (9800)
+#   19801       31801       HealthHub (9801)
+#   19806       31806       HealthHub's Flink web UI (9806)
+#   19900       31900       datyx API (9900)
+#   19902       31902       OpenMetadata's UI (9902)
+#   19906       31906       datyx dashboard (9906)
+#
+# The ports are fixed when the cluster is created: a change here needs
+# k8s/down.sh and k8s/up.sh.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: aityx-demos
+# The images the demos build are pushed to the local registry,
+# kind-registry (localhost:5001 on this host); k8s/up.sh points the
+# node's containerd at it through /etc/containerd/certs.d.
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry]
+      config_path = "/etc/containerd/certs.d"
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - { containerPort: 30800, hostPort: 18800, listenAddress: 127.0.0.1 }
+      - { containerPort: 31700, hostPort: 19700, listenAddress: 127.0.0.1 }
+      - { containerPort: 31710, hostPort: 19710, listenAddress: 127.0.0.1 }
+      - { containerPort: 31810, hostPort: 19810, listenAddress: 127.0.0.1 }
+      - { containerPort: 31800, hostPort: 19800, listenAddress: 127.0.0.1 }
+      - { containerPort: 31801, hostPort: 19801, listenAddress: 127.0.0.1 }
+      - { containerPort: 31806, hostPort: 19806, listenAddress: 127.0.0.1 }
+      - { containerPort: 31900, hostPort: 19900, listenAddress: 127.0.0.1 }
+      - { containerPort: 31902, hostPort: 19902, listenAddress: 127.0.0.1 }
+      - { containerPort: 31906, hostPort: 19906, listenAddress: 127.0.0.1 }

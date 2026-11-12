@@ -397,9 +397,12 @@ Once they arrive the tab is built as whoever is signed in, and asks.
   otherwise, and the same red line when the API didn't answer. Three
   cards end with a link, opened in a new tab (`noopener`): the API's, its
   health check (`/api/health` where the app calls the API: its own
-  origin, or `API_BASE_URL`); OpenMetadata's, the URL its check reports
-  (the API's view of it, so behind Docker Compose it may be a name only
-  the API resolves); the Dashboard's, this page without its query.
+  origin, or `API_BASE_URL`); OpenMetadata's, the URL its check reports,
+  where a browser opens OpenMetadata (`DATYX_OPENMETADATA_PUBLIC_URL`
+  when the API has it, else the URL the API calls: Docker Compose sets
+  http://localhost:9902 and the Kubernetes cluster http://localhost:19902,
+  while the API itself calls http://openmetadata:8585 in both); the
+  Dashboard's, this page without its query.
 
 - **Profile** (`ProfileTab`): the caller's profile from
   `GET /api/profile`, which the API makes the first time an identity

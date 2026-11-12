@@ -69,7 +69,11 @@ process-compose through Docker Compose comes from.
     127.0.0.1:9805 (`HEALTHHUB_KAFKA_REST_PORT`; always 127.0.0.1, like
     Kafka); its health check is `GET /topics`. Consumers left behind by
     an API killed before it could delete them go once nobody has called
-    the proxy for 5 minutes (`KARAPACE_CONSUMER_IDLE_DISCONNECT_TIMEOUT`). The API reaches Kafka only through it
+    the proxy for 5 minutes (`KARAPACE_CONSUMER_IDLE_DISCONNECT_TIMEOUT`).
+    It keeps two malloc arenas (`MALLOC_ARENA_MAX=2`), not eight per
+    processor for its forty-odd threads (librdkafka's), whose fragments
+    grew it until the local Kubernetes cluster killed it at its 384 MB
+    limit after 18 hours. The API reaches Kafka only through it
     (`HEALTHHUB_KAFKA_REST_URL`, http://127.0.0.1:9805 on the host), so it
     needs no Kafka client library. Produce is `POST
     /topics/<topic>` with `application/vnd.kafka.json.v2+json`; a
@@ -88,7 +92,8 @@ process-compose through Docker Compose comes from.
     starts once it is ready; `flink-sql` once the TaskManager has started
     and the API and Kafka are ready, as the job writes the table the API
     makes, and is ready while the job is on the cluster. Their memory is
-    768 MB and 1 GB;
+    768 MB and 1 GB, their JVMs sized for two processors and jemalloc
+    for two arenas ([Admissions per hour](admissions-hourly.md));
   - the web app (`2-flutter-web`, via
     [scripts/flutter-web.sh](../scripts/flutter-web.sh)) on
     http://localhost:9801/app/ (`FLUTTER_WEB_PORT`), bound to 127.0.0.1
@@ -146,12 +151,16 @@ process-compose through Docker Compose comes from.
   `HEALTHHUB_KAFKA_REST_PORT` (9805), `HEALTHHUB_FLINK_PORT` (9806),
   `HEALTHHUB_KAFKA_REST_URL`
   (http://127.0.0.1:9805), `HEALTHHUB_MODE` (`dev`, which runs the
-  people simulation; `prod` doesn't), `HEALTHHUB_SIM_PEOPLE` (40 per
+  people simulation; `prod` doesn't), `HEALTHHUB_SIM_PEOPLE` (80 per
   city), `HEALTHHUB_SIM_TURN_MS` (2500) and
   `HEALTHHUB_SIM_MINUTES_PER_TURN` (15, so a simulated hour takes 10 real
   seconds), `HEALTHHUB_HISTORY_DAYS` (90, the days of admissions history
   the API writes at start in dev mode; 0 for none: [The
-  history](admissions-hourly.md#the-history)), `HEALTHHUB_ALARM_EVERY_MS`
+  history](admissions-hourly.md#the-history)),
+  `HEALTHHUB_SIM_HISTORY_DAYS` (365, the days of the people's visits the
+  API simulates ahead and writes at start in dev mode, for datyx's
+  models to train on from the first start; 0 for none, at most 730:
+  [The simulated history](simulated-history.md)), `HEALTHHUB_ALARM_EVERY_MS`
   (5000, the least real milliseconds between two [occupancy
   alarm](occupancy-alarms.md) checks; 0 turns them off),
   `HEALTHHUB_ALARM_THRESHOLD` (0.9, the share of a care center's capacity
@@ -196,9 +205,14 @@ process-compose through Docker Compose comes from.
   `kafka` first); `devbox run flink` the Flink job (`infra.sh up
   flink-sql`, which starts the JobManager, the TaskManager, Kafka and
   PostgreSQL first; the API must have made `admissions_hourly`).
-- `dart run bin/history.dart [--days N] [--dry-run]` in `healthhub_api/`
-  writes the admissions history to the database `HEALTHHUB_DB_*` names
-  without starting the API ([The history](admissions-hourly.md#the-history)).
+- `dart run bin/history.dart [--days N] [--sim-days N] [--dry-run]` in
+  `healthhub_api/` writes the two histories to the database
+  `HEALTHHUB_DB_*` names without starting the API: the admissions per
+  hour drawn from rates ([The history](admissions-hourly.md#the-history))
+  and the simulated year of the people's visits
+  ([The simulated history](simulated-history.md)). `--dry-run` writes
+  nothing and prints what both would hold; it still reads the care
+  centers from the database.
 - The web app calls the API at `API_BASE_URL` (a dart-define). The
   services leave it empty, in both modes: the app calls `/api/` on its own
   origin, which the web server (or the dev server) proxies to the API.
@@ -236,6 +250,29 @@ process-compose through Docker Compose comes from.
   environment, else `.env`, and `flink-sql` `HEALTHHUB_DB_PASSWORD`;
   `web` gets none. All but `flink-taskmanager` have health checks (`api`
   runs `/app/bin/server healthcheck`).
+- **Kubernetes** ([k8s/](../k8s)): `bash k8s/deploy.sh HealthHub` from
+  the repository's root runs compose's services on the local kind
+  cluster (`k8s/up.sh` makes it), in the datyx group's namespace,
+  `datyx`, every name starting with `healthhub-`, beside the demos the
+  usual ports serve: the app on http://localhost:19801/app/ and Flink's
+  web UI on http://localhost:19806 (the usual ports plus 10000).
+  [k8s/build.sh](../k8s/build.sh) builds the three images compose builds
+  (the API, the web app, Flink) and pushes them to the cluster's
+  registry; PostgreSQL and Kafka are StatefulSets with a volume each,
+  Kafka's readiness probe makes the topics as compose's health check
+  does ([k8s/kafka-topics.sh](../k8s/kafka-topics.sh)), and the web
+  app's nginx proxies `/api/` to the `healthhub-api` Service
+  ([k8s/nginx.conf](../k8s/nginx.conf), a copy of docker/nginx.conf with
+  that upstream, as k8s/postgres-init.sh is of docker/postgres-init.sh:
+  change both together). The API reaches datyx at
+  http://datyx-api:9900; the aityx settings, datyx's service token and
+  the OAuth client id come from the cluster's `demo-env` secret
+  (`k8s/secrets.sh`). [k8s/verify.sh](../k8s/verify.sh) checks it from
+  the host: the app, the API through the proxy, the moves through
+  Kafka, the Flink job and its counts, a triage through datyx's
+  gateway, and `/api/datyx/*` refusing without a sign-in. Google's
+  sign-in needs http://localhost:19801 among the client's authorized
+  origins.
 - **Dev container**: the datyx group's
   ([.devcontainer/datyx/](../../.devcontainer/datyx)), named **datyx
   demos**, which HealthHub shares with the datyx API (`datyx/`) and the

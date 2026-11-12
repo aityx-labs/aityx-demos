@@ -1,0 +1,18 @@
+# The datyx index on the local cluster (k8s/kind/cluster.yaml), in the
+# datyx group's namespace, which it shares with the datyx API, the
+# dashboard and HealthHub: http://localhost:19800/. Deployed by
+# `bash k8s/deploy.sh datyx-index` at the repository's root, which runs
+# build.sh first and verify.sh last.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: datyx
+# On every resource and its pods (k8s/deploy.sh finds the workloads by
+# it), never in the selectors, so it can't change under a running one.
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: datyx-index
+    includeSelectors: false
+    includeTemplates: true
+resources:
+  - deployment.yaml
+  - service.yaml

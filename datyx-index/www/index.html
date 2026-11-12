@@ -114,21 +114,23 @@
   </main>
 
   <footer>
-    Everything runs locally on its own port, 9800 to 9906: start the group with <code>./start-datyx.sh</code> at the
-    root of the repository, stop it with <code>./stop-datyx.sh</code>; or <code>docker compose up</code> in each folder.
+    <span id="run"></span>
     Or open the group in a <a href="https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Fdatyx%2Fdevcontainer.json&amp;machine=standardLinux32gb">GitHub codespace</a>.
-    The six aityx demos have an index of their own, on port 8800, at /demos/; the multyx group's, Poker Tour and tatyx, is on 9700.
+    <span id="others"></span>
   </footer>
 
   <script>
-    // The group's systems, in the order shown. "folder" matches the
-    // repository's folders; "port" is the web app's, the FLUTTER_WEB_PORT
-    // default in its process-compose.yaml, or the server's for one with
-    // no app, and "path" what to open there (/app/ unless set); "links",
-    // more places to open on the same port, each with its label and path.
-    const demos = [
+    // The group's systems, in the order shown, for the ports "p" and the
+    // run "cluster" of this index's settings (below). "folder" matches the
+    // repository's folders; "port" is the web app's, or the server's for
+    // one with no app, and "path" what to open there (/app/ unless set);
+    // "links", more places to open on the same port, each with its label
+    // and path. A local run publishes every port of a system, its stores'
+    // too, so its card names them from the first to the last; the cluster
+    // publishes only what a browser opens, so there it names those.
+    const systems = (p, cluster) => [
       {
-        folder: 'datyx-dashboard', port: 9906, name: 'datyx dashboard',
+        folder: 'datyx-dashboard', port: p.DATYX_DASHBOARD_WEB_PORT, name: 'datyx dashboard',
         what: 'The views of datyx: an app that calls the datyx API',
         desc: 'A web app, like every demo\'s, that invokes the datyx API and shows what it answers: the data sources on record, the catalogue and its tags for DeepAR and XGBoost, the models datyx trains with their results and every run, the account of the calls to them (inference), an audit of every request and response, the health of the API, PostgreSQL and OpenMetadata, and your profile. Views only; the data and the logic are the API\'s. Sign in with Google.',
         chips: ['Dashboard', 'calls the datyx API', 'Training', 'Inference', 'Google sign-in'],
@@ -139,17 +141,17 @@
         ],
       },
       {
-        folder: 'datyx', port: 9900, path: '/q/swagger-ui', name: 'datyx API',
+        folder: 'datyx', port: p.DATYX_API_PORT, path: '/q/swagger-ui', name: 'datyx API',
         what: 'A Quarkus API with PostgreSQL and OpenMetadata',
-        desc: 'REST on Quarkus and GraalVM with Hibernate and Panache over PostgreSQL: the data sources users add, each in the profile of whoever added it, with its access details encrypted with that profile\'s key; users signed in with Google through OpenID Connect. Its health check, /api/health, covers PostgreSQL and OpenMetadata, the catalogue it registers data in (its own UI on 9902: admin@open-metadata.org, password admin). It trains the groups tagged for XGBoost there itself, with XGBoost4J, at start and as often as their table says, and scores series with them on demand, accounting for every call. API only: Open shows its Swagger UI. Ports 9900 to 9905.',
+        desc: 'REST on Quarkus and GraalVM with Hibernate and Panache over PostgreSQL: the data sources users add, each in the profile of whoever added it, with its access details encrypted with that profile\'s key; users signed in with Google through OpenID Connect. Its health check, /api/health, covers PostgreSQL and OpenMetadata, the catalogue it registers data in (its own UI on ' + p.DATYX_OPENMETADATA_PORT + ': admin@open-metadata.org, password admin). It trains the groups tagged for XGBoost there itself, with XGBoost4J, at start and as often as their table says, and scores series with them on demand, accounting for every call. API only: Open shows its Swagger UI. Ports ' + p.DATYX_API_PORT + (cluster ? ' and ' + p.DATYX_OPENMETADATA_PORT : ' to ' + p.DATYX_DEBUG_PORT) + '.',
         chips: ['Quarkus API', 'PostgreSQL', 'OpenMetadata', 'XGBoost', 'OpenID Connect'],
         icon: 'api',
       },
       {
-        folder: 'HealthHub', port: 9801, name: 'HealthHub',
+        folder: 'HealthHub', port: p.HEALTHHUB_WEB_PORT, name: 'HealthHub',
         what: 'The app of the datyx group, with a database of its own',
-        desc: 'An app, an API and PostgreSQL. The page you open is a map of where you are, with a welcome over it; signing in with Google leads home, a dashboard whose one tile is the same map, and its API reaches datyx with the same identity. Ports 9801 to 9803.',
-        chips: ['App', 'API', 'PostgreSQL', 'Google sign-in'],
+        desc: 'An app, an API, PostgreSQL, Kafka and a Flink job: simulated people go for care across seven cities, every move and admission through Kafka, and datyx forecasts each care center\'s load and each person\'s coming care. The page you open is a map of where you are, with a welcome over it; signing in with Google leads home, and its API reaches datyx with the same identity. Ports ' + p.HEALTHHUB_WEB_PORT + (cluster ? ' and ' : ' to ') + p.HEALTHHUB_FLINK_PORT + '; Flink\'s web UI is on ' + p.HEALTHHUB_FLINK_PORT + '.',
+        chips: ['App', 'API', 'PostgreSQL', 'Kafka', 'Flink', 'Google sign-in'],
         icon: 'heart',
       },
     ];
@@ -166,7 +168,8 @@
     // Where to open one from here. A codespace forwards each port on its
     // own host, https://<codespace>-<port>.app.github.dev/, with no :port:
     // this page's host with its port swapped. Anywhere else, the port on
-    // this host.
+    // this host. The port is the one the settings say, never worked out
+    // from this page's own.
     const forwarded = location.hostname.match(/^(.+)-(\d+)\.(app\.github\.dev)$/);
     const appUrl = (port, path = '/app/') => forwarded
       ? 'https://' + forwarded[1] + '-' + port + '.' + forwarded[3] + path
@@ -193,7 +196,40 @@
       return el;
     }
 
-    document.getElementById('apps').replaceChildren(...demos.map(card));
+    // The cards and the footer, from this index's settings: the port
+    // each system is published on in this run, by the name of its setting
+    // (bin/server.dart lists them, each with its usual port as the
+    // default), and whether this copy runs on the local Kubernetes
+    // cluster (k8s/), whose footer names its own scripts.
+    function render({ cluster, ports: p }) {
+      document.getElementById('apps').replaceChildren(...systems(p, cluster).map(card));
+      // The group's ports in this run, from the lowest to the highest.
+      const group = [p.DATYX_INDEX_PORT, p.DATYX_DASHBOARD_WEB_PORT, p.DATYX_API_PORT,
+        p.DATYX_OPENMETADATA_PORT, p.HEALTHHUB_WEB_PORT, p.HEALTHHUB_FLINK_PORT];
+      const range = Math.min(...group) + ' to ' + Math.max(...group);
+      document.getElementById('run').innerHTML = cluster
+        ? 'This copy runs on the local Kubernetes cluster, on ports ' + range + ': ' +
+          'deploy it with <code>bash k8s/deploy.sh</code> at the root of the repository, delete the whole cluster and its data with <code>bash k8s/down.sh</code>.'
+        : 'Everything runs locally on its own port, ' + range + ': start the group with <code>./start-datyx.sh</code> at the ' +
+          'root of the repository, stop it with <code>./stop-datyx.sh</code>; or <code>docker compose up</code> in each folder.';
+      document.getElementById('others').textContent =
+        'The six aityx demos have an index of their own, on port ' + p.AITYX_INDEX_PORT + ', at /demos/; the multyx group\'s, Poker Tour and tatyx, is on ' + p.MULTYX_INDEX_PORT + '.';
+    }
+
+    // The settings are the server's (GET /api/settings), so the same page
+    // is right on a local run, on the cluster and in a codespace. Without
+    // them there is no telling where anything is: no cards, and why.
+    fetch('/api/settings', { cache: 'no-store' })
+      .then(response => {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.json();
+      })
+      .then(render, error => {
+        const note = document.createElement('p');
+        note.className = 'desc';
+        note.textContent = 'This index could not read its settings (/api/settings: ' + error.message + '), so it has no links to show. Is its server, bin/server.dart, the one serving this page?';
+        document.getElementById('apps').replaceChildren(note);
+      });
   </script>
 </body>
 </html>

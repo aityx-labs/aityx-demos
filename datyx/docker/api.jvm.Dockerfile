@@ -14,7 +14,11 @@ COPY datyx-api/.mvn .mvn
 # The dependencies first, so a source change doesn't fetch them again.
 RUN ./mvnw -B -q -Drevision="$REVISION" dependency:go-offline || true
 COPY datyx-api/src src
-RUN ./mvnw -B -q -DskipTests -Drevision="$REVISION" -Dquarkus.profile="$PROFILE" package
+# More build-time settings for the package, none by default: the
+# Kubernetes build (k8s/build.sh) adds Swagger UI to its dev-profile jar,
+# which a packaged build leaves out (quarkus.swagger-ui.always-include).
+ARG PACKAGE_ARGS=
+RUN ./mvnw -B -q -DskipTests -Drevision="$REVISION" -Dquarkus.profile="$PROFILE" $PACKAGE_ARGS package
 
 FROM ghcr.io/graalvm/jdk-community:25
 ARG PROFILE=prod

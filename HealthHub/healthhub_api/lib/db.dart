@@ -16,6 +16,7 @@ import 'history.dart';
 import 'occupancy_alarms.dart' show AlarmCareCenter, ObservedOccupancy, forecastSteps;
 import 'routes.dart' show Bbox, hourlyMax;
 import 'schema_comments.dart';
+import 'simulated_history.dart';
 import 'simulation.dart' show LatLon, Place;
 
 /// Where the database is, from the environment (scripts/api.sh and
@@ -78,25 +79,28 @@ class Db {
   }
 
   Future<Connection> _connect() async {
-    final connection = await Connection.open(
-      Endpoint(
-        host: settings.host,
-        port: settings.port,
-        database: settings.database,
-        username: settings.user,
-        password: settings.password,
-      ),
-      // Local development and the compose network: no TLS. Anywhere
-      // shared, the database should be behind TLS and this should change.
-      settings: const ConnectionSettings(
-        sslMode: SslMode.disable,
-        connectTimeout: Duration(seconds: 5),
-        queryTimeout: Duration(seconds: 10),
-      ),
-    );
+    final connection = await _newConnection();
     _connection = connection;
     return connection;
   }
+
+  /// A new connection to the database, not shared.
+  Future<Connection> _newConnection() => Connection.open(
+    Endpoint(
+      host: settings.host,
+      port: settings.port,
+      database: settings.database,
+      username: settings.user,
+      password: settings.password,
+    ),
+    // Local development and the compose network: no TLS. Anywhere
+    // shared, the database should be behind TLS and this should change.
+    settings: const ConnectionSettings(
+      sslMode: SslMode.disable,
+      connectTimeout: Duration(seconds: 5),
+      queryTimeout: Duration(seconds: 10),
+    ),
+  );
 
   /// The migration running, if one is: the one thing other calls wait
   /// for.
@@ -1413,9 +1417,39 @@ class Db {
   ''';
 
   /// Makes admissions_hourly hold [days] days of the admissions history
-  /// for [centers] (lib/history.dart's [writeAdmissionsHistory]).
+  /// for [centers] (lib/history.dart's [writeAdmissionsHistory]), once no
+  /// migration runs, on a connection of its own, closed after: the shared
+  /// one refuses every other statement while a transaction runs on it, so
+  /// the simulation's admissions and the health check would fail during
+  /// the history's transactions, and their failure would close it under
+  /// them (on a first start, when the whole history is written).
   Future<HistoryWritten> writeHistory(List<Place> centers, int days) =>
-      _run((c) => writeAdmissionsHistory(c, centers, days));
+      _apart((connection) => writeAdmissionsHistory(connection, centers, days));
+
+  /// Makes the admissions table hold exactly [admissions] as the simulated
+  /// history (lib/simulated_history.dart's [writeSimulatedHistory]), and
+  /// admissions_hourly their counts, on a connection of its own, as
+  /// [writeHistory].
+  Future<SimulatedWritten> writeSimulated(List<Map<String, Object?>> admissions) =>
+      _apart((connection) => writeSimulatedHistory(connection, admissions));
+
+  /// Runs [action] once no migration runs, on a connection of its own,
+  /// closed after.
+  Future<T> _apart<T>(Future<T> Function(Connection connection) action) async {
+    for (var migrating = _migrating; migrating != null; migrating = _migrating) {
+      try {
+        await migrating;
+      } catch (_) {}
+    }
+    final connection = await _newConnection();
+    try {
+      return await action(connection);
+    } finally {
+      try {
+        await connection.close();
+      } catch (_) {}
+    }
+  }
 
   Future<void> close() async {
     await _connection?.close();

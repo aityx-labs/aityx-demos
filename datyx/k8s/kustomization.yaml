@@ -1,0 +1,61 @@
+# datyx on the local cluster (../../k8s/kind/cluster.yaml): compose.yaml's
+# services in the datyx group's namespace, which datyx-dashboard,
+# HealthHub and datyx-index share, so every name says whose it is.
+#
+#   datyx-postgres   PostgreSQL 17: the datyx and openmetadata_db databases
+#   datyx-search     Elasticsearch 9.3.0, OpenMetadata's search index
+#   openmetadata     OpenMetadata 2.0.7, its schema migrated first; its UI
+#                    on this host at http://localhost:19902/
+#   datyx-api        the API (build.sh builds it), at
+#                    http://localhost:19900/api/health; the dashboard and
+#                    HealthHub reach it at http://datyx-api:9900
+#
+#   bash k8s/deploy.sh datyx     # build, apply, wait, then verify.sh
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: datyx
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: datyx
+    includeTemplates: true
+resources:
+  - ../docker
+  - postgres.yaml
+  - search.yaml
+  - openmetadata.yaml
+  - api.yaml
+configMapGenerator:
+  # OpenMetadata's settings, compose.yaml's x-openmetadata-environment
+  # with the cluster's hosts, for the migration and the server alike.
+  # Basic authentication with the built-in admin, admin@open-metadata.org.
+  - name: openmetadata-env
+    literals:
+      - OPENMETADATA_CLUSTER_NAME=datyx
+      - SERVER_PORT=8585
+      - SERVER_ADMIN_PORT=8586
+      - LOG_LEVEL=INFO
+      - MIGRATION_LIMIT_PARAM=1200
+      - DB_DRIVER_CLASS=org.postgresql.Driver
+      - DB_SCHEME=postgresql
+      - DB_PARAMS=allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC
+      - DB_HOST=datyx-postgres
+      - DB_PORT=5432
+      - DB_USER=openmetadata_user
+      - OM_DATABASE=openmetadata_db
+      - SEARCH_TYPE=elasticsearch
+      - ELASTICSEARCH_HOST=datyx-search
+      - ELASTICSEARCH_PORT=9200
+      - ELASTICSEARCH_SCHEME=http
+      # No ingestion (Airflow) here: metadata comes in through the API,
+      # from datyx. Without this the server keeps looking for one.
+      - PIPELINE_SERVICE_CLIENT_ENABLED=false
+secretGenerator:
+  # The development passwords compose.yaml defaults to (.env.example):
+  # PostgreSQL's superuser, the datyx and OpenMetadata database users, and
+  # OpenMetadata's built-in admin, whom the API signs in as.
+  - name: datyx-passwords
+    literals:
+      - DATYX_DB_ADMIN_PASSWORD=postgres
+      - DATYX_DB_PASSWORD=datyx
+      - OPENMETADATA_DB_PASSWORD=openmetadata_password
+      - DATYX_OPENMETADATA_PASSWORD=admin

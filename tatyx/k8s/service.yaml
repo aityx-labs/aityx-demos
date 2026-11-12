@@ -1,0 +1,18 @@
+# tatyx in the cluster at http://tatyx:9710 (its usual port), and on this
+# host at http://localhost:19710/tatyx/ through the node port 31710, which
+# kind publishes there (k8s/kind/cluster.yaml).
+apiVersion: v1
+kind: Service
+metadata:
+  name: tatyx
+  labels:
+    app.kubernetes.io/name: tatyx
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: tatyx
+  ports:
+    - name: http
+      port: 9710
+      targetPort: http
+      nodePort: 31710

@@ -1,18 +1,26 @@
-/// Writes the admissions history (lib/history.dart) to a database without
-/// starting the server: what the API does at start in dev mode, for any
-/// database HEALTHHUB_DB_* names (lib/db.dart), whose tables it makes
-/// and seeds first, as the API does.
+/// Writes the two histories to a database without starting the server:
+/// the admissions per hour drawn from rates (lib/history.dart) and the
+/// simulated year of the people's visits (lib/simulated_history.dart),
+/// what the API does at start in dev mode, for any database
+/// HEALTHHUB_DB_* names (lib/db.dart), whose tables it makes and seeds
+/// first, as the API does.
 ///
-///   dart run bin/history.dart [--days N] [--dry-run]
+///   dart run bin/history.dart [--days N] [--sim-days N] [--dry-run]
 ///
-///   --days N    the days of history (default HEALTHHUB_HISTORY_DAYS, else
-///               90; 0 to 730)
-///   --dry-run   only reads the care centers, and prints what it would
-///               write: the care centers, rows and admissions, and the
-///               mean admissions per care center by hour of day
+///   --days N      the days of admissions per hour (default
+///                 HEALTHHUB_HISTORY_DAYS, else 90; 0 to 730)
+///   --sim-days N  the days of simulated visits (default
+///                 HEALTHHUB_SIM_HISTORY_DAYS, else 365; 0 to 730)
+///   --dry-run     only reads the care centers, and prints what it would
+///                 write: the care centers, rows and admissions, and the
+///                 mean admissions per care center by hour of day; of the
+///                 simulated visits, the admissions, the people and care
+///                 centers with one, the days of care (patient_days) and
+///                 the hours with an admission (admissions_hourly)
 ///
 /// The care centers are those the API's people use: HEALTHHUB_SIM_PEOPLE
-/// a city, drawn with the same seed ([populationSeed]).
+/// a city, drawn with the same seed ([populationSeed]), who are also the
+/// people of the simulated visits.
 library;
 
 import 'dart:io';
@@ -21,15 +29,18 @@ import 'dart:math';
 import 'package:healthhub_api/conditions_seed.dart';
 import 'package:healthhub_api/db.dart';
 import 'package:healthhub_api/history.dart';
+import 'package:healthhub_api/simulated_history.dart';
 import 'package:healthhub_api/simulation.dart';
 
-const _usage = 'usage: dart run bin/history.dart [--days N] [--dry-run]';
+const _usage = 'usage: dart run bin/history.dart [--days N] [--sim-days N] [--dry-run]';
 
 Future<void> main(List<String> args) async {
   var dryRun = false;
   int days;
+  int simDays;
   try {
     days = historyDaysFromEnvironment();
+    simDays = simulatedDaysFromEnvironment();
   } on FormatException catch (error) {
     stderr.writeln('error: ${error.message}');
     exit(64);
@@ -43,6 +54,13 @@ Future<void> main(List<String> args) async {
           days = historyDaysFromEnvironment({'HEALTHHUB_HISTORY_DAYS': args[++i]});
         } on FormatException {
           stderr.writeln('error: --days must be a whole number from 0 to $maxHistoryDays');
+          exit(64);
+        }
+      case '--sim-days' when i + 1 < args.length:
+        try {
+          simDays = simulatedDaysFromEnvironment({'HEALTHHUB_SIM_HISTORY_DAYS': args[++i]});
+        } on FormatException {
+          stderr.writeln('error: --sim-days must be a whole number from 0 to $maxSimulatedDays');
           exit(64);
         }
       case '--help' || '-h':
@@ -67,6 +85,13 @@ Future<void> main(List<String> args) async {
       '${centers.length} care centers of $perCity people a city, database ${db.settings}',
     );
     _summary(centers, days);
+    final watch = Stopwatch()..start();
+    final simulated = simulateHistory(places, perCity, simulation.minutesPerTurn, simDays, conditionSeed);
+    stdout.writeln(
+      'simulated history: run $simulatedRun, $simDays days, ${people.length} people, '
+      'simulated in ${watch.elapsedMilliseconds} ms',
+    );
+    _simulatedSummary(simulated);
     if (dryRun) {
       stdout.writeln('dry run: nothing written');
       return;
@@ -85,6 +110,19 @@ Future<void> main(List<String> args) async {
     stdout.writeln(
       'written: ${written.written} care centers (the other ${written.centers - written.written} up to date), '
       '${written.rows} rows under run $historyRun',
+    );
+    SimulatedWritten? visits;
+    for (var attempt = 1; visits == null; attempt++) {
+      try {
+        visits = await db.writeSimulated(simulated);
+      } catch (error) {
+        if (attempt == 3) rethrow;
+        stderr.writeln('simulated history: attempt $attempt failed, trying again: $error');
+      }
+    }
+    stdout.writeln(
+      '${visits.written ? 'written' : 'up to date'}: ${visits.admissions} admissions under run $simulatedRun, '
+      '${visits.hours} hours of admissions_hourly ${visits.hoursWritten ? 'counted from them' : 'up to date'}',
     );
   } catch (error) {
     stderr.writeln('error: $error');
@@ -117,4 +155,21 @@ void _summary(List<Place> centers, int days) {
     final mean = byHour[h] / (centers.length * days);
     stdout.writeln('  ${h.toString().padLeft(2, '0')}:00 ${mean.toStringAsFixed(2).padLeft(5)} ${'#' * (mean * 20).round()}');
   }
+}
+
+/// Prints what the simulated history's [admissions] hold.
+void _simulatedSummary(List<Map<String, Object?>> admissions) {
+  final people = <Object?>{}, centers = <Object?>{}, patientDays = <(Object?, Object?)>{};
+  var acute = 0;
+  for (final a in admissions) {
+    people.add(a['personId']);
+    centers.add(a['hospitalId']);
+    patientDays.add((a['personId'], a['day']));
+    if (a['conditionType'] == 'acute') acute++;
+  }
+  stdout.writeln(
+    'admissions: ${admissions.length} ($acute acute, ${admissions.length - acute} chronic) of ${people.length} people '
+    'at ${centers.length} care centers; ${patientDays.length} days of care (patient_days), '
+    '${hourlyCounts(admissions).hours} hours with an admission (admissions_hourly)',
+  );
 }

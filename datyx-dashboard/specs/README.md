@@ -20,4 +20,5 @@ its own folder, started with the API and HealthHub as the datyx group.
 - [App icon](app-icon.md): the database cylinder with its catalog, the
   web icons and the favicon.
 - [Development environment](dev-environment.md): devbox, process-compose,
-  Docker Compose, the ports, the settings, the version and the build.
+  Docker Compose, the local Kubernetes cluster, the ports, the settings,
+  the version and the build.

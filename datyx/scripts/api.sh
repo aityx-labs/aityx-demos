@@ -21,6 +21,17 @@ export OIDC_ISSUER OIDC_CLIENT_ID OIDC_EXTRA_AUDIENCES DATYX_MASTER_KEY
 export DATYX_DB_USER="${DATYX_DB_USER:-datyx}"
 export DATYX_DB_URL="${DATYX_DB_URL:-jdbc:postgresql://localhost:${DATYX_DB_PORT}/datyx}"
 export DATYX_OPENMETADATA_URL="${DATYX_OPENMETADATA_URL:-http://localhost:${DATYX_OPENMETADATA_PORT}}"
+# Set only where they differ from the API's defaults (see .env.example):
+# where a browser opens OpenMetadata, when it isn't the URL above, which
+# /api/health reports; and where the development data's HealthHub is,
+# when it isn't on this host at the ports it publishes (localhost:9803
+# its PostgreSQL, localhost:9804 its Kafka). Unset or empty, they stay
+# out of the API's environment and its defaults hold.
+for name in DATYX_OPENMETADATA_PUBLIC_URL DATYX_HEALTHHUB_DB_HOST DATYX_HEALTHHUB_DB_PORT \
+  DATYX_HEALTHHUB_DB_PASSWORD DATYX_HEALTHHUB_KAFKA; do
+  if [[ -n "${!name:-}" ]]; then export "${name?}"; else unset "$name"; fi
+done
+unset name
 # The catalogue's sign-in to OpenMetadata: a bot token when set, else the
 # stack's built-in admin (compose.yaml), in every mode.
 export DATYX_OPENMETADATA_TOKEN="${DATYX_OPENMETADATA_TOKEN:-}"

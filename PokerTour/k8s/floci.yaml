@@ -1,0 +1,119 @@
+# Floci, the local AWS, as floci/compose.yaml runs it on a laptop: the
+# same image (pinned by digest), persistent, its state in a volume, and
+# the init hook (floci/init/ready.d/10-tour.sh, from the ConfigMap) that
+# makes the bucket and the table pokertour-local on the first start. Only
+# the server reaches it, through the Service pokertour-floci:4566: the app
+# never calls AWS (players bring their own aityx key, set in Profile), so
+# it has no NodePort.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pokertour-floci
+  labels:
+    app.kubernetes.io/name: pokertour-floci
+spec:
+  serviceName: pokertour-floci
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pokertour-floci
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pokertour-floci
+    spec:
+      automountServiceAccountToken: false
+      # No POKERTOUR_*_PORT variables from the namespace's Services.
+      enableServiceLinks: false
+      # The image's own user, floci (1001, group 0): its entrypoint only
+      # switches users when started as root.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: floci
+          image: floci/floci:nightly-09242026-compat@sha256:eb725a12cd80bbbcb476a33c0a1d98382a54d5c9f39c4c31b160f7cdf9cf1a6e
+          ports:
+            - name: aws
+              containerPort: 4566
+          env:
+            - name: FLOCI_STORAGE_MODE
+              value: persistent
+            - name: FLOCI_STORAGE_PERSISTENT_PATH
+              value: /app/data
+            # The init hook gets 30 seconds by default, after which Floci
+            # shuts down; each AWS CLI call in it takes several seconds
+            # on a busy node (image builds beside it), so it gets more.
+            - name: FLOCI_INIT_HOOKS_TIMEOUT_SECONDS
+              value: "180"
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            # The script alone (subPath), so ready.d holds no ConfigMap
+            # bookkeeping (..data) for Floci to take for a script.
+            - name: init
+              mountPath: /etc/floci/init/ready.d/10-tour.sh
+              subPath: 10-tour.sh
+              readOnly: true
+          # As process-compose.yaml's readiness probe: ready once the init
+          # hook has made the bucket and the table.
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - curl -fs http://localhost:4566/_floci/init | grep -q '"ready":true'
+            initialDelaySeconds: 2
+            periodSeconds: 3
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /_floci/health
+              port: aws
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 20m
+              memory: 96Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: init
+          configMap:
+            name: pokertour-floci-init
+            defaultMode: 0555
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pokertour-floci
+  labels:
+    app.kubernetes.io/name: pokertour-floci
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: pokertour-floci
+  ports:
+    - name: aws
+      port: 4566
+      targetPort: aws

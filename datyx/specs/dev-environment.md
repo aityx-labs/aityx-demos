@@ -56,6 +56,68 @@ HealthHub join this stack's network through their `compose.datyx.yaml`
 instead, since a port bound to 127.0.0.1 isn't reachable from the bridge. Data lives in the `postgres-data` and
 `search-data` volumes.
 
+`k8s/` runs the same services on the repository's local Kubernetes
+cluster (kind, `../k8s/`), in the datyx group's namespace, `datyx`:
+`bash k8s/deploy.sh datyx` at the repository root builds the API's image
+(`k8s/build.sh`: `docker/api.jvm.Dockerfile` with the dev profile, plus
+Swagger UI through the Dockerfile's `PACKAGE_ARGS`), applies the
+manifests and runs `k8s/verify.sh`. The StatefulSets `datyx-postgres`
+(its init script is `docker/postgres-init.sh`, a ConfigMap made by
+`docker/kustomization.yaml`) and `datyx-search` (a 512 MB heap), the
+Deployment `openmetadata` (the migration as an init container), and the
+Deployment `datyx-api` (an init container waits for PostgreSQL, as
+compose's `depends_on` does: the API exits when its database doesn't
+answer), the Service `datyx-api:9900` that the dashboard
+and HealthHub call. This host reaches the API on 19900 and OpenMetadata
+on 19902. The API's settings are compose.yaml's with the cluster's hosts;
+the aityx key, its staging URL and the service token come from the root
+`.env` (the Secret `demo-env`). Sign-in is on there when that `.env` has
+an `OIDC_CLIENT_ID`: Google's, with the root `.env`'s client, HealthHub's
+(`healthhub`), whose origins list the dashboard's on the cluster
+(`http://localhost:19906`, `../k8s/README.md`); without one it is off
+and every call is the Local profile. Each Google user gets a profile of
+their own, made with the dev data's HealthHub sources (Development data,
+below), so the dashboard shows them from the first sign-in, and their
+catalogue and models within minutes: the dev catalogue syncs and curates
+a new profile's sources at its next half-minute tick
+([curation.md](curation.md)), and the trainer then queues its initial
+runs, five of them, 30 to 90 s each and one at a time, about 5 minutes
+in all on the cluster's machine. The addresses that differ from a
+laptop's are the API's environment, with no port forwarder in the pod
+(one container, after the init container):
+
+- the dev data's HealthHub sources at HealthHub's Services,
+  `DATYX_HEALTHHUB_DB_HOST=healthhub-postgres`,
+  `DATYX_HEALTHHUB_DB_PORT=5432` and
+  `DATYX_HEALTHHUB_KAFKA=healthhub-kafka:19092` (a laptop's defaults are
+  `localhost:9803` and `localhost:9804`,
+  [data-sources.md](data-sources.md#development-data));
+- OpenMetadata at its Service for the API's calls,
+  `DATYX_OPENMETADATA_URL=http://openmetadata:8585`, and at this host's
+  port for a browser, `DATYX_OPENMETADATA_PUBLIC_URL=http://localhost:19902`:
+  `/api/health` reports the second and the dashboard's Health tab links
+  to it ([api.md](api.md)).
+
+A packaged API wants `DATYX_MASTER_KEY`: the root `.env`'s, else one
+drawn at each start, which loses nothing as the dev profile empties the
+database at every start. The dev-profile image answers only the localhost names and
+`host.docker.internal` (`CallbackHostConfigSourceFactory` reads the
+profile's defaults, not the environment), so the manifest lists the
+Service's names in `quarkus.http.host-validation.allowed-hosts` and the
+probes send `Host: localhost`. Training is sized for a shared machine:
+four processors for the JVM, four threads for libtorch and OpenMP, two
+malloc arenas, a 384 MB heap, in a 2 GiB limit: DeepAR's training peaks
+near 1.2 GB of the process's own memory, and libtorch's 300 MB of files
+count on top, which left the container standing at a 1536 MiB limit.
+`k8s/verify.sh` checks, with sign-in on or off: the API ready and its
+address for OpenMetadata opening from this host, sign-in (on: the
+user's paths refuse an anonymous call; off: the caller's sources and
+models through the API), HealthHub's two sources in every profile in
+PostgreSQL, HealthHub's PostgreSQL and Kafka answering at the addresses
+the API's container is given, asked from the datyx pods, HealthHub's
+tables and topics in OpenMetadata, the training runs, and the aityx
+gateway.
+
 ## Ports and settings
 
 9900 the API, 9901 PostgreSQL, 9902 OpenMetadata (8585 inside), 9903 its
@@ -81,7 +143,17 @@ from the host, `http://api:9900/...` in Docker Compose) and
 aityx's ([aityx.md](aityx.md)): datyx's key `AITYX_API_KEY`, aityx's URL
 `DATYX_AITYX_URL` (else `AITYX_URL`, else `https://api.aityx.ai`), the
 services' token `DATYX_SERVICE_TOKEN` and `DATYX_AITYX_SHARE_SERVICE_CALLS`,
+and the addresses that depend on where the API runs:
+`DATYX_OPENMETADATA_PUBLIC_URL`, where a browser opens OpenMetadata
+(empty: the URL the API calls, right on a laptop; Docker Compose
+defaults it to `http://localhost:{DATYX_OPENMETADATA_PORT}`, since its
+API calls `http://openmetadata:8585`), and the development data's
+HealthHub, `DATYX_HEALTHHUB_DB_HOST`, `DATYX_HEALTHHUB_DB_PORT`,
+`DATYX_HEALTHHUB_DB_PASSWORD` and `DATYX_HEALTHHUB_KAFKA` (`localhost`,
+9803, HealthHub's development password and `localhost:9804`), all of
 which `scripts/api.sh` and the `api` compose service pass to the API.
+The scripts pass these five only when set, and the API takes an empty
+one as its default, so Compose's empty pass-through changes nothing.
 `AITYX_API_KEY`, `AITYX_URL` and `DATYX_SERVICE_TOKEN` are also read
 from the repository root's `.env` when datyx's has none: the file
 HealthHub reads, so both share the key and the token. `.env.example`
@@ -97,9 +169,19 @@ The dev profile starts from an empty database, Flyway's `clean-at-start`:
 every start (and every live reload's restart) drops the schema and
 migrates from zero, so data sources and profiles made in development don't
 outlive it. It runs Flyway with a second location, `db/devdata`, Java
-migrations seeding development records: HealthHub's database and its
-Kafka as data sources in every profile ([api.md](api.md)); reading them
-into the catalogue wants HealthHub running (`./start-datyx.sh`). Development runs the dev
+migrations seeding development records, and sets
+`datyx.devdata.enabled`: HealthHub's database and its Kafka are data
+sources of every profile, those there at start from the migration, the
+Local one included, and each profile made later, by a first sign-in, as
+it is made ([data-sources.md](data-sources.md#development-data)). So
+with sign-in on, each user sees them at once. Reading them into the
+catalogue wants HealthHub running (`./start-datyx.sh`) where the
+`DATYX_HEALTHHUB_*` settings say: by default this host's ports 9803 and
+9804, right for `devbox services up` and wrong inside a container. The
+API of `docker compose up` therefore lists the two sources without
+reading them, until those settings name a HealthHub its container
+reaches (`compose.yaml` puts none on its network); the cluster's
+manifest sets them. Development runs the dev
 profile everywhere: `API_MODE=dev` (`quarkus:dev`, the default for
 `devbox services up`) and Docker Compose (`DATYX_API_PROFILE=dev`, the
 default). The jar and the native executable (`API_MODE=jar` or `native`)

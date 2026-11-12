@@ -1,0 +1,13 @@
+# Floci's init hook as a ConfigMap, for the local Kubernetes cluster:
+# PokerTour/k8s/kustomization.yaml takes this folder as a base. kustomize
+# reads files only in or below a kustomization's own folder, so the
+# ConfigMap is made here, from the same scripts compose.yaml mounts, and
+# not from a copy in k8s/ that could drift from them. Nothing else here is
+# for the cluster: compose.yaml and init/ are as a laptop runs them.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+configMapGenerator:
+  # Every script of init/ready.d/, by name: kustomize takes no wildcards.
+  - name: pokertour-floci-init
+    files:
+      - init/ready.d/10-tour.sh

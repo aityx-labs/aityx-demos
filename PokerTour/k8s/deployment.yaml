@@ -1,0 +1,147 @@
+# Poker Tour's server, as compose.yaml runs it: the app under /pokertour/,
+# the API under /api/, the relay to aityx staging at /aityx/, and the
+# leaderboard's tournaments on the schedule (0, 6, 12 and 18 UTC), when an
+# admin asks or a player enters a strategy. The tour is in Floci
+# (pokertour-floci, floci.yaml): leaderboard.json and live.json in the
+# bucket pokertour-local, the strategies, aliases, queue and lock in the
+# table pokertour-local.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pokertour
+  labels:
+    app.kubernetes.io/name: pokertour
+    aityx-demos/build: local
+spec:
+  replicas: 1
+  # One server at a time: a server takes itself for its table's only
+  # player, and at its start lets go of the runner's lock and marks a
+  # tournament left playing as cut short. A rolling update would let the
+  # new one do that under the old one's tournament.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pokertour
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pokertour
+    spec:
+      automountServiceAccountToken: false
+      # No POKERTOUR_*_PORT variables from the namespace's Services.
+      enableServiceLinks: false
+      # The image's user (the Dockerfile's USER 65534:65534).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # compose.yaml's depends_on (Floci healthy): the server reads the
+        # tour at its start and stops when Floci doesn't answer. The
+        # server's image has no shell or curl; Floci's has both, and the
+        # node has it already.
+        - name: wait-for-floci
+          image: floci/floci:nightly-09242026-compat@sha256:eb725a12cd80bbbcb476a33c0a1d98382a54d5c9f39c4c31b160f7cdf9cf1a6e
+          command:
+            - sh
+            - -c
+            - |
+              until curl -fs http://pokertour-floci:4566/_floci/init | grep -q '"ready":true'; do
+                echo "waiting for Floci (pokertour-floci:4566)"
+                sleep 2
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      containers:
+        - name: server
+          image: localhost:5001/aityx-demos/pokertour:dev
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 9810
+          env:
+            - name: API_PORT
+              value: "9810"
+            - name: POKERTOUR_BIND_HOST
+              value: 0.0.0.0
+            - name: POKERTOUR_AWS_ENDPOINT
+              value: http://pokertour-floci:4566
+            # The leaderboard's key, else the shared one (as a laptop's
+            # server): it plays the tournaments and checks the entries,
+            # on the server alone.
+            - name: POKERTOUR_LEADERBOARD_KEY
+              valueFrom:
+                secretKeyRef: {name: demo-env, key: POKERTOUR_LEADERBOARD_KEY, optional: true}
+            - name: AITYX_API_KEY
+              valueFrom:
+                secretKeyRef: {name: demo-env, key: AITYX_API_KEY, optional: true}
+            # aityx staging, which the keys above are for. Not optional:
+            # without it the server would call production
+            # (https://api.aityx.ai) with staging's key; the pod waits for
+            # it instead (CreateContainerConfigError).
+            - name: AITYX_URL
+              valueFrom:
+                secretKeyRef: {name: demo-env, key: AITYX_URL}
+            # Poker Tour's own Google client (compose.yaml's
+            # OIDC_CLIENT_ID): the shared OIDC_CLIENT_ID is HealthHub's,
+            # in another Google Cloud project. Its authorized JavaScript
+            # origins must list http://localhost:19810 for the sign-in to
+            # work here.
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef: {name: demo-env, key: POKERTOUR_OIDC_CLIENT_ID, optional: true}
+            - name: OIDC_ISSUER
+              value: https://accounts.google.com
+            - name: POKERTOUR_ALLOWED_DOMAINS
+              value: "*"
+            - name: POKERTOUR_RUN
+              value: "on"
+            - name: POKERTOUR_SCHEDULE_HOURS
+              value: 0,6,12,18
+            - name: POKERTOUR_MAX_HANDS
+              value: "300"
+            - name: POKERTOUR_MAX_ENTRIES
+              value: "3"
+          # As process-compose.yaml's readiness probe: /api/health, which
+          # reads the tour from Floci's bucket and table.
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 1
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # Alive whatever Floci does: /api/config reads nothing but the
+          # settings, so a Floci restart doesn't restart the server too.
+          livenessProbe:
+            httpGet:
+              path: /api/config
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

@@ -80,8 +80,10 @@ order:
    specialised hospital, a dental or rehabilitation clinic: `serves` is
    empty).
 5. **Admissions**: how many this run, acute and chronic this run, and in
-   all runs; then the latest, of this run when it has any there, else of
-   any run: the time and day, the condition, the person (a link to the
+   all runs, the simulated history's among them
+   ([The simulated history](simulated-history.md)); then the latest, of
+   this run when it has any there, else of any run, which can be the
+   simulated history's, never triaged: the time and day, the condition, the person (a link to the
    person of that admission's run), the visit, aityx's triage and what
    they said, as in the person view (`AdmissionRow`).
 
@@ -204,3 +206,7 @@ a narrow window the card under the header.
   mental health and dialysis clinics ([Simulation](simulation.md#people)).
 - Who is there is the stream's latest move of each person, read every 5
   seconds: someone admitted and gone between two reads isn't seen.
+- The count in all runs includes the simulated history's admissions (run
+  `00000001`), and until the live run admits someone there the latest
+  listed can be that run's, each "Not triaged yet" for good and linking
+  to the person of the simulated year.

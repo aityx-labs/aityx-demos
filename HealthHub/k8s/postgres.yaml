@@ -1,0 +1,95 @@
+# PostgreSQL 17, compose.yaml's postgres service: the healthhub database
+# and its owner made on the first start of an empty volume
+# (postgres-init.sh), the API's tables made by the API. Its data in a
+# volume of the cluster's default StorageClass.
+apiVersion: v1
+kind: Service
+metadata:
+  name: healthhub-postgres
+spec:
+  selector:
+    app.kubernetes.io/name: healthhub-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: healthhub-postgres
+spec:
+  serviceName: healthhub-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: healthhub-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: healthhub-postgres
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:17
+          env:
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: healthhub-db, key: admin-password }
+            # Read by postgres-init.sh.
+            - name: HEALTHHUB_DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: healthhub-db, key: password }
+            # A folder of the volume rather than its root, which the
+            # postgres user can't own.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - name: postgres
+              containerPort: 5432
+          # compose.yaml's health check: the database exists once the init
+          # script has run.
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres", "-d", "healthhub"]
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 384Mi }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: init
+          configMap:
+            name: healthhub-postgres-init
+            defaultMode: 0555
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 1Gi

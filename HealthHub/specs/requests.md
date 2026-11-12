@@ -836,9 +836,82 @@ The feature files hold the current specification; see the
    occupancy per hour](occupancy-timeline.md) and [The
    simulation](simulation.md#the-flow-at-a-care-center).
 
+## 2026-11-09
+
+1. **Run every demo on a local Kubernetes cluster (kind), deployed, up
+   and working.** HealthHub's part: `k8s/`, compose's services as
+   Kubernetes objects in the `datyx` namespace (PostgreSQL and Kafka as
+   StatefulSets, Karapace, Flink's JobManager, TaskManager and
+   submitter, the API, the web app), its images built by `k8s/build.sh`
+   and checked by `k8s/verify.sh`, on http://localhost:19801/app/. The
+   Flink job's SQL names Kafka's and the database's addresses as
+   placeholders, which `flink/submit.sh` fills from
+   `HEALTHHUB_KAFKA_BOOTSTRAP`, `HEALTHHUB_DB_HOST` and
+   `HEALTHHUB_DB_PORT`, compose's `kafka:19092` and `postgres:5432` by
+   default, so compose and devbox run as before. The cluster's fresh
+   database showed a race in the API: the admissions history, written in
+   a transaction per care center on the API's one connection, failed
+   whenever an admission or a health check used the connection meanwhile
+   (the driver refuses a statement outside a running transaction, and the
+   failure closed the connection under the history), so a first start
+   wrote only part of it in its five attempts. The history now has a
+   connection of its own, closed after. See [Development
+   environment](dev-environment.md), [Admissions per
+   hour](admissions-hourly.md), [API](api.md) and [Database](database.md).
+
 ## 2026-11-10
 
-1. **The simulation's events weren't running.** On a busy machine (the
+1. **Kill every demo and the cluster, start the cluster again with only
+   the Kubernetes demos, and make sure they all deploy correctly.**
+   HealthHub deployed and worked; its part of what the new cluster
+   showed: the Flink job went in 40 s before Kafka had started (its
+   image still being pulled), and until the broker answered the Kafka
+   source's admin client retried without a pause, 31 MB of JobManager
+   log that pushed the start out of `kubectl logs`. `flink/submit.sh`
+   now submits only once Kafka takes a connection. See [Admissions per
+   hour](admissions-hourly.md).
+2. **Make the initial data set sufficient for predictions of both
+   XGBoost and DeepAR.** On a new database (the cluster's, after a
+   `k8s/down.sh`) datyx's XGBoost model of `patient_days` failed every
+   hourly run for hours ("no series is longer than the horizon (30D)",
+   then "too few examples"), so the person view's prediction answered
+   datyx's 404, and DeepAR's first run of `occupancy_hourly` failed
+   ("no series is longer than twice the horizon"): both views read
+   `admissions`, which held only the live run, a few simulated days. The
+   API now writes a **simulated history** at start, before the live run:
+   `HEALTHHUB_SIM_HISTORY_DAYS` days (365 by default, 0 for none) of the
+   same people living the simulation's own turns from day 1, with a
+   fixed seed, as run `00000001` of `admissions` (never through Kafka,
+   so neither triaged nor counted by Flink), and that run's rows of
+   `admissions_hourly` counted from them. With the defaults, 6,082
+   admissions of 554 people at 300 care centers: a year of days per
+   person in `patient_days` and of hours per care center in
+   `occupancy_hourly`, simulated in a fraction of a second and written
+   in seconds, and left alone at the next start when nothing changed.
+   Drawing the API's people also got fast (a `CareIndex` of the care
+   centers by what they take, where every person asked each of thousands
+   of care centers again): over 10 s at every start before, milliseconds
+   now, with the same people. `bin/history.dart` writes and previews both
+   histories (`--sim-days`). See [The simulated
+   history](simulated-history.md), [Patient days](patient-days.md),
+   [Occupancy per hour](occupancy-hourly.md), [Admissions per
+   hour](admissions-hourly.md), [Simulation](simulation.md),
+   [Database](database.md), [API](api.md) and [Development
+3. **Fix all the issues.** On the local Kubernetes cluster, overnight,
+   Flink's JobManager was killed at its 768 MB limit twelve times, and
+   Karapace, the REST proxy, once at its 384 MB after 18 hours. Neither
+   leaked: each sized itself by the 15 processors it saw. The JobManager
+   stood at 700 MB within a minute of starting (119 threads, and four
+   jemalloc arenas a processor), Karapace's forty-odd threads spread
+   their fragments over eight glibc arenas a processor. Flink's JVMs now
+   see two processors (`env.java.opts.jobmanager` and `.taskmanager`)
+   and jemalloc keeps two arenas (`MALLOC_CONF`): the JobManager stays
+   near 330 MB, with 67 threads.
+   Karapace keeps two arenas (`MALLOC_ARENA_MAX`). The same settings in
+   `compose.yaml` and `k8s/`. See [Admissions per
+   hour](admissions-hourly.md) and [Development
+
+4. **The simulation's events weren't running.** On a busy machine (the
    whole datyx group starting, with the local Kubernetes cluster
    beside it) Kafka's Docker health check never passed: it runs
    `kafka-topics.sh`, a JVM, five times in a row within a 10 s timeout.

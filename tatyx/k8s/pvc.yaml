@@ -1,0 +1,16 @@
+# The tour's files (TATYX_DATA_DIR): the tournaments, the strategies the
+# players entered, their aliases, and the session secret the sign-in
+# cookies are signed with. Kept on a volume so a restart or a new image
+# keeps the leaderboard and keeps the players signed in.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tatyx-data
+  labels:
+    app.kubernetes.io/name: tatyx
+spec:
+  storageClassName: standard
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 256Mi

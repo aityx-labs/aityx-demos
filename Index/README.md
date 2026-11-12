@@ -112,9 +112,10 @@ proxy:
 - answers only this origin's pages: `Sec-Fetch-Site: same-origin` or,
   from a browser that doesn't send it, no `Origin` or one naming this
   host; anything else gets 403 `proxy_cross_site`, and so does, while
-  the server listens on the loopback only (the default), a request whose
-  `Host` isn't this machine (`localhost`, `127.0.0.1`, `[::1]`): a page
-  that reached it through DNS rebinding;
+  the server listens on the loopback only (the default; or, in a
+  container published on the loopback only, `INDEX_LOOPBACK_ONLY=1`), a
+  request whose `Host` isn't this machine (`localhost`, `127.0.0.1`,
+  `[::1]`): a page that reached it through DNS rebinding;
 - takes up to 2 MB and waits up to 120 s for aityx;
 - passes aityx's status and body back unchanged, except a redirect (502
   `proxy_redirect`: `AITYX_URL` may be behind a login) and no answer (502
@@ -182,3 +183,39 @@ devbox run serve              # the same, in the foreground
 ```
 
 or, with Dart on the PATH, `dart bin/server.dart`.
+
+## Serving files in bounded memory
+
+The demos' builds are large (`main.dart.js` and CanvasKit are several MB
+each), and the server's memory doesn't grow with the requests in flight:
+
+- a browser that takes gzip gets each file's gzip, made once and kept,
+  32 MB of them at most, the least recently used dropped first (a
+  browser's six demos are about 17 MB); what is compressed already (PNG,
+  JPEG, GIF and WebP images, WOFF and WOFF2 fonts) and videos go as they
+  are, and so does a file under 1 KB;
+- a file sent as it is (to a client without gzip, a video's range) is
+  read and sent by at most 16 requests at a time, the rest waiting their
+  turn;
+- a response goes out 64 KB at a time, each once the client has taken
+  the one before, and a client that doesn't take a whole piece within
+  30 s (about 2 KB a second) is cut off;
+- at most 512 connections are open at once; the others wait to be taken.
+
+A burst of 600 downloads of the six demos' largest files, 300 at once,
+peaked at 107 MB (298 MB with Dart's own `autoCompress`, which gives every
+response a zlib state of its own) and took 8 s instead of 69 s; every
+response decompressed to its file.
+
+## On the local Kubernetes cluster
+
+From the root of the repository, once `bash k8s/up.sh` has made the
+cluster, `bash k8s/deploy.sh Index` builds one image, `aityx-index`
+([docker/aityx-index.Dockerfile](docker/aityx-index.Dockerfile)): this
+server compiled, [www/](www/), and the six demos' release web builds, each
+made by its own `scripts/build.sh`, one after another. It runs in the
+`aityx` namespace ([k8s/](k8s/)) on **http://localhost:18800/demos/**,
+the dev proxy on `AITYX_API_KEY` and `AITYX_URL` (aityx staging) from the
+cluster's `demo-env` Secret, within a 256 MB memory limit.
+[k8s/verify.sh](k8s/verify.sh) checks it, with a real aityx call through
+the proxy.

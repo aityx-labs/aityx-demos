@@ -16,7 +16,12 @@ name: healthhub
 # alike (the image's entrypoint writes them into its config.yaml). The
 # memory is the process's whole footprint; the job keeps its state on the
 # heap, so the TaskManager's managed memory (for RocksDB and batch) is
-# small.
+# small. Two processors for the JVMs, whatever the machine has: a JVM
+# sizes its GC, compiler and network threads, and the image's allocator
+# (jemalloc) its arenas, by the processors it sees, and on a machine of 15
+# the JobManager stood at 700 MB of its 768 (330 MB with two). The keys
+# of each process, not env.java.opts.all, which holds the --add-opens
+# flags Flink's own config.yaml needs on Java 17 and later.
 x-flink-properties: &flink-properties |
   jobmanager.rpc.address: flink-jobmanager
   rest.address: flink-jobmanager
@@ -26,6 +31,12 @@ x-flink-properties: &flink-properties |
   taskmanager.memory.managed.fraction: 0.05
   taskmanager.numberOfTaskSlots: 1
   parallelism.default: 1
+  env.java.opts.jobmanager: -XX:ActiveProcessorCount=2
+  env.java.opts.taskmanager: -XX:ActiveProcessorCount=2
+
+# jemalloc, the Flink image's allocator, with two arenas instead of four
+# per processor, its unused pages given back within seconds.
+x-flink-malloc: &flink-malloc narenas:2,background_thread:true,dirty_decay_ms:5000,muzzy_decay_ms:5000
 
 services:
   postgres:
@@ -145,6 +156,10 @@ services:
       KARAPACE_CONSUMER_IDLE_DISCONNECT_TIMEOUT: 300
       KARAPACE_LOG_LEVEL: WARNING
       KARAPACE_KAFKA_RETRIABLE_ERRORS_SILENCED: "true"
+      # Two malloc arenas, not eight per processor for its 40-odd threads
+      # (librdkafka's): their fragments grew it until it was killed at a
+      # 384 MB limit after 18 hours on the local cluster.
+      MALLOC_ARENA_MAX: "2"
     depends_on:
       kafka:
         condition: service_healthy
@@ -177,6 +192,7 @@ services:
     command: jobmanager
     environment:
       FLINK_PROPERTIES: *flink-properties
+      MALLOC_CONF: *flink-malloc
     # The web UI and REST API, always on this host only, whatever
     # HEALTHHUB_BIND_HOST says: it has no authentication and runs any job
     # it is sent.
@@ -199,6 +215,7 @@ services:
     command: taskmanager
     environment:
       FLINK_PROPERTIES: *flink-properties
+      MALLOC_CONF: *flink-malloc
     depends_on:
       flink-jobmanager:
         condition: service_healthy
@@ -270,6 +287,7 @@ services:
       HEALTHHUB_SIM_TURN_MS: ${HEALTHHUB_SIM_TURN_MS:-2500}
       HEALTHHUB_SIM_MINUTES_PER_TURN: ${HEALTHHUB_SIM_MINUTES_PER_TURN:-15}
       HEALTHHUB_HISTORY_DAYS: ${HEALTHHUB_HISTORY_DAYS:-90}
+      HEALTHHUB_SIM_HISTORY_DAYS: ${HEALTHHUB_SIM_HISTORY_DAYS:-365}
       HEALTHHUB_ALARM_EVERY_MS: ${HEALTHHUB_ALARM_EVERY_MS:-5000}
       HEALTHHUB_ALARM_THRESHOLD: ${HEALTHHUB_ALARM_THRESHOLD:-0.9}
     extra_hosts:

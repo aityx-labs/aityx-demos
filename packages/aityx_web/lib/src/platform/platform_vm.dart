@@ -17,3 +17,10 @@ bool embedded() => false;
 
 /// No page around the app to post to.
 void postToParent(String message) {}
+
+/// Off the web no page runs the app's calls for it.
+bool bridgeRequested() => false;
+
+/// Nothing to ask: there is no page around the app.
+Future<({int status, String body})> askParent(String body, Duration timeout) =>
+    Future.value((status: 0, body: ''));

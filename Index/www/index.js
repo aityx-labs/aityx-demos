@@ -1,11 +1,12 @@
-// The index page, at /demos/: a card per demo, "Your aityx key", and the
-// status light. Every path here is relative to the page, so the same
-// files serve from the index server (Index/bin/server.dart) and from a
-// static host's /demos/ (the aityx website).
-// The key is kept the way every demo reads it (packages/aityx_web), on this
-// origin: localStorage or, for this session only, sessionStorage, under
-// aityx.key, with aityx.url beside it. Never in a URL, in a log, or on the
-// page once saved (only its last four characters).
+// The index page, at /demos/: a card per demo. Every path here is relative
+// to the page, so the same files serve from the index server
+// (Index/bin/server.dart) and from a static host's /demos/ (the aityx
+// website).
+// No key is asked for here. On the aityx website, Open goes to the aityx
+// console's Demos tab, which signs the visitor in, has them choose one of
+// their API keys and runs the demo there (it serves these files from its
+// own origin). Anywhere else (the index server, a codespace) Open runs the
+// demo beside this page, on the dev key or none.
 'use strict';
 
 // The demos, in the order shown, in two groups: "kind" is 'game' (under
@@ -73,11 +74,20 @@ const codespaces = (d) =>
   'https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=' +
   encodeURIComponent('.devcontainer/' + d.codespace + '/devcontainer.json') +
   '&machine=standardLinux32gb';
-// A demo's app: beside this page (/demos/<slug>/), on this origin, so it
-// reads the key saved here. Opened in this tab: a key kept "only this
-// session" lives in this tab's sessionStorage, and a new tab (noopener)
-// starts with an empty one, so it would open without the key.
-const appPath = (d) => d.folder.toLowerCase() + '/';
+// The aityx console of the website this page is on, by its host: Open runs
+// the demo there (#/demos?demo=<slug>). Elsewhere, null.
+const consoles = {
+  'aityx.ai': 'https://console.aityx.ai',
+  'stage.aityx.ai': 'https://console-stage.aityx.ai',
+  'localhost:4330': 'http://localhost:9004',
+};
+const consoleUrl = consoles[window.location.host] || null;
+// Where Open goes: the console's Demos tab, or the app beside this page
+// (/demos/<slug>/) where there is no console.
+const slug = (d) => d.folder.toLowerCase();
+const appPath = (d) => consoleUrl
+  ? consoleUrl + '/#/demos?demo=' + encodeURIComponent(slug(d))
+  : slug(d) + '/';
 const ext = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M19 14v6H4V5h6"/></svg>';
 
 function card(d) {
@@ -89,22 +99,21 @@ function card(d) {
   // opens the app too.
   el.innerHTML =
     '<a class="shot" href="' + appPath(d) + '" tabindex="-1" aria-hidden="true">' +
-    '<img src="' + d.folder.toLowerCase() + '.gif" alt="" width="720" height="362" loading="lazy" decoding="async"></a>' +
+    '<img src="' + slug(d) + '.gif" alt="" width="720" height="362" loading="lazy" decoding="async"></a>' +
     '<div class="head"><div class="icon"><svg viewBox="0 0 24 24" fill="currentColor">' + icons[d.icon] + '</svg></div>' +
     '<div><h2>' + d.name + '</h2><p class="what">' + d.what + '</p></div></div>' +
     '<p class="desc">' + d.desc + '</p>' +
     '<div class="chips">' + chips + '</div>' +
     '<div class="status" hidden></div>' +
     '<div class="actions">' +
-    '<a class="btn primary" href="' + appPath(d) + '">Open</a>' +
+    '<a class="btn primary" href="' + appPath(d) + '"' + (consoleUrl ? ' title="Opens it in the aityx console, with your API key"' : '') + '>Open</a>' +
     '<a class="btn" href="' + github + d.folder + '" target="_blank" rel="noopener">Source ' + ext + '</a>' +
     (d.codespace ? '<a class="btn" href="' + codespaces(d) + '" target="_blank" rel="noopener">Codespace ' + ext + '</a>' : '') +
     '</div>';
   return el;
 }
 
-// Each group's cards into its grid: #games, #apps. The key page alone
-// (key.html, embedded in the aityx website) has neither.
+// Each group's cards into its grid: #games, #apps.
 for (const kind of ['game', 'app']) {
   const grid = document.getElementById(kind + 's');
   if (grid) grid.replaceChildren(...demos.filter(d => d.kind === kind).map(card));
@@ -135,394 +144,3 @@ async function markBuilds() {
   }
 }
 markBuilds();
-
-// The key ---------------------------------------------------------------
-
-const defaultUrl = 'https://api.aityx.ai';
-
-// key.html in a frame of the aityx website's blueprint page (see the end).
-const embedded = document.body.hasAttribute('data-embed') && window.parent !== window;
-
-// Each storage, or null where the browser refuses it (some private modes).
-function storage(name) {
-  try {
-    const s = window[name];
-    const probe = '__aityx_probe__';
-    s.setItem(probe, '1');
-    s.removeItem(probe);
-    return s;
-  } catch (_) {
-    return null;
-  }
-}
-const local = storage('localStorage');
-const session = storage('sessionStorage');
-
-// The user's key, as every demo reads it: sessionStorage wins over
-// localStorage. Null when there is none.
-function userKey() {
-  for (const [s, sessionOnly] of [[session, true], [local, false]]) {
-    const key = s && s.getItem('aityx.key');
-    if (key) return { key, url: (s.getItem('aityx.url') || defaultUrl), sessionOnly };
-  }
-  return null;
-}
-
-function saveKey(key, url, sessionOnly) {
-  const [to, other] = sessionOnly ? [session, local] : [local, session];
-  if (!to) throw new Error(sessionOnly ? 'this browser keeps no session storage' : 'this browser keeps no local storage');
-  for (const s of [other, to]) {
-    if (!s) continue;
-    s.removeItem('aityx.key');
-    s.removeItem('aityx.url');
-  }
-  to.setItem('aityx.key', key);
-  to.setItem('aityx.url', url);
-}
-
-function forgetKey() {
-  for (const s of [local, session]) {
-    if (!s) continue;
-    s.removeItem('aityx.key');
-    s.removeItem('aityx.url');
-  }
-}
-
-// The aityx URL as typed: https, on a host under aityx.ai (all this page's
-// content security policy lets it reach), no trailing slash. Null when it
-// isn't one.
-function cleanUrl(text) {
-  const value = (text || '').trim() || defaultUrl;
-  let u;
-  try {
-    u = new URL(value);
-  } catch (_) {
-    return null;
-  }
-  if (u.protocol !== 'https:' || u.search || u.hash || u.username || u.password) return null;
-  if (!u.hostname.endsWith('.aityx.ai')) return null;
-  return (u.origin + u.pathname).replace(/\/+$/, '');
-}
-
-// The dev key: the index server's aityx/config (beside the page), which
-// says whether it holds a key (never the key). Absent on a static host:
-// not available.
-async function devConfig() {
-  try {
-    const r = await fetch('aityx/config', { cache: 'no-store' });
-    if (!r.ok || !(r.headers.get('content-type') || '').includes('json')) return null;
-    const c = await r.json();
-    return c && c.available === true ? c : null;
-  } catch (_) {
-    return null;
-  }
-}
-
-// One empty POST to <url>/v1/systemone: aityx checks the key first, so a
-// working key gets 400 invalid_request and no model runs. With a key, from
-// the browser to aityx; without, through the index server's dev proxy.
-async function check(url, key) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (key) headers.Authorization = 'Bearer ' + key;
-  let r;
-  try {
-    r = await fetch(url + '/v1/systemone', {
-      method: 'POST', headers, body: '{}', cache: 'no-store',
-      credentials: key ? 'omit' : 'same-origin', referrerPolicy: 'no-referrer',
-    });
-  } catch (_) {
-    return { ok: false, detail: 'aityx did not answer (the network, or the URL is wrong)', reason: 'not reachable' };
-  }
-  let body = null;
-  try {
-    body = await r.json();
-  } catch (_) {
-    body = null;
-  }
-  const code = body && body.code;
-  const detail = body && typeof body.detail === 'string' ? body.detail : '';
-  if (r.status === 400 && code === 'invalid_request') return { ok: true, detail: 'aityx accepts the key' };
-  if (r.status === 401 || r.status === 403) {
-    return { ok: false, detail: 'aityx rejected the key' + (detail ? ': ' + detail : ''), reason: 'key rejected' };
-  }
-  if (typeof code === 'string' && code.startsWith('proxy_')) {
-    return { ok: false, detail: detail || code, reason: 'not reachable' };
-  }
-  return { ok: false, detail: 'aityx answered HTTP ' + r.status + (detail ? ': ' + detail : ''), reason: 'not working' };
-}
-
-const last4 = (key) => '…' + key.slice(-4);
-
-// Whether the user asked for the form over the dev key ("Use my own key").
-let wantOwn = false;
-
-// What the section says now. With a key in use (yours, or the dev key) it
-// says so and hides the form: yours comes back only after "Forget key",
-// the dev key's after "Use my own key".
-async function describeKey() {
-  const now = document.getElementById('key-now');
-  const user = userKey();
-  const dev = user ? null : await devConfig();
-  if (!user && userKey()) return describeKey();
-  now.innerHTML = '';
-  if (user) {
-    now.append('Your key ', strong(last4(user.key)), ' is set, ' +
-      (user.sessionOnly ? 'for this session only' : 'on this device') + '.');
-  } else if (dev) {
-    now.append('A key is set.');
-  } else {
-    now.append(strong('No key yet.'), ' The demos open, but they can’t call aityx until you set one.');
-  }
-  if (user || dev) now.append(' ', keyCheck());
-  // Framed (key.html), the modal around the form already says there's no
-  // key: the line shows only once one is set.
-  now.hidden = embedded && !user && !dev;
-  const form = !user && (!dev || wantOwn);
-  document.getElementById('key-form').hidden = !form;
-  document.getElementById('key-help').hidden = !form;
-  document.getElementById('key-actions').hidden = form;
-  document.getElementById('key-forget').hidden = !user;
-  document.getElementById('key-own').hidden = !!user || !dev;
-  document.getElementById('key-cancel').hidden = !dev;
-  if (form && wantOwn) document.getElementById('key-input').focus();
-  postForm();
-}
-
-// Framed: whether the form shows and is checking a key, for the modal's
-// own Check and save button, which submits it (see the end). Never what's
-// typed in it.
-function postForm() {
-  if (!embedded) return;
-  window.parent.postMessage({
-    type: 'aityx:key-form',
-    open: !document.getElementById('key-form').hidden,
-    busy: document.getElementById('key-save').disabled,
-  }, '*');
-}
-
-// The key in use, checked against its URL by checkAityx: whether it
-// works there, as a sentence. Filled in when the check answers.
-let lastCheckResult = null;
-
-function keyCheck() {
-  const el = document.createElement('span');
-  el.id = 'key-check';
-  el.textContent = lastCheckResult || 'Checking it with aityx…';
-  return el;
-}
-
-function strong(text) {
-  const el = document.createElement('strong');
-  el.textContent = text;
-  return el;
-}
-
-function result(text, ok) {
-  const el = document.getElementById('key-result');
-  el.textContent = text;
-  el.className = 'result ' + (ok === true ? 'ok' : ok === false ? 'bad' : '');
-}
-
-document.getElementById('url-input').value = (userKey() || {}).url || defaultUrl;
-
-document.getElementById('key-form').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const input = document.getElementById('key-input');
-  const key = input.value.trim();
-  const url = cleanUrl(document.getElementById('url-input').value);
-  // The index page offers "Only this session"; key.html (the website's
-  // modal) has no choice and keeps the key on the device, in localStorage.
-  const keep = document.querySelector('input[name=keep]:checked');
-  const sessionOnly = !!keep && keep.value === 'session';
-  if (!key) return result('Paste your key first.', false);
-  if (/\s/.test(key)) return result('That doesn’t look like a key: it has spaces in it.', false);
-  if (!url) {
-    document.getElementById('key-advanced').open = true;
-    return result('The aityx URL must be an https URL on aityx.ai, like ' + defaultUrl + '.', false);
-  }
-  const button = document.getElementById('key-save');
-  button.disabled = true;
-  postForm();
-  result('Checking the key with aityx…');
-  try {
-    const answer = await check(url, key);
-    if (!answer.ok) return result(answer.detail + '. Not saved.', false);
-    try {
-      saveKey(key, url, sessionOnly);
-    } catch (error) {
-      return result('aityx accepts the key, but it could not be saved: ' + error.message + '.', false);
-    }
-    input.value = '';
-    wantOwn = false;
-    lastCheckResult = null;
-    result('aityx accepts the key ' + last4(key) + ': saved ' +
-      (sessionOnly ? 'for this session.' : 'on this device.'), true);
-    await describeKey();
-    checkAityx(true);
-  } finally {
-    button.disabled = false;
-    postForm();
-  }
-});
-
-document.getElementById('key-forget').addEventListener('click', async () => {
-  forgetKey();
-  lastCheckResult = null;
-  result('Key forgotten.', true);
-  await describeKey();
-  checkAityx(true);
-});
-
-document.getElementById('key-own').addEventListener('click', () => {
-  wantOwn = true;
-  result('');
-  describeKey();
-});
-
-document.getElementById('key-cancel').addEventListener('click', () => {
-  wantOwn = false;
-  document.getElementById('key-input').value = '';
-  result('');
-  describeKey();
-});
-
-// The status light ------------------------------------------------------
-
-// Top right: the same order as every demo (your key, else the dev key
-// through the index server), and the same check. On start, when the key
-// changes (here or in another tab), and when the page regains focus, at
-// most once every 30 s: each check is a call on the user's quota.
-let lastCheck = 0;
-let checking = null;
-
-async function checkAityx(force = false) {
-  if (checking) return checking;
-  if (!force && Date.now() - lastCheck < 30000) return;
-  lastCheck = Date.now();
-  checking = (async () => {
-    const status = document.getElementById('aityx-status');
-    const dot = status.querySelector('.dot');
-    let state;
-    const user = userKey();
-    const dev = user ? null : await devConfig();
-    if (user || dev) {
-      const url = user ? user.url : dev.url;
-      const a = user ? await check(user.url, user.key) : await check('aityx', null);
-      state = { ok: a.ok, label: a.ok ? 'aityx: ready' : 'aityx: ' + a.reason,
-        tip: a.ok ? 'aityx: ready — the key works with ' + url : 'aityx: ' + a.detail };
-      lastCheckResult = a.ok
-        ? 'It works with ' + url + ': every demo here uses it.'
-        : 'It doesn’t work with ' + url + ': ' + a.detail + '.';
-    } else {
-      lastCheckResult = null;
-      state = { ok: false, label: 'aityx: no key', tip: 'aityx: no key — set yours on the index page' };
-    }
-    const shown = document.getElementById('key-check');
-    if (shown) {
-      shown.textContent = lastCheckResult || '';
-      shown.className = state.ok ? 'ok' : 'bad';
-    }
-    // Framed, the page around it learns only whether a working key is set.
-    if (embedded) window.parent.postMessage({ type: 'aityx:key-state', ready: state.ok }, '*');
-    dot.className = 'dot ' + (state.ok ? 'ok' : 'bad');
-    status.querySelector('.label').textContent = state.label;
-    // The reason, on hover and for screen readers.
-    status.title = state.tip;
-    status.setAttribute('aria-label', state.tip);
-  })();
-  try {
-    await checking;
-  } finally {
-    checking = null;
-  }
-}
-
-// A key in the request ----------------------------------------------------
-
-// AITYX_API_KEY in the page's URL fragment (/demos/#AITYX_API_KEY=...),
-// optionally with AITYX_URL beside it, on any host, static or not: checked
-// with aityx like a pasted key, then saved on this device for every demo,
-// replacing any key set before. Only the fragment: the browser never sends
-// it to a server, so it reaches no access log. A key in the query string
-// (/demos/?AITYX_API_KEY=...) has already reached the server's logs, so it
-// is refused, and the page says so. Either way the key is taken out of the
-// address bar first, so it isn't kept in the history or shared with the
-// page's address. A key aityx rejects is not saved, and the form says so.
-async function keyFromRequest() {
-  const url = new URL(window.location.href);
-  const query = url.searchParams;
-  const hash = new URLSearchParams(url.hash.replace(/^#/, ''));
-  const inQuery = query.has('AITYX_API_KEY') || query.has('AITYX_URL');
-  const inHash = hash.has('AITYX_API_KEY');
-  if (!inQuery && !inHash) return false;
-  const key = (hash.get('AITYX_API_KEY') || '').trim();
-  const urlGiven = hash.get('AITYX_URL');
-  for (const params of [query, hash]) {
-    params.delete('AITYX_API_KEY');
-    params.delete('AITYX_URL');
-  }
-  url.search = query.toString();
-  url.hash = hash.toString() ? '#' + hash.toString() : '#aityx-key';
-  window.history.replaceState(null, '', url.toString());
-  if (inQuery) {
-    result('A key in the link’s query string (?AITYX_API_KEY=) reaches the server and its logs: not used. ' +
-      'Put it in the fragment instead (#AITYX_API_KEY=), and consider replacing that key in the aityx console.', false);
-    return false;
-  }
-  if (!key) return result('The link carries an empty AITYX_API_KEY: nothing saved.', false), false;
-  if (/\s/.test(key)) return result('The link’s AITYX_API_KEY doesn’t look like a key: it has spaces in it.', false), false;
-  const aityxUrl = cleanUrl(urlGiven || (userKey() || {}).url || defaultUrl);
-  if (!aityxUrl) return result('The link’s AITYX_URL must be an https URL on aityx.ai, like ' + defaultUrl + '.', false), false;
-  result('Checking the key from the link with aityx…');
-  const answer = await check(aityxUrl, key);
-  if (!answer.ok) {
-    result('The key in the link: ' + answer.detail + '. Not saved.', false);
-    return false;
-  }
-  try {
-    saveKey(key, aityxUrl, false);
-  } catch (error) {
-    result('aityx accepts the key in the link, but it could not be saved: ' + error.message + '.', false);
-    return false;
-  }
-  wantOwn = false;
-  lastCheckResult = null;
-  document.getElementById('url-input').value = aityxUrl;
-  result('aityx accepts the key ' + last4(key) + ' from the link: saved on this device, for every demo here.', true);
-  return true;
-}
-
-keyFromRequest().finally(() => {
-  describeKey();
-  checkAityx(true);
-});
-window.addEventListener('focus', () => checkAityx());
-
-// Embedded: key.html in a frame of the aityx website's blueprint page,
-// which sizes the frame to the page's height as this posts it, and enables
-// its Run button once checkAityx posts that the key works. Only the height
-// and that yes or no: never the key, nor anything typed.
-// The page around it also says its theme (?theme=light or dark).
-if (embedded) {
-  const theme = new URLSearchParams(window.location.search).get('theme');
-  if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
-  const postHeight = () => window.parent.postMessage(
-    { type: 'aityx:key-height', height: document.documentElement.scrollHeight }, '*');
-  new ResizeObserver(postHeight).observe(document.body);
-  postHeight();
-  // The modal's Check and save: submits the form as it is, the same as
-  // Enter in it. Only from the page around this one (which frame-ancestors
-  // limits to the website), and it carries nothing.
-  window.addEventListener('message', (event) => {
-    if (event.source !== window.parent || !event.data || event.data.type !== 'aityx:key-save') return;
-    const form = document.getElementById('key-form');
-    if (!form.hidden && !document.getElementById('key-save').disabled) form.requestSubmit();
-  });
-}
-window.addEventListener('storage', (event) => {
-  if (event.key === null || (event.key || '').startsWith('aityx.')) {
-    lastCheckResult = null;
-    describeKey();
-    checkAityx(true);
-  }
-});

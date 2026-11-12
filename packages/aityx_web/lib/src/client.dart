@@ -9,6 +9,8 @@ import 'package:http/http.dart' as http;
 import 'body.dart';
 import 'connection.dart';
 import 'key_store.dart';
+import 'platform/platform_vm.dart'
+    if (dart.library.js_interop) 'platform/platform_web.dart';
 import 'settings.dart';
 
 /// Thrown when there is no key at all (AityxSource.none).
@@ -165,6 +167,21 @@ class AityxClient {
     if (to.source == AityxSource.none) throw const AityxNoKey();
     final payload = body is String ? body : jsonEncode(body);
     final watch = Stopwatch()..start();
+    if (to.source == AityxSource.bridge) {
+      // The page around the app calls aityx on its own session and hands the
+      // answer back whole, refusals included, so it is read exactly as an
+      // HTTP one. Nothing here holds a credential.
+      final answered = await askParent(payload, timeout);
+      if (answered.status == 0) {
+        throw AityxUnreachable('the aityx console did not answer');
+      }
+      return AityxAnswer(
+        status: answered.status,
+        json: tryJson(answered.body),
+        text: answered.body,
+        took: watch.elapsed,
+      );
+    }
     final http.Response response;
     try {
       response = await _client

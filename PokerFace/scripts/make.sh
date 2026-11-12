@@ -54,7 +54,10 @@ build() {
   echo "==> $target ($MODE, version $VERSION, build $BUILD_NUMBER)"
   case "$target" in
     web)
-      flutter build web "--$MODE" --base-href "${WEB_BASE_HREF:-/demos/pokerface/}" \
+      # No service worker: the aityx console frames these sandboxed, without
+      # allow-same-origin, and there reading navigator.serviceWorker throws
+      # rather than being undefined, which the Flutter loader does not guard.
+      flutter build web "--$MODE" --pwa-strategy=none --base-href "${WEB_BASE_HREF:-/demos/pokerface/}" \
         --no-web-resources-cdn "${BUILD_ARGS[@]}"
       echo "==> web: pokerface_app/build/web/"
       ;;

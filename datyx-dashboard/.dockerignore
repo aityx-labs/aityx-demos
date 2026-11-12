@@ -36,6 +36,8 @@ datyx_dashboard/web_dev_config.yaml
 **/.dockercfg
 **/credentials.json
 **/service-account*.json
+**/client_secret*.json
+**/.secrets
 **/.aws
 **/.gcloud
 **/*.tfvars

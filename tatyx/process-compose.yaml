@@ -1,0 +1,34 @@
+version: "0.5"
+
+# `devbox services up`: the tatyx server (scripts/serve.sh), one process
+# on one port: the app under /tatyx/, its health check under /api/, and
+# aityx for the app under /aityx/. The variables are named as every
+# demo's, so start-all.sh reads the port the same way; the API shares the
+# web port.
+
+processes:
+  1-server:
+    command: bash scripts/serve.sh
+    environment:
+      - FLUTTER_WEB_PORT=${FLUTTER_WEB_PORT:-9710}
+      - API_PORT=${API_PORT:-9710}
+      - TATYX_BIND_HOST=${TATYX_BIND_HOST:-127.0.0.1}
+      - AITYX_API_KEY=${AITYX_API_KEY:-}
+      - AITYX_URL=${AITYX_URL:-}
+    # Stopping only the script would leave the server on the port.
+    shutdown:
+      command: lsof -tiTCP:${FLUTTER_WEB_PORT:-9710} -sTCP:LISTEN | xargs kill 2>/dev/null; true
+      timeout_seconds: 10
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: ${FLUTTER_WEB_PORT:-9710}
+        path: /api/health
+      initial_delay_seconds: 2
+      period_seconds: 2
+      timeout_seconds: 5
+      # Up to 10 minutes: a first start installs the packages and builds.
+      failure_threshold: 300
+    availability:
+      restart: on_failure
+      backoff_seconds: 5

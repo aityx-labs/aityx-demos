@@ -1,4 +1,4 @@
-import 'package:aityx_web/aityx_web.dart' show openAityxKeyPage;
+import 'package:aityx_web/aityx_web.dart' show AityxKeyPrompt;
 import 'package:flutter/material.dart';
 
 import 'call_view.dart';
@@ -159,7 +159,7 @@ class _Failure extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
 
-  /// No aityx key: offer the index page's key section too.
+  /// No aityx key: a small form for it, and saving one tries again.
   final bool noKey;
 
   @override
@@ -173,22 +173,12 @@ class _Failure extends StatelessWidget {
           const SizedBox(height: 8),
           Text(message, textAlign: TextAlign.center),
           const SizedBox(height: 12),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              if (noKey)
-                FilledButton(
-                  onPressed: openAityxKeyPage,
-                  child: const Text('Set your key'),
-                ),
-              OutlinedButton(
-                onPressed: onRetry,
-                child: const Text('Try again'),
-              ),
-            ],
-          ),
+          if (noKey)
+            AityxKeyPrompt(
+              padding: const EdgeInsets.only(bottom: 12),
+              onSaved: onRetry,
+            ),
+          OutlinedButton(onPressed: onRetry, child: const Text('Try again')),
         ],
       ),
     );

@@ -1,0 +1,161 @@
+{
+  // ---------------------------------------------------------------------
+  // multyx demos
+  //
+  // The multyx group, started together: the multiplayer games on aityx,
+  // each with a Google sign-in and a leaderboard that plays on the
+  // server: Poker Tour (PokerTour/, a Flutter app and a Dart server on
+  // port 9810, with Floci, the local AWS, in a container on 9811), tatyx
+  // (tatyx/, a Phaser 4 game in TypeScript with a Node server, port 9710)
+  // and their index page (multyx-index/, port 9700) that links them. The
+  // folders whose group.id.txt says multyx.
+  //
+  // Source:  https://github.com/aityx-labs/aityx-demos
+  // Rules:   https://aityx.ai
+  // Aletyx:  https://aletyx.com
+  //          https://nu01.com
+  //
+  // One dev container per demo group: this one, the aityx group's in
+  // .devcontainer/aityx/ and the datyx group's in .devcontainer/datyx/.
+  // Each has its own image. The scripts they run are shared, in
+  // .devcontainer/, and act on the group DEMOS_GROUP names. The name
+  // below is what GitHub shows in the "Dev container configuration" list
+  // when you create a codespace.
+  // ---------------------------------------------------------------------
+  "name": "multyx demos",
+  // The group's published image (image/Containerfile, built and pushed by
+  // `bash image/build-image.sh multyx`): Flutter, Node, the GitHub CLI,
+  // process-compose and Poker Tour's release web build, so it isn't
+  // built when a codespace is created; tatyx builds then (`npm ci` and
+  // Vite, a minute). The organization has GitHub's prebuilds switched
+  // off; this is the next best thing.
+  "image": "docker.io/aletyxcode/samples-and-demos-multyx:latest",
+  "remoteUser": "vscode",
+  // An SSH server, so `gh codespace ssh`, `gh codespace cp` and
+  // `gh codespace logs` reach the codespace from a terminal: that is how
+  // startup.log is read without the editor. Docker, for Poker Tour's
+  // Floci (PokerTour/floci/compose.yaml), which process-compose starts
+  // with `docker compose up floci`.
+  "features": {
+    "ghcr.io/devcontainers/features/sshd:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  // The 4-core, 16 GB Codespaces machine: a Flutter web build when Poker
+  // Tour changed since the image was made, a Vite build, two Node
+  // servers, Poker Tour's and Floci.
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb"
+  },
+  // The web servers must listen on every interface for the forwarded
+  // ports to reach them (only the container sees them). One variable per
+  // folder, as its scripts name it.
+  "containerEnv": {
+    // The demos run on the image's Flutter, Node and process-compose, not
+    // devbox (see demos-toolchain.sh).
+    "DEMOS_TOOLCHAIN": "image",
+    // The group: ./start-all.sh, ./stop-all.sh and ./build-all.sh act on
+    // its folders only, and the dev container scripts start it.
+    "DEMOS_GROUP": "multyx",
+    "INDEX_BIND_HOST": "0.0.0.0",
+    "POKERTOUR_BIND_HOST": "0.0.0.0",
+    "TATYX_BIND_HOST": "0.0.0.0"
+  },
+  // Your own key, never the repository's: the AITYX_API_KEY secret the
+  // other groups' dev containers ask for too. Codespaces secrets belong
+  // to a user and are granted per repository, so a key already granted
+  // to this repository reaches this container with nothing to copy.
+  // GitHub asks for it when you create a codespace unless you already
+  // hold it, and passes it in as an environment variable, which the
+  // servers read before falling back to the root .env: the dev key
+  // tatyx's server lends, through its proxy, to whoever opens the game
+  // without a key of their own, and Poker Tour's tournaments' key unless
+  // POKERTOUR_LEADERBOARD_KEY is set. Change it at
+  // https://github.com/settings/codespaces.
+  //
+  // AITYX_URL is optional and defaults to https://api.aityx.ai. Set the
+  // secret to https://api-stage.aityx.ai when using a stage key.
+  "secrets": {
+    "AITYX_API_KEY": {
+      "description": "Optional. Your own aityx.ai API key, from the console's API keys page; the same one the aityx demos use. tatyx's server lends it as a dev key to the game's visitors, and Poker Tour's tournaments play on it; without it each player sets their own in tatyx.",
+      "documentationUrl": "https://aityx.ai/docs"
+    },
+    "AITYX_URL": {
+      "description": "Optional. API endpoint; leave unset for https://api.aityx.ai, or set https://api-stage.aityx.ai for a stage key."
+    }
+  },
+  // The image's flutter, dart and node on the PATH of every terminal.
+  // ${containerEnv:PATH} is the image's own PATH, Node's bin among it.
+  "remoteEnv": {
+    "PATH": "/opt/flutter/bin:${containerEnv:PATH}"
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        // The Flutter SDK in the image (see image/Containerfile), there
+        // from the moment VS Code attaches, so the Dart extension doesn't
+        // offer to download one.
+        "dart.flutterSdkPath": "/opt/flutter",
+        // No `pub get` from the editor, prompted or on a pubspec change: it
+        // rewrites the app's pubspec.lock, which makes the image's build
+        // look older than the app, so Poker Tour rebuilds instead of
+        // starting in seconds.
+        "dart.promptToGetPackages": false,
+        "dart.runPubGetOnPubspecChanges": "never",
+        "typescript.tsdk": "tatyx/tatyx_app/node_modules/typescript/lib"
+      },
+      "extensions": [
+        "Dart-Code.dart-code",
+        "Dart-Code.flutter",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+  // The index page, Poker Tour (9810, which asks for a Google sign-in
+  // before anything but the leaderboard) and tatyx, public
+  // (post-start.sh), so the links can be shared: anyone who opens tatyx
+  // sets their own key, or plays on the dev key the server lends. Floci
+  // (9811) stays inside the container: Poker Tour's server reaches it
+  // there. Plain HTTP, which is what the servers speak; switching a
+  // public port to HTTPS makes it private. Only the index opens a
+  // browser tab.
+  "forwardPorts": [9700, 9710, 9810],
+  "portsAttributes": {
+    "9700": {
+      "label": "multyx index: the group on one page",
+      "protocol": "http",
+      "onAutoForward": "openBrowserOnce"
+    },
+    "9710": {
+      "label": "tatyx (the game, its server and the aityx proxy)",
+      "protocol": "http",
+      "onAutoForward": "silent"
+    },
+    "9810": {
+      "label": "Poker Tour (app and API)",
+      "protocol": "http",
+      "onAutoForward": "silent"
+    }
+  },
+  // All run from the repository root, in this order, when the codespace
+  // is created; the editor attaches after the first (waitFor), while any
+  // build goes on in the background with its progress in startup.log.
+  //   on-create.sh       the image's release web builds into the workspace
+  //                      (image/restore-builds.sh)
+  //   update-content.sh  ./build-all.sh: the group's builds (Poker Tour's
+  //                      web build and compiled server, tatyx's packages
+  //                      and Vite build), only what changed
+  //   post-create.sh     whether the aityx secrets arrived
+  // post-start.sh starts the index and the group with ./start-all.sh and
+  // makes the web ports public on every start.
+  "onCreateCommand": "bash -lc 'bash .devcontainer/on-create.sh'",
+  "updateContentCommand": "bash -lc 'bash .devcontainer/update-content.sh'",
+  "postCreateCommand": "bash -lc 'bash .devcontainer/post-create.sh'",
+  "waitFor": "onCreateCommand",
+  "postStartCommand": "bash -lc 'bash .devcontainer/post-start.sh'",
+  // Again each time VS Code attaches: a visibility set at start does not
+  // always stick, and users report it does from here.
+  "postAttachCommand": "bash .devcontainer/public-port.sh"
+}

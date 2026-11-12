@@ -1,0 +1,20 @@
+{
+  "id": "sprinter",
+  "name": "The Sprinter",
+  "tagline": "Finds the way to the mainframe fast, keeps it open with Testers, and sends every bot it can into the hack.",
+  "decisions": {
+    "build": {
+      "type": "Build",
+      "desc": "What the team's next megabyte buys",
+      "table": [
+        ["mainframe_connected", "testers", "explorers", "builders", "links_rotting", "=>", "# why"],
+        {"when": {"mainframe_connected": "true", "testers": ">= 2"}, "then": "hack", "why": "The way is open and two Testers keep it so: hack."},
+        {"when": {"mainframe_connected": "true"}, "then": "tester", "why": "The way is open: a second Tester to hold it."},
+        {"when": {"explorers": "< 2"}, "then": "explorer", "why": "No way to the mainframe yet: a second Explorer to find it sooner."},
+        {"when": {"builders": "< 2"}, "then": "builder", "why": "A second Builder, to pay for the sprint."},
+        {"when": {"links_rotting": ">= 1", "testers": "< 2"}, "then": "tester", "why": "The links found are rotting before they are used: a Tester."},
+        {"then": "hack", "why": "Nothing else to buy: a bot into the hack, for when the way opens."}
+      ]
+    }
+  }
+}

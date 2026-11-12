@@ -1,0 +1,37 @@
+{
+  "id": "rock",
+  "name": "The Rock",
+  "tagline": "Waits for big cards and sees cheap flops, folds the rest and never bluffs; short-stacked, goes all in with any good hand.",
+  "decisions": {
+    "strong_made": {"type": "boolean", "desc": "Two pair or better", "expr": "not(made_hand = \"high_card\" or made_hand = \"pair\")"},
+    "action": {
+      "type": "Action",
+      "desc": "What the player does",
+      "table": [
+        ["street", "hand", "raises", "stack_bb", "to_call", "big_blind", "strong_made", "made_hand", "equity", "can_check", "can_raise", "=>", "# why"],
+        {"when": {"street": "preflop", "hand": "premium, strong, medium, speculative", "stack_bb": "<= 25"}, "then": "all_in", "why": "Short-stacked, 25 big blinds or less, and a hand worth playing: all in, before the blinds eat the stack."},
+        {"when": {"street": "preflop", "hand": "premium", "raises": "0", "can_raise": "true"}, "then": "raise", "why": "Premium cards and nobody has raised: raise."},
+        {"when": {"street": "preflop", "hand": "premium"}, "then": "call", "why": "Premium cards against a raise: call, and let them keep betting into it."},
+        {"when": {"street": "preflop", "hand": "strong", "raises": "0", "can_raise": "true"}, "then": "raise", "why": "Strong cards and nobody has raised: open with a raise."},
+        {"when": {"street": "preflop", "hand": "strong, medium", "raises": "1"}, "then": "call", "why": "Strong or medium cards against one raise: call and see a flop."},
+        {"when": {"street": "preflop", "hand": "speculative", "raises": "1", "to_call": "<= 4 * big_blind"}, "then": "call", "why": "Speculative cards and a small raise: call, hoping to flop a set or better."},
+        {"when": {"street": "preflop", "can_check": "true"}, "then": "check", "why": "In the big blind with nothing to call: a free flop."},
+        {"when": {"street": "preflop", "hand": "medium, speculative", "raises": "0", "to_call": "<= 2 * big_blind"}, "then": "call", "why": "Medium or speculative cards and two big blinds or less to call: a cheap flop."},
+        {"when": {"street": "preflop"}, "then": "fold", "why": "Not a hand the Rock plays for this price: wait for a better one."},
+        {"when": {"hand": "premium", "made_hand": "pair", "equity": ">= 0.5", "can_raise": "true"}, "then": "raise", "why": "Premium cards and a pair likely best: the Rock won't let go of it, bet it."},
+        {"when": {"hand": "premium", "made_hand": "pair", "equity": ">= 0.5"}, "then": "call", "why": "Premium cards and a pair likely best, no raise possible: call, whatever it costs."},
+        {"when": {"strong_made": "true", "can_raise": "true"}, "then": "raise", "why": "Two pair or better: bet for value."},
+        {"when": {"strong_made": "true"}, "then": "call", "why": "Two pair or better, no raise possible: call."},
+        {"when": {"made_hand": "pair", "equity": ">= 0.3", "can_check": "true"}, "then": "check", "why": "A pair with a fair chance: check and keep the pot small."},
+        {"when": {"made_hand": "pair", "equity": ">= 0.3"}, "then": "call", "why": "A pair with a fair chance: call, but don't raise with one pair."},
+        {"when": {"can_check": "true"}, "then": "check", "why": "Nothing worth betting: check."},
+        {"then": "fold", "why": "No pair worth paying for, and chips to call: fold."}
+      ]
+    },
+    "raise_to": {
+      "type": "number",
+      "desc": "The total bet when raising: three big blinds to open, three times the bet facing a raise, half the pot after the flop",
+      "expr": "if street = \"preflop\" then (if raises = 0 then 3 * big_blind else 3 * current_bet) else decimal(pot * 0.5, 0)"
+    }
+  }
+}

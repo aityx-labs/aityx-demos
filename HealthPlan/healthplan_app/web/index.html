@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<base href="/demos/healthplan/">
+<!-- Scripts only from this origin; calls only to this origin (the dev proxy) and aityx. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.aityx.ai; base-uri 'self'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Health Plan · aityx</title>
+<meta name="description" content="Which 2027 health plan costs you less: aityx reads your year and prices three plans with the same rules every time.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="glow" aria-hidden="true"></div>
+<div class="wrap">
+<header>
+  <div class="top"><a class="brand" href="../">aityx <span>demos</span></a><div class="countdown" id="countdown"></div><a class="proto keylink" id="mode" href="../#aityx-key" data-state="connecting"><span class="ldot" aria-hidden="true"></span><span id="modetext">Checking key…</span></a></div>
+  <h1>Which 2027 health plan will <em>actually</em> cost you less?</h1>
+  <p class="lede">Open enrollment ends <em>soon</em> and you have three plans to pick from. The lowest premium can still be the priciest year once you add the care you'll need. aityx prices all three for your year, with the same rules every time, and shows every number.</p>
+</header>
+<section class="panel" id="connpanel" data-state="connecting" aria-labelledby="h-live">
+  <div class="connmain">
+  <h2 id="h-live">Run it with aityx</h2>
+  <div class="connbar" role="status" aria-live="polite"><span class="dot" aria-hidden="true"></span><div><b id="conn-title">Checking your aityx key…</b><span class="t" id="conn-text">One quick call to aityx, no AI.</span></div></div>
+  </div>
+  <div class="connside">
+  <!-- No key anywhere, or changing it (the pill at the top, "Change your key"): the key, optionally the aityx URL, Save; changing, Forget key and Cancel too. A key that fails: "Change your key" and Check again. -->
+  <form class="connect" id="connect" autocomplete="off" novalidate>
+    <label class="field keyfield"><input type="password" id="keyin" name="key" aria-label="Your aityx key" placeholder="Your aityx key" autocomplete="off" spellcheck="false" autocapitalize="off"></label>
+    <label class="field urlfield"><input type="url" id="urlin" name="url" aria-label="aityx URL (optional)" placeholder="URL (optional)" spellcheck="false" autocapitalize="off"></label>
+    <button class="go" type="submit" id="keysave">Save</button>
+    <button class="ghost" type="button" id="keyforget" hidden>Forget key</button>
+    <button class="ghost" type="button" id="keycancel">Cancel</button>
+    <a class="go keylink" id="setkey" href="../#aityx-key">Set your aityx key</a>
+    <button class="ghost" type="button" id="recheck">Check again</button>
+    <button class="ghost" type="button" id="recall" hidden>Record all examples</button>
+  </form>
+  <div class="note warn" id="keymsg" role="status" aria-live="polite"></div>
+  <div class="note"><a href="https://console.aityx.ai" target="_blank" rel="noopener" style="color:var(--acc2)">Get a key in the aityx console</a>. Without a key nothing runs: you see real aityx calls we recorded, and the plans stay locked.</div>
+  </div>
+</section>
+<section class="panel" aria-labelledby="h-what">
+  <p class="step">Step 1</p>
+  <h2 id="h-what">What we compare</h2>
+  <p class="sub">Every plan gets the same five numbers, and the lowest yearly total wins.</p>
+  <ol class="terms5">
+    <li><span class="k">01</span><b>Premium</b><small>What you pay for the plan all year, used or not. It never depends on your health (<a href="https://www.healthcare.gov/how-plans-set-your-premiums/" target="_blank" rel="noopener">HealthCare.gov</a>).</small></li>
+    <li><span class="k">02</span><b>Care costs</b><small>What your visits, medication or a birth cost before the plan pays anything.</small></li>
+    <li><span class="k">03</span><b>Deductible</b><small>You pay all your care up to this amount, then a set share of each bill.</small></li>
+    <li><span class="k">04</span><b>Out-of-pocket limit</b><small>The most you pay for care in a year. Past it, the plan pays everything.</small></li>
+    <li class="sum"><span class="k">05</span><b>Yearly total</b><small>Premium plus what you pay for care. This is the number we rank.</small></li>
+  </ol>
+  <p class="formula"><b>Premium</b> + what you pay for care = <b>your 2027</b></p>
+</section>
+
+<section class="panel half" aria-labelledby="h-rules">
+  <p class="step">Step 2</p>
+  <h2 id="h-rules">The three plans, as rules</h2>
+  <p class="sub">Fictional plans built on public averages. Bronze costs least up front and most once you need care, and Gold is the reverse. Plans are changed here once, and every answer follows.</p>
+  <p class="lockline">🔒 Locked without a key. Set your aityx key at the top to change the plans and price them live.</p>
+  <div class="tablewrap"><table id="ptable"></table></div>
+  <h3>What a year of care costs</h3>
+  <div class="prices" id="prices"></div>
+  <div class="again"><button class="go againbtn" type="button">Compare again</button><span class="note">Rules only, no AI call.</span></div>
+  <p class="note">The full rules, as aityx runs them, are in the call under For developers.</p>
+</section>
+
+<section class="panel half" aria-labelledby="h-year">
+  <p class="step">Step 3</p>
+  <h2 id="h-year">Your 2027</h2>
+  <div class="pickrow">
+    <span class="pickcur" id="pickcur"></span>
+    <div class="split" id="split">
+      <button class="rand" type="button" id="rand"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.5" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.5" fill="currentColor"/></svg>Fill random</button>
+      <button class="caret" type="button" id="caret" aria-haspopup="menu" aria-expanded="false" aria-controls="menu" aria-label="Pick a result"><svg width="12" height="8" viewBox="0 0 12 8" aria-hidden="true"><path d="M1 1l5 5 5-5" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
+      <div class="menu" id="menu" role="menu" aria-label="Possible results" hidden></div>
+    </div>
+  </div>
+  <h3>Who's on the plan</h3>
+  <div class="fam" id="fam"></div>
+  <button class="ghost" id="add" type="button">+ Add person</button>
+  <p class="lockline">🔒 Set your aityx key to change who's on the plan.</p>
+  <h3>How the year looks</h3>
+  <textarea id="msg" maxlength="600" aria-label="How the year looks" aria-describedby="msgnote" hidden></textarea>
+  <blockquote class="msgq" id="msgq" aria-describedby="msgnote"></blockquote>
+  <div class="msgfoot"><div class="note" id="msgnote"></div><div class="count" id="count" hidden></div></div>
+  <div class="chips" id="chips" hidden></div>
+  <button class="go" id="go" type="button">Compare plans</button>
+</section>
+<section class="panel after" id="result" aria-live="polite" aria-labelledby="h-res">
+  <p class="step">Step 4</p>
+  <h2 id="h-res">Which plan costs you less</h2>
+  <div class="live" id="live"></div>
+  <div class="hero needans" id="hero"></div>
+  <div class="whatif needans" id="whatif"></div>
+  <div class="plans needans" id="plans"></div>
+  <div class="duo needans">
+    <div>
+      <h3>Each person's year</h3>
+      <p class="sub" style="margin:0">What aityx prices for each person. The tag says where it came from: aityx's read of the message, or your input.</p>
+      <div class="understood" id="understood"></div>
+      <div class="again"><button class="go againbtn" type="button">Compare again</button><span class="note">Rules only, no AI call.</span></div>
+    </div>
+    <div>
+      <h3>Three years, three winners</h3>
+      <p class="sub" style="margin:0">The same three plans give each of these years a different winner. Tap one to see why. From recorded aityx calls.</p>
+      <div class="stories" id="stories"></div>
+    </div>
+  </div>
+</section>
+
+
+<section class="panel after needans" aria-labelledby="h-rcpt">
+  <p class="step">Step 5</p>
+  <h2 id="h-rcpt">The receipts</h2>
+  <p class="sub">All three plans, every number, and where it came from.</p>
+  <div class="receipts" id="receipts"></div>
+</section>
+
+<details class="after">
+  <summary>Where the numbers come from <span>public sources</span></summary>
+  <div class="inner"><ul>
+    <li><b>Premium share:</b> Silver uses what workers pay on average in 2025, $1,440 a year for single coverage and $6,850 for family. Bronze is half of that, Gold 1.6×. <a href="https://www.kff.org/health-costs/report/2025-employer-health-benefits-survey/" target="_blank" rel="noopener">KFF Employer Health Benefits Survey 2025</a></li>
+    <li><b>Deductible and coinsurance:</b> Silver uses the average single deductible, $1,886, and the average 20% coinsurance for a hospital stay. <a href="https://www.kff.org/health-costs/report/2025-employer-health-benefits-survey/" target="_blank" rel="noopener">same KFF survey</a></li>
+    <li><b>Out-of-pocket limit:</b> the 2027 legal maximum is $12,000 for one person and $24,000 for a family. Bronze sits at that cap. <a href="https://www.cms.gov/files/document/2027-papi-parameters-guidance-2026-01-29.pdf" target="_blank" rel="noopener">CMS, 2027 parameters guidance</a></li>
+    <li><b>Having a baby:</b> pregnancy, birth and postpartum care average $20,416 in employer plans, and a newborn's first months $5,820. <a href="https://www.kff.org/health-costs/issue-brief/health-costs-associated-with-pregnancy-childbirth-and-postpartum-care/" target="_blank" rel="noopener">Peterson-KFF, Sept 2025</a></li>
+    <li><b>Deadline:</b> Dec 15 is the last day to pick a plan on HealthCare.gov for coverage that starts Jan 1. Employer deadlines vary. <a href="https://www.healthcare.gov/quick-guide/dates-and-deadlines/" target="_blank" rel="noopener">HealthCare.gov</a></li>
+    <li><b>Light, some and ongoing care</b> ($300, $1,500, $6,000 a year) are example prices, not from a source. Change them with a key.</li>
+  </ul></div>
+</details>
+
+<details class="after" id="dev">
+  <summary>For developers: the aityx call <span>POST /v1/systemone, one call</span></summary>
+  <div class="inner">
+    <p class="note" id="devnote"></p>
+    <p class="legend">Highlighted: <i>the answer and each value aityx read</i> and <i class="soft">each plan's amounts and the state we sent</i>. Copy JSON gives the exact body.</p>
+    <div id="calls"></div>
+    <button class="ghost" id="rec" type="button" hidden>Copy this call as a recording</button>
+  </div>
+</details>
+
+<footer>
+  <span>Fictional plans built on public averages. Not insurance or medical advice: your plan documents decide what you pay.</span>
+  <span>Demo by the aityx team. aityx reads the message; the rules do every number.</span>
+</footer>
+</div>
+
+<script src="aityx.js"></script>
+<script src="recordings.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

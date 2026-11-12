@@ -66,9 +66,14 @@ in its environment. The app then calls aityx through the index server's
 `/demos/aityx/` proxy, which adds the key, so it never reaches the
 browser.
 
+With no key at all, the window asks for yours itself: a small form just
+above the controls, with the key, optionally the aityx URL, and a link to
+the aityx console. With a key, the form isn't there.
+
 The light at the top right of the window says which it is: green when
 aityx accepts the key (yours, or the dev key), red with why otherwise, and
-a tap on it opens the index page's key section.
+a tap on it opens the key panel, over the app, to set, change or forget
+the key.
 
 ## Run it locally
 

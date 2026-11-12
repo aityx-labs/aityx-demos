@@ -186,3 +186,57 @@ The feature files hold the current specification; see the
     expects the new origin and proxy paths (see
     [Development environment](dev-environment.md) and
     [aityx calls](api.md)).
+
+21. **Remove the frame counter from the top near the title, so the
+    title stands alone, and, before play, show in the calls panel what
+    the demo is and what aityx is doing in it; after play, show the
+    calls as they are.** The app bar's status (*Frame n*, with *asking
+    aityx…* or *aityx answered in n ms*) went, from beside the title and
+    from the controls row of narrow windows alike, with the code that
+    built it and the last answer time it kept (each call's card still
+    says the frame and how long aityx took). Before the first call the
+    calls panel now shows two paragraphs: the demo (the 1982 Atari river
+    shooter remade, two planes flown by aityx by rules you can edit, the
+    yellow one yours) and what aityx does and how the calls appear
+    (every few frames the race asks aityx what the two aityx pilots do;
+    press **Start** and the calls show here as they happen), scrolling
+    when the panel is short. Once calls arrive the panel shows them as
+    before (see [Calls panel](calls-panel.md) and [Game](game.md)).
+
+## 2026-11-12
+
+22. **Make sure each demo has a link back to "aityx demos"
+    (https://aityx.ai/demos), visible but discreet; add it where it is
+    missing.** RiverRace had none. The top bar gained it under the title: a
+    left arrow and *aityx demos*, small and muted, primary and underlined
+    under the pointer. A tap opens the index page, `/demos/` on the page's
+    origin (https://aityx.ai/demos/ on the aityx website, the local index in
+    development), in the same tab; embedded (`?embed=1`) it isn't shown. It
+    is `AityxDemosLink`, new in the shared `aityx_web` package. See
+    [Game](game.md).
+23. **In each demo, make sure the key can be set on the index page and
+    read in the demo; but when it isn't set there, let the user set it in
+    the demo: where the demo already asks for it, or just above the aityx
+    call, or on the opening page. With a key set, show nothing at all;
+    without one, a small, discreet form with the key and optionally the
+    URL, and at the bottom a link to the aityx console to make one.** The
+    shared package gained `AityxKeyPrompt`, a form that shows only while
+    there is no key (neither the user's nor the index server's dev key)
+    and takes no room otherwise: the key, the URL (optional), **Save**,
+    and **Get a key in the aityx console**. **Save** checks the key with
+    aityx as the index page does and saves only one aityx accepts, in the
+    same `localStorage` entries, so the index page and every other demo
+    use it too. The race screen shows it above the river; once a key is
+    saved the keyboard goes back to the game. A key set on the index page
+    is read as before. See [The key form](aityx-key.md).
+
+23. **In this and all demos, let the key be changed without going back to
+    the index, inside the demo itself, with the same mechanism, so the key
+    works for all demos.** A tap on the status light now opens the key
+    panel over the app instead of the index page's key section: the key in
+    use, a field for a new one, **Check and save**, **Forget key** and
+    **Close** ([The key form](aityx-key.md#changing-the-key)). It saves
+    where the index page does, so every demo uses the key. The messages
+    that sent people to the index page now point to the light. Typing in
+    a text field no longer starts the race or flies the plane: before, the
+    game took every key, so a key could only be pasted.

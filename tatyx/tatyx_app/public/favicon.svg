@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" aria-hidden="true">
+  <!-- The board in small: the mainframe, an orange hexagon with a site's
+       diamond in it, and the three teams' origins on its corners, Vice Cyan up,
+       Neon Purple lower right, Sunset Pink lower left, each linked to the core. -->
+  <path d="M24 5 L40.45 14.5 L40.45 33.5 L24 43 L7.55 33.5 L7.55 14.5 Z" fill="none" stroke="#E36742" stroke-opacity="0.35" stroke-width="4.5" stroke-linejoin="round"/>
+  <path d="M24 5 L40.45 14.5 L40.45 33.5 L24 43 L7.55 33.5 L7.55 14.5 Z" fill="#07070F" stroke="#E36742" stroke-width="2.2" stroke-linejoin="round"/>
+  <g stroke-width="1.6" stroke-linecap="round" stroke-opacity="0.85">
+    <line x1="24" y1="7.5" x2="24" y2="14" stroke="#00F0FF"/>
+    <line x1="38.3" y1="32.2" x2="32.66" y2="29" stroke="#BC6CFF"/>
+    <line x1="9.7" y1="32.2" x2="15.34" y2="29" stroke="#FF5CA8"/>
+  </g>
+  <path d="M24 14 L32.66 19 L32.66 29 L24 34 L15.34 29 L15.34 19 Z" fill="#E36742" fill-opacity="0.2" stroke="#E36742" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M24 19 L29 24 L24 29 L19 24 Z" fill="#F5A356"/>
+  <circle cx="24" cy="5" r="3.4" fill="#00F0FF"/>
+  <circle cx="40.45" cy="33.5" r="3.4" fill="#BC6CFF"/>
+  <circle cx="7.55" cy="33.5" r="3.4" fill="#FF5CA8"/>
+</svg>

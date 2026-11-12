@@ -1,3 +1,5 @@
+import 'package:aityx_web/aityx_web.dart'
+    show AityxDemosLink, AityxKeyPrompt;
 import 'package:flutter/material.dart';
 
 import '../aityx/aityx_call_view.dart';
@@ -294,6 +296,15 @@ class _BattleScreenState extends State<BattleScreen> {
                       ),
               ),
             ),
+            // Without an aityx key, a small form for it, just above Start,
+            // whose every turn is played by aityx; else nothing.
+            const ColoredBox(
+              color: Classic.panel,
+              child: AityxKeyPrompt(
+                padding: EdgeInsets.fromLTRB(6, 6, 6, 4),
+                alignment: Alignment.centerLeft,
+              ),
+            ),
             _Controls(controller: c, onNew: _newBattle, onCall: _showCall),
           ],
         ),
@@ -485,6 +496,16 @@ class _MenuBar extends StatelessWidget {
               ),
             ),
           ]),
+          const Spacer(),
+          // The way back to the index page, at the end of the bar, in the
+          // menus' own type.
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 10),
+            child: AityxDemosLink(
+              style: TextStyle(fontSize: 13, color: Classic.text),
+              hoverColor: Classic.selection,
+            ),
+          ),
         ],
       ),
     );
@@ -756,9 +777,19 @@ class _EventLog extends StatelessWidget {
             color: Colors.white,
             padding: const EdgeInsets.all(2),
             child: events.isEmpty
-                ? const Center(
+                // What the demo is and what aityx does, until the first
+                // event; it scrolls when the panel is short.
+                ? const SingleChildScrollView(
+                    padding: EdgeInsets.all(4),
                     child: Text(
-                      'What happens in the battle, turn by turn.',
+                      'Robocode on the web: tanks fight until one is left. '
+                      "Every robot's behavior is an aityx decision model, "
+                      'its rules a table you can edit.\n\n'
+                      'The whole battle is played by aityx, turn by turn: '
+                      'sensors, moves, bullets, hits, damage and scores come '
+                      'back from each call, and the app only draws it. Start '
+                      'a battle: the events show here as they happen, each '
+                      'with the aityx call behind it.',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 11, color: Classic.shadow),
                     ),

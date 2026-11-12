@@ -1,0 +1,14 @@
+name: poker_core
+description: "Poker Tour's engine and table logic, shared by the app and the server: cards, hands, the game, and one decision's request to aityx and the action in its answer."
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  # ^3.13.0, not newer: the Nix Flutter in devbox ships Dart 3.13.0.
+  sdk: ^3.13.0
+
+dependencies:
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.26.0

@@ -5,7 +5,8 @@
 /// storage) is reused by every demo. Everything under one prefix, so the
 /// same files, copied as they are, serve from a static host's /demos/
 /// (the aityx website). Plain Dart, no packages, so `dart bin/server.dart`
-/// runs it. The datyx group has an index of its own (datyx-index/).
+/// runs it. The datyx and multyx groups have indexes of their own
+/// (datyx-index/, multyx-index/).
 ///
 ///   GET /, /demos         301 to /demos/
 ///   GET /app/, /<slug>/... 301 to /demos/ and /demos/<slug>/...: the paths
@@ -17,7 +18,10 @@
 ///   GET /demos/<slug>/... a demo's release web build: every folder beside
 ///                         this one in this index's group (its group.id.txt
 ///                         says INDEX_GROUP, aityx) with a <slug>_app/
-///                         package, the slug being the folder's name in
+///                         (a Flutter package, a static page in
+///                         <slug>_app/web/, or a web app with a
+///                         package.json, built with Vite into the same
+///                         build/web), the slug being the folder's name in
 ///                         lower case: /demos/mortgagehub/ is
 ///                         MortgageHub/mortgagehub_app/build/web. A path
 ///                         that isn't a file gets the build's index.html
@@ -366,7 +370,13 @@ Future<Map<String, _Demo>> _demos() async {
     final folder = _name(entry);
     final slug = folder.toLowerCase();
     if (await _groupOf(entry) != _group) continue;
-    if (!await File('${entry.path}/${slug}_app/pubspec.yaml').exists()) {
+    // A Flutter app (its pubspec.yaml), a static page (its web/index.html,
+    // copied as it is into build/web by the demo's scripts/build.sh: Outpost,
+    // HealthPlan), or a web app (its package.json, built with Vite into
+    // build/web: Holiday Split).
+    if (!await File('${entry.path}/${slug}_app/pubspec.yaml').exists() &&
+        !await File('${entry.path}/${slug}_app/web/index.html').exists() &&
+        !await File('${entry.path}/${slug}_app/package.json').exists()) {
       continue;
     }
     // Never one of this server's own paths under the prefix.

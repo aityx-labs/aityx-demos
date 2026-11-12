@@ -27,7 +27,8 @@ or, with no key of the user's:  ──POST /demos/aityx/v1/systemone──▶  i
   90 s at most), maps the answers to the status, the figures and the five
   checks, and shows a spinner, then the result, or the error with **Try
   again**. The errors: *aityx is not set up: set your key on the index
-  page* (no key: nothing is sent), *aityx rejected the key* (401, 403),
+  page* (no key: nothing is sent, and the [key form](aityx-key.md) shows
+  above **Try again**; saving a key runs the check again), *aityx rejected the key* (401, 403),
   *aityx did not answer* (the network, CORS or the timeout), *aityx
   answered HTTP n* with aityx's `detail` (any other status), *unexpected
   answer from aityx* (no answers, or a `decision_error`), *the rules

@@ -1,0 +1,459 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  tatyx, serverless: the app in S3 behind CloudFront at /tatyx/, the API
+  and the aityx relay as a Lambda function behind its function URL
+  (/api/, /aityx/), the tournament runner as another, one at a time, the
+  tour's files and the leaderboard's aityx key in one bucket (players
+  bring their own keys), and an EventBridge schedule that plays a
+  tournament four times a day. Deployed by deploy/deploy.sh.
+
+Parameters:
+  GoogleClientId:
+    Type: String
+    Description: >-
+      The Google OAuth client id the app signs players in with; its
+      authorized JavaScript origins must list the CloudFront address this
+      stack outputs. Empty disables the sign-in.
+    Default: ''
+  AllowedDomains:
+    Type: String
+    Description: The email domains that may play, comma separated; * is any Google account.
+    Default: '*'
+  AityxUrl:
+    Type: String
+    Description: >-
+      aityx's base URL, for the runner and the relay: production's
+      (deploy.sh passes AITYX_PROD_URL, never the local AITYX_URL).
+    Default: https://api.aityx.ai
+  ScheduleHours:
+    Type: String
+    Description: >-
+      The hours of the day (UTC) at which a tournament is played, comma
+      separated as a cron field; "off" for none.
+    Default: 0,6,12,18
+  CodeBucket:
+    Type: String
+    Description: The bucket deploy.sh uploaded the functions' zip to.
+  CodeKey:
+    Type: String
+    Description: The zip's key in it.
+  LambdaArchitecture:
+    Type: String
+    Default: arm64
+    AllowedValues: [arm64, x86_64]
+  MaxEntries:
+    Type: Number
+    Default: 3
+    Description: Strategies a player may have in the tour at once.
+  LeaderboardKeyObject:
+    Type: String
+    Default: tatyx/leaderboard.key
+    Description: >-
+      The production leaderboard key object: what the runner plays the
+      tournaments with. Players can never read it.
+  DataPrefix:
+    Type: String
+    Default: tour/
+    Description: The prefix of the tour's files in the data bucket.
+
+Conditions:
+  HasSchedule: !Not [!Equals [!Ref ScheduleHours, 'off']]
+
+Resources:
+  # The tour's files under DataPrefix (leaderboard.json, strategies.json,
+  # players.json, live.json, session-secret) and the leaderboard's key
+  # (LeaderboardKeyObject): private; only the functions, with their role,
+  # read and write in it. Kept when the stack goes, with the tour in it.
+  DataBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-data-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+
+  # The app's web build, under tatyx/: private, read by CloudFront alone.
+  WebBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-web-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  WebBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${WebBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-web'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # /, /tatyx and the old /app paths go to /tatyx/; a folder gets its
+  # index.html, as do the privacy policy and the terms (/tatyx/privacy,
+  # /tatyx/tos); another path without an extension under /tatyx/ gets the app.
+  ViewerFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${AWS::StackName}-viewer'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: "tatyx's paths: /tatyx/ is the app, a folder its index.html"
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+          if (uri === '/' || uri === '/tatyx' || uri === '/app' || uri.indexOf('/app/') === 0) {
+            return { statusCode: 302, statusDescription: 'Found', headers: { location: { value: '/tatyx/' } } };
+          }
+          if (uri.slice(-1) === '/') {
+            request.uri = uri + 'index.html';
+          } else if (uri === '/tatyx/privacy' || uri === '/tatyx/tos') {
+            request.uri = uri + '/index.html';
+          } else if (uri.indexOf('/tatyx/') === 0 && uri.indexOf('.') === -1) {
+            request.uri = '/tatyx/index.html';
+          }
+          return request;
+        }
+
+  # The API's requests carry the page's host to the function, whose own
+  # Host is its URL's: the server checks a POST's Origin against it. Set
+  # here, so a viewer's own x-tatyx-host never reaches it.
+  ApiViewerFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${AWS::StackName}-api-viewer'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: "tatyx's API: the page's host in x-tatyx-host"
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          request.headers['x-tatyx-host'] = { value: request.headers.host ? request.headers.host.value : '' };
+          return request;
+        }
+
+  # The API is never cached; the Authorization header (the player's own
+  # key, for the relay) must be in the cache key for CloudFront to pass
+  # it on. The cookies reach the function through the origin request
+  # policy.
+  ApiCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub '${AWS::StackName}-api'
+        Comment: "tatyx's API, uncached, with the player's key passed on"
+        DefaultTTL: 0
+        MinTTL: 0
+        MaxTTL: 1
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: false
+          EnableAcceptEncodingBrotli: false
+          CookiesConfig:
+            CookieBehavior: none
+          HeadersConfig:
+            HeaderBehavior: whitelist
+            Headers: [Authorization]
+          QueryStringsConfig:
+            QueryStringBehavior: all
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub 'tatyx (${AWS::StackName})'
+        HttpVersion: http2and3
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+        Origins:
+          - Id: web
+            DomainName: !GetAtt WebBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt OriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+          - Id: api
+            DomainName: !Select [2, !Split ['/', !GetAtt ApiUrl.FunctionUrl]]
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+              OriginReadTimeout: 60
+        DefaultCacheBehavior:
+          TargetOriginId: web
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          # The managed CachingOptimized policy.
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt ViewerFunction.FunctionMetadata.FunctionARN
+        CacheBehaviors:
+          - PathPattern: /api/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref ApiCachePolicy
+            # The managed AllViewerExceptHostHeader policy: every header,
+            # the cookies and the body reach the function URL.
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ApiViewerFunction.FunctionMetadata.FunctionARN
+          - PathPattern: /aityx/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref ApiCachePolicy
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ApiViewerFunction.FunctionMetadata.FunctionARN
+
+  # The functions' role: their logs, the tour's files, the leaderboard's
+  # key object (to read), and the runner function to invoke (the API's,
+  # when a tournament is asked for). The runner by name, not reference,
+  # so the role needs no function and no function the role.
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: the-tour
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource: !Sub 'arn:aws:s3:::${AWS::StackName}-data-${AWS::AccountId}/${DataPrefix}*'
+              # So a missing file (or key object) is a 404, not an
+              # AccessDenied: S3 asks for ListBucket on the bucket itself.
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub 'arn:aws:s3:::${AWS::StackName}-data-${AWS::AccountId}'
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub 'arn:aws:s3:::${AWS::StackName}-data-${AWS::AccountId}/${LeaderboardKeyObject}'
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-runner'
+
+  ApiLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-api'
+      RetentionInDays: 14
+
+  RunnerLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AWS::StackName}-runner'
+      RetentionInDays: 14
+
+  # The API and the relay: tatyx_server/lambda.mjs's handler, the
+  # server's own routes, behind its function URL, which CloudFront serves
+  # under /api/ and /aityx/.
+  ApiFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: ApiLogs
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-api'
+      Description: tatyx's API and aityx relay
+      Runtime: nodejs22.x
+      Handler: tatyx_server/lambda.handler
+      Architectures: [!Ref LambdaArchitecture]
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Role: !GetAtt FunctionRole.Arn
+      MemorySize: 512
+      Timeout: 60
+      Environment:
+        Variables:
+          TATYX_DATA_BUCKET: !Sub '${AWS::StackName}-data-${AWS::AccountId}'
+          TATYX_DATA_PREFIX: !Ref DataPrefix
+          TATYX_RUNNER_FUNCTION: !Sub '${AWS::StackName}-runner'
+          TATYX_LEADERBOARD_KEY_OBJECT: !Ref LeaderboardKeyObject
+          TATYX_OIDC_CLIENT_ID: !Ref GoogleClientId
+          TATYX_ALLOWED_DOMAINS: !Ref AllowedDomains
+          TATYX_VIEWER_HOST_HEADER: 'on'
+          TATYX_MAX_ENTRIES: !Ref MaxEntries
+          TATYX_LEADERBOARD_EVERY_HOURS: '6'
+          AITYX_URL: !Ref AityxUrl
+
+  ApiUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt ApiFunction.Arn
+      AuthType: NONE
+
+  # A public function URL needs both statements: the URL's own
+  # permission, and the invocation through it.
+  ApiUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+
+  ApiUrlInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiFunction
+      Action: lambda:InvokeFunction
+      Principal: '*'
+      InvokedViaFunctionUrl: true
+
+  # The runner: one tournament per invocation, within fifteen minutes;
+  # one at a time (reserved concurrency 1: the others wait their turn in
+  # Lambda's own queue, up to six hours).
+  RunnerFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: RunnerLogs
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-runner'
+      Description: tatyx's leaderboard, one tournament per invocation
+      Runtime: nodejs22.x
+      Handler: tatyx_server/lambda.runner
+      Architectures: [!Ref LambdaArchitecture]
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Role: !GetAtt FunctionRole.Arn
+      MemorySize: 1024
+      Timeout: 900
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          TATYX_DATA_BUCKET: !Sub '${AWS::StackName}-data-${AWS::AccountId}'
+          TATYX_DATA_PREFIX: !Ref DataPrefix
+          TATYX_LEADERBOARD_KEY_OBJECT: !Ref LeaderboardKeyObject
+          TATYX_ALLOWED_DOMAINS: !Ref AllowedDomains
+          TATYX_MAX_ENTRIES: !Ref MaxEntries
+          TATYX_LEADERBOARD_EVERY_HOURS: '0'
+          AITYX_URL: !Ref AityxUrl
+
+  RunnerInvokeConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref RunnerFunction
+      Qualifier: $LATEST
+      MaximumRetryAttempts: 0
+      MaximumEventAgeInSeconds: 21600
+
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: run-the-tournaments
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt RunnerFunction.Arn
+
+  # Four times a day, every six hours, UTC.
+  Schedule:
+    Type: AWS::Scheduler::Schedule
+    Condition: HasSchedule
+    Properties:
+      Name: !Sub '${AWS::StackName}-tournaments'
+      Description: tatyx's scheduled tournaments
+      ScheduleExpression: !Sub 'cron(0 ${ScheduleHours} * * ? *)'
+      ScheduleExpressionTimezone: UTC
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      State: ENABLED
+      Target:
+        Arn: !GetAtt RunnerFunction.Arn
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: '{"source":"schedule"}'
+        RetryPolicy:
+          MaximumRetryAttempts: 0
+
+Outputs:
+  Url:
+    Description: The app
+    Value: !Sub 'https://${Distribution.DomainName}/tatyx/'
+  Origin:
+    Description: The origin to authorize in the Google OAuth client
+    Value: !Sub 'https://${Distribution.DomainName}'
+  DistributionId:
+    Value: !Ref Distribution
+  WebBucket:
+    Description: Where deploy.sh puts the web build (under tatyx/)
+    Value: !Ref WebBucket
+  DataBucket:
+    Description: The tour's files and the leaderboard's key object
+    Value: !Ref DataBucket
+  LeaderboardKeyObject:
+    Description: Where the leaderboard's production key goes (the functions alone read it)
+    Value: !Sub 's3://${DataBucket}/${LeaderboardKeyObject}'
+  ApiFunction:
+    Value: !Ref ApiFunction
+  RunnerFunction:
+    Value: !Ref RunnerFunction
+  ApiUrl:
+    Description: The API's own address (CloudFront fronts it at /api/ and /aityx/)
+    Value: !GetAtt ApiUrl.FunctionUrl

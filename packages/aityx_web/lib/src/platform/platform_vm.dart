@@ -12,6 +12,9 @@ AityxKeyStore browserKeyStore() => _store;
 /// Opens [page] in the same tab: nothing to open off the web.
 void openPage(Uri page) {}
 
+/// Opens [page] in a new tab: nothing to open off the web.
+void openNewTab(Uri page) {}
+
 /// Off the web the app is never inside another page.
 bool embedded() => false;
 

@@ -1,0 +1,26 @@
+{
+  "name": "tatyx-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "tatyx: three teams race to hack the mainframe, every megabyte decided on aityx. A Phaser 4 web game.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && vite build -c vite.runner.config.ts",
+    "preview": "vite preview",
+    "test": "vitest run && node --test '../tatyx_server/test/*.test.mjs'",
+    "typecheck": "tsc --noEmit",
+    "recolor": "node tool/recolor.mjs",
+    "build:runner": "vite build -c vite.runner.config.ts"
+  },
+  "dependencies": {
+    "aityx-js": "file:../../packages/aityx_js",
+    "phaser": "^4.2.1"
+  },
+  "devDependencies": {
+    "pngjs": "^7.0.0",
+    "typescript": "^5.9.0",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  }
+}

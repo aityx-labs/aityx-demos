@@ -1,0 +1,104 @@
+{
+  "id": "e-99c0b1db1ab9",
+  "name": "The Raider",
+  "tagline": "The Fortress's first Anchor, the Doubler's pairs and a Swarm's Combinator for shortcuts; holds more sites when others crowd in, and races anyone who gets close.",
+  "decisions": {
+    "build": {
+      "type": "Build",
+      "desc": "What the team's next megabyte buys",
+      "table": [
+        [
+          "hack_pct",
+          "leader_pct",
+          "anchors",
+          "builders",
+          "testers",
+          "combinators",
+          "threat",
+          "mainframe_connected",
+          "sites_known",
+          "=>",
+          "# why"
+        ],
+        {
+          "when": {
+            "hack_pct": ">= 40"
+          },
+          "then": "hack",
+          "why": "Well in: finish it."
+        },
+        {
+          "when": {
+            "leader_pct": ">= 40"
+          },
+          "then": "hack",
+          "why": "Someone is getting close: race them."
+        },
+        {
+          "when": {
+            "anchors": "< 1"
+          },
+          "then": "anchor",
+          "why": "Hold the richest site before anything else."
+        },
+        {
+          "when": {
+            "builders": "< 2"
+          },
+          "then": "builder",
+          "why": "A second Builder, for a second pair."
+        },
+        {
+          "when": {
+            "testers": "< 2"
+          },
+          "then": "tester",
+          "why": "A Tester beside every Builder: twice the bytes."
+        },
+        {
+          "when": {
+            "combinators": "< 1"
+          },
+          "then": "combinator",
+          "why": "A Combinator: shortcuts toward the mainframe."
+        },
+        {
+          "when": {
+            "threat": ">= 2",
+            "anchors": "< 3"
+          },
+          "then": "anchor",
+          "why": "Other teams are on the sites it knows: hold another."
+        },
+        {
+          "when": {
+            "mainframe_connected": "false",
+            "sites_known": "< 5"
+          },
+          "then": "explorer",
+          "why": "The mainframe is out of reach: find more of the map."
+        },
+        {
+          "when": {
+            "builders": "< 3"
+          },
+          "then": "builder",
+          "why": "A third Builder."
+        },
+        {
+          "when": {
+            "testers": "< 3"
+          },
+          "then": "tester",
+          "why": "And its Tester."
+        },
+        {
+          "then": "hack",
+          "why": "The raid is set: a bot into the hack."
+        }
+      ]
+    }
+  },
+  "owner": "julio.faerman@aletyx.com",
+  "enteredAt": "2026-11-08T00:48:26.976Z"
+}

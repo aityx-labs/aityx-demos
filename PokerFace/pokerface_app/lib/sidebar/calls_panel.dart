@@ -6,7 +6,8 @@ import '../game/controller.dart';
 import '../theme.dart';
 
 /// Every decision asked of aityx, newest first: who, the situation in a
-/// line, what the rules said and why. Tap one for the whole call.
+/// line, what the rules said and why. Tap one for the whole call. Before
+/// the first call, what the demo is and what aityx does in it.
 class CallsPanel extends StatelessWidget {
   const CallsPanel({super.key, required this.controller});
 
@@ -17,18 +18,17 @@ class CallsPanel extends StatelessWidget {
     final theme = Theme.of(context);
     final calls = controller.calls;
     if (calls.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            'Every decision at the table is one call to aityx: the '
-            "player's strategy, as rules, run on their situation. The calls "
-            'appear here as they are made.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
+      final style = theme.textTheme.bodyMedium?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      );
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Text(_whatItIs, textAlign: TextAlign.center, style: style),
+            const SizedBox(height: 16),
+            Text(_whatAityxDoes, textAlign: TextAlign.center, style: style),
+          ],
         ),
       );
     }
@@ -38,6 +38,16 @@ class CallsPanel extends StatelessWidget {
       itemBuilder: (context, i) => _CallTile(call: calls[i]),
     );
   }
+
+  static const _whatItIs =
+      "No-limit hold'em at a table of up to nine, where every player is a "
+      'set of rules run by aityx: five strategies to read, or write your '
+      'own. The pace is in your hands.';
+
+  static const _whatAityxDoes =
+      "At each turn the app works out the player's situation and one aityx "
+      'call runs their strategy on it: the action, the amount, and the rule '
+      'that decided it. Deal a hand: the calls show here as they happen.';
 }
 
 class _CallTile extends StatelessWidget {

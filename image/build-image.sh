@@ -11,6 +11,9 @@
 #   datyx  docker.io/aletyxcode/samples-and-demos-datyx: Flutter, GraalVM
 #          and the datyx API's Maven dependencies, and the builds of the
 #          datyx dashboard and HealthHub
+#   multyx docker.io/aletyxcode/samples-and-demos-multyx: Flutter and
+#          Node, and Poker Tour's build (tatyx, not a Flutter app, builds
+#          in the codespace, with its packages, in a minute)
 # A group is the folders whose group.id.txt names it. Run from a laptop
 # with Docker and devbox, on a clean checkout of the commit the image is
 # for (usually main):
@@ -23,8 +26,8 @@
 # with ./build-all.sh (devbox) and copied into the image, which is built
 # for linux/amd64, the Codespaces machines, through Docker's emulation
 # (its Flutter steps take a few minutes). No API binaries are in the
-# image: the aityx demos have none, and the datyx group's compile in a
-# codespace in seconds.
+# image: the aityx demos have none, and the datyx and multyx groups'
+# compile in a codespace in seconds.
 #
 # The staging folder image/context/<group>/ (git-ignored) holds what the
 # Containerfile copies: the pubspecs (the shared packages/ ones too), the
@@ -38,8 +41,8 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 group="${1:-}"
 case "$group" in
-  aityx | datyx) ;;
-  *) echo "usage: bash image/build-image.sh aityx|datyx" >&2; exit 2 ;;
+  aityx | datyx | multyx) ;;
+  *) echo "usage: bash image/build-image.sh aityx|datyx|multyx" >&2; exit 2 ;;
 esac
 image="${IMAGE:-docker.io/aletyxcode/samples-and-demos-$group}"
 cd "$root"

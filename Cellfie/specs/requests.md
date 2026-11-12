@@ -207,3 +207,102 @@ The feature files hold the current specification; see the
     say the new paths. See [aityx calls](aityx-calls.md), [aityx status
     light](aityx-status.md) and [Development
     environment](dev-environment.md).
+18. **Remove the running counter from the top bar beside the title, as
+    in the other demos: leave the title clear, and in the calls panel,
+    before play, show what the demo is and what aityx is doing in it;
+    after play, show the calls as they are.** Cellfie's title bar had no
+    counter beside the title (the status, `Generation N · M cells ·
+    aityx answered in T ms`, sits under the calls panel's header and
+    over the board on narrow windows, and stays there), so only the
+    panel changed: before the first call it now shows two paragraphs,
+    what the demo is (Conway's Game of Life on an infinite board, its
+    rules and pattern catalogue as an aityx decision model, the cells
+    taking a picture of themselves every generation) and what aityx
+    does (one call per generation, with what lives, what dies and the
+    patterns coming back, the calls showing as they happen), in the
+    same muted centered style, scrolling when the panel is short. Once
+    calls arrive the panel shows them as before. See [Calls
+    panel](calls-panel.md).
+
+## 2026-11-11
+
+19. **Make the calls panel draggable, to expand it and see the requests;
+    add anchors to the key parts of the request and the response, to
+    navigate to them directly and precisely.** On wide windows the
+    panel's left edge is a handle: drag it to widen the panel (up to all
+    but 320 px of the window) or narrow it (to 360 px), double-click it
+    for the 440 px it starts at, or use the arrow keys on it. Each JSON
+    pane now has a **Jump to** row of chips, one per key part it has
+    (more of them: the kinds of pattern, all of what is asked, the kind
+    of each cluster and the tokens joined the old ones); a chip, or the
+    part's label in the code, scrolls the pane to exactly that value's
+    first row, marks the whole value and says above the pane what it is,
+    its path and its line. The board is now clipped to its own area, so
+    the cells at its edge no longer paint over the handle. See [Calls
+    panel](calls-panel.md#width) and [Anchors](calls-panel.md#anchors).
+20. **Make the game a bit slower by default: one generation every 3
+    seconds.** The Acceleration slider gained a first stop, `1
+    generation every 3 s`, and starts there (it started at 1
+    generation/s); the other stops are as they were. See
+    [Board](board.md#controls).
+21. **Make the intro paragraphs on the sidebar a bit shorter and more
+    objective, and add a final one, "In memory of John Horton Conway",
+    with a link to his Wikipedia page.** The two paragraphs the calls
+    panel shows before the first call now say only what the demo is
+    (the game, its rules and pattern catalogue as an aityx decision
+    model) and what each aityx call sends and gets back; the tagline
+    about the cells' picture left the panel (it stays in the README). A
+    third line, in italics, reads *In memory of John Horton Conway*,
+    his name linking to his Wikipedia page in a new tab, through the new
+    dependency `url_launcher`. See [Calls panel](calls-panel.md).
+22. **Add the "glider gun" to the list of random starts, and remove from
+    that list the number of generations patterns take to settle.**
+    **Random start** gained **Glider gun**, Gosper's gun alone in the
+    middle of the view, between Zoo and R-pentomino. The R-pentomino's
+    and the Acorn's summaries no longer say 1,103 and 5,206
+    generations: *Five cells that grow into chaos before they settle*
+    and *Seven cells that grow into a vast, long-lived pattern*. See
+    [Board](board.md#controls).
+
+## 2026-11-12
+
+23. **Make sure each demo has a link back to "aityx demos"
+    (https://aityx.ai/demos), visible but discreet; add it where it is
+    missing.** Cellfie had none. The top row gained it under the title: a
+    left arrow and *aityx demos*, small and muted, primary and underlined
+    under the pointer. A tap opens the index page, `/demos/` on the page's
+    origin (https://aityx.ai/demos/ on the aityx website, the local index in
+    development), in the same tab; embedded (`?embed=1`) it isn't shown. It
+    is `AityxDemosLink`, new in the shared `aityx_web` package. See
+    [Board](board.md#the-way-back).
+24. **Remove the "Keep it" option from the index page: always keep the
+    key.** The index page's key form lost **Remember on this device** /
+    **Only this session**: a key is always saved in `localStorage`, on the
+    device, until **Forget key**. The limitation about a session-only key
+    not reaching a new tab went with it. See [aityx status
+    light](aityx-status.md).
+25. **In each demo, make sure the key can be set on the index page and
+    read in the demo; but when it isn't set there, let the user set it in
+    the demo: where the demo already asks for it, or just above the aityx
+    call, or on the opening page. With a key set, show nothing at all;
+    without one, a small, discreet form with the key and optionally the
+    URL, and at the bottom a link to the aityx console to make one.** The
+    shared package gained `AityxKeyPrompt`, a form that shows only while
+    there is no key (neither the user's nor the index server's dev key)
+    and takes no room otherwise: the key, the URL (optional), **Save**,
+    and **Get a key in the aityx console**. **Save** checks the key with
+    aityx as the index page does and saves only one aityx accepts, in the
+    same `localStorage` entries, so the index page and every other demo
+    use it too. The life screen shows it under the app bar, above the
+    board. The no-key snackbar lost its **Set your key** button, which
+    opened the index page: the form is on the screen. A key set on the
+    index page is read as before. See [The key form](aityx-key.md).
+
+24. **In this and all demos, let the key be changed without going back to
+    the index, inside the demo itself, with the same mechanism, so the key
+    works for all demos.** A tap on the status light now opens the key
+    panel over the app instead of the index page's key section: the key in
+    use, a field for a new one, **Check and save**, **Forget key** and
+    **Close** ([The key form](aityx-key.md#changing-the-key)). It saves
+    where the index page does, so every demo uses the key. The messages
+    that sent people to the index page now point to the light.

@@ -10,16 +10,17 @@ Robocode-style battles, every turn played by aityx".
   [aityx_web](../../packages/aityx_web) package, in `MaterialApp.builder`):
   an 8 px dot, grey while checking, green when aityx accepts the key the
   app calls it with, red otherwise; its tooltip says why ("aityx: ready — the key works with
-  https://api.aityx.ai", "aityx: no key — set yours on the index page", "aityx: key
+  https://api.aityx.ai", "aityx: no key — set yours here", "aityx: key
   rejected — …", "aityx: not reachable — …", "aityx: not working — …").
-  The key is the user's, saved on the index page, else the index server's
+  The key is the user's, saved on the index page or in the window's own
+  key form (below), else the index server's
   dev key (see [Development environment](dev-environment.md#the-aityx-key)).
   It checks by posting an empty request to aityx's `/v1/systemone` (a
   working key gets 400 `invalid_request`, without running a model) at
   start, when the key is saved or forgotten on the index page, and when the
   window regains focus, at most once every 30 s there; no timer polling,
   since each check spends a request of the user's quota. A tap opens the
-  index page's key section (`/demos/#aityx-key`) in the same tab.
+  key panel, over the window (see [The key form](aityx-key.md#changing-the-key)).
 - **Menu bar**: **Battle** (New…, Start, Pause/Resume, Stop, Results…),
   **Robot** (Add a robot…, Upload robots…, Download all robots; adding and
   uploading only between battles; see [Robot files](robots.md#robot-files);
@@ -27,6 +28,12 @@ Robocode-style battles, every turn played by aityx".
   [rules](robots.md#the-rules-editor)), **Options** (speeds: 2, 5, 10, 20 or
   30 turns a second, or as fast as aityx; and **Sound: on (turn it off)**
   or **Sound: off (turn it on)**), **Help** (the last aityx call, About).
+  At the right end of the bar, the way back: a left arrow and **aityx
+  demos**, in the menus' type, blue and underlined under the pointer. A
+  tap opens the index page (`/demos/` on the page's origin:
+  https://aityx.ai/demos/ on the aityx website) in the same tab; embedded
+  (`?embed=1`) it isn't shown (`AityxDemosLink`, from the shared
+  [aityx_web](../../packages/aityx_web) package).
 - **Battlefield** ([painter.dart](../roborules_app/lib/battle/painter.dart)),
   800 × 600 scaled to fit: dark ground with a faint speckle and grid;
   tanks with two treads (moving with the tank), a body in the robot's color
@@ -94,11 +101,22 @@ Robocode-style battles, every turn played by aityx".
   starting, rule changes, failed calls) open the same dialog, which says no
   aityx call is behind them. Each line's tooltip says which call it opens.
   The last ten calls keep what was sent and answered; an older call opens
-  saying only the last ten are kept.
+  saying only the last ten are kept. Before the first event the panel
+  says, in muted text that scrolls when the panel is short, what the
+  demo is and what aityx does: "Robocode on the web: tanks fight until
+  one is left. Every robot's behavior is an aityx decision model, its
+  rules a table you can edit." and "The whole battle is played by aityx,
+  turn by turn: sensors, moves, bullets, hits, damage and scores come
+  back from each call, and the app only draws it. Start a battle: the
+  events show here as they happen, each with the aityx call behind it."
 - **Last aityx call**, always at the bottom, below the events: the latest
   call ("Call 9: turns 161–180 of round 1, in 406 ms"; a score call also
   lists the round's scores), a link that opens it in the viewer; "None
   yet" before the first.
+- **Key form**, just above the controls and only while there is no aityx
+  key at all: the key, optionally the aityx URL, **Save**, and a link to
+  the aityx console (see [The key form](aityx-key.md)). With a key, it
+  isn't there.
 - **Controls**: Start/Pause/Resume, Next turn, Stop, Restart, New battle…,
   **Speed** (1 to 60 turns a second, or Max; 10 to start), where a
   battle starts: every 15 seconds of play (pauses don't count) it speeds

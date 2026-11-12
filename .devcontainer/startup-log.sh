@@ -32,7 +32,7 @@ startup_capture() {
 # per line: each with a devbox.json and a process-compose.yaml, in the
 # container's group (DEMOS_GROUP, set by its devcontainer.json: the folders
 # whose group.id.txt names it), its index page among them (Index/ for
-# aityx, datyx-index/ for datyx). Not the demos the index serves itself
+# aityx, datyx-index/ for datyx, multyx-index/ for multyx). Not the demos the index serves itself
 # (startup_served).
 startup_demos() {
   local config dir

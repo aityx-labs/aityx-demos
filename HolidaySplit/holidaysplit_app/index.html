@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<base href="/demos/holidaysplit/">
+<title>Holiday Split</title>
+<meta name="description" content="Who owes what for the holidays: aityx reads the family's group chat, applies the house rules and tells everyone how much to pay, to whom, and by when.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Red+Hat+Mono:wght@400;500;600&family=Limelight&family=Great+Vibes&family=Satisfy&family=Alfa+Slab+One&display=swap">
+</head>
+<body>
+
+<div class="glow" aria-hidden="true"></div>
+<canvas id="fx" aria-hidden="true"></canvas>
+<div class="decor xmas" id="fire" aria-hidden="true"></div>
+<div class="decor xmas" id="garland" aria-hidden="true"></div>
+<div class="decor xmas" id="tree" aria-hidden="true"></div>
+<div class="decor ny" id="skyline" aria-hidden="true"></div>
+<div class="decor tg corner" id="c-tl" aria-hidden="true"></div>
+<div class="decor tg corner" id="c-tr" aria-hidden="true"></div>
+<div class="decor tg corner" id="c-bl" aria-hidden="true"></div>
+<div class="decor tg corner" id="c-br" aria-hidden="true"></div>
+<div class="wrap">
+<header>
+  <div class="top"><div class="brand">aityx</div><div class="countdown" id="countdown"></div><div class="proto" id="mode">Prototype</div><span class="lightslot" id="light"></span></div>
+  <h1>Who owes what <em class="holiday-word" id="hword">for Christmas</em></h1>
+  <p class="lede">Pick a holiday trip. aityx reads the family's group chat, applies the house rules and tells everyone how much to pay, to whom, and by when.</p>
+  <ol class="steps" aria-label="How it works">
+    <li><b>1</b>Connect aityx</li><li><b>2</b>Pick the trip</li><li><b>3</b>Set the house rules</li><li><b>4</b>Get everyone's receipt</li><li><b>5</b>See the aityx call</li>
+  </ol>
+</header>
+
+<section class="panel" aria-labelledby="h-live">
+  <h2 id="h-live"><span class="num">1</span>Connect aityx</h2>
+  <div class="connect">
+    <div class="keystat" id="keystat" role="status"></div>
+    <button class="go" type="button" id="setkey">Set your key</button>
+    <button class="ghost" type="button" id="recall" hidden>Record all examples</button>
+  </div>
+  <div class="note">One key for every aityx demo: set or change it here, and it works in all of them (get one in the <a href="https://console.aityx.ai" target="_blank" rel="noopener" style="color:var(--acc)">aityx console</a>). It stays in your browser and goes only to aityx. Without a key nothing runs: you see a real aityx call we recorded, and the rules stay locked.</div>
+</section>
+
+<section class="panel" aria-labelledby="h-trip">
+  <h2 id="h-trip"><span class="num">2</span>Pick the trip</h2>
+  <div class="tripbar">
+    <div class="tabs" role="group" aria-label="Holiday" id="tabs"></div>
+    <div class="fill" id="fill">
+      <button type="button" id="fill-random" title="Another story from this holiday"></button>
+      <button type="button" class="more" id="fill-more" aria-haspopup="menu" aria-expanded="false" aria-label="Pick a story from this holiday"></button>
+      <div class="menu" id="fill-menu" role="menu" hidden></div>
+    </div>
+  </div>
+  <div class="casetag" id="casetag"></div>
+  <h3 class="lbl">The family group chat</h3>
+  <textarea id="msg" maxlength="2000" aria-label="Trip message" aria-describedby="msgnote"></textarea>
+  <div class="note readnote" id="readnote" role="status" hidden></div>
+  <div class="note" id="msgnote"></div>
+  <h3 class="lbl">Who's coming and what was spent</h3>
+  <p class="note" style="margin:-6px 0 0">aityx counts the people and amounts in these lists. If something here looks wrong, fix it and aityx settles it again.</p>
+  <p class="lockline">🔒 Connect a key above to change people, nights and amounts.</p>
+  <div class="tablewrap"><table id="ppl"></table></div>
+  <div class="addrow"><button class="ghost" id="add-adult" type="button">+ Adult</button><button class="ghost" id="add-kid" type="button">+ Kid</button></div>
+  <div class="tablewrap"><table id="exp"></table></div>
+  <div class="addrow"><button class="ghost" id="add-exp" type="button">+ Expense</button></div>
+</section>
+
+<section class="panel" aria-labelledby="h-rules">
+  <h2 id="h-rules"><span class="num">3</span>Set the house rules</h2>
+  <p class="sub">Every family is different. These rules settle the split, the same way every time. Change one and aityx settles it again.</p>
+  <p class="lockline">🔒 Connect a key above to change the rules. Every change runs on aityx.</p>
+  <div class="rules" id="rules"></div>
+  <div class="splitrow"><button class="go" id="go" type="button">Split it</button></div>
+</section>
+
+<section class="panel after" id="result" aria-labelledby="h-rcpt">
+  <h2 id="h-rcpt"><span class="num">4</span>Get everyone's receipt</h2>
+  <p class="sub">Who pays whom, how much and why. So nobody has to ask "why do I owe that?"</p>
+  <div class="live" id="live" aria-live="polite"></div>
+  <div class="recbody">
+    <div class="jevnote" id="jevnote" hidden></div>
+    <div class="people" id="who" role="group" aria-label="Show receipt for"></div>
+    <div class="receipt" id="receipt"></div>
+    <div class="recbtns"><button class="ghost" id="copyone" type="button">Copy receipt as image</button><button class="ghost" id="copyall" type="button">Copy who pays whom for the group chat</button></div>
+  </div>
+</section>
+
+<section class="panel after" id="dev" aria-labelledby="h-dev">
+  <div class="casebar">
+    <h2 id="h-dev"><span class="num">5</span>See the aityx call</h2>
+    <div class="seg" role="group" aria-label="JSON view"><button type="button" data-view="key" aria-pressed="true">Key parts</button><button type="button" data-view="full" aria-pressed="false">Full JSON</button></div>
+  </div>
+  <details class="jx"><summary>House rules</summary><pre id="dview"></pre></details>
+  <details class="jx"><summary>Request</summary><pre id="req"></pre></details>
+  <details class="jx"><summary>Response</summary><pre id="res"></pre></details>
+  <button class="ghost" id="rec" type="button" hidden>Copy this call as a recording</button>
+</section>
+
+<footer>
+  <span>aityx reads the group chat into the lists, and the house rules settle who pays whom. Without a key you see a real aityx call we recorded.</span>
+  <span><a href="../" style="color:inherit">aityx demos</a> · <span id="version"></span></span>
+</footer>
+</div>
+
+<dialog class="keydialog" id="keydialog" aria-labelledby="keydialog-title">
+  <div class="keydialog-title" id="keydialog-title" role="heading" aria-level="2">Your aityx key</div>
+  <p class="keydialog-note">One key for every aityx demo: it's kept in this browser, where they all read it, and goes only to aityx. Get one in the <a href="https://console.aityx.ai" target="_blank" rel="noopener">aityx console</a>, under API keys.</p>
+  <div id="keyform"></div>
+  <button class="keydialog-close" type="button" id="keyclose">Close</button>
+</dialog>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

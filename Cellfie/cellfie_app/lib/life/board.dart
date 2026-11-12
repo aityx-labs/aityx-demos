@@ -369,6 +369,20 @@ class Board {
   }
 }
 
+/// Gosper's glider gun, 36 × 9: the first pattern found to grow without
+/// limit, firing a glider every 30 generations. Not in the catalogue: it's
+/// a start, not a pattern aityx names.
+const gosperGliderGun =
+    '........................o.........../'
+    '......................o.o.........../'
+    '............oo......oo............oo/'
+    '...........o...o....oo............oo/'
+    'oo........o.....o...oo............../'
+    'oo........o...o.oo....o.o.........../'
+    '..........o.....o.......o.........../'
+    '...........o...o..................../'
+    '............oo......................';
+
 /// What **Random start** can fill the view with.
 enum StartKind {
   sparse('Sparse soup', 'A few cells here and there: most die out, some settle.'),
@@ -377,8 +391,9 @@ enum StartKind {
   islands('Islands', 'A dozen small dense blobs, each on its own.'),
   gliders('Glider fleet', 'Gliders flying in every direction.'),
   zoo('Zoo', 'One of each pattern in the catalogue, scattered and turned at random.'),
-  rPentomino('R-pentomino', 'Five cells that take 1,103 generations to settle.'),
-  acorn('Acorn', 'Seven cells that grow for 5,206 generations.');
+  gliderGun('Glider gun', 'Gosper\'s glider gun: it fires gliders, one after another, forever.'),
+  rPentomino('R-pentomino', 'Five cells that grow into chaos before they settle.'),
+  acorn('Acorn', 'Seven cells that grow into a vast, long-lived pattern.');
 
   const StartKind(this.label, this.summary);
 
@@ -453,6 +468,8 @@ Board startBoard(
         _place(cells, cellsOf(seed.shape), x, y, width, height, rng);
       }
       return Board(alive: cells);
+    case StartKind.gliderGun:
+      return centered(gosperGliderGun);
     case StartKind.rPentomino:
       return centered(seedById('r_pentomino').shape);
     case StartKind.acorn:

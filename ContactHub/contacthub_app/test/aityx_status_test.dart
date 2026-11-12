@@ -46,11 +46,11 @@ void main() {
     expect(tooltip(tester), 'aityx: ready — the key works with https://api.aityx.ai');
   });
 
-  testWidgets('says to set a key on the index page without one', (
+  testWidgets('says to set a key here without one', (
     tester,
   ) async {
     await pumpWith(tester, AityxKeyStore.memory());
-    expect(tooltip(tester), 'aityx: no key — set yours on the index page');
+    expect(tooltip(tester), 'aityx: no key — set yours here');
   });
 
   testWidgets('says when aityx rejects the key', (tester) async {

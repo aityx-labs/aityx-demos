@@ -247,4 +247,51 @@ The requests that shaped RoboRules, oldest first, each with what changed.
     locally and on the website keeps one build, which also works copied
     to a static host's `/demos/` (see
     [Development environment](dev-environment.md)).
+25. **Remove the counter beside the title in the top bar, as in the other
+    demos, and before play show in the events panel what the demo is and
+    what aityx is doing; after play, show the events as they are.**
+    RoboRules' title bar already showed only the title ("Round n of m ·
+    turn t" is the robots list's header, which stays), so nothing moved
+    there. The events panel's empty state, "What happens in the battle,
+    turn by turn.", became two paragraphs that describe the demo and
+    aityx's part in it ("Robocode on the web: tanks fight until one is
+    left. …" and "The whole battle is played by aityx, turn by turn: …
+    Start a battle: the events show here as they happen, each with the
+    aityx call behind it."), in the same muted text, scrolling when the
+    panel is short; the lines show as before once events arrive (see
+    [The window](window.md)).
 
+## 2026-11-12
+
+26. **Make sure each demo has a link back to "aityx demos"
+    (https://aityx.ai/demos), visible but discreet; add it where it is
+    missing.** RoboRules had none. The menu bar gained it at its right end,
+    in the menus' type: a left arrow and *aityx demos*, blue and underlined
+    under the pointer. A tap opens the index page, `/demos/` on the page's
+    origin (https://aityx.ai/demos/ on the aityx website, the local index in
+    development), in the same tab; embedded (`?embed=1`) it isn't shown. It
+    is `AityxDemosLink`, new in the shared `aityx_web` package. See [The
+    window](window.md).
+27. **In each demo, make sure the key can be set on the index page and
+    read in the demo; but when it isn't set there, let the user set it in
+    the demo: where the demo already asks for it, or just above the aityx
+    call, or on the opening page. With a key set, show nothing at all;
+    without one, a small, discreet form with the key and optionally the
+    URL, and at the bottom a link to the aityx console to make one.** The
+    shared package gained `AityxKeyPrompt`, a form that shows only while
+    there is no key (neither the user's nor the index server's dev key)
+    and takes no room otherwise: the key, the URL (optional), **Save**,
+    and **Get a key in the aityx console**. **Save** checks the key with
+    aityx as the index page does and saves only one aityx accepts, in the
+    same `localStorage` entries, so the index page and every other demo
+    use it too. The window shows it just above the controls row. A key set
+    on the index page is read as before. See [The key form](aityx-key.md).
+
+27. **In this and all demos, let the key be changed without going back to
+    the index, inside the demo itself, with the same mechanism, so the key
+    works for all demos.** A tap on the status light now opens the key
+    panel over the app instead of the index page's key section: the key in
+    use, a field for a new one, **Check and save**, **Forget key** and
+    **Close** ([The key form](aityx-key.md#changing-the-key)). It saves
+    where the index page does, so every demo uses the key. The messages
+    that sent people to the index page now point to the light.

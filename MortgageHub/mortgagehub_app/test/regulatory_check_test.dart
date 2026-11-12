@@ -261,7 +261,7 @@ void main() {
           isA<ProposalCheckException>().having(
             (e) => e.message,
             'message',
-            'aityx is not set up: set your key on the index page',
+            'aityx is not set up: set your key (the light, top right)',
           ),
         ),
       );
@@ -350,6 +350,41 @@ void main() {
       expect(sent.url.toString(), 'https://aityx.test/v1/systemone');
       expect(sent.headers['Authorization'], 'Bearer stored-key');
     });
+  });
+
+  testWidgets('a check without a key asks for it above Try again', (
+    tester,
+  ) async {
+    final checker = FakeChecker(
+      error: ProposalCheckException(AityxNoKey.message),
+    );
+    await showSummary(tester, checker);
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        "Couldn't run the check: aityx is not set up: "
+        'set your key (the light, top right)',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('aityx-key-field')), findsOneWidget);
+    expect(find.text('Get a key in the aityx console'), findsOneWidget);
+    expect(
+      tester.getBottomLeft(find.byType(AityxKeyPrompt)).dy,
+      lessThanOrEqualTo(tester.getTopLeft(find.text('Try again')).dy),
+    );
+  });
+
+  testWidgets('a check that failed with a key shows no key form', (
+    tester,
+  ) async {
+    AityxSettings.store = AityxKeyStore.memory(local: {'aityx.key': 'k'});
+    addTearDown(() => AityxSettings.store = AityxKeyStore.memory());
+    final checker = FakeChecker(error: ProposalCheckException('aityx is down'));
+    await showSummary(tester, checker);
+    await tester.pumpAndSettle();
+    expect(find.text('Try again'), findsOneWidget);
+    expect(find.byKey(const ValueKey('aityx-key-field')), findsNothing);
   });
 
   testWidgets('the summary shows why the check could not run', (tester) async {

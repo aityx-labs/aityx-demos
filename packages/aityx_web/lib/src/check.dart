@@ -49,7 +49,7 @@ class AityxState {
     key: false,
     source: AityxSource.none,
     url: null,
-    detail: 'set yours on the index page',
+    detail: 'set yours with the light, top right',
     kind: AityxStateKind.noKey,
     whose: 'no key',
   );
@@ -80,7 +80,7 @@ class AityxState {
       url == null || url!.isEmpty
           ? 'aityx: ready — the key works'
           : 'aityx: ready — the key works with $url',
-    AityxStateKind.noKey => 'aityx: no key — set yours on the index page',
+    AityxStateKind.noKey => 'aityx: no key — set yours here',
     AityxStateKind.rejected => 'aityx: key rejected — $detail',
     AityxStateKind.unreachable => 'aityx: not reachable — $detail',
     AityxStateKind.failing => 'aityx: not working — $detail',
@@ -181,7 +181,7 @@ AityxState classifyAityx({
       connection,
       AityxStateKind.rejected,
       connection.source == AityxSource.user
-          ? 'aityx answered $said: set a new key on the index page'
+          ? 'aityx answered $said: set a new key (the light, top right)'
           : 'aityx answered $said',
     );
   }

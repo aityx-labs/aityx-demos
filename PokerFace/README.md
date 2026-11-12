@@ -59,8 +59,10 @@ lock as Mortgage Hub's and Contact Hub's, so they share one Nix store.
    browser.
 
 Without a key the app opens, but nobody can act: the light at the top
-right is red, and each decision says "aityx is not set up: set your key
-on the index page". The table opens with five players, one per strategy.
+right is red, each decision says "aityx is not set up: set your key
+(the light, top right)", and a small form above the controls takes your key
+(and, optionally, the aityx URL) without leaving the app; with a key, the
+form isn't there. The table opens with five players, one per strategy.
 Press **Play** and watch; the slider sets the pace, **Step** plays one
 step at a time while paused, a tap on a seat shows and edits that
 player's rules, **Players** adds and removes players and shows the

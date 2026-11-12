@@ -18,6 +18,7 @@ dependencies:
   # light, shared by the aityx demos.
   aityx_web:
     path: ../../packages/aityx_web
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:

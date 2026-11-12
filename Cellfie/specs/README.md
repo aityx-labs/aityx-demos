@@ -36,13 +36,17 @@ and response, in a side panel.
   with a notice when one appears.
 - [Calls panel](calls-panel.md): the side panel with every call to aityx,
   newest first: what it decided, and the request and the response as
-  readable JSON with the key parts labeled; the patterns noticed.
+  readable JSON with the key parts labeled and anchored ("Jump to"); the
+  patterns noticed; widened or narrowed by dragging its edge.
 - [aityx calls](aityx-calls.md): the app calls aityx itself, from the
   browser, on the key the user set on the index page or the index
   server's dev key; the checks, and what a failure says.
 - [aityx status light](aityx-status.md): a small dot, top right on every
   screen, green when aityx accepts the key and red otherwise, with why in
-  its tooltip; a tap opens the index page's key section.
+  its tooltip; a tap opens the key panel, over the app, where the key is
+  set, changed or forgotten.
+- [The key form](aityx-key.md): without an aityx key, a small form
+  for it where the app calls aityx; with one, nothing.
 - [Theme](theme.md): the aityx dark palette.
 - [App icon](app-icon.md): a glider on the dark background; the favicon
   and every platform's icon, generated from SVG masters.

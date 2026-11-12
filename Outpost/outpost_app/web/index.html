@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en"><head>
+<!-- Served at /demos/outpost/ (Index/bin/server.dart); scripts/build.sh checks this base. -->
+<base href="/demos/outpost/">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- Only this origin's own files run here, where the user's aityx key is kept;
+     calls go to this origin (the dev proxy) and aityx. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.aityx.ai; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>OUTPOST · How Many Nights</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="fonts.css">
+<style>
+/* App shell: top HUD (nights + meters), the city as the stage with its controls bar, a tabbed dock (Play, Why, City rules, Code). The page never scrolls; only the dock does. */
+:root{--ink:#0d1219;--card:#141b25;--card2:#1b2430;--line:#2a3646;--fg:#eff2f4;--muted:#93a0af;--acc:#e36742;--acc2:#f07a52;--ok:#a6d6b7;--sun:#f2c14e;--sky:#9ab3eb;--bad:#ef6b6b;
+  --chrome:#0f151e;--dock-w:392px;
+  --display:'Poppins',ui-sans-serif,system-ui,sans-serif;--mono:'Red Hat Mono',ui-monospace,Menlo,monospace;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--ink);margin:0;height:100%}
+body{color:var(--fg);font:15px/1.5 var(--display);height:100vh;height:100dvh;overflow:hidden}
+body.locked .only-live,body:not(.locked) .only-replay{display:none!important}
+.mono{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.orange{color:var(--acc)}
+.brand{font:700 20px var(--display)}.brand span{color:var(--acc)}
+.pill{font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--acc);color:var(--acc2);border-radius:99px;padding:3px 10px;white-space:nowrap}
+h1{margin:4px 0 0;font:700 clamp(28px,4.4vw,44px)/1.05 var(--display);letter-spacing:-.015em}
+.lede{margin:6px 0 0;color:var(--muted);font-size:16px;max-width:60ch}
+h2{margin:0;font:600 18px var(--display)}
+h3{margin:0;font:600 15px var(--display)}
+.button{font:600 14px var(--display);color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:10px;padding:9px 14px;cursor:pointer;white-space:nowrap}
+.button:hover{border-color:var(--muted)}
+.button.primary{background:var(--acc);border-color:var(--acc);color:#120c08}
+.button.primary:hover{background:var(--acc2)}
+.button.sm{font-size:13px;padding:6px 11px;border-radius:9px}
+.button.ghost{border-color:transparent;color:var(--muted)}.button.ghost:hover{color:var(--fg);border-color:var(--line)}
+button:disabled{opacity:.45;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--acc2);outline-offset:2px}
+.note{font-size:13.5px;color:var(--muted)}.note a{color:var(--acc2)}
+.note.warn{color:var(--acc2)}.note.ok{color:var(--ok)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* ---------- frame ---------- */
+.app{display:grid;grid-template-rows:auto auto minmax(0,1fr);height:100%}
+.top{display:flex;align-items:center;gap:14px;min-width:0;background:var(--chrome);border-bottom:1px solid var(--line);
+  padding:8px max(16px,env(safe-area-inset-right)) 8px max(16px,env(safe-area-inset-left))}
+.brandbox{display:flex;align-items:baseline;gap:10px;flex:none}
+.mission{font:600 13px var(--display);color:var(--muted);white-space:nowrap;flex:none}
+.mission b{color:var(--fg);font-weight:600}
+.topacts{display:flex;align-items:center;gap:8px;flex:none;margin-left:auto}
+.iconbtn{display:inline-flex;align-items:center;gap:6px}
+.iconbtn svg{width:16px;height:16px}
+
+/* nights tracker */
+.phases{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;flex:1 1 420px;max-width:540px;min-width:0}
+.ph{border:1px solid var(--line);border-radius:9px;padding:3px 6px;text-align:center;font:600 12.5px/1.3 var(--display);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ph small{display:block;font:500 9.5px var(--mono);letter-spacing:.08em}
+.ph .st{color:var(--sun);font-size:10.5px;letter-spacing:1px;min-height:14px;line-height:14px}
+.ph.now{border-color:var(--acc);color:var(--fg);background:rgba(227,103,66,.1)}
+.ph.done{color:var(--fg)}
+
+/* HUD meters */
+.meters{display:flex;gap:6px;flex:none}
+.meter{background:var(--card2);border-radius:9px;padding:4px 10px 5px;min-width:104px}
+.meter span{display:block;font:500 9.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.meter b{display:block;font:700 16px/1.2 var(--display);font-variant-numeric:tabular-nums}
+.bar{height:4px;border-radius:9px;background:#27323e;margin-top:3px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ok);transition:width .6s ease}
+
+.main{display:grid;grid-template-columns:minmax(0,1fr) var(--dock-w);min-height:0}
+
+/* ---------- stage: the city ---------- */
+.stage{position:relative;display:grid;grid-template-rows:minmax(0,1fr) auto;min-width:0;min-height:0;
+  background:radial-gradient(110% 90% at 50% 38%,#172238 0%,#0b1018 72%)}
+.mapwrap{position:relative;min-height:0;padding:16px;container-type:size}
+.scene{position:absolute;inset:0;margin:auto;width:100%;height:100%;display:block;background:#0b1018;border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+@supports (width:1cqw){.scene{width:min(100cqw,calc(100cqh * 1.75));height:min(100cqh,calc(100cqw * .57143))}}
+.brief{position:absolute;top:16px;left:16px;z-index:2;width:262px;background:rgba(13,18,25,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  border:1px solid var(--line);border-radius:14px;padding:11px 12px;display:flex;flex-direction:column;gap:8px}
+.brief .head{display:flex;flex-direction:column;gap:1px}
+.brief h2{font-size:20px;line-height:1.15}
+.brief .note{font-size:13px;line-height:1.4}
+.facts{display:flex;gap:5px;flex-wrap:wrap}
+.fact{background:var(--card2);border-radius:8px;padding:3px 8px;font-size:12px;white-space:nowrap}
+.fact b{font-variant-numeric:tabular-nums}
+.banner{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:2;width:max-content;max-width:calc(100% - 40px);
+  font:700 13.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;text-align:center;padding:8px 14px;border-radius:10px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+@supports (width:1cqw){.banner{bottom:calc(16px + (100cqh - min(100cqh,calc(100cqw * .57143))) / 2 + 12px)}}
+.banner.night{background:rgba(16,24,46,.85);color:var(--sky);border:1px solid rgba(154,179,235,.35)}
+.banner.out{background:rgba(48,14,18,.88);color:var(--bad);border:1px solid rgba(239,107,107,.45)}
+.banner.ok{background:rgba(14,36,24,.88);color:var(--ok);border:1px solid rgba(166,214,183,.4)}
+
+/* controls bar under the city */
+.cbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 16px;background:var(--chrome);border-top:1px solid var(--line);min-width:0}
+.status{flex:1 1 260px;min-width:0;display:flex;flex-direction:column;gap:2px}
+.status .note:empty{display:none}
+.result{font:600 15px/1.4 var(--display)}
+.result:empty{display:none}
+.stars{color:var(--sun);font-size:17px;letter-spacing:2px}
+.whylink{align-self:flex-start;background:none;border:0;padding:0;color:var(--acc2);font:600 13px var(--display);cursor:pointer}
+.whylink:hover{text-decoration:underline}
+.result:empty~.whylink{display:none}
+.controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center;margin-left:auto}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
+.controls .button.primary{padding:10px 18px;font-size:15px}
+
+/* how to play: overlay on the city */
+.howto{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(5,8,13,.72);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.howcard{width:min(720px,100%);max-height:100%;overflow:auto;background:var(--card);border:1px solid var(--acc);border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 24px 70px rgba(0,0,0,.5)}
+.how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.how div{background:var(--card2);border-radius:12px;padding:12px;font-size:14px}
+.legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;font-size:13px;line-height:1.35}.legend div{display:flex;gap:8px;align-items:baseline}.legend b{font:700 12px var(--mono);color:var(--fg);white-space:nowrap;min-width:92px}.legend i{display:inline-block;width:18px;height:4px;border-radius:2px;vertical-align:middle;margin-right:2px}
+@media (max-width:700px){.legend{grid-template-columns:minmax(0,1fr)}}
+.how b{display:block;font:700 13px var(--mono);color:var(--acc);letter-spacing:.06em}
+
+/* ---------- dock ---------- */
+.dock{display:flex;flex-direction:column;min-height:0;min-width:0;background:#111821;border-left:1px solid var(--line)}
+.tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));flex:none;border-bottom:1px solid var(--line);background:var(--chrome)}
+.tab{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;
+  color:var(--muted);font:600 12.5px var(--display);padding:10px 4px 8px;cursor:pointer;min-width:0}
+.tab svg{width:18px;height:18px;flex:none}
+.tab:hover{color:var(--fg)}
+.tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--acc)}
+.tab.dot::after{content:"";position:absolute;top:8px;left:calc(50% + 9px);width:8px;height:8px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 2px var(--chrome)}
+.pane{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:16px;display:flex;flex-direction:column;gap:14px}
+.pane-head p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+.dockfoot{flex:none;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 16px;border-top:1px solid var(--line);font:500 10px var(--mono);letter-spacing:.08em;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+
+/* play pane */
+.playstack{display:flex;flex-direction:column;gap:14px}
+
+.connect{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.connect label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);flex:1 1 180px;min-width:0}
+.connect input{background:var(--ink);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font:500 14px var(--mono);width:100%}
+body:not(.locked) .connect label,body:not(.locked) .connect button[type="submit"]{display:none}
+
+.livedot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:6px;box-shadow:0 0 0 3px rgba(166,214,183,.18)}
+#liveplay{display:flex;flex-direction:column;gap:18px}
+#replayplay{display:flex;flex-direction:column;gap:10px}
+.step{border-left:3px solid var(--line);padding-left:12px;display:flex;flex-direction:column;gap:9px}
+.step.active{border-color:var(--acc)}
+.builds{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.build{text-align:left;display:flex;flex-direction:column;gap:2px;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:9px 10px;color:var(--fg);font-family:var(--display);cursor:pointer;min-width:0}
+.build b{font-size:14px;line-height:1.25}.build span{font-size:12px;line-height:1.35;color:var(--muted)}
+.build[aria-pressed="true"]{border-color:var(--acc);background:rgba(227,103,66,.1)}
+.order{display:flex;flex-direction:column;gap:6px}
+.oi{display:flex;align-items:center;gap:8px;background:var(--card2);border-radius:10px;padding:6px 8px 6px 10px}
+.oi .n{font:700 13px var(--mono);color:var(--acc);width:20px}
+.oi .t{flex:1;font-size:14px}
+.oi button{width:32px;height:30px;padding:0}
+.oi.locked{opacity:.8}
+.toggle{display:flex;align-items:center;gap:10px;background:var(--card2);border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer}
+.toggle input{accent-color:var(--acc);width:18px;height:18px;flex:none}
+.lockline{display:none;font-size:13px;color:var(--muted);margin:0}
+body.locked .lockline{display:block}
+.hint{font-size:13px;color:var(--muted);background:var(--card2);border-radius:10px;padding:8px 12px}
+.hint b{color:var(--fg)}
+
+/* receipt */
+.rules p{margin:0;font-size:14px;line-height:1.6;color:var(--fg)}
+.rules p+p{margin-top:2px}
+.rules dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:7px 12px;margin:0;font-size:13.5px;line-height:1.45}
+.rules dt{font:600 10.5px/1.9 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.rules dd{margin:0;color:var(--fg)}
+.rules .note{font-size:12.5px;line-height:1.5;color:var(--muted)}
+
+/* code */
+details{border:1px solid var(--line);border-radius:12px;background:var(--card)}
+summary{cursor:pointer;padding:10px 14px;font:500 14px var(--display);display:flex;justify-content:space-between;gap:10px}
+.inner{padding:0 14px 14px;display:flex;flex-direction:column;gap:12px}
+.json{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+pre{margin:0;max-height:340px;overflow:auto;background:#0b1018;border:1px solid var(--line);border-radius:8px;padding:12px;font:12px/1.5 var(--mono);color:#cfd6df;white-space:pre-wrap;word-break:break-word}
+
+/* end-of-game dialog (unchanged) */
+.win{border:1px solid var(--acc);border-radius:20px;background:var(--card);color:var(--fg);padding:26px 18px 20px;width:min(460px,calc(100vw - 32px));max-width:none;margin:auto;text-align:center;overflow:hidden}
+.win::backdrop{background:rgba(5,8,13,.78);backdrop-filter:blur(3px)}
+.win h2{font:700 30px/1.1 var(--display);margin:6px 0 4px}
+.win .big{font:700 56px/1 var(--display);color:var(--sun);margin:10px 0 2px}
+.win .stars{font-size:clamp(15px,4.6vw,24px);letter-spacing:1px;overflow-wrap:anywhere}
+.win h2{font-size:clamp(23px,6.5vw,30px)}
+@media (max-width:420px){.win .per{gap:4px}.win .per div{font-size:9.5px}.win .per b{font-size:11px}}
+.win .rec{display:inline-block;font:600 11px var(--mono);letter-spacing:.1em;color:#120c08;background:var(--sun);border-radius:99px;padding:4px 10px;margin-top:8px}
+.win .per{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:16px 0}
+.win .per div{background:var(--card2);border-radius:10px;padding:6px 2px;font:500 11px var(--mono);color:var(--muted)}
+.win .per b{display:block;color:var(--sun);font-size:13px;letter-spacing:1px}
+.win .acts{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.win .lamp{font-size:40px;line-height:1}
+.confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.confetti i{position:absolute;top:-12px;width:8px;height:12px;border-radius:2px;opacity:.9;animation:fall 2.6s ease-in forwards}
+@keyframes fall{to{transform:translateY(560px) rotate(540deg);opacity:0}}
+@media (prefers-reduced-motion:reduce){.confetti{display:none}}
+
+/* chapter card when the night changes */
+.levelup{position:absolute;left:50%;top:calc(16px + 7%);z-index:3;pointer-events:none;text-align:center;width:max-content;min-width:min(340px,80%);max-width:calc(100% - 32px);padding:12px 26px 14px;border-radius:16px;
+  background:rgba(10,14,20,.8);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid var(--lv,var(--acc));box-shadow:0 20px 60px rgba(0,0,0,.45);animation:lvl 2.9s cubic-bezier(.2,.7,.2,1) forwards}
+.levelup .k{font:600 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--lv,var(--acc))}
+.levelup .t{font:700 clamp(26px,4vw,40px)/1.05 var(--display);letter-spacing:-.01em;margin:4px 0}
+.levelup .s{font-size:14px;color:var(--muted);max-width:36ch;margin:0 auto}
+.levelup.lv0{--lv:#a6d6b7}.levelup.lv1{--lv:#f07a52}.levelup.lv2{--lv:#f2c14e}.levelup.lv3{--lv:#9ab3eb}.levelup.lv4{--lv:#dff1ff}
+@keyframes lvl{0%{opacity:0;transform:translate(-50%,14px) scale(.94)}14%{opacity:1;transform:translate(-50%,0) scale(1)}80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-14px)}}
+.scene.shift{animation:shift 1s ease}
+@keyframes shift{from{opacity:.15;filter:saturate(.3) brightness(1.5)}to{opacity:1;filter:none}}
+@media (prefers-reduced-motion:reduce){.levelup{animation:none;transform:translate(-50%,0)}.scene.shift{animation:none}}
+@media (max-width:760px){.levelup{padding:7px 16px 9px;min-width:0;top:12px}.levelup .t{font-size:22px;margin:1px 0 0}.levelup .k{font-size:10px}.levelup .s{display:none}}
+
+/* key strip: right under the top bar, the first thing a visitor sees */
+.keystrip{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px max(16px,env(safe-area-inset-left));background:linear-gradient(90deg,rgba(227,103,66,.16),rgba(227,103,66,.05));border-bottom:1px solid rgba(227,103,66,.45)}
+.keystrip h3{margin:0;font:600 15px var(--display);flex:0 1 auto}
+.keystrip .connect{flex:1 1 360px;max-width:520px;align-items:center;flex-wrap:nowrap}
+.keystrip .connect label{flex-direction:row;align-items:center;gap:8px;flex:1 1 auto}
+.keystrip .connect input{padding:8px 10px}
+.keystrip .connstat{width:auto;flex:0 1 auto;padding:5px 10px;font-size:12.5px}
+.keystrip .note{flex:1 1 100%;font-size:12.5px;margin-top:-4px}
+body:not(.locked) .keystrip{background:rgba(166,214,183,.06);border-bottom-color:var(--line);padding-top:6px;padding-bottom:6px}
+body:not(.locked) .keystrip h3{display:none}
+body:not(.locked) .keystrip .connect{flex:0 0 auto}
+#keybtn{display:none}
+/* zoom */
+.zoombar{position:absolute;right:26px;top:26px;z-index:3;display:flex;flex-direction:column;gap:4px}
+.zoombar button{width:32px;height:32px;border-radius:9px;border:1px solid var(--line);background:rgba(10,14,20,.78);color:var(--fg);font:600 17px/1 var(--display);cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.zoombar button:hover{border-color:var(--muted)}.zoombar button:disabled{opacity:.4;cursor:default}
+.scene.zoomed{cursor:grab}.scene.dragging{cursor:grabbing}
+.scene{touch-action:none}
+/* recorded games: what each one is */
+#runs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 8px}
+.runcard{display:flex;flex-direction:column;justify-content:space-between;gap:8px;text-align:left;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;color:var(--fg);font-family:var(--display);cursor:pointer;min-height:78px}
+.runcard:hover{border-color:var(--muted)}
+.runcard b{font-size:14px;line-height:1.25}
+.runcard .rc-res{font-size:12px;color:var(--muted)}.runcard .rc-res strong{font-size:19px;color:var(--sun);margin-right:3px}
+.runcard[aria-pressed="true"]{border-color:var(--acc);background:rgba(227,103,66,.12)}
+.rundetail{border-left:3px solid var(--acc);background:var(--card2);border-radius:0 10px 10px 0;padding:9px 12px;font-size:13px;line-height:1.45;margin-bottom:10px}
+.rundetail:empty{display:none}
+.rundetail ul{margin:6px 0 0;padding:0;list-style:none;color:var(--muted);font-size:12.5px}.rundetail li{padding:2px 0}.rundetail li::before{content:"• ";color:var(--acc)}
+
+/* night counter */
+.phases{display:flex;align-items:center;gap:10px;flex:1 1 360px;max-width:520px;min-width:0}
+.ncount{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:64px;border:1px solid var(--acc);background:rgba(227,103,66,.1);border-radius:10px;padding:2px 10px;line-height:1}
+.ncount span{font:500 9.5px var(--mono);letter-spacing:.12em;color:var(--acc2)}.ncount b{font:700 26px/1.05 var(--display);font-variant-numeric:tabular-nums}
+.ninfo{display:flex;flex-direction:column;min-width:0}.ninfo b{font:600 14px/1.25 var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ninfo span{font:500 10px var(--mono);letter-spacing:.06em;color:var(--muted);text-transform:uppercase;white-space:nowrap}
+.nstars{display:flex;gap:7px;flex-wrap:wrap;min-width:0;overflow:hidden;max-height:30px;align-content:center}.nstars span{color:var(--sun);font-size:10.5px;letter-spacing:0;line-height:1.3;white-space:nowrap}
+/* build bar on the map */
+.buildbar{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);z-index:3;display:flex;align-items:center;gap:6px;padding:6px;border-radius:14px;background:rgba(10,14,20,.82);border:1px solid var(--line);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-shadow:0 10px 30px rgba(0,0,0,.35);max-width:calc(100% - 32px)}
+.bblab{font:600 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 6px;writing-mode:horizontal-tb}
+.bbtn{display:flex;align-items:center;gap:7px;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:6px 10px 6px 7px;color:var(--fg);font-family:var(--display);cursor:pointer;text-align:left;min-width:0}
+.bbtn svg{width:26px;height:26px;flex:none}.bbtn b{display:block;font-size:13px;line-height:1.15}.bbtn small{display:block;font-size:10.5px;color:var(--muted);line-height:1.2}
+.bbtn:hover{border-color:var(--muted)}.bbtn[aria-pressed="true"]{border-color:var(--acc);background:rgba(227,103,66,.16)}
+.demopick{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);z-index:4;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;max-width:calc(100% - 32px);transition:opacity .4s}
+.demopick[hidden]{display:none}.demopick.out{opacity:0}
+.demopick .buildbar{position:static;transform:none;max-width:100%}
+.dprules{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 8px;border-radius:12px;background:rgba(10,14,20,.82);border:1px solid var(--line);font:500 12px var(--display);color:var(--fg)}
+.dprules .lab{font:600 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 4px}
+.dpo{display:flex;gap:4px;align-items:center}.dpo span{padding:3px 8px;border-radius:8px;background:var(--card2);border:1px solid var(--line);transition:background .3s}.dpo span.moved{border-color:var(--acc);background:rgba(227,103,66,.16)}
+.dpt{display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:8px;background:var(--card2);border:1px solid var(--line)}.dpt i{width:13px;height:13px;border-radius:4px;border:1.5px solid var(--muted);display:inline-block}.dpt.on i{background:var(--acc);border-color:var(--acc)}
+.dpghost{position:absolute;left:0;top:0;z-index:6;width:22px;height:22px;pointer-events:none;transition:transform .7s cubic-bezier(.4,.1,.2,1),opacity .3s;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+.dpghost[hidden]{display:none}.dpghost.tap::after{content:"";position:absolute;left:-9px;top:-9px;width:22px;height:22px;border-radius:50%;border:2px solid var(--acc2);animation:tap .45s ease-out}
+@keyframes tap{from{transform:scale(.3);opacity:1}to{transform:scale(1.4);opacity:0}}
+@media (max-width:700px){.dprules{font-size:11px;gap:4px;padding:4px}.dprules .lab{display:none}}
+.bbgo{margin-left:4px;white-space:nowrap;align-self:stretch}@media (max-width:700px){.bbgo{padding:4px 9px;font-size:12px}}
+/* v26: the night status lives on the map, in the city card */
+.brief{width:300px}.brief .phases{flex:none;max-width:none;flex-wrap:wrap;gap:6px 10px}.brief .nstars{flex-basis:100%;max-height:none}.brief .nstars:empty{display:none}
+.brief .meters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.brief .meter{min-width:0;padding:4px 8px 5px}.brief .meter b{font-size:15px}
+#ph-label,#ph-title{display:none}
+/* v32: the map stays the center. The card on the map shows only the night and the meters; building happens in the bar on the map */
+.brief .head,.brief .facts,#s1{display:none!important}.brief{width:auto;max-width:300px}
+
+.keycta{border-color:var(--acc);color:var(--acc2)}
+
+
+/* connection status */
+.connpill,.connstat{--c:#93a0af}
+.connpill{display:inline-flex;align-items:center;gap:7px;font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;border:1px solid color-mix(in srgb,var(--c) 55%,transparent);color:var(--c);border-radius:99px;padding:4px 11px;white-space:nowrap}
+.connpill i,.connstat i,.conndot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}
+.conndot{display:none;--c:#93a0af;align-self:center;margin-left:-4px}
+[data-conn="checking"]{--c:#f2c14e}[data-conn="ok"]{--c:#a6d6b7}[data-conn="invalid"]{--c:#ef6b6b}[data-conn="error"]{--c:#f07a52}
+[data-conn="checking"] i,.conndot[data-conn="checking"]{animation:cpulse 1s ease-in-out infinite}
+[data-conn="ok"] i,.conndot[data-conn="ok"]{box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 25%,transparent)}
+@keyframes cpulse{50%{opacity:.25}}
+.connstat{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--c);background:color-mix(in srgb,var(--c) 9%,transparent);border:1px solid color-mix(in srgb,var(--c) 30%,transparent);border-radius:10px;padding:7px 10px;width:100%}
+.connstat span{flex:1 1 160px;min-width:0}
+.connstat .button{padding:4px 10px}
+@media (prefers-reduced-motion:reduce){[data-conn="checking"] i,.conndot[data-conn="checking"]{animation:none}}
+
+/* why tab: results first, then receipts */
+.whybox{display:flex;flex-direction:column;gap:12px}
+.whyempty{font-size:13.5px;color:var(--muted);background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:16px;text-align:center}
+.whyhead{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.whyhead b{font:600 15px var(--display)}.whyhead span{font:500 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:8px 10px;min-width:0}
+.tile>span{display:block;font:500 9.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tile b{display:block;font:700 17px/1.25 var(--display);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile small{display:block;font-size:11.5px;color:var(--muted);line-height:1.3}
+.tile.good{border-color:rgba(166,214,183,.45)}.tile.good b{color:var(--ok)}
+.tile.warn{border-color:rgba(242,193,78,.5)}.tile.warn b{color:var(--sun)}
+.tile.bad{border-color:rgba(239,107,107,.55)}.tile.bad b{color:var(--bad)}
+.tile.wide{grid-column:1/-1}
+.rulechips{display:flex;flex-wrap:wrap;gap:5px}
+.rulechips div{font-size:12px;background:var(--card2);border-radius:8px;padding:4px 8px;color:var(--muted)}.rulechips b{color:var(--fg);font-weight:600}
+.rgroup{display:flex;flex-direction:column}
+.rgroup>.mono{font-size:10.5px;margin:0 0 4px 2px}
+.receipt{background:#f4f1ea;color:#1e1c21;border-radius:4px;padding:6px 14px;font:13px var(--mono)}
+.rline{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 12px;padding:6px 0;border-bottom:1px dashed #cfc9bd}
+.rline:last-child{border-bottom:0}
+.rline .v{font-weight:700;font-variant-numeric:tabular-nums}
+.rline .why{grid-column:1/-1;font-size:11.5px;color:#6e6a74}
+.src{display:inline-block;font:600 9.5px/1 var(--mono);padding:3px 6px;border-radius:99px;margin-right:6px;background:#e4e1da;color:#4f4b55}
+.hours summary{padding:8px 12px;font-size:13px}
+.htab{width:100%;border-collapse:collapse;font:12px var(--mono);font-variant-numeric:tabular-nums}
+.htab th{font-weight:500;color:var(--muted);text-align:right;padding:4px 6px;font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+.htab td{text-align:right;padding:4px 6px;border-top:1px solid var(--line)}
+.htab th:first-child,.htab td:first-child{text-align:left}
+.htab .off{color:var(--bad)}.htab .on{color:var(--ok)}
+
+/* code: JSON viewer */
+.jvhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+.jvtools{display:flex;gap:4px}
+.jvb{font:500 10.5px var(--mono);color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:7px;padding:3px 7px;cursor:pointer}
+.jvb:hover{color:var(--fg);border-color:var(--muted)}
+.jv{max-height:340px;overflow:auto;background:#0b1018;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:12px/1.55 var(--mono);color:#cfd6df;overscroll-behavior:contain}
+.jv details{margin:0;border:0;background:none;border-radius:0}.jv summary{display:inline;padding:0;font:inherit;cursor:pointer;list-style:none;color:var(--muted)}
+.jv summary::-webkit-details-marker{display:none}
+.jv summary::before{content:"▸ ";color:#6b7684}.jv details[open]>summary::before{content:"▾ "}
+.jv details[open]>summary .jcount{display:none}
+.jvb2{padding-left:14px;border-left:1px solid #1d2632;margin-left:3px}
+.jr{white-space:nowrap}
+.jr.hot>.jk{color:#f2c14e;font-weight:600;background:rgba(242,193,78,.12);border-radius:3px;padding:0 3px;margin-left:-3px}
+.jk{color:#9ab3eb}.js{color:#a6d6b7;white-space:pre-wrap}.jn{color:#f2c14e}.jb{color:#f07a52}.jz{color:#6b7684}.jc{color:#6b7684}.jcount{color:#6b7684}
+.jhot-sample{color:#f2c14e;font-weight:600;background:rgba(242,193,78,.1);box-shadow:inset 2px 0 0 #f2c14e;padding:0 5px;border-radius:3px}
+
+/* power grid key, on demand */
+.mapkey{position:absolute;left:26px;bottom:24px;z-index:3;font:600 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--fg);background:rgba(10,14,20,.72);border:1px solid var(--line);border-radius:99px;padding:5px 11px;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.mapkey:hover,.mapkey[aria-expanded="true"]{border-color:#6fe0ff}
+.mapkeypop{position:absolute;left:26px;bottom:58px;z-index:3;display:flex;flex-direction:column;gap:5px;width:max-content;max-width:min(300px,calc(100% - 52px));padding:10px 12px;border-radius:12px;background:rgba(10,14,20,.88);border:1px solid var(--line);font:500 11px var(--mono);color:var(--muted)}
+.mapkeypop b{color:var(--fg);font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+.mapkeypop span{display:flex;align-items:center;gap:8px}.mapkeypop i{display:inline-block;width:16px;height:3px;border-radius:2px}
+.mapkeypop i.dash{background:repeating-linear-gradient(90deg,#ef6b6b 0 3px,transparent 3px 6px)}.mapkeypop i.ug{background:repeating-linear-gradient(90deg,#aab3bd 0 3px,transparent 3px 6px);height:2px}
+.mapkeypop em{font-style:normal;font-size:10.5px;line-height:1.4;max-width:30ch;opacity:.85}
+@media (max-width:760px){.mapkey{left:auto;right:18px;bottom:auto;top:12px;padding:4px 9px;font-size:9.5px}.mapkeypop{left:auto;right:18px;bottom:auto;top:40px}}
+
+/* ---------- screen sizes ---------- */
+@media (max-width:1580px){.mission{display:none}}
+@media (max-width:1180px){:root{--dock-w:352px}.meter{min-width:92px}}
+@media (max-width:1020px){
+  .top{flex-wrap:wrap;row-gap:6px}
+  .phases{order:5;flex:1 1 100%;max-width:none}
+  .brief{width:230px}
+}
+@media (min-width:761px) and (max-aspect-ratio:5/4){
+  .stage{display:flex;flex-direction:column}
+  .brief{position:static;width:auto;margin:16px 16px 0;flex-direction:row;flex-wrap:wrap;align-items:flex-start;gap:8px 16px}
+  .brief .head{flex:1 1 220px}.facts{flex:1 1 260px;align-content:flex-start}
+  .mapwrap{flex:1 1 auto}
+}
+@media (max-width:900px) and (min-width:761px){.pill,.iconbtn .lbl{display:none}}
+@media (max-width:860px) and (min-width:761px){:root{--dock-w:320px}.build span{display:none}}
+/* phones and narrow windows: HUD, city, controls, then the dock as a sheet that scrolls on its own */
+/* stacked: phones and portrait tablets. City on top, controls bar, then the dock as a sheet that scrolls on its own */
+@media (max-width:760px),(max-width:1100px) and (max-aspect-ratio:5/4){
+  .main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  .stage{display:flex;flex-direction:column}
+  .mapwrap{flex:none;height:min(57vw,max(150px,calc(100dvh - 470px)))}
+  .dock{border-left:0;border-top:1px solid var(--line)}
+  .dockfoot{display:none}
+  .tab{flex-direction:row;justify-content:center;gap:6px;padding:9px 2px}
+  .tab.dot::after{position:static;align-self:flex-start;margin:2px 0 0 -3px;flex:none}
+}
+@media (max-width:760px){
+  body{font-size:14.5px}
+  .top{padding:6px 12px;gap:8px}
+  .brand{font-size:17px}
+  .brandbox .mono,.connpill,#keybtn,.iconbtn .lbl{display:none}
+  .conndot{display:inline-block}
+  .topacts{margin-left:0;order:3}
+  .meters{flex:1 1 0;min-width:0;order:2;gap:4px}
+  .meter{flex:1 1 0;min-width:0;padding:3px 7px 4px}
+  .meter b{font-size:14px}
+  .meter span{font-size:8.5px}
+  .iconbtn{padding:6px 8px}
+  .phases{gap:3px}
+  .ph{font-size:11px;padding:2px 3px;line-height:1.25}
+  .keystrip{padding:8px 12px;gap:6px 10px}.keystrip h3{font-size:13.5px;flex-basis:100%}.keystrip .connect{flex-basis:100%;max-width:none}.keystrip .connstat{flex-basis:100%}.keystrip[data-conn="none"] .connstat,body[data-conn="none"] .keystrip .connstat{display:none}
+  .zoombar{right:auto;left:18px;top:12px;bottom:auto;flex-direction:row}.zoombar button{width:28px;height:28px;font-size:15px}
+  .ncount{min-width:52px;padding:2px 6px}.ncount b{font-size:20px}.ninfo b{font-size:13px}.nstars{display:none}
+  .buildbar{bottom:8px;gap:4px;padding:4px}.bblab,.bbtn small{display:none}.bbtn{padding:4px 7px 4px 5px;gap:5px}.bbtn svg{width:20px;height:20px}.bbtn b{font-size:12px}
+  .keycta{display:none}
+  .ph small{display:none}
+  .ph .st{font-size:9px;min-height:11px;line-height:11px;letter-spacing:0}
+  .brief{position:static;width:auto;border:0;border-radius:0;background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;padding:8px 12px 0;gap:6px}
+  .brief .head{flex-direction:row;flex-wrap:wrap;align-items:baseline;column-gap:8px}
+  .brief h2{font-size:16px}
+  .brief .note{flex-basis:100%;font-size:12.5px}
+  .facts{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -12px;padding:0 12px}
+  .facts::-webkit-scrollbar{display:none}
+  .fact{font-size:11.5px}
+  .mapwrap{padding:8px 12px}
+  .scene{border-radius:12px}
+  .banner{bottom:14px;font-size:11px;padding:6px 10px;letter-spacing:.06em;max-width:calc(100% - 28px)}
+  .cbar{padding:8px 12px;gap:8px}
+  .status{flex-basis:100%;flex-direction:row;flex-wrap:wrap;align-items:baseline;column-gap:10px;row-gap:1px}
+  .status .note{flex-basis:100%;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .whylink{align-self:auto;font-size:12.5px}
+  .result{font-size:14px}.stars{font-size:15px}
+  .controls{width:100%;justify-content:stretch}
+  .ctl{width:100%;justify-content:flex-end}
+  .controls .button{padding:8px 12px;font-size:13.5px}
+  .controls .button.primary{flex:1 1 auto;padding:9px 14px}
+  .ctl{flex-wrap:nowrap}
+  .controls .button{white-space:normal;line-height:1.2}
+  .ctl:has(#retry:not([hidden])) #restart{display:none}
+  #retry{flex:0 1 52%}
+  .tab{font-size:12px}
+  .tab svg{width:15px;height:15px}
+  .pane{padding:12px}
+  .builds{gap:6px}
+  .build{padding:8px}
+  .build b{font-size:13px}.build span{font-size:11px}
+  .howto{position:fixed;padding:12px}
+  .howcard{padding:16px;gap:12px}
+  .how{grid-template-columns:minmax(0,1fr)}
+  .how div{padding:10px}
+}
+@media (max-height:560px) and (min-width:761px){
+  .ph small{display:none}
+  .brief .note{display:none}
+  .tab{flex-direction:row;justify-content:center;gap:6px;padding:8px 2px}
+}
+@media (max-width:700px){.brief .phases{order:0;flex:1 1 100%;flex-wrap:nowrap;max-width:100%}.brief .meters{order:1;flex:1 1 100%;min-width:0;max-width:100%}.brief .head{order:2}.brief .facts{order:3;min-width:0;max-width:100%;flex-wrap:wrap}.brief .nstars{display:none}}
+
+/* The aityx status light, as in every aityx demo (packages/aityx_web): 8 px, top right; grey while it checks,
+   green when aityx accepts the key, red otherwise. A tap opens the key on the demos page. */
+.aityx-light{position:fixed;top:3px;right:3px;z-index:80;width:20px;height:20px;padding:6px;border:0;background:none;cursor:pointer}
+.aityx-light::after{content:"";display:block;width:8px;height:8px;border-radius:50%;background:#47474D;opacity:.8}
+.aityx-light[data-conn="ok"]::after{background:#4CC38A}
+.aityx-light[data-conn="none"]::after,.aityx-light[data-conn="invalid"]::after,.aityx-light[data-conn="error"]::after{background:#F0506E}
+.keystrip .connect a.button{text-decoration:none;display:inline-flex;align-items:center}
+body:not(.locked) #setkey{font-size:13px;padding:6px 11px;border-radius:9px;background:transparent;border-color:var(--line);color:var(--fg)}
+</style></head><body class="locked">
+<div class="app">
+
+<header class="top">
+  <div class="brandbox"><div class="brand"><span>ai</span>tyx</div><span class="conndot" id="conndot" role="img" aria-label="Not connected"></span><div class="mono">OUTPOST</div></div>
+  <div class="mission">Mission 02 · <b>Keep the city's lights on.</b></div>
+  <div class="topacts">
+    <div class="connpill" id="mode" role="status" aria-live="polite"><i></i><span>Replay · no key</span></div>
+    <button class="button sm only-replay" id="keybtn" type="button">Set your key</button>
+    <button class="button sm iconbtn" id="howto-open" type="button" aria-label="How to play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.8-2.5 2.3-2.5 3.9"/><circle cx="12" cy="17.2" r=".6" fill="currentColor"/></svg><span class="lbl">How to play</span></button>
+  </div>
+</header>
+<section class="keystrip keycard" id="keystrip" aria-labelledby="h-key">
+          <h3 id="h-key"><span aria-hidden="true">🔑</span> To play your own city, set your aityx key</h3>
+          <div class="connect" id="connect">
+            <a class="button primary" id="setkey" href="/demos/#aityx-key">Set your aityx key</a>
+            <button class="button sm" type="button" id="recall" hidden>Record 2 games</button>
+          </div>
+          <div class="connstat" id="connstat" role="status" aria-live="polite"><i></i><span id="connmsg">Checking for an aityx key…</span><button class="button sm" id="connretry" type="button" hidden>Check again</button></div>
+          <div class="note only-replay">Set it once on the demos page: every aityx demo uses it, and it goes only to aityx. No key yet? Get one in the <a href="https://console.aityx.ai" target="_blank" rel="noopener">aityx console</a>. Without a key you can watch recorded games.</div>
+        </section>
+<button class="aityx-light" id="aityx-light" type="button" data-conn="checking" aria-label="aityx: checking the key" title="aityx: checking the key"></button>
+
+<main class="main">
+  <section class="stage" aria-label="The city">
+    <div class="brief">
+      <nav class="phases" id="phases" aria-label="Night counter"></nav>
+      <div class="meters" aria-label="City status">
+        <div class="meter"><span>Time</span><b id="m-hour">Dusk</b></div>
+        <div class="meter"><span>Battery</span><b id="m-bat">—</b><div class="bar"><i id="m-batbar" style="width:0"></i></div></div>
+        <div class="meter"><span>Approval</span><b id="m-app">100%</b><div class="bar"><i id="m-appbar" style="width:100%"></i></div></div>
+      </div>
+      <div class="head"><div class="mono" id="ph-label"></div><h2 id="ph-title"></h2><div class="note" id="ph-text"></div></div>
+      <div class="facts" id="facts"></div>
+    </div>
+    <div class="mapwrap">
+      <svg class="scene" id="scene" viewBox="-80 0 840 480" role="img" aria-label="The city at night"></svg>
+      <div class="banner" id="banner" hidden aria-live="polite"></div>
+      <div class="levelup" id="levelup" hidden aria-live="polite"></div>
+      <div class="demopick" id="demopick" hidden aria-hidden="true"><div class="dprules" id="dprules"></div><div class="buildbar" id="dpbuild"></div><div class="dpghost" id="ghost" hidden aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M3 2l7 19 2.6-7.6L20 11z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg></div></div>
+      <div class="buildbar" id="buildbar" role="toolbar" aria-label="Build one thing today" hidden></div>
+      <div class="zoombar" role="group" aria-label="Zoom the city"><button type="button" id="zin" aria-label="Zoom in">+</button><button type="button" id="zout" aria-label="Zoom out">−</button><button type="button" id="zfit" aria-label="Fit the whole city" style="font-size:13px">⤢</button></div>
+      <button class="mapkey" id="mapkey" type="button" aria-expanded="false" aria-controls="mapkeypop" title="What the lines mean">Grid key</button>
+      <div class="mapkeypop" id="mapkeypop" hidden><b>Power grid</b><span><i style="background:#6fe0ff"></i>supplying</span><span><i style="background:#7dff9a"></i>charging the battery</span><span><i style="background:#f2c14e"></i>not enough for all</span><span><i class="dash"></i>no power</span><span><i class="ug"></i>buried cable</span><em>An illustration: aityx counts energy for the whole city each hour, not per wire.</em></div>
+    </div>
+    <div class="cbar">
+      <div class="status" aria-live="polite">
+        <div class="note" id="live"></div>
+        <div class="result" id="result"></div>
+        <button class="whylink" type="button" data-tab="why">Why it went this way →</button>
+      </div>
+      <div class="controls">
+        <div class="ctl only-live" id="s3">
+          <button class="button ghost" id="restart" type="button">Start over</button>
+          <button class="button" id="retry" type="button" hidden>↺ Try this phase again</button>
+          <button class="button" id="next" type="button" hidden>Next hour ⏭</button>
+          <button class="button primary" id="cont" type="button" hidden>Next phase →</button>
+          <button class="button primary" id="go" type="button">Start the night</button>
+        </div>
+        <div class="ctl only-replay">
+          <button class="button keycta" type="button" data-keycta>🔑 Set your aityx key to play</button>
+          <button class="button" id="rnext" type="button">Next hour ⏭</button>
+          <button class="button primary" id="play" type="button">▶ Play</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="howto" id="howto" role="dialog" aria-labelledby="howto-title" hidden>
+      <div class="howcard">
+        <div class="mono orange">MISSION 02 / HOW LONG CAN IT LAST?</div>
+        <h1 id="howto-title">Keep the city's lights on.</h1>
+        <p class="lede">You run the power of a growing city. Get ready by day, write the rules for the night, and see if the city makes it to morning. Every night the city grows and the night gets harder. How many can it survive?</p>
+        <section class="how" aria-label="How to play">
+          <div><b>1 · BY DAY</b>Build one thing: a solar panel, a battery or a wind turbine. It stays for the next nights.</div>
+          <div><b>2 · BEFORE NIGHT</b>Set the night rules: what goes dark first when power runs short.</div>
+          <div><b>3 · THE NIGHT</b>aityx runs the night hour by hour with your rules. Keep people happy and the hospital on.</div>
+        </section>
+        <div class="mono orange">WHAT YOU SEE</div>
+        <section class="legend" aria-label="What each thing means">
+          <div><b>Night</b><span>Each night the city grows. How many can it survive?</span></div>
+          <div><b>Battery</b><span>Energy stored from the sun. It powers the city at night.</span></div>
+          <div><b>Approval</b><span>How happy people are. Below 50% at dawn, the city falls.</span></div>
+          <div><b>Stars</b><span>★★★ at 90%+, ★★ at 70%+, ★ if the city just made it.</span></div>
+          <div><b>Hospital</b><span>Always served first. If it goes dark, the night is lost.</span></div>
+          <div><b>Houses</b><span>Each house in the dark costs approval, every hour.</span></div>
+          <div><b>Streetlights</b><span>Cheap to run. You can switch them off after midnight.</span></div>
+          <div><b>Factory</b><span>Runs only on spare power. Each hour adds battery storage.</span></div>
+          <div><b>Grid lines</b><span><i style="background:#6fe0ff"></i>supplying <i style="background:#7dff9a"></i>charging <i style="background:#f2c14e"></i>not enough</span></div>
+          <div><b>Why</b><span>The receipt shows every number and the rule behind it.</span></div>
+        </section>
+        <div class="row"><button class="button primary" id="howto-go" type="button">Let's play</button><span class="note">Each night is one aityx call. Without a key you watch real games we recorded.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="dock" aria-label="Controls and results">
+    <div class="tabs" role="tablist" aria-label="Panels">
+      <button class="tab" role="tab" id="tab-play" data-tab="play" aria-controls="pane-play" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>Play</button>
+      <button class="tab" role="tab" id="tab-why" data-tab="why" aria-controls="pane-why" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Why</button>
+      <button class="tab" role="tab" id="tab-rules" data-tab="rules" aria-controls="pane-rules" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></svg>City rules</button>
+      <button class="tab" role="tab" id="tab-dev" data-tab="dev" aria-controls="pane-dev" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg>Code</button>
+    </div>
+
+    <div class="pane" id="pane-play" role="tabpanel" aria-labelledby="tab-play">
+      <div class="pane-head"><h2>Play</h2><p>Build by day, set the night rules, then start the night from the bar under the city.</p></div>
+      <div class="playstack">
+
+        <div id="liveplay">
+          <div class="step active" id="s1"><div class="mono">Step 1 · by day</div><h3>Build one thing</h3><div class="builds" id="builds"></div></div>
+          <div class="step active" id="s2"><div class="mono">Before night</div><h3>Your night rules</h3>
+            <div class="note">When power runs short, turn off first:</div>
+            <div class="order" id="order"></div>
+            <label class="toggle"><input type="checkbox" id="t-lights"> Streetlights off after midnight</label>
+            <label class="toggle" id="t-fac-row"><input type="checkbox" id="t-fac"> <span>Factory keeps running at night <span class="note">(spare power only; each hour adds +5 battery storage)</span></span></label>
+          </div>
+          <div class="hint"><span class="mono orange">The night</span><br>Press <b>Start the night</b> under the city. aityx runs it hour by hour.</div>
+        </div>
+
+        <div id="replayplay" hidden>
+          <div class="mono">Watch a recorded game</div>
+          <div class="note">Real games played on aityx. Pick one, then press <b style="color:var(--fg)">▶ Play</b> under the city.</div>
+          <div id="runs"></div>
+          <div class="rundetail" id="rundetail"></div>
+          <p class="lockline">🔒 Set your aityx key to build, set your own rules and see how many nights your city survives.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="pane" id="pane-why" role="tabpanel" aria-labelledby="tab-why" hidden>
+      <div class="pane-head"><h2 id="h-rcpt">Why the night went this way</h2><p>The results first, then every receipt from aityx with the rule behind it.</p></div>
+      <div id="receipt" class="whybox"><div class="whyempty">Play a night to see its results and receipts.</div></div>
+    </div>
+
+    <div class="pane" id="pane-rules" role="tabpanel" aria-labelledby="tab-rules" hidden>
+      <div class="pane-head"><h2>The rules of the city</h2><p>What aityx computes each night.</p></div>
+      <div class="card rules">
+        <dl>
+          <dt>Night</dt><dd>6 hours, 8 PM to 6 AM. Hours from 2 AM on are after midnight.</dd>
+          <dt>Use per hour</dt><dd>House 2 · Streetlights 3 · Hospital 4 · Factory 6</dd>
+          <dt>Battery</dt><dd>At dusk: panels × sunlight × 4, up to capacity. A battery build adds 30 capacity.</dd>
+          <dt>Wind</dt><dd>Turbines × the hour's wind, added every hour.</dd>
+          <dt>Who gets power</dt><dd>The hospital first, then the others; your order says which goes dark first.</dd>
+          <dt>Factory</dt><dd>Spare power only: never what the others need before morning. +5 capacity per hour it runs.</dd>
+          <dt>Approval</dt><dd>Starts at 100. −3 per house per hour in the dark, −1 per hour of dark streetlights. Streetlights you switch off after midnight cost nothing.</dd>
+          <dt>Pass</dt><dd>The hospital never goes dark and approval at dawn is 50% or more.</dd>
+          <dt>Stars</dt><dd>★★★ 90%+ · ★★ 70%+ · ★ passed</dd>
+          <dt>Growth</dt><dd>Nights 1–5: 5 to 10 houses, the hospital on night 2, the factory on night 3. Nights 6–10: one public building a night, counted as a house. After night 10: less sun.</dd>
+        </dl>
+        <p class="note">aityx computes every number: same inputs, same night. The page only draws it. The grid lines on the map are an illustration; the model counts energy for the whole city per hour, not per wire.</p>
+      </div>
+    </div>
+
+    <div class="pane" id="pane-dev" role="tabpanel" aria-labelledby="tab-dev" hidden>
+      <div class="pane-head"><h2>Code: the aityx call</h2><p>POST /v1/systemone, one per night.</p></div>
+      <div class="json">
+        <div><div class="jvhead"><span class="mono">Response</span><span class="jvtools"><button class="jvb" type="button" data-jv="res" data-act="open">Expand all</button><button class="jvb" type="button" data-jv="res" data-act="close">Collapse</button><button class="jvb" type="button" data-jv="res" data-act="copy">Copy</button></span></div><div class="jv" id="res"><span class="jc">// Nothing runs without aityx.</span></div></div>
+        <div><div class="jvhead"><span class="mono">Request</span><span class="jvtools"><button class="jvb" type="button" data-jv="req" data-act="open">Expand all</button><button class="jvb" type="button" data-jv="req" data-act="close">Collapse</button><button class="jvb" type="button" data-jv="req" data-act="copy">Copy</button></span></div><div class="jv" id="req"><span class="jc">// Play a night to see the request.</span></div></div>
+        <p class="note" style="margin:0"><span class="jhot-sample">Highlighted</span> fields are the ones the city is drawn from. The key is never shown here.</p>
+      </div>
+      <p class="note" id="api-where" style="margin:0">Calls go to aityx with the key set on the demos page.</p>
+    </div>
+
+    <footer class="dockfoot"><span>OUTPOST · MISSION 02 · AN AITYX DEMO</span><span>RUNS ON AITYX · ONE CALL PER NIGHT</span></footer>
+  </aside>
+</main>
+</div>
+
+<dialog class="win" id="win" aria-labelledby="win-title">
+  <div class="confetti" id="confetti" aria-hidden="true"></div>
+  <div class="lamp" aria-hidden="true">💡</div>
+  <div class="mono orange" id="win-kicker">THE CITY WENT DARK</div>
+  <h2 id="win-title">The city made it to morning.</h2>
+  <div class="big" id="win-score">0</div>
+  <div class="stars" id="win-stars"></div>
+  <div id="win-rec" class="rec" hidden>NEW RECORD</div>
+  <div class="per" id="win-per"></div>
+  <p class="note" id="win-text" style="margin:0 0 14px"></p>
+  <div class="acts">
+    <button class="button primary" id="win-again" type="button">Play again</button>
+    <button class="button" id="win-share" type="button">Copy my score</button>
+    <button class="button" id="win-close" type="button">See how aityx ran the last night</button>
+  </div>
+</dialog>
+
+<script src="recordings.js"></script>
+<script src="shell.js"></script>
+<script src="outpost.js"></script>
+</body></html>

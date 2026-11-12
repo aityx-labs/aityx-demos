@@ -45,6 +45,14 @@ const demos = [
     icon: 'plane', codespace: 'aityx',
   },
   {
+    kind: 'game', folder: 'Outpost', name: 'Outpost',
+    what: 'Keep a growing city’s lights on, one aityx call per night',
+    desc: 'Run the power of a city that grows every night. By day, build a solar panel, a battery or a wind turbine; before night, write the rules for what goes dark first. aityx runs the whole night, hour by hour, as a decision model, and the page only draws it: every number on the map and every line of the receipt, with the rule behind it. How many nights can your city survive?',
+    chips: ['aityx', 'simulation', 'game', 'user playable'],
+    // No recording yet: the card has no animation (gif: false).
+    icon: 'bulb', codespace: 'aityx', gif: false,
+  },
+  {
     kind: 'app', folder: 'HealthPlan', name: 'Health Plan',
     what: 'Which 2027 health plan will actually cost you less?',
     desc: 'Describe your family’s year in plain words. In one aityx call, Jev reads each person’s care and any pregnancy from the message, and the plan rules price Bronze, Silver and Gold for that year: premium plus what you pay for care, after deductibles, coinsurance and the family cap. A receipt per plan gives every number and where it came from, and what-if switches show the winner change.',
@@ -74,6 +82,7 @@ const icons = {
   grid: '<path d="M4 4h4v4H4zM10 4h4v4h-4zM16 4h4v4h-4zM4 10h4v4H4zM16 10h4v4h-4zM4 16h4v4H4zM10 16h4v4h-4zM16 16h4v4h-4z"/>',
   robot: '<path d="M5 9 H19 V19 H5 Z M8 12 H10 V14 H8 Z M14 12 H16 V14 H14 Z M11 4 H13 V9 H11 Z M2 12 H5 V17 H2 Z M19 12 H22 V17 H19 Z"/>',
   cards: '<path d="M7 3 H17 A2 2 0 0 1 19 5 V19 A2 2 0 0 1 17 21 H7 A2 2 0 0 1 5 19 V5 A2 2 0 0 1 7 3 Z M12 7 C13 9 16 10 16 13 C16 14.5 14.7 15.5 13.4 14.8 L14 17 H10 L10.6 14.8 C9.3 15.5 8 14.5 8 13 C8 10 11 9 12 7 Z" fill-rule="evenodd"/>',
+  bulb: '<path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2Z M9 18.5h6V20H9Z M10 21h4v1h-4Z"/>',
   plane: '<path d="M12 2 L13.5 8 L21 12 V14 L13.5 12 L13 18 L16 20 V21.5 L12 20.5 L8 21.5 V20 L11 18 L10.5 12 L3 14 V12 L10.5 8 Z"/>',
 };
 const github = 'https://github.com/aityx-labs/aityx-demos/tree/main/';
@@ -100,8 +109,9 @@ function card(d) {
   // Its animation, www/<slug>.gif (a recording of the app, 720 px wide),
   // opens the app too.
   el.innerHTML =
+    (d.gif === false ? '' :
     '<a class="shot" href="' + appPath(d) + '" ' + appTab + ' tabindex="-1" aria-hidden="true">' +
-    '<img src="' + d.folder.toLowerCase() + '.gif" alt="" width="720" height="362" loading="lazy" decoding="async"></a>' +
+    '<img src="' + d.folder.toLowerCase() + '.gif" alt="" width="720" height="362" loading="lazy" decoding="async"></a>') +
     '<div class="head"><div class="icon"><svg viewBox="0 0 24 24" fill="currentColor">' + icons[d.icon] + '</svg></div>' +
     '<div><h2>' + d.name + '</h2><p class="what">' + d.what + '</p></div></div>' +
     '<p class="desc">' + d.desc + '</p>' +

@@ -30,9 +30,8 @@ the servers a dev key (see [A dev key](#a-dev-key)).
 
 ## aityx
 
-Seven web apps that call aityx from the browser (six in Flutter, Health Plan
-a static page), all served by the
-[index](Index/) under `/demos/`.
+Eight web apps that call aityx from the browser (six in Flutter, Outpost and
+Health Plan static pages), all served by the [index](Index/) under `/demos/`.
 
 [![Open the aityx demos in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Faityx%2Fdevcontainer.json&machine=standardLinux32gb)
 
@@ -44,6 +43,7 @@ a static page), all served by the
 | [Cellfie](Cellfie/) | `/demos/cellfie/` | Conway's Game of Life, with aityx naming the patterns on the board |
 | [RiverRace](RiverRace/) | `/demos/riverrace/` | The 1982 Atari river shooter, with two planes flown by aityx and one by you |
 | [RoboRules](RoboRules/) | `/demos/roborules/` | Robocode-style tank battles, each robot a decision model |
+| [Outpost](Outpost/) | `/demos/outpost/` | Keep a growing city's lights on, each night run by aityx on your rules |
 | [PokerFace](PokerFace/) | `/demos/pokerface/` | No-limit hold'em where every player is a set of rules |
 
 Run them with `./start-aityx.sh` (or `./start-aityx.sh MortgageHub` for one)
@@ -104,6 +104,14 @@ Tanks fight until one is left. Each robot's rules decide how it drives,
 aims and fires, based on what it senses. aityx plays the battle itself, up
 to 50 turns per call. Pick Robocode's sample robots or random ones, and edit
 any robot's rules. [README](RoboRules/README.md)
+
+### Outpost
+
+A city grows every night. By day you build a solar panel, a battery or a
+wind turbine; before night you write the rules for what goes dark first.
+Each night is one aityx call that runs it hour by hour, and the page draws
+only what aityx answers, with a receipt that gives the rule behind every
+number. How many nights can your city survive? [README](Outpost/README.md)
 
 ### PokerFace
 

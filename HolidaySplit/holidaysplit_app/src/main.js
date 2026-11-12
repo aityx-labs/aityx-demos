@@ -347,10 +347,13 @@ aityx.onState(st=>{
 connectUI();
 
 // The chat into the lists: who comes, for how many nights, the kids' ages and
-// parents, what was spent and by whom. A small LLM run in the browser
-// (transformers.js, reader.js), shown as aityx. Then, as for a sample, aityx
+// parents, what was spent and by whom. Only for a chat that was rewritten (a
+// story's own text has its own lists): a model on the device, the browser's
+// built-in one or else one run by transformers.js (reader.js), shown as aityx. Then, as for a sample, aityx
 // reads who isn't paying and who doesn't drink, and the house rules settle.
 let READING=false;
+// Whether the chat is the story's own text: then its lists are the story's own, exact, and nothing is read.
+const sameAsStory=()=>$("msg").value.trim()===SAMPLES[S.key].text.trim();
 function readerNote(t,cls){ const n=$("readnote"); n.hidden=!t; n.className="note readnote"+(cls?" "+cls:""); n.textContent=t||""; }
 async function readChat(){
   const text=$("msg").value.trim();
@@ -693,7 +696,9 @@ document.addEventListener("click",e=>{
     b.parentElement.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b)); run(); return; }
   if(b.dataset.x){ const id=b.dataset.x; S.exempt.has(id)?S.exempt.delete(id):S.exempt.add(id); S.exemptByYou=true;
     b.setAttribute("aria-pressed",S.exempt.has(id)); const n=$("nudge"); if(n) n.remove(); S.focus=id; run(); return; }
-  if(b.id==="go"&&S.chatChanged){ readChat(); $("result").scrollIntoView({behavior:"smooth"}); return; }
+  // The story's own words, untouched or changed back: its own lists, exactly, with nothing to read.
+  if(b.id==="go"&&S.chatChanged&&sameAsStory()){ const r=S.rules; load(S.key); S.rules=r; renderRules(); }
+  else if(b.id==="go"&&S.chatChanged){ readChat(); $("result").scrollIntoView({behavior:"smooth"}); return; }
   if(b.id==="go"&&S.custom&&!live()){ document.body.classList.remove("pending"); run(); liveNote("Set your aityx key to settle this trip on aityx. The amounts below are your browser's estimate.","warn"); return; }
   if(b.id==="go"){ document.body.classList.remove("pending"); if(live()){ run(); readLive(); } else showRecorded(); $("result").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"start"}); return; }
   if(b.id==="recall"){ recordAll(); return; }
@@ -720,7 +725,8 @@ document.addEventListener("change",e=>{
 document.addEventListener("input",e=>{
   const t=e.target, r=S.rules, num=()=>parseInt(t.value,10);
   if(t.dataset.f==="name"||t.dataset.f==="guardian"||t.dataset.ef) return;
-  if(t.id==="msg"){ S.chatChanged=true; readerNote("Chat changed. Press Split it and aityx reads it again.","warn"); return; }
+  if(t.id==="msg"){ const same=sameAsStory(); S.chatChanged=!same||!!S.custom;
+    readerNote(!S.chatChanged?"":same?"Back to the story's own words: Split it uses the story's own lists.":"Chat changed. Press Split it and aityx reads it again.",same?"":"warn"); return; }
   if(t.dataset.p){ const p=S.people.find(x=>x.id===t.dataset.p), f=t.dataset.f;
     if(f==="drinks") p.drinks=t.checked; else { const v=num(); if(isNaN(v)) return; p[f]=f==="nights"?Math.max(1,v):Math.max(0,v); }
     if(!p.edited[f]){ p.edited[f]=true; t.insertAdjacentHTML("afterend",`<span class="edited">changed</span>`); } run(); return; }

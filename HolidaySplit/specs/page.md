@@ -13,7 +13,8 @@ prototype, in five numbered steps:
    kids with their ages and parents, nights, who drinks) and what was spent
    (kind, label, amount, who paid). The chat can always be rewritten:
    **Split it** then reads it into the lists (see [Trip
-   reader](trip-reader.md)). With a key, the lists can be edited: **+
+   reader](trip-reader.md)); changed back to the story's own text, it uses
+   the story's own lists again. With a key, the lists can be edited: **+
    Adult**, **+ Kid**, **+ Expense**.
 3. **Set the house rules**: free and half-price ages, splitting lodging by
    nights, drinks only among the people who drink, days to pay by. Each

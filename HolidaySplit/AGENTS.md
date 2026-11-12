@@ -10,8 +10,9 @@ every commit and push:
   `npm test` passes in `holidaysplit_app/`, and `bash scripts/build.sh`
   builds the web app (with `<base href="/demos/holidaysplit/">` in
   `holidaysplit_app/build/web/index.html`). After changing the trip
-  reader's prompt (`holidaysplit_app/public/reader/trip-reader.js`), run it
-  on the samples in a browser and check the lists it fills in.
+  reader's prompts or checks (`holidaysplit_app/public/reader/trip-reader.js`),
+  run it on rewritten stories in Chrome (the built-in model) and in another
+  browser (the worker), and check the lists it fills in.
 - **Secrets**, such as the aityx key: users set theirs on the index page,
   in their browser; the dev key (`AITYX_API_KEY`) lives only in the
   repository's `.env`, which the index server reads. Never compile a key

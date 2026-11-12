@@ -21,9 +21,11 @@ The app says only aityx, never the models behind it.
 - [The aityx key](key.md): the key every aityx demo shares, set on the
   demos page, or the index server's dev key; the status light; what runs
   without a key.
-- [Trip reader](trip-reader.md): the chat into the lists, when **Split
-  it** finds it changed, by Qwen3-0.6B run by transformers.js in a Web
-  Worker, held to what the chat says; shown as aityx.
+- [Trip reader](trip-reader.md): the chat into the lists. A story's own
+  text has its own exact lists; a rewritten chat is read on the device, by
+  the browser's built-in model (Gemini Nano in Chrome) or else by LFM2 2.6B
+  run by transformers.js in a Web Worker, and the answer is held to the
+  chat's own words; shown as aityx.
 - [Settling](settling.md): aityx's questions about the chat, the house
   rules' decision model, and the receipts.
 - [Development environment](dev-environment.md): the build, the tests, the

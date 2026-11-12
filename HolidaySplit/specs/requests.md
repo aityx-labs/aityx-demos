@@ -55,3 +55,21 @@ feature files in this folder describe the software as it is now.
    it** reads a changed chat into the lists ("aityx is reading the chat"),
    then settles it; without a key the amounts are the browser's estimate
    until one is set ([Trip reader](trip-reader.md)).
+4. **How could it be more precise? Use the best thing that works in the
+   browser without cost (only aityx is being shown: no paid LLM). On
+   Chrome, use Gemini Nano; elsewhere, the next best thing; and when the
+   text wasn't changed at all, a predefined function that is exactly
+   precise.** The [trip reader](trip-reader.md) now has three ways. A
+   story's own text, untouched or changed back, uses the story's own lists:
+   nothing is read. A rewritten chat is read by the browser's built-in
+   model through the Prompt API, in one JSON answer held to a schema; where
+   there is none, by LFM2 2.6B with transformers.js in the worker, in three
+   short passes. And every answer is now held to the chat's own words by
+   plain rules, which win over the model: ages in brackets, the trip's
+   nights and first day, who comes late or leaves early, a kid's parents,
+   who isn't coming, people the model missed, who paid each amount and
+   whether it's drinks, the host. Candidates were scored on 18 test chats,
+   fact by fact: with the rules, Gemini Nano and LFM2 2.6B read all 18
+   right, and the 1 GB-class models 15 (an upper bound: the rules were
+   written against these chats). Before, the reader got 1 of the nine
+   stories right.

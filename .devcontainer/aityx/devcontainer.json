@@ -4,7 +4,8 @@
   //
   // The aityx group, started together: Mortgage Hub, Contact Hub,
   // Cellfie, RoboRules, RiverRace and PokerFace, each a Flutter web app
-  // that calls aityx.ai from the browser, all served by the index
+  // that calls aityx.ai from the browser (and Holiday Split, a Vite app,
+  // skipped until the image carries Node), all served by the index
   // (Index/) on one port, 8800, at /demos/mortgagehub/,
   // /demos/contacthub/, ... (its page at /demos/): the folders whose
   // group.id.txt says aityx. Each user sets their own aityx key once on

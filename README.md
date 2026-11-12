@@ -30,8 +30,9 @@ the servers a dev key (see [A dev key](#a-dev-key)).
 
 ## aityx
 
-Six Flutter web apps that call aityx from the browser, all served by the
-[index](Index/) under `/demos/`.
+Apps and games that call aityx from the browser, all served by the
+[index](Index/) under `/demos/`: six Flutter web apps, and Holiday Split,
+in plain JavaScript.
 
 [![Open the aityx demos in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/aityx-labs/aityx-demos?devcontainer_path=.devcontainer%2Faityx%2Fdevcontainer.json&machine=standardLinux32gb)
 
@@ -39,6 +40,7 @@ Six Flutter web apps that call aityx from the browser, all served by the
 |---|---|---|
 | [Mortgage Hub](MortgageHub/) | `/demos/mortgagehub/` | A mortgage application, checked against US lending rules by a decision model |
 | [Contact Hub](ContactHub/) | `/demos/contacthub/` | A request, typed or dictated, routed to the right department or person |
+| [Holiday Split](HolidaySplit/) | `/demos/holidaysplit/` | Who owes what after a holiday trip: the group chat read on the device, settled by house rules |
 | [Cellfie](Cellfie/) | `/demos/cellfie/` | Conway's Game of Life, with aityx naming the patterns on the board |
 | [RiverRace](RiverRace/) | `/demos/riverrace/` | The 1982 Atari river shooter, with two planes flown by aityx and one by you |
 | [RoboRules](RoboRules/) | `/demos/roborules/` | Robocode-style tank battles, each robot a decision model |
@@ -64,6 +66,16 @@ Ask anything and get routed to the right department or person. In one aityx
 call, Jev classifies and checks the message, and a decision model picks the
 department, the person and the priority. The app shows why, with the JSON
 behind each item. [README](ContactHub/README.md)
+
+### Holiday Split
+
+![Holiday Split: a family's Christmas trip, read and settled by aityx, with everyone's receipt](Index/www/holidaysplit.gif)
+
+Who owes what after a holiday trip. Write the family's group chat: a small
+LLM reads it on the device (transformers.js) for who comes, for how many
+nights and what was spent, Jev reads who isn't paying and who doesn't
+drink, and the house rules, a decision model on aityx, say who pays whom,
+how much and by when, with a receipt for everyone. [README](HolidaySplit/README.md)
 
 ### Cellfie
 

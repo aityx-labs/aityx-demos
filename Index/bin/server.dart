@@ -18,8 +18,10 @@
 ///   GET /demos/<slug>/... a demo's release web build: every folder beside
 ///                         this one in this index's group (its group.id.txt
 ///                         says INDEX_GROUP, aityx) with a <slug>_app/
-///                         package, the slug being the folder's name in
-///                         lower case: /demos/mortgagehub/ is
+///                         package (a Flutter app's pubspec.yaml, or a
+///                         web app's package.json, built with Vite into
+///                         the same build/web), the slug being the
+///                         folder's name in lower case: /demos/mortgagehub/ is
 ///                         MortgageHub/mortgagehub_app/build/web. A path
 ///                         that isn't a file gets the build's index.html
 ///                         (the app routes it); a missing build, 503
@@ -367,7 +369,10 @@ Future<Map<String, _Demo>> _demos() async {
     final folder = _name(entry);
     final slug = folder.toLowerCase();
     if (await _groupOf(entry) != _group) continue;
-    if (!await File('${entry.path}/${slug}_app/pubspec.yaml').exists()) {
+    // A Flutter app (pubspec.yaml) or a web app (package.json, Holiday
+    // Split), each built into <slug>_app/build/web.
+    if (!await File('${entry.path}/${slug}_app/pubspec.yaml').exists() &&
+        !await File('${entry.path}/${slug}_app/package.json').exists()) {
       continue;
     }
     // Never one of this server's own paths under the prefix.

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320">
+  <!-- Holiday Split's favicon, in aityx's style: one flat orange glyph, no background. A receipt torn in three, for who pays whom. -->
+  <g fill="#E36742">
+    <path d="M70 40 H250 V250 L232 268 L214 250 L196 268 L178 250 L160 268 L142 250 L124 268 L106 250 L88 268 L70 250 Z" fill-rule="evenodd"/>
+  </g>
+  <g fill="#17161A">
+    <rect x="100" y="84" width="120" height="16" rx="8"/>
+    <rect x="100" y="124" width="84" height="16" rx="8"/>
+    <rect x="100" y="164" width="104" height="16" rx="8"/>
+    <rect x="100" y="204" width="60" height="16" rx="8"/>
+  </g>
+</svg>

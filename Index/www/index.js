@@ -59,6 +59,13 @@ const demos = [
     chips: ['aityx', 'natural language processing'],
     icon: 'chat', codespace: 'aityx',
   },
+  {
+    kind: 'app', folder: 'HolidaySplit', name: 'Holiday Split',
+    what: 'Who owes what for the holidays, settled by house rules',
+    desc: 'Write the family’s group chat about a trip. A small LLM reads it on the device (transformers.js) for who comes, for how many nights and what was spent; Jev reads who isn’t paying and who doesn’t drink; and the house rules, a decision model on aityx, say who pays whom, how much and by when, with a receipt for everyone.',
+    chips: ['aityx', 'natural language processing', 'on-device AI', 'accountable results'],
+    icon: 'receipt', codespace: 'aityx',
+  },
 ];
 const icons = {
   home: '<path d="M4 11 L12 4 L20 11 V20 H14 V14 H10 V20 H4 Z"/>',
@@ -66,6 +73,7 @@ const icons = {
   grid: '<path d="M4 4h4v4H4zM10 4h4v4h-4zM16 4h4v4h-4zM4 10h4v4H4zM16 10h4v4h-4zM4 16h4v4H4zM10 16h4v4h-4zM16 16h4v4h-4z"/>',
   robot: '<path d="M5 9 H19 V19 H5 Z M8 12 H10 V14 H8 Z M14 12 H16 V14 H14 Z M11 4 H13 V9 H11 Z M2 12 H5 V17 H2 Z M19 12 H22 V17 H19 Z"/>',
   cards: '<path d="M7 3 H17 A2 2 0 0 1 19 5 V19 A2 2 0 0 1 17 21 H7 A2 2 0 0 1 5 19 V5 A2 2 0 0 1 7 3 Z M12 7 C13 9 16 10 16 13 C16 14.5 14.7 15.5 13.4 14.8 L14 17 H10 L10.6 14.8 C9.3 15.5 8 14.5 8 13 C8 10 11 9 12 7 Z" fill-rule="evenodd"/>',
+  receipt: '<path d="M5 2 H19 V21 L17 19.5 L15 21 L13 19.5 L11 21 L9 19.5 L7 21 L5 19.5 Z M8 6 V8 H16 V6 Z M8 10 V12 H14 V10 Z M8 14 V16 H15 V14 Z" fill-rule="evenodd"/>',
   plane: '<path d="M12 2 L13.5 8 L21 12 V14 L13.5 12 L13 18 L16 20 V21.5 L12 20.5 L8 21.5 V20 L11 18 L10.5 12 L3 14 V12 L10.5 8 Z"/>',
 };
 const github = 'https://github.com/aityx-labs/aityx-demos/tree/main/';

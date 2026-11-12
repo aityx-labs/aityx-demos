@@ -115,7 +115,7 @@
   "forwardPorts": [8800],
   "portsAttributes": {
     "8800": {
-      "label": "Index: the six aityx demos on one page, at /demos/",
+      "label": "Index: the seven aityx demos on one page, at /demos/",
       "protocol": "http",
       "onAutoForward": "openBrowserOnce"
     }

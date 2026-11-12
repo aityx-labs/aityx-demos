@@ -45,6 +45,13 @@ const demos = [
     icon: 'plane', codespace: 'aityx',
   },
   {
+    kind: 'app', folder: 'HealthPlan', name: 'Health Plan',
+    what: 'Which 2027 health plan will actually cost you less?',
+    desc: 'Describe your family’s year in plain words. In one aityx call, Jev reads each person’s care and any pregnancy from the message, and the plan rules price Bronze, Silver and Gold for that year: premium plus what you pay for care, after deductibles, coinsurance and the family cap. A receipt per plan gives every number and where it came from, and what-if switches show the winner change.',
+    chips: ['aityx', 'natural language processing', 'accountable results'],
+    icon: 'health', codespace: 'aityx',
+  },
+  {
     kind: 'app', folder: 'MortgageHub', name: 'Mortgage Hub',
     what: 'A mortgage application, from request to verdict',
     desc: 'A buyer fills in a proposal request, and a regulatory check says whether a lender can process it under current US rules: Fannie Mae’s eligibility matrix, the 2026 FHFA and FHA limits, FHA, VA and USDA rules and DTI limits, executed as a decision model on aityx.',
@@ -62,6 +69,7 @@ const demos = [
 ];
 const icons = {
   home: '<path d="M4 11 L12 4 L20 11 V20 H14 V14 H10 V20 H4 Z"/>',
+  health: '<path d="M12 2 L20 5 V11 C20 16 16.5 20 12 22 C7.5 20 4 16 4 11 V5 Z M10.75 7.5 V10.75 H7.5 V13.25 H10.75 V16.5 H13.25 V13.25 H16.5 V10.75 H13.25 V7.5 Z" fill-rule="evenodd"/>',
   chat: '<path d="M4 5 H20 V16 H10 L6 20 V16 H4 Z"/>',
   grid: '<path d="M4 4h4v4H4zM10 4h4v4h-4zM16 4h4v4h-4zM4 10h4v4H4zM16 10h4v4h-4zM4 16h4v4H4zM10 16h4v4h-4zM16 16h4v4h-4z"/>',
   robot: '<path d="M5 9 H19 V19 H5 Z M8 12 H10 V14 H8 Z M14 12 H16 V14 H14 Z M11 4 H13 V9 H11 Z M2 12 H5 V17 H2 Z M19 12 H22 V17 H19 Z"/>',

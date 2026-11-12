@@ -65,7 +65,8 @@ for dir in "$root"/*/; do
   folder="$(basename "$dir")"
   slug="$(printf '%s' "$folder" | tr '[:upper:]' '[:lower:]')"
   [[ "$(tr -d '[:space:]' <"$dir/group.id.txt" 2>/dev/null)" == "$group" ]] || continue
-  [[ -f "$dir/${slug}_app/pubspec.yaml" ]] || continue
+  # A Flutter app, or a static page (HealthPlan).
+  [[ -f "$dir/${slug}_app/pubspec.yaml" || -f "$dir/${slug}_app/web/index.html" ]] || continue
   web="$dir/${slug}_app/build/web"
   if ! grep -q "<base href=\"/demos/$slug/\"" "$web/index.html" 2>/dev/null; then
     echo "✗ $folder: no build for /demos/$slug/: run ./build-all.sh $folder" >&2

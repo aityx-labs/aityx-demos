@@ -1,10 +1,10 @@
 # Index
 
 The aityx demos on one origin, under `/demos/`: the index page, in the
-aityx palette, with a card for each of the six, in two groups, Games
+aityx palette, with a card for each of the seven, in two groups, Games
 (Cellfie, PokerFace, RoboRules, RiverRace) and Apps (Mortgage Hub,
-Contact Hub): an animation of the app, what it shows, its technology,
-**Open**, **Source** on GitHub, and **Codespace**; the six apps
+Contact Hub, Health Plan): an animation of the app, what it shows, its technology,
+**Open**, **Source** on GitHub, and **Codespace**; the seven apps
 themselves, each under its own path; and "Your aityx key". The datyx
 group has its own index, [../datyx-index/](../datyx-index/), and so has
 the multyx group, [../multyx-index/](../multyx-index/).
@@ -31,6 +31,7 @@ noopener the new tab would start empty. Every other link on the page
 | `/demos/roborules/` | `RoboRules/roborules_app/build/web` |
 | `/demos/cellfie/` | `Cellfie/cellfie_app/build/web` |
 | `/demos/riverrace/` | `RiverRace/riverrace_app/build/web` |
+| `/demos/healthplan/` | `HealthPlan/healthplan_app/build/web`, a static page (no Flutter) copied by its `scripts/build.sh` |
 | `GET /demos/aityx/config` | dev mode: whether this server holds a key |
 | `POST /demos/aityx/v1/systemone` | dev mode: aityx, with that key |
 | `GET /demos/api/health` | `{"ok": true}` |
@@ -46,7 +47,8 @@ apps fall back to the user's key.
 
 [bin/server.dart](bin/server.dart) is plain Dart, no packages. A demo is
 every folder beside this one whose `group.id.txt` says `aityx`
-(`INDEX_GROUP`) with a `<slug>_app/` package, the slug being the folder's
+(`INDEX_GROUP`) with a `<slug>_app/` package (a Flutter app, or a static page in
+`<slug>_app/web/`, as Health Plan), the slug being the folder's
 name in lower case. Its release build (each demo's `scripts/build.sh`:
 `flutter build web --release --base-href /demos/<slug>/
 --no-web-resources-cdn`)

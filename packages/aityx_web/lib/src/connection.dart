@@ -24,6 +24,11 @@ enum AityxSource {
   /// it, so the key never reaches the browser.
   dev,
 
+  /// No key anywhere, but the page around the app makes its calls: the
+  /// aityx console's Demos tab, framing the app with an origin of its own.
+  /// The app never holds a credential and never reaches aityx itself.
+  bridge,
+
   /// No key at all.
   none,
 }
@@ -63,6 +68,15 @@ class AityxConnection {
     source: AityxSource.dev,
     url: url,
     devKeyFrom: devKeyFrom,
+  );
+
+  /// The page around the app makes the calls, on the account signed in
+  /// there. [endpoint] is this page, which nothing is sent to: calls go out
+  /// over postMessage, not HTTP.
+  factory AityxConnection.bridge() => AityxConnection(
+    endpoint: Uri.base,
+    source: AityxSource.bridge,
+    url: '',
   );
 
   /// No key anywhere: calls throw AityxNoKey.
@@ -107,6 +121,7 @@ class AityxConnection {
   /// Whose key, for people: "your key", "dev key from .env", "dev key from
   /// the environment", "no key".
   String get whose => switch (source) {
+    AityxSource.bridge => 'the aityx console',
     AityxSource.user => 'your key',
     AityxSource.dev => switch (devKeyFrom) {
       '.env' => 'dev key from .env',

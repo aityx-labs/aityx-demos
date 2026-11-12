@@ -8,6 +8,8 @@ import 'package:http/http.dart' as http;
 import 'body.dart';
 import 'connection.dart';
 import 'key_store.dart';
+import 'platform/platform_vm.dart'
+    if (dart.library.js_interop) 'platform/platform_web.dart';
 import 'settings.dart';
 
 /// What a check found.
@@ -110,6 +112,23 @@ Future<AityxState> checkAityx({
           store: store,
         );
     if (to.source == AityxSource.none) return AityxState.noKey;
+    if (to.source == AityxSource.bridge) {
+      // Framed by the console with no origin of its own: the check goes the
+      // same way every other call does, through the page around the app.
+      final answered = await askParent('{}', timeout);
+      if (answered.status == 0) {
+        return _state(
+          to,
+          AityxStateKind.unreachable,
+          'no answer from the aityx console in ${spoken(timeout)}',
+        );
+      }
+      return classifyAityx(
+        status: answered.status,
+        body: answered.body,
+        connection: to,
+      );
+    }
     try {
       final answer = await asker
           .post(to.systemone, headers: to.headers(), body: '{}')

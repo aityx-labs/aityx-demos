@@ -2,6 +2,19 @@
 
 The history of requests that shaped datyx, newest first.
 
+## 2026-11-10: on the cluster, a model of each algorithm from HealthHub's first start
+
+Asked (HealthHub's request): make HealthHub's initial data set enough
+for predictions of both XGBoost and DeepAR.
+
+Changed, in datyx: nothing in the API. HealthHub now writes a simulated
+year of its people's visits at start, so `patient_days` and
+`occupancy_hourly` train at datyx's first runs, where the XGBoost group
+`care` failed for hours on a new cluster. `k8s/verify.sh` now awaits a
+succeeded model of XGBoost (`patient_days`) and of DeepAR
+(`occupancy_hourly`, `admissions_hourly`) of the Local profile's source,
+up to 12 minutes, and checks that none of their first runs failed.
+
 ## 2026-11-10: on the cluster, datyx's data in reach and a first deploy that passes
 
 Asked: kill every demo and the cluster, start the cluster again with

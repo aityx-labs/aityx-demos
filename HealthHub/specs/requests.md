@@ -870,3 +870,31 @@ The feature files hold the current specification; see the
    log that pushed the start out of `kubectl logs`. `flink/submit.sh`
    now submits only once Kafka takes a connection. See [Admissions per
    hour](admissions-hourly.md).
+2. **Make the initial data set sufficient for predictions of both
+   XGBoost and DeepAR.** On a new database (the cluster's, after a
+   `k8s/down.sh`) datyx's XGBoost model of `patient_days` failed every
+   hourly run for hours ("no series is longer than the horizon (30D)",
+   then "too few examples"), so the person view's prediction answered
+   datyx's 404, and DeepAR's first run of `occupancy_hourly` failed
+   ("no series is longer than twice the horizon"): both views read
+   `admissions`, which held only the live run, a few simulated days. The
+   API now writes a **simulated history** at start, before the live run:
+   `HEALTHHUB_SIM_HISTORY_DAYS` days (365 by default, 0 for none) of the
+   same people living the simulation's own turns from day 1, with a
+   fixed seed, as run `00000001` of `admissions` (never through Kafka,
+   so neither triaged nor counted by Flink), and that run's rows of
+   `admissions_hourly` counted from them. With the defaults, 6,082
+   admissions of 554 people at 300 care centers: a year of days per
+   person in `patient_days` and of hours per care center in
+   `occupancy_hourly`, simulated in a fraction of a second and written
+   in seconds, and left alone at the next start when nothing changed.
+   Drawing the API's people also got fast (a `CareIndex` of the care
+   centers by what they take, where every person asked each of thousands
+   of care centers again): over 10 s at every start before, milliseconds
+   now, with the same people. `bin/history.dart` writes and previews both
+   histories (`--sim-days`). See [The simulated
+   history](simulated-history.md), [Patient days](patient-days.md),
+   [Occupancy per hour](occupancy-hourly.md), [Admissions per
+   hour](admissions-hourly.md), [Simulation](simulation.md),
+   [Database](database.md), [API](api.md) and [Development
+   environment](dev-environment.md).

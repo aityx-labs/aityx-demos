@@ -138,4 +138,10 @@ a run is eight hex digits.
 - Which datyx source is HealthHub's is found by the database's name: two
   sources of the user's on databases of that name, the first wins.
 - A run's person is the same only within the run: an id opened from a
-  past admission is a different person from the one moving now.
+  past admission is a different person from the one moving now. The one
+  exception is the simulated history, run `00000001`
+  ([The simulated history](simulated-history.md)): its people are the
+  live run's at its start, in another year of their own, their
+  admissions never triaged. Where the API looks for the newest run with
+  an admission of a person (no `run` asked, in prod mode or before the
+  simulation has started), it can find that run.

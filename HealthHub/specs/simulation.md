@@ -38,10 +38,24 @@ which starts again from `HEALTHHUB_SIM_PEOPLE`.
 The people of the start are drawn with a fixed seed (`populationSeed` in
 `lib/simulation.dart`): the same homes, profiles, care centers and
 conditions at every start, so the admissions history covers exactly the
-care centers a run starts with ([The history](admissions-hourly.md#the-history));
-what they do from there, when episodes start and visits fall, is drawn
-afresh every run. Newcomers who join while it runs may use a care center
-the history doesn't cover.
+care centers a run starts with ([The history](admissions-hourly.md#the-history)),
+and the simulated history, run `00000001`, is a year of these same
+people's visits, simulated ahead before the live run starts
+([The simulated history](simulated-history.md)); what they do from there
+in the live run, when episodes start and visits fall, is drawn afresh
+every run. Newcomers who join while it runs may use a care center the
+history doesn't cover, and have no simulated history.
+
+Drawing them is fast: the care centers are told apart once by what they
+take (`CareIndex`: the general hospitals, and the care centers that
+serve each setting), and each person's nearest are looked for among
+those. Before, each of the 6,590 care centers with a location was asked
+again what it takes, by the regular expressions that read its subtype
+and name, for each person and each setting, which took the API over 10 s
+at every start; now the 560 people of the defaults take a fraction of a
+second, and they are the same people (a test checks the index against
+`nearestHospital` and `nearestCareCenter`). The people who join while
+the simulation runs are placed with the same index.
 
 - **Home**: a random point within 1.5 km of a random care center of the
   city, uniform over the disc, so homes fall in the city and, since care
@@ -491,7 +505,10 @@ whether the proxy answered its last ping (every 5 s).
 - The simulation lives in the API's process: restarting the API starts a
   new one, with the same people ([People](#people)) but new events, from
   06:00 on day 1, under a new run id. The
-  admissions of earlier runs stay in the database. The last run's
+  admissions of earlier runs stay in the database, beside the simulated
+  history's, which is the same people's year under run `00000001`, not
+  what they did before the live run: a live run starts on day 1 whatever
+  the history holds ([The simulated history](simulated-history.md)). The last run's
   admissions the feed had not read yet are read at start, recorded under
   their own event ids and shown among the events, as the people's ids
   are the same.

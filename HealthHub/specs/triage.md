@@ -1,6 +1,6 @@
 # Triage at the desk
 
-Every admission the API records is triaged by aityx from what the
+Every admission the API records from the stream is triaged by aityx from what the
 patient said at the desk and their age: how soon they must be seen, where
 in the hospital they go, whether a nurse checks first, and why. What
 aityx does, the questions, the tables, sample cases and how well they
@@ -154,6 +154,9 @@ agree.
 - Each admission is triaged once; admissions recorded before the triage
   was on, while aityx was down, or dropped from a full queue stay
   untriaged, and nothing triages them later.
+- The simulated history's admissions (run `00000001`) are never triaged:
+  the API writes them itself, not from the stream
+  ([The simulated history](simulated-history.md)).
 - Jev's readings vary a little between calls, so the same complaint can
   land on either side of a threshold.
 - Admissions recorded before `template` existed have no reference.

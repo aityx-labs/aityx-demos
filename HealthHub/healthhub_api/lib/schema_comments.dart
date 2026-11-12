@@ -88,10 +88,13 @@ const schemaComments = <String, TableComments>{
     table:
         'Every simulated arrival at a hospital, as the API\'s feed reads it from the Kafka topic '
         'healthhub.admissions; recorded once per event id, so a retry or a replay never doubles one. '
+        'Run 00000001 is the simulated history, a year (by default) of the people\'s visits that the API '
+        'simulates ahead at start and writes here itself (lib/simulated_history.dart), not through Kafka. '
         'The people are simulated, not real.',
     columns: {
       'id': 'The row\'s id, in the order the admissions were recorded.',
-      'event_id': 'The event\'s id: the run\'s id, the person, the day and the turn; unique.',
+      'event_id': 'The event\'s id: the run\'s id, the person, the day and the turn; unique. '
+          'The run is 8 hex digits, new at each start of the API; 00000001 is the simulated history.',
       'person_id': 'The simulated person\'s id within the run, such as reus-3.',
       'person_name': 'The simulated person\'s name.',
       'age': 'The person\'s age in years, 18 to 90.',
@@ -107,10 +110,10 @@ const schemaComments = <String, TableComments>{
       'template': 'Which of the visit kind\'s complaint templates it was said from, 0 to 2 (complaint_templates.position); null for admissions recorded before it was.',
       'hospital_id': 'The hospital they arrive at (care_centers.id).',
       'hospital_name': 'The hospital\'s name.',
-      'sim_day': 'The simulated day of the arrival, from 1 at each start of the API.',
+      'sim_day': 'The simulated day of the arrival, from 1 at each start of the API, and from 1 in the simulated history.',
       'sim_time': 'The simulated minute of the arrival, HH:MM.',
       'admitted_at': 'The admission\'s simulated date and time, from sim_day and sim_time: day 1 is 2026-01-01.',
-      'recorded_at': 'When the API recorded the admission, in real time.',
+      'recorded_at': 'When the API recorded the admission, in real time; for the simulated history, when it was written.',
     },
   ),
   'admission_triage': (
@@ -145,11 +148,13 @@ const schemaComments = <String, TableComments>{
     table:
         'The admissions per run, hospital and simulated hour, written by the Flink job '
         '(flink/admissions-hourly.sql) and upserted by the key; run 00000000 is the history the API '
-        'generates at start (lib/history.dart), every hour of 90 days by default. Sparse: an hour '
+        'generates at start (lib/history.dart), every hour of 90 days by default, and run 00000001 the '
+        'simulated history, a year (by default) of the people\'s visits that the API simulates ahead at '
+        'start (lib/simulated_history.dart), counted from its admissions. Sparse: an hour '
         'without admissions at a hospital has no row, so a missing row means zero.',
     columns: {
       'run_id': 'The run: each start of the API replays the simulated calendar from day 1, and the run tells the repeats apart; '
-          '00000000 is the generated history.',
+          '00000000 is the generated history, 00000001 the simulated history.',
       'hospital_id': 'The hospital (care_centers.id).',
       'hospital_name': 'The hospital\'s name.',
       'hour_start': 'The simulated hour, without a time zone: day 1 is 2026-01-01.',
@@ -161,10 +166,12 @@ const schemaComments = <String, TableComments>{
   'patient_days': (
     table:
         'Each simulated person\'s visits and hours of hospital care per run and simulated day, with '
-        'their facts: a view of admissions and medical_conditions, so always up to date. Sparse: a day '
-        'without visits has no row, so a missing day is zero visits and zero hours.',
+        'their facts: a view of admissions and medical_conditions, so always up to date. Run 00000001 is '
+        'the simulated history, a year (by default) of the people\'s visits that the API simulates ahead '
+        'at start. Sparse: a day without visits has no row, so a missing day is zero visits and zero hours.',
     columns: {
-      'run_id': 'The run, the event id\'s first part; a person is the run and the id together.',
+      'run_id': 'The run, the event id\'s first part; a person is the run and the id together. '
+          '00000001 is the simulated history.',
       'person_id': 'The simulated person\'s id within the run, such as reus-3.',
       'day': 'The simulated day as a date: day 1 is 2026-01-01.',
       'age': 'The person\'s age in years, 18 to 90, the same on every row of a run.',
@@ -182,10 +189,12 @@ const schemaComments = <String, TableComments>{
     table:
         'How many people each care center has in care in each simulated hour of a run: each admission\'s '
         'stay, from its arrival, for its condition\'s hours. A view of admissions and medical_conditions, '
-        'so always up to date, up to the run\'s latest arrival. Sparse: an hour nobody is in care has no '
-        'row, so a missing hour is zero people.',
+        'so always up to date, up to the run\'s latest arrival. Run 00000001 is the simulated history, a '
+        'year (by default) of the people\'s visits that the API simulates ahead at start. Sparse: an hour '
+        'nobody is in care has no row, so a missing hour is zero people.',
     columns: {
-      'run_id': 'The run, the event id\'s first part: each start of the API is a new run from day 1.',
+      'run_id': 'The run, the event id\'s first part: each start of the API is a new run from day 1; '
+          '00000001 is the simulated history.',
       'hospital_id': 'The care center (care_centers.id): a hospital, a health station or a clinic.',
       'hospital_name': 'The care center\'s name.',
       'hour_start': 'The simulated hour: day 1 is 2026-01-01, a timestamp without a time zone.',

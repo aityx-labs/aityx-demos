@@ -104,6 +104,8 @@ spec:
               value: "15"
             - name: HEALTHHUB_HISTORY_DAYS
               value: "90"
+            - name: HEALTHHUB_SIM_HISTORY_DAYS
+              value: "365"
             - name: HEALTHHUB_ALARM_EVERY_MS
               value: "5000"
             - name: HEALTHHUB_ALARM_THRESHOLD

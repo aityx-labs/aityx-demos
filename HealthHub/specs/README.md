@@ -46,7 +46,14 @@ does in HealthHub is described feature by feature in
   counts the admissions per run, hospital and simulated hour from the
   stream into the `healthhub.admissions.hourly` topic and the
   `admissions_hourly` table, a time series per hospital, beside a
-  generated history of 90 days for a forecast to learn from.
+  generated history of 90 days for a forecast to learn from and the
+  simulated history's counts.
+- [The simulated history](simulated-history.md): a year of the
+  simulation's people going for care, which the API simulates ahead at
+  start and writes into `admissions` as run `00000001`, so that
+  `patient_days`, `occupancy_hourly` and `admissions_hourly` hold, from
+  the first start on a new database, series long enough for datyx's
+  XGBoost and DeepAR to train on.
 - [Patient days](patient-days.md): the view `patient_days`, each
   person's visits and hours of hospital care per run and simulated day,
   with their facts, a time series per person.

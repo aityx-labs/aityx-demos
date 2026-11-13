@@ -77,8 +77,9 @@
 <section class="panel after" id="result" aria-labelledby="h-rcpt">
   <h2 id="h-rcpt"><span class="num">4</span>Get everyone's receipt</h2>
   <p class="sub">Who pays whom, how much and why. So nobody has to ask "why do I owe that?"</p>
-  <div class="live" id="live" aria-live="polite"></div>
+  <div class="live" id="live" role="status" aria-live="polite"></div>
   <div class="recbody">
+    <div class="readsum" id="readsum" hidden></div>
     <div class="jevnote" id="jevnote" hidden></div>
     <div class="people" id="who" role="group" aria-label="Show receipt for"></div>
     <div class="receipt" id="receipt"></div>

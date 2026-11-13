@@ -257,3 +257,16 @@ details.jx pre{margin:0 16px 16px}
 .keydialog-close:focus-visible{outline:2px solid #EB7B58;outline-offset:1px}
 .readnote{margin-top:6px}
 .readnote.ok{color:var(--ok)}
+/* Reading a chat: the button and the result both say so; the receipt from before is for the old lists, so it's hidden. */
+.go:disabled{cursor:progress;opacity:.9}
+.go.busy::before,.live.busy::before{content:"";display:inline-block;width:.9em;height:.9em;margin-right:.55em;vertical-align:-.12em;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+.live.busy{font-size:15px;color:var(--fg);background:var(--card2);border:1px solid var(--acc);border-radius:12px;padding:14px 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.go.busy::before,.live.busy::before{animation:none;border-right-color:currentColor;opacity:.6}}
+body.reading .recbody,body.reading #dev{display:none}
+.readsum{font-size:14.5px;background:var(--card2);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:5px;border-left:3px solid var(--acc)}
+.readsum[hidden]{display:none}
+.readsum .kick{font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--acc2)}
+.readsum b{color:var(--fg)}
+.readsum small{color:var(--muted);font-size:12.5px}
+.readsum .soft{color:var(--muted);font-size:13px}

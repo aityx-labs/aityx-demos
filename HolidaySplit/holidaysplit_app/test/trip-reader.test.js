@@ -327,6 +327,24 @@ describe('who paid what, from the chat\'s own words', () => {
   it('tells drinks by the words, wherever the payer is named', () => {
     expect(by('Ned and Ola brought the wine, Ned paid, $75. Kim doesn\'t drink and made the sides, $30.')).toEqual([[75, 'Ned', true], [30, 'Kim', false]]);
   });
+  it('tells drinks by the words right after the amount, and by the sentence before when its own says nothing', () => {
+    expect(by('Jo spent $85 on beer and snacks. Kim paid $120 for the cabin.')).toEqual([[85, 'Jo', true], [120, 'Kim', false]]);
+    expect(by('Leo picked up the bourbon and a case of IPAs. It came to $64, Leo paid. Then Mo did the turkey, $90.')).toEqual([[64, 'Leo', true], [90, 'Mo', false]]);
+    expect(by('Ana covered the bar tab, $140. Raf got prosecco and mimosas for brunch, $52.')).toEqual([[140, 'Ana', true], [52, 'Raf', true]]);
+    expect(by("Isla doesn't drink. She paid for the sleigh ride, $160.")).toEqual([[160, null, false]]);
+  });
+  it('keeps the model\'s drinks when the chat\'s words say nothing of what it was', () => {
+    const t = toTrip({ start: '12-24', nights: 2, host: 'Jo', people: [{ name: 'Jo' }, { name: 'Kim' }],
+      expenses: [{ kind: 'lodging', what: 'Cabin', amount: 400, by: 'Jo' }, { kind: 'drinks', what: 'Liquor store run', amount: 70, by: 'Kim' }] },
+    today, 'Christmas at a cabin, 2 nights from Dec 24, $400, Jo booked it. Kim did a run into town, $70.');
+    expect(t.expenses.map((e) => [e.amount, e.kind])).toEqual([[400, 'lodging'], [70, 'drinks']]);
+  });
+  it('keeps the model\'s label when the chat\'s words about the amount are only "it"', () => {
+    const t = toTrip({ start: '12-23', nights: 3, host: 'Ana', people: [{ name: 'Ana' }, { name: 'Ben' }],
+      expenses: [{ kind: 'lodging', what: 'Cabin', amount: 1200, by: 'Ana' }, { kind: 'other', what: 'Sleigh ride', amount: 60, by: 'Ben' }] },
+    today, 'Christmas at a cabin, 3 nights from Dec 23. Ana booked it, $1,200. Ben got them, $60.');
+    expect(t.expenses.map((e) => [e.amount, e.what])).toEqual([[1200, 'Cabin'], [60, 'Other']]);
+  });
   it('knows no payer when the chat names none', () => {
     expect(by('The rest was $90. It cost $12.')).toEqual([[90, null, false], [12, null, false]]);
   });

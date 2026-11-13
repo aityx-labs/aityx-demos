@@ -559,7 +559,12 @@ export function bringers(chat, people = []) {
   return found;
 }
 
-const DRINKS = /\b(?:wine|beers?|champagne|drinks?|booze|alcohol|eggnog|whiske?y|cider|cocktails?|liquor|vodka|rum|gin|tequila|prosecco|bubbly|margaritas?|sangria)\b/i;
+// Words of alcohol: what's drunk, kinds of it, and where it's bought or served.
+const DRINKS = /\b(?:wines?|beers?|champagne|prosecco|cava|bubbly|drinks?|booze|boozy|alcohol|liquor|spirits|eggnog|nog|whiske?y|bourbon|scotch|brandy|cognac|rum|gin|vodka|tequila|mezcal|sake|soju|cider|ales?|lagers?|ipas?|stouts?|kegs?|six[- ]packs?|cocktails?|margaritas?|sangria|mimosas?|martinis?|mojitos?|negronis?|spritz(?:es)?|hard\s+seltzers?|merlot|cabernet|chardonnay|pinot|riesling|malbec|ros[ée]|sauvignon|zinfandel|shiraz|chianti|toddy|toddies|mulled|spiked|bar\s+tab|open\s+bar|the\s+bar|minibar|pub|brewery|winery|happy\s+hour)\b/i;
+// "Isla doesn't drink" is about a person, not an amount.
+const NO_DRINK = /\b(?:doesn['’]?t|don['’]?t|not|never|won['’]?t|can['’]?t|isn['’]?t)\s+(?:a\s+)?drink(?:s|ing|er)?\b/gi;
+// The words right after an amount that are still about it: "$85 for beer and wine" up to the next clause.
+const tailOf = (after) => { const i = after.search(/[,;!?(]|\.(?:\s|$)|\s(?:and|but|while|so|plus)\s/); return i < 0 ? after : after.slice(0, i); };
 const FOOD = /\b(?:grocer(?:y|ies)|food|turkey|ham|pies?|sides|desserts?|snacks|cooked|breakfast|brunch|bbq|meat|veggies|bread)\b/i;
 const PLACE = /\b(?:nights?|cabin|house|lodge|chalet|airbnb|loft|hotel|condo|cottage|farmhouse|villa|apartment|booked)\b/i;
 
@@ -569,9 +574,13 @@ const PLACE = /\b(?:nights?|cabin|house|lodge|chalet|airbnb|loft|hotel|condo|cot
  * chat names them, or null: the one before the amount with a verb ("Mo did
  * the grocery run, $420"), else the one who booked or paid right after
  * ("$2,450. Sam booked it and paid", "$4,200, on Hana's card"). `drinks`
- * is whether the words between the amount before and this one are of
- * alcohol. `kind` and `what` are a guess, for an amount the model missed
- * or labeled with words that aren't in its `clause`. No model.
+ * is whether the words about it are of alcohol: those between the amount
+ * before and this one, the few right after it ("$85 for beer"), and, when
+ * those say nothing of what it was, the sentence before ("Leo picked up
+ * the wine. It was $90."). `plain` is whether those words say nothing of
+ * what it was (no drinks, food or place). `kind` and `what` are a guess,
+ * for an amount the model missed or labeled with words that aren't in its
+ * `clause`. No model.
  */
 export function spending(chat, people = []) {
   const text = String(chat ?? '');
@@ -604,11 +613,22 @@ export function spending(chat, people = []) {
       ?? (then === after && !/\$/.test(next) ? [paid, card, booked].map((pattern) => last(pattern, next)).find(Boolean)?.[1] : null)
       ?? null;
     const words = said ? before.slice(before.indexOf(said[3], said.index) + said[3].length) : before;
-    const drinks = DRINKS.test(before.replace(/\b(?:doesn['’]?t|don['’]?t|not|never)\s+drinks?\b/gi, ''));
+    const tail = tailOf(after);
+    const says = (s) => DRINKS.test(s.replace(NO_DRINK, '')) || FOOD.test(s) || PLACE.test(s);
+    let about = `${before} ${tail}`;
+    // Nothing about what it was, and no amount before it in its sentence: the sentence before says it.
+    if (!says(about) && start >= from) {
+      const prev = text.slice(ends.filter((e) => e < start).at(-1) ?? start, start);
+      if (!prev.includes('$')) about = `${prev} ${about}`;
+    }
+    const drinks = DRINKS.test(about.replace(NO_DRINK, ''));
+    const plain = !says(about);
     const kind = drinks ? 'drinks' : FOOD.test(words) ? 'groceries' : PLACE.test(words) && !said ? 'lodging' : said ? 'other' : 'lodging';
-    const label = words.replace(/^[\s,]*(?:for\s+|up\s+|in\s+)?(?:the|a|an|some|everyone['’]s|our)?\s*/i, '').replace(/[\s,:(]+$/, '').replace(/\s+on\s+the\s+\d+\w*$/i, '');
-    const what = said && label && label.length <= 40 ? label[0].toUpperCase() + label.slice(1) : kind[0].toUpperCase() + kind.slice(1);
-    out.push({ amount: Number(m[1].replace(/,/g, '')), by, drinks, kind, what, clause: before, start });
+    const label = words.replace(/^[\s,]*(?:for\s+|up\s+|in\s+)?(?:(?:the|a|an|some|everyone['’]s|our)\s+)?/i, '').replace(/[\s,:(]+$/, '').replace(/\s+on\s+the\s+\d+\w*$/i, '');
+    // "Ana booked it, $1,200": "it" says nothing, so the label is the kind's (`generic`).
+    const generic = !(said && label && label.length <= 40) || /^(?:it|them|this|that|these|those|both|everything|all|one)$/i.test(label);
+    const what = generic ? kind[0].toUpperCase() + kind.slice(1) : label[0].toUpperCase() + label.slice(1);
+    out.push({ amount: Number(m[1].replace(/,/g, '')), by, drinks, plain, kind, what, generic, clause: `${before} ${tail}`, start });
     from = m.index + m[0].length;
     previous = [start, by];
   }
@@ -721,12 +741,15 @@ export function toTrip(answer, today = new Date(), chat = null) {
     const said = settled(amount);
     const by = (said?.by ? payer(said.by) : null) ?? payer(raw.by);
     if (!by) { notes.push(`no one paid for ${raw.what ?? 'an expense'}, so it was left out`); continue; }
-    // Drinks when the chat's words are of alcohol, and only then.
+    // Drinks when the chat's words about it are of alcohol; the model's "drinks" stands only when those
+    // words say nothing of what it was (no food, no place), and never against them.
     let kind = KINDS.has(raw.kind) ? raw.kind : 'other';
-    if (said) kind = said.drinks ? 'drinks' : kind === 'drinks' ? said.kind : kind;
-    // The model's label, unless none of its words is in the chat's words about this amount.
+    if (said) kind = said.drinks ? 'drinks' : kind === 'drinks' && !said.plain ? said.kind : kind;
+    // The model's label, unless none of its words is in the chat's words about this amount; when those
+    // words say nothing ("Ana booked it, $1,200"), unless none is in the chat at all.
     let what = String(raw.what ?? '').trim();
-    if (said && !what.toLowerCase().split(/[^\p{L}]+/u).some((w) => w.length > 2 && said.clause.toLowerCase().includes(w))) what = said.what;
+    const inWords = (where) => what.toLowerCase().split(/[^\p{L}]+/u).some((w) => w.length > 2 && where.toLowerCase().includes(w));
+    if (said && !inWords(said.clause) && !(said.generic && chat != null && inWords(chat))) what = said.what;
     expenses.push({ kind, what: what || kind[0].toUpperCase() + kind.slice(1), amount: Math.round(amount * 100) / 100, by });
   }
   // An amount the model missed, when the chat says who paid it.

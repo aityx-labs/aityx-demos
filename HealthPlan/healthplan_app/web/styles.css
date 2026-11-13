@@ -61,7 +61,7 @@ textarea[readonly]{cursor:default;opacity:.92}
 .msgq{margin:0;padding:14px 16px;border-radius:12px;background:var(--ink);border:1px solid var(--line);border-left:3px solid var(--acc);font:400 16px/1.6 var(--display);color:var(--fg)}
 /* what-if switches */
 .whatif{display:flex;flex-direction:column;gap:8px}
-.whatif .kick{font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--acc2)}
+.whatif .kick,.storyread .kick{font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--acc2)}
 .wis{display:flex;gap:8px;flex-wrap:wrap}
 .wi{display:inline-flex;align-items:center;gap:10px;font:500 14.5px var(--display);color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:99px;padding:8px 14px 8px 10px;cursor:pointer;text-align:left}
 .wi:hover{border-color:var(--muted)}
@@ -306,3 +306,16 @@ a.proto{display:inline-flex;align-items:center;gap:7px;text-decoration:none;curs
 @media (prefers-reduced-motion:reduce){.proto[data-state="connecting"] .ldot{animation:none}}
 a.go{text-decoration:none;display:inline-block}
 .lede em{font-style:normal;font-weight:600;color:var(--acc)}
+/* Reading a story: the button and the result both say so, and the old result is gone meanwhile. */
+.go.busy,.go:disabled{opacity:.85;cursor:progress}
+.go.busy::before,.live.busy::before{content:"";display:inline-block;width:.9em;height:.9em;margin-right:.55em;vertical-align:-.12em;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+.live.busy{font-size:15px;color:var(--fg);background:var(--card2);border:1px solid var(--acc);border-radius:12px;padding:14px 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.go.busy::before,.live.busy::before{animation:none;border-right-color:currentColor;opacity:.6}}
+.famnote{margin:6px 0 0}
+.storyread{display:flex;flex-direction:column;gap:8px;padding:14px 16px;border-radius:14px;background:var(--card2);border-left:3px solid var(--acc)}
+.storyread[hidden]{display:none}
+.storyread blockquote{margin:0;font:400 15px/1.55 var(--display);color:var(--fg)}
+.storyread .who{display:flex;flex-wrap:wrap;gap:6px}
+.storyread .pc{font-size:13.5px;padding:4px 10px;border-radius:999px;background:var(--ink);border:1px solid var(--line);color:var(--muted)}
+.storyread .pc b{color:var(--fg);font-weight:600}

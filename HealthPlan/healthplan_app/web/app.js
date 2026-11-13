@@ -35,7 +35,7 @@ const WHATIF={
   solo:[{id:"knee",label:"Chris needs knee surgery",set:{chris:{care:"some"}}},
         {id:"chrisdiab",label:"Chris is diagnosed with diabetes",set:{chris:{care:"regular"}}}]
 };
-const whatNow=()=>S&&S.what?(WHATIF[S.key]||[]).find(w=>w.id===S.what):null;
+const whatNow=()=>S&&S.what&&!S.custom?(WHATIF[S.key]||[]).find(w=>w.id===S.what):null;
 // The facts actually priced: what Jev read (or the person fixed), with the active what-if on top.
 function effMembers(){
   const set=(whatNow()||{}).set||{};
@@ -239,17 +239,47 @@ function factsState(youOnly){
   });
   return st;
 }
+// A rewritten message brings its own people: the story says who's on the plan (story.js finds them in its
+// words, no model), and aityx then reads each one's year. Someone already on the list keeps their id, age
+// and anything the person set; an age the story doesn't give is a guess, flagged on the list.
+const rewritten=()=>$("msg").value.trim()!==yearOf(S.key).text.trim();
+function familyFromStory(){
+  const found=Story.peopleIn($("msg").value,S.members).slice(0,MAX_PEOPLE);
+  if(!found.length) return false;
+  const used=new Set();
+  S.members=found.map(p=>{
+    const k=S.members.find(m=>m.name.toLowerCase()===p.name.toLowerCase());
+    let id=k?k.id:p.name.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");
+    if(!/^[a-z]/.test(id)) id="p_"+id;
+    while(used.has(id)) id+="2";
+    used.add(id);
+    const age=p.age!=null?p.age:k?k.age:p.kid?8:35;
+    return k?{...k,id,age,guess:false}:{id,name:p.name,age,care:"light",pregnant:0,src:{care:"new",pregnant:"new"},guess:p.age==null};
+  });
+  return true;
+}
+// While aityx reads: the button says so and can't be pressed again, and the result says what is being read.
+function reading(on){
+  const g=$("go"); g.disabled=on; g.classList.toggle("busy",on);
+  document.body.classList.toggle("reading",on);
+  if(on) g.textContent="Reading your story…"; else updateGo();
+}
+const names=ms=>{ const n=ms.map(m=>m.name); return n.length<2?n.join(""):n.slice(0,-1).join(", ")+" and "+n[n.length-1]; };
 // One call: Jev reads the message, then the rules price the plans with what Jev read.
 async function readLive(){
   if(!live()) return;
   clearTimeout(LIVE.timer);
   S.what=null; S.msgEdited=false; clearDirty();
   const seq=++LIVE.seq;
+  if(rewritten()){ S.custom=true; S.found=familyFromStory(); renderFamily(); renderPicker(); }
   const body={questions:jevQuestions(),decision:buildDecision(S.plans,S.prices,S.members),state:{message:$("msg").value,members:persons(),...factsState(true)}};
-  S.A=null; renderResult(); liveNote("aityx is reading your message and pricing the plans…");
+  S.A=null; renderResult(); reading(true);
+  liveNote(S.custom?`Reading your story… aityx is reading the year of ${names(S.members)}, then the rules price the three plans.`
+    :"Reading the story… aityx is reading each person's year, then the rules price the three plans.","busy");
   const t0=performance.now(); let r;
-  try{ r=await post(body); }catch(e){ if(seq===LIVE.seq) liveNote(`Couldn't reach aityx (${e.message}). Nothing was priced.`,"warn"); return; }
+  try{ r=await post(body); }catch(e){ if(seq===LIVE.seq){ reading(false); liveNote(`Couldn't reach aityx (${e.message}). Nothing was priced.`,"warn"); } return; }
   if(seq!==LIVE.seq) return;
+  reading(false);
   LIVE.call={req:body,res:r.data,status:r.status};
   const a=r.data&&r.data.answers;
   if(a){
@@ -265,7 +295,8 @@ async function readLive(){
   S.A=a; renderResult(true);
   const ms=Math.round(performance.now()-t0), off=typeof S.about==="number"&&S.about<ON_TOPIC;
   liveNote(off?`This doesn't read like a health year, so aityx assumed a light year for everyone. Try Fill random for another year.`
-    :`One aityx call: it read your message and the rules priced the plans (${ms} ms).`, off?"warn":"ok");
+    :S.custom&&!S.found?`Your story doesn't say who's on the plan, so aityx read it for the people listed in step 3 (${ms} ms). Name them in the story, or fix the list.`
+    :`One aityx call: it read ${S.custom?"your story":"the message"} and the rules priced the plans (${ms} ms).`, off||S.custom&&!S.found?"warn":"ok");
   captureRecording();
 }
 // Re-price after a fix or a rule change: one call, rules only, no AI.
@@ -290,7 +321,7 @@ function queueLive(){
   liveNote("You changed something. Press Compare again to update the results.","warn");
 }
 function clearDirty(){ if(S) S.dirty=false; document.body.classList.remove("dirty"); }
-function updateGo(){ $("go").textContent=live()&&S&&S.jevRead?"Compare again":"Compare plans"; }
+function updateGo(){ if(document.body.classList.contains("reading")) return; $("go").textContent=live()&&S&&S.jevRead?"Compare again":"Compare plans"; }
 // A changed message needs aityx to read it again; anything else, the rules alone.
 function compareAgain(){
   if(S.msgEdited) readLive(); else settleLive();
@@ -347,8 +378,8 @@ function showRecorded(){
 function load(key){
   const s=yearOf(key);
   S={key,members:s.members.map(m=>({...m,care:"light",pregnant:0,src:{care:"new",pregnant:"new"}})),
-    plans:structuredClone(DEFAULT_PLANS),prices:{...DEFAULT_PRICES},A:null,focus:null,jevRead:false,recorded:null,recCall:null,what:null,about:null,n:0};
-  LIVE.call=null; LIVE.seq++; $("rec").hidden=true; clearDirty();
+    plans:structuredClone(DEFAULT_PLANS),prices:{...DEFAULT_PRICES},A:null,focus:null,jevRead:false,recorded:null,recCall:null,what:null,about:null,n:0,custom:false,found:false};
+  LIVE.call=null; LIVE.seq++; $("rec").hidden=true; clearDirty(); reading(false);
   $("msg").value=s.text; $("msgq").textContent=s.text; countChars(); setNote();
   renderPicker();
   renderFamily(); renderRules(); renderResult();
@@ -366,8 +397,8 @@ function results(){
 }
 function renderPicker(){
   const y=yearOf(S.key), res=results();
-  $("pickcur").innerHTML=`${SAMPLES[S.key]?"Example":"Random year"}: <b>${esc(y.label)}</b>`;
-  $("menu").innerHTML=`<div class="mh">Possible results</div>`+res.map(x=>`<button type="button" role="menuitemradio" aria-checked="${x.k===S.key}" data-k="${x.k}">${medal(x.plan)}<span>${esc(x.name)} wins</span><small>${esc(SAMPLES[x.k].label)}</small><span class="ck">${x.k===S.key?"✓":""}</span></button>`).join("");
+  $("pickcur").innerHTML=S.custom?`<b>Your story</b>`:`${SAMPLES[S.key]?"Example":"Random year"}: <b>${esc(y.label)}</b>`;
+  $("menu").innerHTML=`<div class="mh">Possible results</div>`+res.map(x=>`<button type="button" role="menuitemradio" aria-checked="${x.k===S.key&&!S.custom}" data-k="${x.k}">${medal(x.plan)}<span>${esc(x.name)} wins</span><small>${esc(SAMPLES[x.k].label)}</small><span class="ck">${x.k===S.key?"✓":""}</span></button>`).join("");
 }
 function menuOpen(open){
   $("menu").hidden=!open; $("caret").setAttribute("aria-expanded",String(open));
@@ -393,11 +424,12 @@ document.addEventListener("click",e=>{ if(!$("menu").hidden&&!e.target.closest("
 
 function setNote(){
   $("msgnote").classList.remove("warn");
-  $("msgnote").textContent="aityx reads this message for each person's care and any pregnancy. Try a what-if under the results to see the winner change.";
+  $("msgnote").textContent=live()?"aityx reads this for each person's care and any pregnancy. Write your own year: name who's on the plan (or say I, my wife, our two kids) and what care each one needs."
+    :"aityx reads this message for each person's care and any pregnancy. Try a what-if under the results to see the winner change.";
   $("chips").hidden=true;
 }
 function msgChanged(){ S.msgEdited=true; if(S.A){ S.dirty=true; document.body.classList.add("dirty"); updateGo(); }
-  const n=$("msgnote"); n.textContent="Message changed. Press Compare plans and aityx reads it again."; n.classList.add("warn"); liveNote("Message changed. Press Compare plans and aityx reads it again.","warn"); }
+  const t="Story changed. Press Compare plans: aityx reads who's in it and each person's year."; const n=$("msgnote"); n.textContent=t; n.classList.add("warn"); liveNote(t,"warn"); }
 function countChars(){ const n=$("msg").value.length; $("count").textContent=`${n}/600`; }
 function lockInputs(){
   const lk=!live(); document.body.classList.toggle("locked",lk);
@@ -417,6 +449,10 @@ function renderFamily(){
     <span class="lbl">age</span><input type="number" min="0" max="110" value="${m.age}" data-m="${m.id}" data-f="age" aria-label="${esc(m.name)} age">
     <button class="x" type="button" data-del="${m.id}" aria-label="Remove ${esc(m.name)}" ${S.members.length<2?"disabled":""}>×</button></div>`).join("");
   $("add").hidden=S.members.length>=MAX_PEOPLE;
+  const guessed=S.members.filter(m=>m.guess);
+  $("famnote").hidden=!S.custom;
+  $("famnote").textContent=!S.custom?"":!S.found?"Your story doesn't name anyone, so these are the people priced.":
+    `Read from your story.${guessed.length?` It doesn't give ${guessed.length>1?"these ages":"this age"} (${guessed.map(m=>m.name).join(", ")}), so ${guessed.length>1?"they're guesses":"it's a guess"}.`:""}`;
   lockInputs();
 }
 function renderRules(){
@@ -436,7 +472,7 @@ function renderUnderstood(){
 }
 function renderResult(flash){
   const A=S.A; document.body.classList.toggle("noans",!A);
-  renderUnderstood(); setNote(); renderWhatIf(); updateGo();
+  renderUnderstood(); setNote(); renderWhatIf(); if(!document.body.classList.contains("reading")) updateGo(); renderStoryRead();
   if(A){
     const res=V(A,"plan_results")||[], tot=V(A,"plan_totals")||[], best=V(A,"best_plan"), sav=Number(V(A,"savings")), by=V(A,"choose_by");
     const T=Object.fromEntries(tot.map(t=>[t.plan,t])), bp=res.find(r=>r.plan===best)||res[0];
@@ -480,8 +516,17 @@ function heroHTML(bp,second,T,sav,by){
     ${rows.map(([l,a,b])=>`<tr><td>${l}</td><td class="w">${money(a)}</td><td>${money(b)}</td><td>${delta(a,b)}</td></tr>`).join("")}</tbody></table></div>
     <p class="whyline">${whyText(bp,second)}</p></div>`;
 }
+// The story the result is for, and what aityx read in it for each person: so a new story shows as itself.
+function renderStoryRead(){
+  const box=$("storyread"), m=effMembers(), t=$("msg").value.trim();
+  if(!S.custom||!S.A){ box.hidden=true; box.innerHTML=""; return; }
+  box.hidden=false;
+  box.innerHTML=`<span class="kick">Your story, as aityx read it</span>
+    <blockquote>${esc(t.length>220?t.slice(0,217).trimEnd()+"…":t)}</blockquote>
+    <div class="who">${m.map(p=>`<span class="pc"><b>${esc(p.name)}</b>${p.guess?"":`, ${p.age}`} · ${esc(CARE[p.care]||p.care)}${isAdult(p)&&born(p)?" · having a baby":""}</span>`).join("")}</div>`;
+}
 function renderWhatIf(){
-  const ws=WHATIF[S.key]||[], rec=RECORDINGS[S.key], box=$("whatif");
+  const ws=S.custom?[]:WHATIF[S.key]||[], rec=RECORDINGS[S.key], box=$("whatif");
   if(!ws.length){ box.innerHTML=""; box.hidden=true; return; }
   box.hidden=false;
   box.innerHTML=`<span class="kick">What if…</span><div class="wis">${ws.map(w=>{
@@ -502,7 +547,7 @@ function renderStories(){
   box.innerHTML=Object.keys(SAMPLES).filter(k=>RECORDINGS[k]).map(k=>{
     const A=RECORDINGS[k].call.res.answers, best=V(A,"best_plan"), r=(V(A,"plan_results")||[]).find(x=>x.plan===best), t=(V(A,"plan_totals")||[]).find(x=>x.plan===best);
     if(!r||!t) return "";
-    return `<button class="story" type="button" data-story="${k}" aria-current="${k===S.key}"><span class="w">${esc(SAMPLES[k].label)}: <em>${esc(r.name)}</em> wins</span><span class="n">${money(t.total)}</span><small>${esc(SAMPLES[k].members.map(m=>m.name).join(", "))}</small></button>`;
+    return `<button class="story" type="button" data-story="${k}" aria-current="${k===S.key&&!S.custom}"><span class="w">${esc(SAMPLES[k].label)}: <em>${esc(r.name)}</em> wins</span><span class="n">${money(t.total)}</span><small>${esc(SAMPLES[k].members.map(m=>m.name).join(", "))}</small></button>`;
   }).join("");
   box.parentElement.hidden=!box.innerHTML.trim();
 }
@@ -613,7 +658,7 @@ document.addEventListener("click",e=>{
   if(b.dataset.del){ if(S.members.length<2) return; S.members=S.members.filter(m=>m.id!==b.dataset.del); renderFamily(); setNote(); queueLive(); return; }
   if(b.id==="add"){ if(S.members.length>=MAX_PEOPLE) return; S.n++; S.members.push({id:`p${S.n}`,name:`Person ${S.members.length+1}`,age:30,care:"light",pregnant:0,src:{care:"you",pregnant:"you"}});
     renderFamily(); setNote(); if(S.A) renderUnderstood(); queueLive(); const i=$("fam").querySelectorAll("input[type=text]"); i[i.length-1].select(); return; }
-  if(b.id==="go"){ if(live()&&S.jevRead&&!document.body.classList.contains("pending")) compareAgain(); else compare(); return; }
+  if(b.id==="go"){ if(document.body.classList.contains("reading")) return; if(live()&&S.jevRead&&!document.body.classList.contains("pending")) compareAgain(); else compare(); return; }
   if(b.classList.contains("againbtn")){ compareAgain(); return; }
   if(b.dataset.story){ load(b.dataset.story); compare(); return; }
   if(b.id==="recall"){ recordAll(); return; }

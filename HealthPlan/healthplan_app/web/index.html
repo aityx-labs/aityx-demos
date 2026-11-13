@@ -80,6 +80,7 @@
   </div>
   <h3>Who's on the plan</h3>
   <div class="fam" id="fam"></div>
+  <p class="note famnote" id="famnote" hidden></p>
   <button class="ghost" id="add" type="button">+ Add person</button>
   <p class="lockline">🔒 Set your aityx key to change who's on the plan.</p>
   <h3>How the year looks</h3>
@@ -92,7 +93,8 @@
 <section class="panel after" id="result" aria-live="polite" aria-labelledby="h-res">
   <p class="step">Step 4</p>
   <h2 id="h-res">Which plan costs you less</h2>
-  <div class="live" id="live"></div>
+  <div class="live" id="live" role="status"></div>
+  <div class="storyread needans" id="storyread" hidden></div>
   <div class="hero needans" id="hero"></div>
   <div class="whatif needans" id="whatif"></div>
   <div class="plans needans" id="plans"></div>
@@ -149,6 +151,7 @@
 
 <script src="aityx.js"></script>
 <script src="recordings.js"></script>
+<script src="story.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

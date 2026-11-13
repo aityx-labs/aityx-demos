@@ -30,11 +30,27 @@ an ongoing condition and a surgery (Gold); and their what-if switches. The plans
 message stay locked. With a key, the message can be rewritten: Compare plans then has aityx read
 it again.
 
+A rewritten story brings its own people. aityx's questions are about the
+people it's given, so before the call the page reads who the story is about
+([story.js](healthplan_app/web/story.js), no model, no network): the names it
+gives ("Tom has Crohn's", "Leo and Ava need checkups", "our daughter Lily
+(7)"), the one writing ("I", "me", "my"), and people named only by how
+they're related ("my wife", "our two kids"), with the ages it writes. They
+replace the list in step 3 (up to six; someone already on it keeps their age
+and what the visitor set; an age the story doesn't give is a guess, 35 for an
+adult and 8 for a kid, and the list says so). A story that names no one is
+read for the people already listed, and the result says so. While aityx
+reads, **Compare plans** says "Reading your story…" and can't be pressed
+again, and the result says what is being read. The result then opens with
+**Your story, as aityx read it**: the story and each person's year as aityx
+read it. The example's what-if switches don't apply to a story of your own.
+
 ## Technology
 
 | Part | Technology |
 |---|---|
 | App ([healthplan_app/web/](healthplan_app/web)) | A static page: HTML, CSS and plain JavaScript, no framework and no packages |
+| Who's in a story | [story.js](healthplan_app/web/story.js), `Story.peopleIn()`: the people a rewritten message names, before aityx reads their year |
 | Rules | Written by the page for each call ([app.js](healthplan_app/web/app.js), `buildDecision()`): the plans, the prices of care, and the pricing as decisions; Jev's questions in `jevQuestions()` |
 | aityx | [aityx.js](healthplan_app/web/aityx.js): the key, where calls go, and the key check, as in [packages/aityx_js](../packages/aityx_js/README.md) |
 | Recorded calls | [recordings.js](healthplan_app/web/recordings.js): each example year's call, and each what-if's, as aityx returned them |

@@ -81,16 +81,29 @@ what the chat's words settle wins over the model's answer:
   before the amount ("Mo did the grocery run, $420"; a second amount of
   the sentence is theirs too), else who booked or paid right after ("$2,450.
   Sam booked it and paid", "on Hana's card"); else the model's. It's drinks
-  when the words about it are of alcohol, and only then. A label whose
-  words aren't in the chat's words about the amount is replaced by those.
+  when the words about it are of alcohol: drinks, kinds of them (wine,
+  beer, bourbon, prosecco, mimosas, IPAs...) or where they're bought or
+  served (a liquor store, the bar tab, the pub). The words about an amount
+  are those before it in its sentence (from the amount before), the few
+  right after it, up to the next clause ("$85 on beer and snacks"), and,
+  when those say nothing of what it was, the sentence before ("Leo picked
+  up the bourbon. It came to $68"). "Jo doesn't drink" is about Jo, not an
+  amount. The model's "drinks" stands when those words say nothing of what
+  it was (no food, no place), never against them. A label whose words
+  aren't in the chat's words about the amount is replaced by those; when
+  those words are only "it" or "them" ("Ana booked it, $1,200"), the
+  model's label stays if its words are in the chat ("Cabin").
   An amount the model missed is filled in when the chat says who paid it;
   else a note says so: "$90 is in the chat but not in the lists: add it
   below".
 - **The host.** "At Mom's", "Hal's name is on the booking", "Sam booked
   it"; else the model's, else who paid for the lodging.
 
-Nothing to split (no one to pay, or no amount) is an error, shown under the
-chat. Then the lists are replaced, the trip is labeled **Your trip**, and,
+While it reads, the page says so where the visitor looks (see [The
+page](page.md)). Nothing to split (no one to pay, or no amount) is an
+error, shown under the chat and in the result. Then the lists are
+replaced, the trip is labeled **Your trip**, the result opens with what was
+read, and,
 as for a story, aityx reads the chat for who isn't paying and who doesn't
 drink, and settles it (see [Settling](settling.md)); without a key, the
 page shows the browser's own estimate and asks for one. Every list stays

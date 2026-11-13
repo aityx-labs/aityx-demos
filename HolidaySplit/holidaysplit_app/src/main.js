@@ -356,29 +356,54 @@ let READING=false;
 // Whether the chat is the story's own text: then its lists are the story's own, exact, and nothing is read.
 const sameAsStory=()=>$("msg").value.trim()===SAMPLES[S.key].text.trim();
 function readerNote(t,cls){ const n=$("readnote"); n.hidden=!t; n.className="note readnote"+(cls?" "+cls:""); n.textContent=t||""; }
+// While the chat is read: the button and the result both say so, with the time it has taken (or the
+// first download), and the result from before is hidden, as it's for the old lists.
+function readingUI(on){
+  const g=$("go"); g.disabled=on; g.classList.toggle("busy",on); if(!on) g.textContent="Split it";
+  document.body.classList.toggle("reading",on);
+}
 async function readChat(){
   const text=$("msg").value.trim();
   if(!text||READING) return;
-  READING=true; $("go").disabled=true;
-  readerNote("aityx is reading the chat…"); liveNote("aityx is reading the chat…");
+  READING=true;
+  const wasPending=document.body.classList.contains("pending");
+  document.body.classList.remove("pending"); readingUI(true);
   // Another story or holiday picked while it reads (load() makes a new S): its answer is for the old chat, and is dropped.
-  const at=S, moved=()=>S!==at;
+  const at=S, moved=()=>S!==at, t0=performance.now();
+  let got=null; // the first download, 0..1, while it lasts
+  const say=()=>{ if(moved()) return;
+    const sec=Math.round((performance.now()-t0)/1000), dl=got!=null&&got<1;
+    $("go").textContent=dl?`Getting ready… ${Math.round(got*100)}%`:`Reading your chat… ${sec} s`;
+    const t=dl?`Getting aityx ready in your browser: ${Math.round(got*100)}%. The first time only, then it reads your chat.`
+      :`Reading your chat… ${sec} s. aityx is finding who comes, for how many nights, what was spent and what's drinks, on this device. It takes 15 to 40 seconds.`;
+    readerNote(dl?t:`Reading your chat… ${sec} s`); liveNote(t,"busy"); };
+  const tick=setInterval(say,1000); say();
   try{
-    const out=await reader.read(text,{
-      onProgress:p=>{ if(!moved()) readerNote(p<1?`Getting aityx ready in your browser: ${Math.round(p*100)}% (the first time only)`:"aityx is reading the chat…"); },
-      onToken:n=>{ if(!moved()) readerNote(`aityx is reading the chat… ${n}`); }});
+    const out=await reader.read(text,{onProgress:p=>{ got=p; say(); }});
     if(moved()) return;
-    applyTrip(out.trip); S.chatChanged=false;
-    const t=out.trip, adults=t.people.filter(p=>!p.guardians.length).length, kids=t.people.length-adults;
-    readerNote(`aityx read the chat in ${(out.ms/1000).toFixed(1)} s: ${adults} adult${adults===1?"":"s"}${kids?`, ${kids} kid${kids===1?"":"s"}`:""} and ${t.expenses.length} expense${t.expenses.length===1?"":"s"}${t.notes.length?` (${t.notes.join("; ")})`:""}. Check the lists: fix anything it got wrong.`,"ok");
-    document.body.classList.remove("pending"); run();
+    applyTrip(out.trip); S.chatChanged=false; S.readMs=out.ms; S.readNotes=out.trip.notes;
+    readerNote(`aityx read your chat in ${(out.ms/1000).toFixed(1)} s. Check the lists below.`,"ok");
+    run();
     if(live()) readLive();
     else liveNote("Set your aityx key to settle this trip on aityx. The amounts below are your browser's estimate.","warn");
   }catch(e){
     if(moved()) return;
-    readerNote(`aityx couldn't read the chat: ${e.message}. Write it more plainly, or fix the lists by hand.`,"warn");
-    liveNote("");
-  }finally{ READING=false; $("go").disabled=false; }
+    const t=`aityx couldn't read the chat: ${e.message}. Write it more plainly, or fix the lists by hand.`;
+    readerNote(t,"warn"); liveNote(t,"warn");
+    if(wasPending) document.body.classList.add("pending");
+  }finally{ clearInterval(tick); READING=false; if(!moved()) readingUI(false); }
+}
+// What aityx read from the chat the visitor wrote, at the top of the result: the trip is theirs.
+function renderReadSum(){
+  const n=$("readsum"); if(!S.custom){ n.hidden=true; n.innerHTML=""; return; }
+  const adults=S.people.filter(p=>!isKid(p)), kids=S.people.filter(isKid), dry=adults.filter(p=>!p.drinks), drinks=S.expenses.filter(e=>e.kind==="drinks");
+  const name=id=>(S.people.find(p=>p.id===id)||{name:id}).name;
+  n.hidden=false;
+  n.innerHTML=`<span class="kick">Your trip, as aityx read it${S.readMs?` in ${(S.readMs/1000).toFixed(1)} s`:""}</span>
+    <span><b>${adults.length} adult${adults.length===1?"":"s"}</b>: ${esc(list(adults.map(p=>p.name)))}${kids.length?` · <b>${kids.length} kid${kids.length===1?"":"s"}</b>: ${esc(list(kids.map(k=>`${k.name} (${k.age})`)))}`:""}</span>
+    <span><b>${S.expenses.length} expense${S.expenses.length===1?"":"s"}</b>: ${S.expenses.map(e=>`${esc(e.what)} ${money(Math.round(e.amount*100))} <small>(${esc(name(e.by))}${e.kind==="drinks"?", drinks":""})</small>`).join(" · ")}</span>
+    <span>${drinks.length?`<b>Drinks</b>: ${esc(list(drinks.map(e=>e.what)))}, split ${S.rules.drinksOnly?"among the people who drink":"by everyone (house rule)"}${dry.length?`; ${esc(list(dry.map(p=>p.name)))} ${dry.length===1?"doesn't":"don't"} drink`:S.jevRead?"; everyone drinks":""}.`:"No drinks in the chat, so the drinks rule doesn't apply."}</span>
+    ${S.readNotes&&S.readNotes.length?`<span class="soft">${esc(S.readNotes.join("; "))}.</span>`:""}`;
 }
 function applyTrip(t){
   Object.assign(S,{start:t.start,host:t.host,label:"Your trip",nudge:"",custom:true,
@@ -526,7 +551,7 @@ function render(first){
   $("who").className=xm?"stockings":"people";
   $("who").innerHTML=R.payers.map((p,i)=>xm?`<button type="button" class="stocking" data-w="${p.id}" aria-pressed="${p.id===S.focus}" aria-label="${esc(p.name)}'s receipt">${stockingSVG(i)}<span>${esc(p.name)}<small class="who-amt">${amt(p)}</small></span></button>`
     :`<button type="button" class="tab" data-w="${p.id}" aria-pressed="${p.id===S.focus}">${esc(p.name)}<small class="who-amt">${amt(p)}</small></button>`).join("");
-  renderReceipt(); renderJevNote(); renderCall();
+  renderReceipt(); renderJevNote(); renderReadSum(); renderCall();
 }
 const SRC={get ai(){return (live()||S.recorded)&&S.jevRead?"AI read this":"pre-read"},rule:"house rule",you:"your input"};
 function rdata(id){ const R=S.R; return {R,p:R.byId[id],net:R.net[id],outs:R.tx.filter(t=>t.from===id),ins:R.tx.filter(t=>t.to===id),lines:R.lines[id]}; }
@@ -707,7 +732,7 @@ document.addEventListener("click",e=>{
     b.setAttribute("aria-pressed",S.exempt.has(id)); const n=$("nudge"); if(n) n.remove(); S.focus=id; run(); return; }
   // The story's own words, untouched or changed back: its own lists, exactly, with nothing to read.
   if(b.id==="go"&&S.chatChanged&&sameAsStory()){ const r=S.rules; load(S.key); S.rules=r; renderRules(); }
-  else if(b.id==="go"&&S.chatChanged){ readChat(); $("result").scrollIntoView({behavior:"smooth"}); return; }
+  else if(b.id==="go"&&S.chatChanged){ readChat(); $("result").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"start"}); return; }
   if(b.id==="go"&&S.custom&&!live()){ document.body.classList.remove("pending"); run(); liveNote("Set your aityx key to settle this trip on aityx. The amounts below are your browser's estimate.","warn"); return; }
   if(b.id==="go"){ document.body.classList.remove("pending"); if(live()){ run(); readLive(); } else showRecorded(); $("result").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"start"}); return; }
   if(b.id==="recall"){ recordAll(); return; }

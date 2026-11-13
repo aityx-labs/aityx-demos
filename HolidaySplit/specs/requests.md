@@ -105,3 +105,23 @@ feature files in this folder describe the software as it is now.
      first read downloads the model) let the old chat's lists replace the
      new story's. The reading is dropped once another one is picked
      ([The page](page.md)).
+
+## 2026-11-13
+
+1. **Make the AI reading of a story noticeable, and catch which expenses
+   are drinks.** It took a while, the progress showed under the chat, far
+   from **Split it**, and the old result stayed on screen, so it looked like
+   nothing happened; and the reader missed drinks, so the "doesn't drink"
+   rule never applied.
+   - While a chat is read, **Split it** counts the seconds (or the first
+     download), step 4 says "Reading your chat…" with what's read and how
+     long it takes, and the old receipt is hidden ([The page](page.md)).
+   - A chat the visitor wrote opens step 4 with **Your trip, as aityx read
+     it**: people, expenses with payer and drinks, and how drinks are split.
+   - Drinks are told by more words (kinds of alcohol, a liquor store, the
+     bar tab), by the words right after an amount and, when its sentence
+     says nothing, by the sentence before; the model's "drinks" stands
+     when the chat's words say nothing of what an amount was ([Trip
+     reader](trip-reader.md)).
+   - A label cleanup bug: "them" lost its "the" ("M"); and a lodging
+     booked as "it" keeps the model's label ("Cabin").

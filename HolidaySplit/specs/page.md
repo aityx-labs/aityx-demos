@@ -18,12 +18,21 @@ prototype, in five numbered steps:
    **Split it** then reads it into the lists (see [Trip
    reader](trip-reader.md)); changed back to the story's own text, it uses
    the story's own lists again. Another holiday or story picked while the
-   chat is being read drops that reading: the lists stay the new story's. With a key, the lists can be edited: **+
+   chat is being read drops that reading: the lists stay the new story's.
+   While a chat is read, **Split it** can't be pressed again and counts
+   the seconds ("Reading your chat… 12 s", or "Getting ready… 40%" during
+   the first download), the page scrolls to step 4, and step 4 says the
+   same with what's being read and how long it takes; the receipt from
+   before is hidden, as it's for the old lists. With a key, the lists can be edited: **+
    Adult**, **+ Kid**, **+ Expense**.
 3. **Set the house rules**: free and half-price ages, splitting lodging by
    nights, drinks only among the people who drink, days to pay by. Each
    change runs on aityx again. **Split it** shows the result.
-4. **Get everyone's receipt**: who pays whom, then a receipt per person,
+4. **Get everyone's receipt**: for a chat the visitor wrote, first **Your
+   trip, as aityx read it**: the adults and kids, each expense with who
+   paid it and whether it's drinks, how the drinks are split and who
+   doesn't drink, and the reader's notes; it follows the lists as they're
+   fixed. Then who pays whom, and a receipt per person,
    each line with its source (what aityx read, a house rule, your
    input), **Copy receipt as image** and **Copy who pays whom for the group
    chat**.

@@ -125,3 +125,55 @@ feature files in this folder describe the software as it is now.
      reader](trip-reader.md)).
    - A label cleanup bug: "them" lost its "the" ("M"); and a lodging
      booked as "it" keeps the model's label ("Cabin").
+
+## 2026-11-18
+
+1. **Review the stories' default texts: correct, reading well, and the
+   math works out.** Each story's lists, recorded aityx call and receipts
+   were checked against each other: every receipt adds up, the transfers
+   settle every balance to the cent, and what aityx read (who drinks, who
+   doesn't pay) matches the lists. The texts were fixed where they were
+   wrong or read out of order ([The page](page.md)):
+   - Every chat now runs the place and the dates, who's coming, who comes
+     late or isn't paying, then what was spent (Thanksgiving at Mom's,
+     Friendsgiving, Grandma June's, Vermont); Ana is introduced at the
+     cabin before she pays for groceries.
+   - Christmas at the cabin's outcome names Leo and Tess, who come late
+     too; New Year's at the lake's says four, not five, come late or leave
+     early.
+   - New Year's in the mountains: from Dec 28, leaving a night early meant
+     missing New Year's Eve, so Ken and Ari come a night late instead
+     (the same 3 nights).
+   - Every booker says they paid; Mom "isn't paying a share" instead of
+     "not paying a cent" next to the $310 she spent; the badge without a
+     key says "Demo", not "Prototype".
+2. **The note "aityx read 85% that Mom isn't paying. That clears the
+   rules' 80% bar…" is confusing: drop it, but highlight what aityx did.**
+   Above the receipts, the note now says in plain words what aityx read in
+   the group chat, with the names in bold: who isn't paying ("Mom isn't
+   paying, so the others cover that share") and who doesn't drink ("Bea
+   doesn't drink and pays no share of the drinks", when the house rules
+   split drinks among the people who drink). No probabilities: those stay
+   in step 5, the aityx call. What the visitor set by hand is left out of
+   it, and "You changed who pays…" still says when their choice counts.
+3. **Tapping Grandma Rose doesn't seem to work.** Without a key the house
+   rules are locked, so the "Who doesn't pay?" chips can't be pressed, yet
+   the sample's nudge said "Try it: tap Grandma Rose". A nudge's "Try it"
+   part now shows only while the chips can be pressed (with a key); what
+   it says is already marked ("Chris turns 40…") always shows. Each "Try
+   it" names a chip that exists and says what the tap does: the lake's
+   "tap Lina" (a kid, with no chip) became "tap Chris to put Chris back in
+   the split", and the cabin's "tap Grandma Rose to treat her this year".
+4. **In "See the aityx call", state the parts aityx calculated and ran,
+   its AI questions and the rules included.** Step 5 opens with **What
+   aityx ran**: the AI questions (how many, the 80% bar, what they found)
+   and the house rules, run by aityx as a decision with no AI, with what
+   they computed; and what the browser did. Named aityx, not Jev, as the
+   demos' copy does. Checked live with a key, the tap on Grandma Rose
+   works; the cabin's chat now says by name that Rose doesn't drink, as
+   aityx missed it in "Neither of them drinks".
+5. **Recorded again with a key, on prod.** The nine samples' calls
+   ([src/recordings.json](../holidaysplit_app/src/recordings.json)) were
+   recorded again with the new texts (`#record`, **Record all examples**):
+   what aityx read matches every sample's lists, and every receipt and
+   transfer adds up.

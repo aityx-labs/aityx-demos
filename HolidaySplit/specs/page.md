@@ -26,8 +26,11 @@ prototype, in five numbered steps:
    before is hidden, as it's for the old lists. With a key, the lists can be edited: **+
    Adult**, **+ Kid**, **+ Expense**.
 3. **Set the house rules**: free and half-price ages, splitting lodging by
-   nights, drinks only among the people who drink, days to pay by. Each
-   change runs on aityx again. **Split it** shows the result.
+   nights, drinks only among the people who drink, days to pay by, and
+   who doesn't pay (a chip per adult). Each change runs on aityx again;
+   without a key they're locked. A sample's nudge says who's already
+   marked, and its "Try it: tap …" shows only when the chips can be
+   pressed. **Split it** shows the result.
 4. **Get everyone's receipt**: for a chat the visitor wrote, first **Your
    trip, as aityx read it**: the adults and kids, each expense with who
    paid it and whether it's drinks, how the drinks are split and who
@@ -36,8 +39,14 @@ prototype, in five numbered steps:
    each line with its source (what aityx read, a house rule, your
    input), **Copy receipt as image** and **Copy who pays whom for the group
    chat**.
-5. **See the aityx call**: the house rules, the request and the response,
-   as key parts or the full JSON.
+5. **See the aityx call**: first **What aityx ran**, in plain words: its
+   AI questions (how many, what an answer needs to count, and what they
+   found: who isn't paying, who doesn't drink) and the house rules, run
+   as a decision with no AI (the shares, who covers whom, the transfers,
+   the date to pay by, every receipt line); the browser only words the
+   receipts and draws the page (and reads a rewritten chat into the
+   lists). Then the house rules, the request and the response, as key
+   parts or the full JSON.
 
 The page takes the mood of the holiday (colors, fonts, garlands, fireworks
 or leaves, a countdown), from Google Fonts and inline SVG and canvas.
@@ -60,7 +69,7 @@ holiday:
   kids across two families (from a baby, free, to a 19-year-old who pays
   full but can't drink), two who leave a night early, one who comes for 2
   nights and one from the 30th, three who don't drink, a 40th birthday the
-  others cover, and seven expenses with cents, paid by five people.
+  others cover, and seven expenses with cents, paid by six people.
 
 Each story has a real aityx call recorded with a key
 ([src/recordings.json](../holidaysplit_app/src/recordings.json)), shown

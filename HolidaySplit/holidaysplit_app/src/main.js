@@ -7,8 +7,8 @@ import * as aityx from "./aityx.js";
 import * as reader from "./reader.js";
 
 const SAMPLES = {
-  cabin:{trip:"cabin",kind:"all",result:"Ray and Ben come late. Zoe, 16, pays full. Rose and Ana skip the drinks.",label:"Christmas at the cabin",start:"2026-12-23",host:"sam",
-    text:"Christmas at a cabin in the Smokies, 5 nights from Dec 23, $2,450. Sam booked it and paid.\n\nJan and Mo are bringing the kids, Lily (4), Max (12) and Zoe (16). Grandma Rose is coming too, she doesn't drink.\n\nLeo only makes it for the last 2 nights, and his girlfriend Tess comes with him. Uncle Ray drives up on the 25th, so 3 nights, with his son Ben (9).\n\nMo did the grocery run, $420, and Ana did the second one on the 26th, $185. Ana doesn't drink. Sam got the wine and beer, $180, and Ray brought the eggnog and whiskey, $95. Tess paid for everyone's sledding passes, $120.",
+  cabin:{trip:"cabin",kind:"all",result:"Leo, Tess, Ray and Ben come late. Zoe, 16, pays full. Rose and Ana skip the drinks.",label:"Christmas at the cabin",start:"2026-12-23",host:"sam",
+    text:"Christmas at a cabin in the Smokies, 5 nights from Dec 23, $2,450. Sam booked it and paid.\n\nJan and Mo are bringing the kids, Lily (4), Max (12) and Zoe (16). Grandma Rose and Ana are coming too. Rose doesn't drink, and Ana doesn't either.\n\nLeo only makes it for the last 2 nights, and his girlfriend Tess comes with him. Uncle Ray drives up on the 25th, so 3 nights, with his son Ben (9).\n\nMo did the grocery run, $420, and Ana did the second one on the 26th, $185. Sam got the wine and beer, $180, and Ray brought the eggnog and whiskey, $95. Tess paid for everyone's sledding passes, $120.",
     people:[
       {id:"sam",name:"Sam",age:null,nights:5,drinks:true},
       {id:"jan",name:"Jan",age:null,nights:5,drinks:true},
@@ -23,8 +23,8 @@ const SAMPLES = {
       {id:"ben",name:"Ben",age:9,nights:3,drinks:false,guardians:["ray"]},
       {id:"ana",name:"Ana",age:null,nights:5,drinks:false}],
     expenses:[{kind:"lodging",what:"Cabin",amount:2450,by:"sam"},{kind:"groceries",what:"Groceries",amount:420,by:"mo"},{kind:"groceries",what:"Second grocery run",amount:185,by:"ana"},{kind:"drinks",what:"Wine and beer",amount:180,by:"sam"},{kind:"drinks",what:"Eggnog and whiskey",amount:95,by:"ray"},{kind:"other",what:"Sledding passes",amount:120,by:"tess"}],
-    exempt:[], nudge:"Try it: tap Grandma Rose."},
-  ski:{trip:"ski",kind:"out",result:"Chris turns 40 and doesn't pay. Five come late or leave early. Lina, 19, can't drink.",label:"New Year's at the lake",start:"2026-12-29",host:"priya",
+    exempt:[], nudge:"Try it: tap Grandma Rose to treat her this year."},
+  ski:{trip:"ski",kind:"out",result:"Chris turns 40 and doesn't pay. Four come late or leave early. Lina, 19, can't drink.",label:"New Year's at the lake",start:"2026-12-29",host:"priya",
     text:"New Year's at the lake house, 4 nights from Dec 29, $3,600, plus the boathouse loft for the overflow, $640. Priya booked both and paid.\n\nIt's Priya, Dev, Maya, Tom, Lu, Chris, Nadia, Omar, Kenji and Ruth. Dev and Maya bring the twins, Ari and Eli (7), and baby June (1). Nadia and Omar bring Sami (14) and Lina (19), who's in college and can't drink yet.\n\nTom and Lu leave on the 1st, a night early. Kenji only makes it for New Year's Eve and the night after, 2 nights. Ruth arrives on the 30th, so 3 nights.\n\nChris is turning 40 on the 31st, so it's on us this year: Chris doesn't pay a thing. Dev and Maya don't drink, and neither does Ruth.\n\nMaya paid for groceries, $485.60. Omar did a second grocery run, $212.35. Tom got the champagne and drinks, $318.90. Kenji brought the fireworks, $150. Lu paid for the New Year's Eve dinner, $420.",
     people:[
       {id:"priya",name:"Priya",age:null,nights:4,drinks:true},
@@ -43,9 +43,9 @@ const SAMPLES = {
       {id:"kenji",name:"Kenji",age:null,nights:2,drinks:true},
       {id:"ruth",name:"Ruth",age:null,nights:3,drinks:false}],
     expenses:[{kind:"lodging",what:"Lake house",amount:3600,by:"priya"},{kind:"lodging",what:"Boathouse loft",amount:640,by:"priya"},{kind:"groceries",what:"Groceries",amount:485.6,by:"maya"},{kind:"groceries",what:"Second grocery run",amount:212.35,by:"omar"},{kind:"drinks",what:"Champagne and drinks",amount:318.9,by:"tom"},{kind:"other",what:"Fireworks",amount:150,by:"kenji"},{kind:"other",what:"New Year's Eve dinner",amount:420,by:"lu"}],
-    exempt:["chris"], nudge:"Chris turns 40, so Chris is marked as not paying. Try it: tap Lina."},
+    exempt:["chris"], nudge:"Chris turns 40, so Chris is marked as not paying. Try it: tap Chris to put Chris back in the split."},
   thanks:{trip:"thanks",kind:"out",result:"Mom hosts and doesn't pay. The others cover her share.",label:"Thanksgiving at Mom's",start:"2026-11-26",host:"mom",
-    text:"Thanksgiving at Mom's on Nov 26.\n\nMom bought the turkey and groceries, $310, and says she's not paying a cent, it's her house. Carlos brought wine, $95. Bea made the pies, $48, and doesn't drink.\n\nBea's partner Sam is coming. Uncle Joe brings his kids, Nina (3), Theo (8) and Ava (15).",
+    text:"Thanksgiving at Mom's on Nov 26. It's her house, so Mom isn't paying a share.\n\nCarlos and Bea are coming, and Bea's partner Sam. Uncle Joe brings his kids, Nina (3), Theo (8) and Ava (15). Bea doesn't drink.\n\nMom bought the turkey and groceries, $310. Carlos brought wine, $95, and Bea made the pies, $48.",
     people:[
       {id:"mom",name:"Mom",age:null,nights:1,drinks:true},
       {id:"carlos",name:"Carlos",age:null,nights:1,drinks:true},
@@ -58,7 +58,7 @@ const SAMPLES = {
     expenses:[{kind:"groceries",what:"Turkey and groceries",amount:310,by:"mom"},{kind:"drinks",what:"Wine",amount:95,by:"carlos"},{kind:"groceries",what:"Pies",amount:48,by:"bea"}],
     exempt:["mom"], nudge:"Mom said she's not paying, so we already marked her."},
   cabin_out:{trip:"cabin",kind:"out",result:"Grandpa Walt is the group's treat. The others cover him.",label:"Christmas in Vermont",start:"2026-12-22",host:"nora",
-    text:"Christmas at a farmhouse in Vermont, 4 nights from Dec 22, $1,600. Nora booked it and paid.\n\nGrandpa Walt is our treat this year, he doesn't pay a thing. Eli and Rae bring their son Finn (9). Rae doesn't drink.\n\nEli did the groceries, $380. Nora got the wine and eggnog, $150.",
+    text:"Christmas at a farmhouse in Vermont, 4 nights from Dec 22, $1,600. Nora booked it and paid.\n\nGrandpa Walt is coming, and Eli and Rae bring their son Finn (9). Rae doesn't drink. Walt is our treat this year: he doesn't pay a thing.\n\nEli did the groceries, $380. Nora got the wine and eggnog, $150.",
     people:[
       {id:"nora",name:"Nora",age:null,nights:4,drinks:true},
       {id:"walt",name:"Grandpa Walt",age:null,nights:4,drinks:true},
@@ -78,7 +78,7 @@ const SAMPLES = {
     expenses:[{kind:"lodging",what:"Lake cabin",amount:1200,by:"dana"},{kind:"groceries",what:"Groceries",amount:300,by:"kai"},{kind:"drinks",what:"Drinks",amount:120,by:"jo"}],
     exempt:[], nudge:"Try it: tap Dana to treat her this year."},
   ski_out:{trip:"ski",kind:"out",result:"It's Iris's birthday. The others cover her share.",label:"New Year's at the beach",start:"2026-12-30",host:"rafa",
-    text:"Beach house for New Year's, 3 nights from Dec 30, $1,950. Rafa booked it.\n\nIt's Rafa, Iris, Noah, Zoe and Sam. It's Iris's birthday, so the rest of us are covering her this time. Noah doesn't drink.\n\nZoe got the groceries, $270. Sam bought the champagne, $160.",
+    text:"Beach house for New Year's, 3 nights from Dec 30, $1,950. Rafa booked it and paid.\n\nRafa, Iris, Noah, Zoe and Sam are coming. Noah doesn't drink. It's Iris's birthday, so the rest of us are covering her this time.\n\nZoe got the groceries, $270. Sam bought the champagne, $160.",
     people:[
       {id:"rafa",name:"Rafa",age:null,nights:3,drinks:true},
       {id:"iris",name:"Iris",age:null,nights:3,drinks:true},
@@ -87,8 +87,8 @@ const SAMPLES = {
       {id:"sam",name:"Sam",age:null,nights:3,drinks:true}],
     expenses:[{kind:"lodging",what:"Beach house",amount:1950,by:"rafa"},{kind:"groceries",what:"Groceries",amount:270,by:"zoe"},{kind:"drinks",what:"Champagne",amount:160,by:"sam"}],
     exempt:["iris"], nudge:"It's Iris's birthday, so she's marked as not paying."},
-  ski_mtn:{trip:"ski",kind:"all",result:"Ken and Ari leave early. Ari skips the drinks.",label:"New Year's in the mountains",start:"2026-12-28",host:"jules",
-    text:"Mountain cabin for New Year's, 4 nights from Dec 28, $2,000. Jules booked it.\n\nIt's Jules, Ken, Ari, Bo and Lee. Ken and Ari leave a night early. Ari doesn't drink.\n\nBo got the groceries, $320. Ken got the drinks, $200.",
+  ski_mtn:{trip:"ski",kind:"all",result:"Ken and Ari come a night late. Ari skips the drinks.",label:"New Year's in the mountains",start:"2026-12-28",host:"jules",
+    text:"Mountain cabin for New Year's, 4 nights from Dec 28, $2,000. Jules booked it and paid.\n\nIt's Jules, Ken, Ari, Bo and Lee. Ken and Ari come a night late, on the 29th. Ari doesn't drink.\n\nBo got the groceries, $320. Ken got the drinks, $200.",
     people:[
       {id:"jules",name:"Jules",age:null,nights:4,drinks:true},
       {id:"ken",name:"Ken",age:null,nights:3,drinks:true},
@@ -98,7 +98,7 @@ const SAMPLES = {
     expenses:[{kind:"lodging",what:"Mountain cabin",amount:2000,by:"jules"},{kind:"groceries",what:"Groceries",amount:320,by:"bo"},{kind:"drinks",what:"Drinks",amount:200,by:"ken"}],
     exempt:[], nudge:""},
   thanks_all:{trip:"thanks",kind:"multi",result:"Pat and Gus get paid back. Leo, 10, pays half.",label:"Friendsgiving at Pat's",start:"2026-11-26",host:"pat",
-    text:"Friendsgiving at Pat's on Nov 26.\n\nPat made the turkey, $140. Gus brought sides and dessert, $90. Mel brought wine, $60.\n\nKim doesn't drink and brings her son Leo (10).",
+    text:"Friendsgiving at Pat's on Nov 26.\n\nGus, Mel and Kim are coming, and Kim brings her son Leo (10). Kim doesn't drink.\n\nPat made the turkey, $140. Gus brought sides and dessert, $90. Mel brought wine, $60.",
     people:[
       {id:"pat",name:"Pat",age:null,nights:1,drinks:true},
       {id:"gus",name:"Gus",age:null,nights:1,drinks:true},
@@ -108,7 +108,7 @@ const SAMPLES = {
     expenses:[{kind:"groceries",what:"Turkey",amount:140,by:"pat"},{kind:"groceries",what:"Sides and dessert",amount:90,by:"gus"},{kind:"drinks",what:"Wine",amount:60,by:"mel"}],
     exempt:[], nudge:""},
   thanks_june:{trip:"thanks",kind:"multi",result:"Hal and Ivy paid. The others pay them both back.",label:"Thanksgiving at Grandma June's",start:"2026-11-26",host:"june",
-    text:"Thanksgiving at Grandma June's on Nov 26.\n\nHal bought the turkey and groceries, $260. Ivy brought wine, $70.\n\nIvy's partner Cy is coming. Hal brings his kids, Ty (6) and Em (13).",
+    text:"Thanksgiving at Grandma June's on Nov 26.\n\nHal brings his kids, Ty (6) and Em (13). Ivy is coming with her partner Cy.\n\nHal bought the turkey and groceries, $260. Ivy brought wine, $70.",
     people:[
       {id:"june",name:"Grandma June",age:null,nights:1,drinks:true},
       {id:"hal",name:"Hal",age:null,nights:1,drinks:true},
@@ -172,7 +172,7 @@ async function post(body){
 }
 function liveNote(t,cls){ const n=$("live"); n.className="live"+(cls?" "+cls:""); n.textContent=t; }
 function connectUI(){
-  $("recall").hidden=!(live()&&REC_MODE); $("mode").textContent=live()?"Live · aityx":"Prototype";
+  $("recall").hidden=!(live()&&REC_MODE); $("mode").textContent=live()?"Live · aityx":"Demo";
   if(S){ lockInputs(); setNote(false); }
   keyStatus();
 }
@@ -271,6 +271,12 @@ function showRecorded(){
   S.jevRead=true; S.recorded=rec;
   renderFacts(); renderRules(); S.R=compute(); applyRec(S.R,rec); render(false);
   liveNote(`Recorded from a real aityx call on ${rec.when}. Connect a key above to change the rules and run it live.`,"ok");
+}
+// A sample's nudge: what's already marked, then "Try it: tap …", which needs the chips (a key).
+function nudgeHtml(s){
+  if(!s) return "";
+  const i=s.indexOf("Try it:"), note=i<0?s:s.slice(0,i).trim(), tryIt=i<0?"":s.slice(i);
+  return `<div class="nudge${note?"":" tryonly"}" id="nudge">${esc(note)}${tryIt?`<span class="try">${note?" ":""}${esc(tryIt)}</span>`:""}</div>`;
 }
 function lockInputs(){
   const lk=!live(); document.body.classList.toggle("locked",lk);
@@ -512,7 +518,7 @@ function renderRules(){
   <div class="rule">Everyone pays <input type="number" id="r-due" min="0" max="60" value="${r.dueDays}" aria-label="Days before the trip"> days before the trip</div>
   <div class="rule">Who doesn't pay?
     ${adults.map(p=>`<button type="button" class="chip" data-x="${p.id}" aria-pressed="${S.exempt.has(p.id)}">${esc(p.name)}</button>`).join("")}
-    ${S.nudge?`<div class="nudge" id="nudge">${esc(S.nudge)}</div>`:""}</div>`;
+    ${nudgeHtml(S.nudge)}</div>`;
   lockInputs(); renderDecisionView();
 }
 function renderFacts(){
@@ -632,16 +638,18 @@ function hl(o){ return esc(JSON.stringify(o,null,2))
 let VIEW="key";
 const pct=v=>Math.round(v*100)+"%";
 function readAnswers(){ if(live()) return S.jevRead&&LIVE.read&&LIVE.read.res&&LIVE.read.res.answers; return S.recorded&&S.recorded.read&&S.recorded.read.res&&S.recorded.read.res.answers; }
-// Plain words for what aityx read about who pays. The cut-off itself lives in the decision (evidence_threshold).
+// What aityx read in the chat and what it changed, in plain words: who isn't paying, who doesn't drink.
+// What the visitor set by hand wins, and says so.
 function renderJevNote(){
-  const n=$("jevnote"), a=readAnswers(); if(!a){ n.hidden=true; return; }
-  const bar=pct(EVIDENCE);
-  const rows=S.people.filter(p=>!isKid(p)).map(p=>({p,v:a[`${p.id}_not_paying`]&&a[`${p.id}_not_paying`].noul})).filter(x=>typeof x.v==="number"&&x.v>=EVIDENCE);
-  if(!rows.length&&!S.exemptByYou){ n.hidden=true; return; }
-  n.hidden=false;
-  n.innerHTML=rows.map(({p,v})=>`<span>aityx read <b>${pct(v)}</b> that ${esc(p.name)} isn't paying. That clears the rules' ${bar} bar, so ${esc(p.name)} sits out and the others cover the share.</span>`).join("")
-    +(S.exemptByYou?`<span>You changed who pays in the house rules, so your choice counts.</span>`:"");
-  if(S.exemptByYou&&!rows.length) n.innerHTML=`<span>You changed who pays in the house rules, so your choice counts.</span>`;
+  const n=$("jevnote"), a=readAnswers(), adults=S.people.filter(p=>!isKid(p));
+  const read=(q,keep)=>a?adults.filter(p=>keep(p)&&((a[`${p.id}_${q}`]||{}).noul||0)>=EVIDENCE).map(p=>esc(p.name)):[];
+  const out=S.exemptByYou?[]:read("not_paying",()=>true), dry=read("no_drinks",p=>!p.edited.drinks);
+  const said=[];
+  if(out.length) said.push(`<b>${list(out)}</b> ${out.length>1?"aren't":"isn't"} paying, so the others cover ${out.length>1?"those shares":"that share"}.`);
+  if(dry.length) said.push(`<b>${list(dry)}</b> ${dry.length>1?"don't":"doesn't"} drink${S.rules.drinksOnly?` and ${dry.length>1?"pay":"pays"} no share of the drinks`:""}.`);
+  const html=(said.length?`<span>aityx read the group chat: ${said.join(" ")}</span>`:"")
+    +(S.exemptByYou?"<span>You changed who pays in the house rules, so your choice counts.</span>":"");
+  n.hidden=!html; n.innerHTML=html;
 }
 const RULE_KEYS=["free_age","half_age","split_by_nights","drinkers_split_drinks","pay_days_before","evidence_threshold"];
 function slimReadReq(r){ return r&&{questions:Object.fromEntries(Object.entries(r.questions||{}).map(([k,q])=>[k,q.instructions])),state:r.state}; }
@@ -653,22 +661,31 @@ function slimSettleRes(r){ if(!r||!r.answers) return r; const a=r.answers, val=x
   const out={answers:{}}; ["exempt_ids","transfers","pay_by"].forEach(k=>{ if(k in a) out.answers[k]=val(a[k]); });
   const rc=a.receipts&&a.receipts.value; if(rc) out.answers.receipts=rc.filter(x=>x.id===S.focus);
   if(r.decision_error) out.decision_error=r.decision_error; return out; }
+// What aityx ran, in plain words, above the JSON: its AI questions (the read) and the house rules (the decision).
 function renderGist(read,settle){
   const g=$("gist"), ra=read&&read.res&&read.res.answers, sr=settle&&settle.res, sa=sr&&sr.answers;
   if(!ra&&!sr){ g.hidden=true; return; } g.hidden=false;
-  const nm=id=>(S.R.byId[id]||{name:id}).name; let h="";
-  if(ra){ const rows=Object.entries(ra).map(([q,x])=>[q,x&&x.noul]).filter(([,v])=>typeof v==="number").sort((x,y)=>y[1]-x[1]);
-    const shown=rows.filter(([,v])=>v>=0.15), rest=rows.length-shown.length;
-    h+=`<h4>Step 1 · aityx read the message (AI)</h4><ul>${shown.map(([q,v])=>`<li><code>${esc(q)}</code><span class="pct${v>=EVIDENCE?" hit":""}">${pct(v)} ${v>=EVIDENCE?"· counts":"· under "+pct(EVIDENCE)+", doesn't count"}</span></li>`).join("")}${rest?`<li class="soft">${rest} more questions read under 15%, so they don't count</li>`:""}</ul>`; }
-  if(sr){ h+=`<h4>Step 2 · The rules settled it (no AI)</h4>`;
-    if(sr.decision_error) h+=`<ul><li class="soft">decision_error: ${esc(sr.decision_error.message||sr.decision_error.code||"")}</li></ul>`;
-    else if(sa){ const ex=sa.exempt_ids&&sa.exempt_ids.value, tx=(sa.transfers&&sa.transfers.value)||[], due=sa.pay_by&&sa.pay_by.date;
-      h+=`<ul><li><code>exempt_ids</code><span>${ex&&ex.length?esc(list(ex.map(nm))):"nobody, everyone pays"}</span></li>
-      <li><code>pay_by</code><span>${esc(due||"")}</span></li>
-      <li><code>transfers</code><span>${tx.length?tx.map(t=>`${esc(nm(t.from))} → ${esc(nm(t.to))} <span class="pct hit">$${Number(t.amount).toFixed(2)}</span>`).join("<br>"):"nobody owes anything"}</span></li></ul>`; } }
+  const nm=id=>(S.people.find(p=>p.id===id)||{name:id}).name;
+  const hits=suf=>Object.entries(ra||{}).filter(([q,x])=>q.endsWith(suf)&&x&&typeof x.noul==="number"&&x.noul>=EVIDENCE).map(([q])=>esc(nm(q.slice(0,-suf.length))));
+  let h="<h4>What aityx ran</h4><ol>";
+  if(ra){
+    const n=Object.keys(ra).length, out=hits("_not_paying"), dry=hits("_no_drinks");
+    const found=[out.length?`<b>${list(out)}</b> ${out.length>1?"aren't":"isn't"} paying`:"",dry.length?`<b>${list(dry)}</b> ${dry.length>1?"don't":"doesn't"} drink`:""].filter(Boolean);
+    h+=`<li><b>AI questions</b> <span class="tag">AI</span><span>aityx read the group chat with ${n} yes/no questions: for each adult, whether they aren't paying and whether they don't drink. An answer counts at ${pct(EVIDENCE)} or more. ${found.length?`It found: ${found.join("; ")}.`:"It found nobody who isn't paying or doesn't drink."}</span></li>`;
+  }
+  if(sr){
+    const name=settle.req&&settle.req.decision&&settle.req.decision.name;
+    if(sr.decision_error) h+=`<li><b>The house rules</b> <span class="tag">no AI</span><span>aityx couldn't run them: ${esc(sr.decision_error.message||sr.decision_error.code||"")}.</span></li>`;
+    else if(sa){
+      const tx=(sa.transfers&&sa.transfers.value)||[], due=sa.pay_by&&sa.pay_by.date;
+      h+=`<li><b>The house rules</b> <span class="tag">no AI</span><span>aityx ran them as a decision${name?` (${esc(name)})`:""}, the same math every time: each person's share by age${S.rules.byNights?" and nights":""}, drinks among ${S.rules.drinksOnly?"the people who drink":"all adults"}, who covers the people who don't pay, who pays whom (${tx.length?`${tx.length} transfer${tx.length>1?"s":""}`:"nobody owes anything"}), the date to pay by${due?` (${esc(fmtDate(new Date(due+"T00:00:00Z")))})`:""} and every line of every receipt.</span></li>`;
+    }
+  }
+  h+=`</ol><p class="soft">Your browser only words the receipts and draws the page${S.readMs?"; it also turned your own chat into the lists, before these calls":""}.</p>`;
   g.innerHTML=h;
 }
 function showCall(read,settle,head,status){
+  renderGist(read,settle);
   const k=VIEW==="key", two=(a,b)=>a&&b?{"1_aityx_reads_the_message":a,"2_rules_settle":b}:(a||b||{});
   const q1=read&&(k?slimReadReq(read.req):read.req), q2=settle&&(k?slimSettleReq(settle.req):settle.req);
   const r1=read&&(k?slimReadRes(read.res):read.res), r2=settle&&(k?slimSettleRes(settle.res):settle.res);
@@ -676,6 +693,7 @@ function showCall(read,settle,head,status){
   $("res").innerHTML=(status?`<span class="c">// HTTP ${esc(status)}</span>\n`:"")+(k&&r2&&r2.answers&&r2.answers.receipts?`<span class="c">// receipts: only ${esc((S.R.byId[S.focus]||{}).name||"")}'s here</span>\n`:"")+hl(two(r1,r2));
 }
 function renderCall(){
+  $("gist").hidden=true;
   if(live()&&(LIVE.call||LIVE.read)){
     showCall(S.jevRead?LIVE.read:null,LIVE.call,`// POST ${aityx.endpoint()}\n// ${aityx.whose()}: the key never reaches this page`,(LIVE.call||LIVE.read).status);
     return;

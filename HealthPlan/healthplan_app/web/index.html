@@ -28,7 +28,7 @@
   <!-- No key anywhere, or changing it (the pill at the top, "Change your key"): the key, optionally the aityx URL, Save; changing, Forget key and Cancel too. A key that fails: "Change your key" and Check again. -->
   <form class="connect" id="connect" autocomplete="off" novalidate>
     <label class="field keyfield"><input type="password" id="keyin" name="key" aria-label="Your aityx key" placeholder="Your aityx key" autocomplete="off" spellcheck="false" autocapitalize="off"></label>
-    <label class="field urlfield"><input type="url" id="urlin" name="url" aria-label="aityx URL (optional)" placeholder="URL (optional)" spellcheck="false" autocapitalize="off"></label>
+    <label class="field urlfield"><input type="url" id="urlin" name="url" aria-label="aityx URL (optional)" placeholder="URL (optional)" value="https://api.aityx.ai" spellcheck="false" autocapitalize="off"></label>
     <button class="go" type="submit" id="keysave">Save</button>
     <button class="ghost" type="button" id="keyforget" hidden>Forget key</button>
     <button class="ghost" type="button" id="keycancel">Cancel</button>

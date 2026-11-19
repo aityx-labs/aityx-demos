@@ -135,6 +135,11 @@ void main() {
       );
       expect(find.byKey(keyField), findsOneWidget);
       expect(find.byKey(urlField), findsOneWidget);
+      // The URL starts as aityx's production one.
+      expect(
+        tester.widget<TextField>(find.byKey(urlField)).controller!.text,
+        'https://api.aityx.ai',
+      );
       expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
       expect(find.text('Get a key in the aityx console'), findsOneWidget);
       // The key isn't shown as typed.

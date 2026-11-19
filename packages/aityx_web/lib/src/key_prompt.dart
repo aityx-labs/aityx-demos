@@ -69,7 +69,7 @@ class _AityxKeyPromptState extends State<AityxKeyPrompt> {
   StreamSubscription<void>? _changes;
   late final AppLifecycleListener _lifecycle;
   final _key = TextEditingController();
-  final _url = TextEditingController();
+  final _url = TextEditingController(text: aityxDefaultUrl);
 
   /// Whether there's no key anywhere: false until the first look says so.
   bool _needed = false;

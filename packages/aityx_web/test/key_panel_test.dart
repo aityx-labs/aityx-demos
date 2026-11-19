@@ -181,6 +181,11 @@ void main() {
       tester.widget<TextField>(find.byKey(keyField)).controller!.text,
       isEmpty,
     );
+    // The URL starts as aityx's production one, with none stored.
+    expect(
+      tester.widget<TextField>(find.byKey(urlField)).controller!.text,
+      'https://api.aityx.ai',
+    );
 
     await tester.enterText(find.byKey(keyField), 'good-key-1234');
     await tester.tap(find.byKey(saveButton));
@@ -214,6 +219,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(store.key, isNull);
     expect(text(tester, said), 'Forgotten: no key of yours in this browser.');
+    expect(
+      tester.widget<TextField>(find.byKey(urlField)).controller!.text,
+      'https://api.aityx.ai',
+    );
     expect(text(tester, status), 'No key yet.');
     expect(find.byKey(panel), findsOneWidget);
     expect(lightColor(tester), AityxStatusLight.red.withValues(alpha: 0.8));

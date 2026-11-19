@@ -140,7 +140,7 @@ const endpoint=()=>LIVE.conn?LIVE.conn.systemone:DEFAULT_URL+"/v1/systemone";
 // Forget key and Cancel. Embedded (?embed=1), the form of the page around the app instead.
 function openKey(){ if(CONN.state==="none"){ $("keyin").focus(); return; } if(EMBED){ window.parent.postMessage("aityx:key","*"); return; } changeKey(true); }
 function changeKey(on){
-  document.body.classList.toggle("keychange",on); $("keymsg").textContent=""; if(!on){ $("keyin").value=""; $("urlin").value=""; }
+  document.body.classList.toggle("keychange",on); $("keymsg").textContent=""; if(!on){ $("keyin").value=""; $("urlin").value=DEFAULT_URL; }
   ui();
   if(on){ $("keystrip").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"center"}); $("keyin").focus({preventScroll:true}); }
 }
@@ -170,7 +170,7 @@ async function saveKey(e){
     try{ for(const s of ["sessionStorage","localStorage"]){ try{ window[s].removeItem("aityx.key"); window[s].removeItem("aityx.url"); }catch(_){} }
       localStorage.setItem("aityx.key",key); if(url!==DEFAULT_URL) localStorage.setItem("aityx.url",url); }
     catch(_){ return say("aityx accepts the key, but this browser could not save it."); }
-    $("keyin").value=""; $("urlin").value=""; document.body.classList.remove("keychange"); checkKey();
+    $("keyin").value=""; $("urlin").value=DEFAULT_URL; document.body.classList.remove("keychange"); checkKey();
   } finally{ savingKey=false; $("keysave").disabled=false; $("keysave").textContent="Save"; }
 }
 // the header's way back to the demos page: not shown embedded, where the user stays on the page around the app

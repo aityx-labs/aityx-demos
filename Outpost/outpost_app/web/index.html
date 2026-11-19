@@ -464,7 +464,7 @@ body:not(.locked) #setkey{font-size:13px;padding:6px 11px;border-radius:9px;back
           <!-- No key anywhere, or changing it (the light, "Change key"): the key, optionally the aityx URL, Save; changing, Forget key and Cancel too. -->
           <form class="connect" id="connect" autocomplete="off" novalidate>
             <label class="keyin"><input type="password" id="keyin" name="key" aria-label="Your aityx key" placeholder="Your aityx key" autocomplete="off" spellcheck="false" autocapitalize="off"></label>
-            <label class="urlin"><input type="url" id="urlin" name="url" aria-label="aityx URL (optional)" placeholder="URL (optional)" spellcheck="false" autocapitalize="off"></label>
+            <label class="urlin"><input type="url" id="urlin" name="url" aria-label="aityx URL (optional)" placeholder="URL (optional)" value="https://api.aityx.ai" spellcheck="false" autocapitalize="off"></label>
             <button class="button primary" type="submit" id="keysave">Save</button>
             <button class="button sm" type="button" id="keyforget" hidden>Forget key</button>
             <button class="button sm" type="button" id="keycancel">Cancel</button>

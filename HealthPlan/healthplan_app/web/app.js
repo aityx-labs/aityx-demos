@@ -167,7 +167,7 @@ function showConnPanel(){
 // Changing the key, here: the pill at the top and "Change your key" open the key form in the panel, with
 // Forget key (the user's own) and Cancel. With no key at all the form is there already.
 function changeKey(on){
-  CHANGING=on&&CONN.state!=="idle"; $("keymsg").textContent=""; if(!on){ $("keyin").value=""; $("urlin").value=""; }
+  CHANGING=on&&CONN.state!=="idle"; $("keymsg").textContent=""; if(!on){ $("keyin").value=""; $("urlin").value="https://api.aityx.ai"; }
   showConnPanel();
   if(on){ $("connpanel").scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"center"}); $("keyin").focus({preventScroll:true}); }
 }
@@ -186,7 +186,7 @@ async function saveKey(){
     const st=await Aityx.check(Aityx.userConnection(key,url));
     if(st.kind!=="ready") return say((st.kind==="rejected"?"aityx rejected the key":st.kind==="unreachable"?"aityx did not answer (the network, or the URL is wrong)":st.detail)+". Not saved.");
     if(!Aityx.save(key,url)) return say("aityx accepts the key, but this browser could not save it.");
-    $("keyin").value=""; $("urlin").value=""; CHANGING=false; refreshConnection();
+    $("keyin").value=""; $("urlin").value="https://api.aityx.ai"; CHANGING=false; refreshConnection();
   } finally{ savingKey=false; $("keysave").disabled=false; $("keysave").textContent="Save"; }
 }
 $("connect").addEventListener("submit",e=>{ e.preventDefault(); saveKey(); });

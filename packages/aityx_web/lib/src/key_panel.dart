@@ -192,11 +192,9 @@ class _AityxKeyPanelState extends State<AityxKeyPanel> {
   String? _said;
   bool _bad = false;
 
-  /// The stored URL, when it isn't aityx's own: what the field starts with.
-  String get _storedUrl {
-    final url = _keys.url;
-    return url == null || url == aityxDefaultUrl ? '' : url;
-  }
+  /// What the URL field starts with: the stored URL, or aityx's production
+  /// one.
+  String get _storedUrl => _keys.url ?? aityxDefaultUrl;
 
   @override
   void initState() {
@@ -313,7 +311,7 @@ class _AityxKeyPanelState extends State<AityxKeyPanel> {
   void _forget() {
     _keys.forget();
     _key.clear();
-    _url.clear();
+    _url.text = aityxDefaultUrl;
     _say('Forgotten: no key of yours in this browser.', bad: false);
   }
 

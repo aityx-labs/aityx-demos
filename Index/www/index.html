@@ -6,7 +6,7 @@
   <!-- Nothing but this origin's own script runs here, and it talks only to
        this origin. Keep it the same as bin/server.dart's header (which can
        forbid framing too). -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.aityx.ai; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="same-origin">
   <title>aityx demos</title>
   <meta name="description" content="The aityx demos, games and apps: what each shows, and where to open it.">
@@ -79,8 +79,40 @@
     .btn svg { width: 15px; height: 15px; }
     .btn:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--orange-light); outline-offset: 2px; }
     h3.section { margin: 36px 0 12px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+    .meta { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+    .aityx-status:empty { display: none; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 6px 12px;
+      font-size: 13.5px; font-weight: 600; color: var(--fg); background: var(--bg1); border: 1px solid var(--border);
+    }
+    .pill .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+    .pill.ok .dot { background: var(--green); box-shadow: 0 0 0 3px rgba(76, 195, 138, .18); }
+    .pill.bad { border-color: rgba(240, 80, 110, .5); }
+    .pill.bad .dot { background: var(--red); }
+    .pill.wait .dot { background: var(--amber); }
+    a.pill.signin { background: var(--orange); border-color: var(--orange); color: var(--fg0); }
+    a.pill.signin .dot { background: var(--fg0); }
+    a.pill.signin:hover { background: var(--orange-light); text-decoration: none; }
+    a.pill:focus-visible { outline: 2px solid var(--orange-light); outline-offset: 2px; }
+    button.pill { cursor: pointer; font-family: inherit; }
+    button.pill:focus-visible { outline: 2px solid var(--orange-light); outline-offset: 2px; }
+    /* The key form: only when neither the console nor this server has a key that works, or to change yours. */
+    .key { max-width: 1100px; margin: 18px auto 0; padding: 18px 20px; border-radius: 14px; background: var(--bg1); border: 1px solid var(--border);
+      display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 32px; align-items: start; }
+    .key[hidden] { display: none; }
+    .key h2 { grid-column: 1 / -1; margin: 0; font-size: 17px; }
+    .key form { display: flex; flex-direction: column; gap: 10px; }
+    .key input { font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; width: 100%; }
+    .key .field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 600; color: var(--fg); }
+    .key .buttons { margin-top: 2px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .key [hidden] { display: none; }
+    .key .result { font-size: 14px; margin: 0; }
+    .key .result:empty { display: none; }
+    .key .result.bad { color: var(--red); }
+    .key .note { margin: 0; color: var(--muted); font-size: 13.5px; }
+    @media (max-width: 760px) { .key { grid-template-columns: minmax(0, 1fr); } }
     footer { max-width: 1100px; margin: 40px auto 0; color: var(--muted); font-size: 13.5px; border-top: 1px solid var(--border); padding-top: 18px; }
-    @media (max-width: 600px) { header { padding-top: 24px; } .meta { text-align: left; } }
+    @media (max-width: 600px) { header { padding-top: 24px; } .meta { text-align: left; align-items: flex-start; } }
   </style>
 </head>
 <body>
@@ -96,9 +128,32 @@
       </div>
     </div>
     <div class="meta">
+      <div class="aityx-status" id="aityx-status" role="status" aria-live="polite"></div>
       <a href="https://github.com/aityx-labs/aityx-demos" target="_blank" rel="noopener">github.com/aityx-labs/aityx-demos</a>
     </div>
   </header>
+
+  <section class="key" id="aityx-key" aria-labelledby="aityx-key-title" hidden>
+    <h2 id="aityx-key-title">Your aityx key</h2>
+    <form id="key-form" autocomplete="off" novalidate>
+      <label class="field" for="key-input">Key
+        <input type="password" id="key-input" name="key" placeholder="Paste your aityx key" autocomplete="off" spellcheck="false" autocapitalize="off" required>
+      </label>
+      <label class="field" for="url-input">URL
+        <input type="url" id="url-input" name="url" placeholder="https://api.aityx.ai" value="https://api.aityx.ai" spellcheck="false" autocapitalize="off">
+      </label>
+      <div class="buttons">
+        <button class="btn primary" type="submit" id="key-save">Check and save</button>
+        <button class="btn" type="button" id="key-forget" hidden>Forget key</button>
+        <button class="btn" type="button" id="key-cancel" hidden>Cancel</button>
+      </div>
+      <p class="result" id="key-result" role="status" aria-live="polite"></p>
+    </form>
+    <div>
+      <p class="note">No key yet? In the <a id="key-console" href="https://console.aityx.ai" target="_blank" rel="noopener">aityx console</a>,
+        open <strong>API keys</strong> and create one, or sign in there and play every demo in its <strong>Demos</strong> tab.</p>
+    </div>
+  </section>
 
   <main>
     <h3 class="section" id="games-title">Games</h3>

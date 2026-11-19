@@ -107,6 +107,7 @@ textarea{width:100%;min-height:140px;resize:none;overflow:hidden;background:var(
 .chip{font:500 14px var(--display);color:var(--fg);background:transparent;border:1px dashed var(--line);border-radius:99px;padding:5px 12px;cursor:pointer}
 .chip[aria-pressed="true"]{border-style:solid;border-color:var(--acc);color:var(--acc2);background:rgba(var(--acc-rgb),.08)}
 .nudge{font-size:13.5px;color:var(--acc2);width:100%}
+body.locked .nudge .try,body.locked .nudge.tryonly{display:none}
 input[type=number]{background:var(--ink);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font:500 15px var(--display);font-variant-numeric:tabular-nums}
 input.money{width:96px}
 input[type=checkbox]{accent-color:var(--acc);width:17px;height:17px}
@@ -218,9 +219,11 @@ details.call{background:var(--ink)}
 .gist[hidden]{display:none}
 .gist h4{margin:6px 0 0;font:500 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .gist h4:first-child{margin-top:0}
-.gist ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}
-.gist li{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.gist li>span:last-child{text-align:right}
+.gist ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px}
+.gist li{line-height:1.45}
+.gist li>span:last-child{display:block}
+.gist .tag{font:600 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;border:1px solid currentColor;border-radius:999px;padding:1px 7px;margin-left:6px;color:var(--acc2);vertical-align:1px}
+.gist p{margin:0}
 .gist code{font:500 12.5px var(--mono)}
 .gist .pct{font:600 13px var(--mono);font-variant-numeric:tabular-nums}
 .gist .hit{color:var(--acc2)}

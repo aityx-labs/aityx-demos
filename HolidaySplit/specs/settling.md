@@ -8,7 +8,9 @@ Two aityx calls per trip, from the page itself
    (`noul`), `<id>_not_paying` (the chat says they won't pay a share: their
    house, the group's treat, a birthday), and, for each adult who may
    drink, `<id>_no_drinks`. An answer at least 0.8 likely (the decision's
-   `evidence_threshold`) counts. What you set by hand wins.
+   `evidence_threshold`) counts. What you set by hand wins. Above the
+   receipts, a note says in plain words what aityx read: who isn't paying
+   and who doesn't drink, by name.
 2. **The house rules settle it**: the decision model `Example · Holiday
    split` (`DECISION` in main.js), with the house rules written into its
    constants (`free_age`, `half_age`, `split_by_nights`,

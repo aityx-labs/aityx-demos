@@ -272,13 +272,32 @@ async function checkConsole() {
   return verdict(a.status, body);
 }
 
+// A fetch and its JSON body (null when it has none), given up after `ms`:
+// a server that never answers, or keeps the body open, throws as one that
+// can't be reached does, so no check waits forever.
+async function fetchJson(url, init, ms = 15000) {
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), ms);
+  try {
+    const r = await fetch(url, { ...init, signal: stop.signal });
+    let body = null;
+    if ((r.headers.get('content-type') || '').includes('json')) {
+      try { body = await r.json(); } catch (_) { body = null; }
+    } else {
+      await r.text().catch(() => '');
+    }
+    if (stop.signal.aborted) throw new Error('timed out');
+    return { r, body };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // 2. The index server's key.
 async function serverKey() {
   try {
-    const r = await fetch('aityx/config', { cache: 'no-store' });
-    if (!r.ok || !(r.headers.get('content-type') || '').includes('json')) return null;
-    const c = await r.json();
-    return c && c.available === true ? c : null;
+    const { r, body } = await fetchJson('aityx/config', { cache: 'no-store' });
+    return r.ok && body && body.available === true ? body : null;
   } catch (_) {
     return null;
   }
@@ -289,18 +308,15 @@ async function serverKey() {
 async function checkCall(url, key) {
   const headers = { 'Content-Type': 'application/json' };
   if (key) headers.Authorization = 'Bearer ' + key;
-  let r;
   try {
-    r = await fetch(url + '/v1/systemone', {
+    const { r, body } = await fetchJson(url + '/v1/systemone', {
       method: 'POST', headers, body: '{}', cache: 'no-store',
       credentials: key ? 'omit' : 'same-origin', referrerPolicy: 'no-referrer',
     });
+    return verdict(r.status, body);
   } catch (_) {
     return { ok: false, label: 'not reachable', detail: key ? 'aityx did not answer (the network, or the URL is wrong)' : 'the index server did not answer' };
   }
-  let body = null;
-  try { body = await r.json(); } catch (_) { body = null; }
-  return verdict(r.status, body);
 }
 
 function showStatus(state, label, tip, onClick) {
@@ -341,24 +357,34 @@ function changeKey() {
 
 // At most one check every 30 s (on start, and when the page comes back into
 // view): each check is a call on the key's account, though no model runs.
+// A forced check (the key saved, forgotten or changed, here or in another
+// tab) asked for while one runs is queued: the running one's answers are
+// then about a key that may be gone, so `stale()` drops them and the queued
+// check runs as soon as it ends.
 let lastCheck = 0;
 let checking = false;
+let again = false;
+const stale = () => again;
 async function checkAityx(force = false) {
-  if (checking || (!force && Date.now() - lastCheck < 30000)) return;
+  if (checking) { if (force) again = true; return; }
+  if (!force && Date.now() - lastCheck < 30000) return;
   checking = true;
   lastCheck = Date.now();
   try {
     showStatus('wait', 'Checking aityx…', 'Checking for an aityx key that works');
     if (bridged) {
       const a = await checkConsole();
+      if (stale()) return;
       if (a.ok) { showStatus('ok', 'aityx: working · signed in', 'The aityx console makes the calls, on the account you signed in with.'); showForm(false); return; }
       showStatus('bad', 'aityx: ' + a.label, 'Through the aityx console: ' + a.detail + '.');
       showForm(false);
       return;
     }
     const server = await serverKey();
+    if (stale()) return;
     if (server) {
       const a = await checkCall('aityx');
+      if (stale()) return;
       const where = server.url ? ' (' + server.url + ')' : '';
       if (a.ok) { showStatus('ok', 'aityx: working · server key', 'This server’s aityx key, from its environment' + where + ', works: every demo here uses it.'); showForm(changing); return; }
       // A server key that fails: say so, and offer the visitor's own.
@@ -375,12 +401,14 @@ async function checkAityx(force = false) {
       return;
     }
     const a = await checkCall(own.url, own.key);
+    if (stale()) return;
     const last4 = '…' + own.key.slice(-4);
     if (a.ok) { showStatus('ok', 'aityx: working · your key ' + last4, 'Your aityx key, saved in this browser, works. Tap to change or forget it.', changeKey); showForm(changing); return; }
     showStatus('bad', 'aityx: your key ' + a.label, 'Your aityx key ' + last4 + ': ' + a.detail + '. Tap to change it.', changeKey);
     showForm(true, 'Your saved key ' + last4 + ': ' + a.detail + '.');
   } finally {
     checking = false;
+    if (again) { again = false; checkAityx(true); }
   }
 }
 

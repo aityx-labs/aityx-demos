@@ -20,6 +20,8 @@
 // (bin/server.dart);
 // "codespace" is the group whose dev container (.devcontainer/<group>/) opens
 // it, or false.
+// The aityx website can leave some out: its console.json's "hide" lists
+// their slugs (see findConsole).
 const demos = [
   {
     kind: 'game', folder: 'Cellfie', name: 'Cellfie',
@@ -107,12 +109,18 @@ const codespaces = (d) =>
 // beside this page (its PUBLIC_CONSOLE_URL), so production, stage, each
 // preview link and its dev server all open their own console. Elsewhere
 // (the index server, a codespace) there is no such file: null.
+// The same file's "hide" lists the slugs of the demos this page leaves out
+// (each demo's "demos": false on the website); anything but a list of
+// strings, or no file, hides none.
 let consoleUrl = null;
+let hidden = [];
 async function findConsole() {
   try {
     const r = await fetch('console.json', { cache: 'no-cache' });
     if (!r.ok) return null;
-    const url = (await r.json()).console;
+    const json = await r.json();
+    const url = json.console, hide = json.hide;
+    if (Array.isArray(hide) && hide.every(s => typeof s === 'string')) hidden = hide;
     // An origin only: http(s), a host, no path.
     return typeof url === 'string' && /^https?:\/\/[^/?#]+$/.test(url) ? url : null;
   } catch (_) {
@@ -153,15 +161,19 @@ function card(d) {
   return el;
 }
 
-// Each group's cards into its grid: #games, #apps, sorted by name. Once
-// the console is known, so no Open ever points anywhere else first.
+// Each group's cards into its grid: #games, #apps, sorted by name, less
+// the hidden ones (a group left with none loses its title too). Once the
+// console is known, so no Open ever points anywhere else first.
 async function render() {
   consoleUrl = await findConsole();
   for (const kind of ['game', 'app']) {
     const grid = document.getElementById(kind + 's');
-    if (grid) grid.replaceChildren(...demos.filter(d => d.kind === kind)
+    const shown = demos.filter(d => d.kind === kind && !hidden.includes(slug(d)));
+    if (grid) grid.replaceChildren(...shown
       .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
       .map(card));
+    const title = document.getElementById(kind + 's-title');
+    if (title) title.hidden = !shown.length;
   }
 }
 // The aityx status, top right ---------------------------------------------
